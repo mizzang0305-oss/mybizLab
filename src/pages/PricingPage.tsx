@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
-import { LEGAL_LINKS, PRICING_PLANS, SERVICE_TAGLINE, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
+import { BUSINESS_INFO, LEGAL_LINKS, PRICING_PLANS, SERVICE_TAGLINE, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 export function PricingPage() {
   usePageMeta('요금제', '마이비즈랩의 Starter, Pro, Business 구독형 SaaS 요금제와 결제 안내를 확인하세요.');
