@@ -38,11 +38,14 @@ supabase/
 
 ### Browser public envs
 
-These values are exposed to the browser through Vite and must use the `VITE_` prefix.
+These values are exposed to the browser through Vite. The preferred PortOne names are
+`NEXT_PUBLIC_*`, and this app still accepts `VITE_*` as a compatibility fallback.
 
 - `VITE_APP_BASE_URL`
-- `VITE_PORTONE_STORE_ID`
-- `VITE_PORTONE_CHANNEL_KEY`
+- `NEXT_PUBLIC_PORTONE_STORE_ID`
+- `NEXT_PUBLIC_PORTONE_CHANNEL_KEY`
+- `VITE_PORTONE_STORE_ID` (fallback)
+- `VITE_PORTONE_CHANNEL_KEY` (fallback)
 - `VITE_DATA_PROVIDER`
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
@@ -52,8 +55,10 @@ These values are exposed to the browser through Vite and must use the `VITE_` pr
 
 These values must never be exposed with a `VITE_` prefix.
 
-- `PORTONE_V2_API_SECRET`
+- `PORTONE_API_SECRET`
 - `PORTONE_WEBHOOK_SECRET`
+- `PORTONE_STORE_ID`
+- `PORTONE_CHANNEL_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GEMINI_API_KEY`
@@ -63,10 +68,12 @@ These values must never be exposed with a `VITE_` prefix.
 Register these variables in Vercel Project Settings > Environment Variables for Development, Preview, and Production:
 
 - `VITE_APP_BASE_URL`
-- `VITE_PORTONE_STORE_ID`
-- `VITE_PORTONE_CHANNEL_KEY`
-- `PORTONE_V2_API_SECRET`
+- `PORTONE_API_SECRET`
 - `PORTONE_WEBHOOK_SECRET`
+- `PORTONE_STORE_ID`
+- `PORTONE_CHANNEL_KEY`
+- `NEXT_PUBLIC_PORTONE_STORE_ID`
+- `NEXT_PUBLIC_PORTONE_CHANNEL_KEY`
 
 Add the Supabase and Gemini variables too if those integrations are enabled in that environment.
 
@@ -77,4 +84,5 @@ Add the Supabase and Gemini variables too if those integrations are enabled in t
 - `npm run dev` serves only the Vite frontend. It does not run `/api/*`.
 - Use `vercel dev` or a Vercel Preview deployment when testing PortOne webhooks locally.
 - `/api/billing/webhook` requires `PORTONE_WEBHOOK_SECRET` for signature verification.
-- Future PortOne payment verification and billing-key server calls should use `PORTONE_V2_API_SECRET`.
+- `/api/billing/webhook` re-verifies known `Transaction.*` and `BillingKey.*` events by calling PortOne with `PORTONE_API_SECRET`.
+- Unknown webhook event types are ignored and return `200` so Standard Webhooks delivery is not blocked.

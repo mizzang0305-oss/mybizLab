@@ -11,11 +11,30 @@ export interface BillingEnv {
 
 export type BillingEnvKey = keyof BillingEnv;
 
+const BILLING_ENV_NAMES = {
+  apiSecret: {
+    fallbacks: ['PORTONE_V2_API_SECRET'],
+    primary: 'PORTONE_API_SECRET',
+  },
+  webhookSecret: {
+    fallbacks: [] as string[],
+    primary: 'PORTONE_WEBHOOK_SECRET',
+  },
+  storeId: {
+    fallbacks: ['NEXT_PUBLIC_PORTONE_STORE_ID', 'VITE_PORTONE_STORE_ID'],
+    primary: 'PORTONE_STORE_ID',
+  },
+  channelKey: {
+    fallbacks: ['NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'VITE_PORTONE_CHANNEL_KEY'],
+    primary: 'PORTONE_CHANNEL_KEY',
+  },
+} as const satisfies Record<BillingEnvKey, { primary: string; fallbacks: string[] }>;
+
 const BILLING_ENV_LABELS: Record<BillingEnvKey, string> = {
-  apiSecret: 'PORTONE_V2_API_SECRET',
-  webhookSecret: 'PORTONE_WEBHOOK_SECRET',
-  storeId: 'VITE_PORTONE_STORE_ID',
-  channelKey: 'VITE_PORTONE_CHANNEL_KEY',
+  apiSecret: BILLING_ENV_NAMES.apiSecret.primary,
+  webhookSecret: BILLING_ENV_NAMES.webhookSecret.primary,
+  storeId: BILLING_ENV_NAMES.storeId.primary,
+  channelKey: BILLING_ENV_NAMES.channelKey.primary,
 };
 
 export class BillingApiStageError extends Error {
@@ -46,6 +65,22 @@ function readServerEnv(name: string) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+function readServerEnvFromNames(names: readonly string[]) {
+  for (const name of names) {
+    const value = readServerEnv(name);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function getBillingEnvNames(key: BillingEnvKey) {
+  return [BILLING_ENV_NAMES[key].primary, ...BILLING_ENV_NAMES[key].fallbacks];
+}
+
 export function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?: Record<string, string>) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
@@ -58,25 +93,34 @@ export function responseJson(body: Record<string, unknown>, status = 200, extraH
 
 export function readBillingEnv(): BillingEnv {
   return {
-    apiSecret: readServerEnv('PORTONE_V2_API_SECRET'),
-    webhookSecret: readServerEnv('PORTONE_WEBHOOK_SECRET'),
-    storeId: readServerEnv('VITE_PORTONE_STORE_ID'),
-    channelKey: readServerEnv('VITE_PORTONE_CHANNEL_KEY'),
+    apiSecret: readServerEnvFromNames(getBillingEnvNames('apiSecret')),
+    webhookSecret: readServerEnvFromNames(getBillingEnvNames('webhookSecret')),
+    storeId: readServerEnvFromNames(getBillingEnvNames('storeId')),
+    channelKey: readServerEnvFromNames(getBillingEnvNames('channelKey')),
   };
 }
 
 export function getBillingEnvStatus(env: BillingEnv) {
   return {
-    PORTONE_V2_API_SECRET: Boolean(env.apiSecret),
-    PORTONE_WEBHOOK_SECRET: Boolean(env.webhookSecret),
-    VITE_PORTONE_STORE_ID: Boolean(env.storeId),
-    VITE_PORTONE_CHANNEL_KEY: Boolean(env.channelKey),
+    PORTONE_API_SECRET: Boolean(readServerEnv('PORTONE_API_SECRET')),
+    PORTONE_V2_API_SECRET: Boolean(readServerEnv('PORTONE_V2_API_SECRET')),
+    PORTONE_WEBHOOK_SECRET: Boolean(readServerEnv('PORTONE_WEBHOOK_SECRET')),
+    PORTONE_STORE_ID: Boolean(readServerEnv('PORTONE_STORE_ID')),
+    NEXT_PUBLIC_PORTONE_STORE_ID: Boolean(readServerEnv('NEXT_PUBLIC_PORTONE_STORE_ID')),
+    VITE_PORTONE_STORE_ID: Boolean(readServerEnv('VITE_PORTONE_STORE_ID')),
+    PORTONE_CHANNEL_KEY: Boolean(readServerEnv('PORTONE_CHANNEL_KEY')),
+    NEXT_PUBLIC_PORTONE_CHANNEL_KEY: Boolean(readServerEnv('NEXT_PUBLIC_PORTONE_CHANNEL_KEY')),
+    VITE_PORTONE_CHANNEL_KEY: Boolean(readServerEnv('VITE_PORTONE_CHANNEL_KEY')),
+    resolvedApiSecret: Boolean(env.apiSecret),
+    resolvedWebhookSecret: Boolean(env.webhookSecret),
+    resolvedStoreId: Boolean(env.storeId),
+    resolvedChannelKey: Boolean(env.channelKey),
   };
 }
 
 export function validateBillingEnv(required: BillingEnvKey[], endpoint: string, stage = 'env-load') {
   const env = readBillingEnv();
-  const missing = required.map((key) => BILLING_ENV_LABELS[key]).filter((name) => !readServerEnv(name));
+  const missing = required.filter((key) => !readServerEnvFromNames(getBillingEnvNames(key))).map((key) => BILLING_ENV_LABELS[key]);
 
   if (missing.length > 0) {
     throw new BillingApiStageError({
@@ -85,6 +129,7 @@ export function validateBillingEnv(required: BillingEnvKey[], endpoint: string, 
       code: 'SERVER_MISCONFIGURED',
       message: `Missing required env for ${endpoint}: ${missing.join(', ')}. ${SERVER_ENV_HINT}`,
       details: {
+        acceptedEnvNames: Object.fromEntries(required.map((key) => [BILLING_ENV_LABELS[key], getBillingEnvNames(key)])),
         missing,
         envStatus: getBillingEnvStatus(env),
       },

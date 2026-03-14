@@ -9,8 +9,8 @@ describe('PortOne env helpers', () => {
   });
 
   it('reads browser-facing PortOne env from import.meta.env-compatible values', () => {
-    vi.stubEnv('VITE_PORTONE_STORE_ID', 'store-v2-test');
-    vi.stubEnv('VITE_PORTONE_CHANNEL_KEY', 'channel-key-test');
+    vi.stubEnv('NEXT_PUBLIC_PORTONE_STORE_ID', 'store-v2-test');
+    vi.stubEnv('NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'channel-key-test');
     vi.stubEnv('VITE_APP_BASE_URL', 'https://example.com');
 
     expect(getPortOneBrowserEnv()).toEqual({
@@ -22,11 +22,12 @@ describe('PortOne env helpers', () => {
   });
 
   it('throws a clear error when browser PortOne env is missing', () => {
+    vi.stubEnv('NEXT_PUBLIC_PORTONE_STORE_ID', '');
     vi.stubEnv('VITE_PORTONE_STORE_ID', '');
-    vi.stubEnv('VITE_PORTONE_CHANNEL_KEY', 'channel-key-test');
+    vi.stubEnv('NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'channel-key-test');
     vi.stubEnv('VITE_APP_BASE_URL', 'https://example.com');
 
-    expect(() => getPortOneBrowserEnv()).toThrowError(/VITE_PORTONE_STORE_ID/);
+    expect(() => getPortOneBrowserEnv()).toThrowError(/NEXT_PUBLIC_PORTONE_STORE_ID or VITE_PORTONE_STORE_ID/);
     expect(isPortOneBrowserConfigured()).toBe(false);
   });
 
@@ -37,12 +38,19 @@ describe('PortOne env helpers', () => {
   });
 
   it('reads the PortOne API secret from server env', () => {
-    vi.stubEnv('PORTONE_V2_API_SECRET', 'secret-test');
+    vi.stubEnv('PORTONE_API_SECRET', 'secret-test');
 
     expect(getPortOneApiSecret()).toBe('secret-test');
     expect(getPortOneServerEnvStatus()).toEqual({
       apiSecretConfigured: true,
       webhookSecretConfigured: false,
     });
+  });
+
+  it('allows the legacy PortOne API secret as a temporary server fallback', () => {
+    vi.stubEnv('PORTONE_API_SECRET', '');
+    vi.stubEnv('PORTONE_V2_API_SECRET', 'legacy-secret-test');
+
+    expect(getPortOneApiSecret()).toBe('legacy-secret-test');
   });
 });
