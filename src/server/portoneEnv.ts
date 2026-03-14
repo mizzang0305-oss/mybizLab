@@ -7,7 +7,9 @@ export function getPortOneWebhookSecret() {
   const secret = readBillingEnv().webhookSecret;
 
   if (!secret) {
-    throw new Error(`Missing required server env PORTONE_WEBHOOK_SECRET for PortOne webhook signature verification on /api/billing/webhook. ${SERVER_ENV_HINT}`);
+    throw new Error(
+      `Missing required server env PORTONE_WEBHOOK_SECRET for PortOne webhook signature verification on /api/billing/webhook. ${SERVER_ENV_HINT}`,
+    );
   }
 
   return secret;

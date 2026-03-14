@@ -99,7 +99,7 @@ describe('/api/billing/webhook function', () => {
     });
   });
 
-  it('returns 400 when PortOne webhook signature verification fails', async () => {
+  it('returns 401 when PortOne webhook signature verification fails', async () => {
     verifyMock.mockRejectedValue(new MockWebhookVerificationError('Signature mismatch', 'INVALID_SIGNATURE'));
     globalThis.fetch = vi.fn() as typeof fetch;
 
@@ -113,11 +113,40 @@ describe('/api/billing/webhook function', () => {
 
     const payload = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(401);
     expect(payload).toMatchObject({
       code: 'PORTONE_WEBHOOK_VERIFICATION_FAILED',
       ok: false,
       reason: 'INVALID_SIGNATURE',
+      stage: 'webhook-verify',
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when required webhook headers are missing during verification', async () => {
+    verifyMock.mockRejectedValue(
+      new MockWebhookVerificationError('Missing webhook headers', 'MISSING_REQUIRED_HEADERS'),
+    );
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: JSON.stringify({ ok: true }),
+        headers: {
+          'content-type': 'application/json',
+          'webhook-id': 'test-webhook-id',
+        },
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload).toMatchObject({
+      code: 'PORTONE_WEBHOOK_VERIFICATION_FAILED',
+      ok: false,
+      reason: 'MISSING_REQUIRED_HEADERS',
       stage: 'webhook-verify',
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();

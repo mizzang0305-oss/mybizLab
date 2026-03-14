@@ -470,53 +470,53 @@ export function buildBillingWebhookMutation(
 
   if (!applyResolvedResourceMutation(nextState, actions, resolvedResource, previous)) {
     switch (portoneEventType) {
-    case 'Transaction.Paid':
-      actions.push('payment_completed');
-      nextState.normalizedStatus = 'payment_completed';
-      nextState.paymentStatus = 'paid';
-      if (previous?.billingKeyStatus === 'issued' || previous?.subscriptionStatus === 'active') {
-        actions.push('subscription_active');
+      case 'Transaction.Paid':
+        actions.push('payment_completed');
+        nextState.normalizedStatus = 'payment_completed';
+        nextState.paymentStatus = 'paid';
+        if (previous?.billingKeyStatus === 'issued' || previous?.subscriptionStatus === 'active') {
+          actions.push('subscription_active');
+          nextState.subscriptionStatus = 'active';
+        }
+        break;
+      case 'Transaction.Failed':
+        actions.push('payment_failed');
+        nextState.normalizedStatus = 'payment_failed';
+        nextState.paymentStatus = 'failed';
+        if (previous?.billingKeyStatus === 'issued' || previous?.subscriptionStatus === 'active') {
+          nextState.subscriptionStatus = 'past_due';
+        }
+        break;
+      case 'Transaction.CancelPending':
+      case 'Transaction.PartialCancelled':
+      case 'Transaction.Cancelled':
+        actions.push('payment_cancelled');
+        nextState.normalizedStatus = 'payment_cancelled';
+        nextState.paymentStatus = 'cancelled';
+        break;
+      case 'BillingKey.Issued':
+        actions.push('billing_key_issued', 'subscription_active');
+        nextState.normalizedStatus = 'billing_key_issued';
+        nextState.billingKeyStatus = 'issued';
         nextState.subscriptionStatus = 'active';
-      }
-      break;
-    case 'Transaction.Failed':
-      actions.push('payment_failed');
-      nextState.normalizedStatus = 'payment_failed';
-      nextState.paymentStatus = 'failed';
-      if (previous?.billingKeyStatus === 'issued' || previous?.subscriptionStatus === 'active') {
-        nextState.subscriptionStatus = 'past_due';
-      }
-      break;
-    case 'Transaction.CancelPending':
-    case 'Transaction.PartialCancelled':
-    case 'Transaction.Cancelled':
-      actions.push('payment_cancelled');
-      nextState.normalizedStatus = 'payment_cancelled';
-      nextState.paymentStatus = 'cancelled';
-      break;
-    case 'BillingKey.Issued':
-      actions.push('billing_key_issued', 'subscription_active');
-      nextState.normalizedStatus = 'billing_key_issued';
-      nextState.billingKeyStatus = 'issued';
-      nextState.subscriptionStatus = 'active';
-      break;
-    case 'BillingKey.Failed':
-      actions.push('billing_key_failed');
-      nextState.normalizedStatus = 'billing_key_failed';
-      nextState.billingKeyStatus = 'failed';
-      break;
-    case 'BillingKey.Deleted':
-      actions.push('subscription_cancelled');
-      nextState.normalizedStatus = 'subscription_cancelled';
-      nextState.billingKeyStatus = 'deleted';
-      nextState.subscriptionStatus = 'cancelled';
-      break;
-    case 'BillingKey.Updated':
-    case 'BillingKey.Ready':
-    default:
-      actions.push('ignored');
-      nextState.normalizedStatus = 'ignored';
-      break;
+        break;
+      case 'BillingKey.Failed':
+        actions.push('billing_key_failed');
+        nextState.normalizedStatus = 'billing_key_failed';
+        nextState.billingKeyStatus = 'failed';
+        break;
+      case 'BillingKey.Deleted':
+        actions.push('subscription_cancelled');
+        nextState.normalizedStatus = 'subscription_cancelled';
+        nextState.billingKeyStatus = 'deleted';
+        nextState.subscriptionStatus = 'cancelled';
+        break;
+      case 'BillingKey.Updated':
+      case 'BillingKey.Ready':
+      default:
+        actions.push('ignored');
+        nextState.normalizedStatus = 'ignored';
+        break;
     }
   }
 
@@ -659,6 +659,7 @@ export async function handleBillingWebhook(input: HandleBillingWebhookInput): Pr
     logStage: input.logStage,
     verifiedWebhook,
   });
+
   const mutation = buildBillingWebhookMutation(verifiedWebhook, requiredHeaders, resolvedResource);
 
   input.logStage?.('payload logged', {
@@ -720,6 +721,8 @@ export function createBillingWebhookErrorResponse(error: unknown) {
   }
 
   if (error instanceof Webhook.WebhookVerificationError) {
+    const status = error.reason === 'MISSING_REQUIRED_HEADERS' ? 400 : 401;
+
     return responseJson(
       {
         ok: false,
@@ -728,7 +731,7 @@ export function createBillingWebhookErrorResponse(error: unknown) {
         error: error.message,
         reason: error.reason,
       },
-      400,
+      status,
     );
   }
 

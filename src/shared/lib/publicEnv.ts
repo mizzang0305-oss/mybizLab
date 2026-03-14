@@ -25,7 +25,6 @@ export function requirePublicEnv(name: PublicEnvInput, usage: string) {
 
   if (!value) {
     const envNames = normalizeNames(name).join(' or ');
-
     throw new Error(`Missing required browser env ${envNames} for ${usage}. ${PUBLIC_ENV_HINT}`);
   }
 

@@ -13,20 +13,20 @@ export type BillingEnvKey = keyof BillingEnv;
 
 const BILLING_ENV_NAMES = {
   apiSecret: {
-    fallbacks: ['PORTONE_V2_API_SECRET'],
     primary: 'PORTONE_API_SECRET',
+    fallbacks: ['PORTONE_V2_API_SECRET'],
   },
   webhookSecret: {
-    fallbacks: [] as string[],
     primary: 'PORTONE_WEBHOOK_SECRET',
+    fallbacks: [] as string[],
   },
   storeId: {
-    fallbacks: ['NEXT_PUBLIC_PORTONE_STORE_ID', 'VITE_PORTONE_STORE_ID'],
     primary: 'PORTONE_STORE_ID',
+    fallbacks: ['NEXT_PUBLIC_PORTONE_STORE_ID', 'VITE_PORTONE_STORE_ID'],
   },
   channelKey: {
-    fallbacks: ['NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'VITE_PORTONE_CHANNEL_KEY'],
     primary: 'PORTONE_CHANNEL_KEY',
+    fallbacks: ['NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'VITE_PORTONE_CHANNEL_KEY'],
   },
 } as const satisfies Record<BillingEnvKey, { primary: string; fallbacks: string[] }>;
 
@@ -61,19 +61,14 @@ export class BillingApiStageError extends Error {
 
 function readServerEnv(name: string) {
   const value = process.env[name];
-
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function readServerEnvFromNames(names: readonly string[]) {
   for (const name of names) {
     const value = readServerEnv(name);
-
-    if (value) {
-      return value;
-    }
+    if (value) return value;
   }
-
   return undefined;
 }
 
@@ -120,7 +115,9 @@ export function getBillingEnvStatus(env: BillingEnv) {
 
 export function validateBillingEnv(required: BillingEnvKey[], endpoint: string, stage = 'env-load') {
   const env = readBillingEnv();
-  const missing = required.filter((key) => !readServerEnvFromNames(getBillingEnvNames(key))).map((key) => BILLING_ENV_LABELS[key]);
+  const missing = required
+    .filter((key) => !readServerEnvFromNames(getBillingEnvNames(key)))
+    .map((key) => BILLING_ENV_LABELS[key]);
 
   if (missing.length > 0) {
     throw new BillingApiStageError({

@@ -18,12 +18,15 @@ describe('/api/billing checkout and verify handlers', () => {
   beforeEach(() => {
     process.env.PORTONE_API_SECRET = 'ptn_secret_test';
     delete process.env.PORTONE_V2_API_SECRET;
+
     process.env.PORTONE_STORE_ID = 'store-v2-test';
     delete process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
     delete process.env.VITE_PORTONE_STORE_ID;
+
     process.env.PORTONE_CHANNEL_KEY = 'channel-key-test';
     delete process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
+
     process.env.VITE_APP_BASE_URL = 'https://example.com';
   });
 
