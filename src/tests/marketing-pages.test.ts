@@ -21,6 +21,7 @@ describe('marketing pages', () => {
     expect(html).toContain('AI 점장');
     expect(html).toContain('고객관리');
     expect(html).toContain('741-01-03857');
+    expect(html).not.toContain('Admin access');
   });
 
   it('renders the admin login page at /login', () => {

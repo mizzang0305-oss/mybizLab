@@ -47,10 +47,6 @@ export const appRoutes: RouteObject[] = [
         element: <AdminLoginPage />,
       },
       {
-        path: '/admin/login',
-        element: <AdminLoginPage />,
-      },
-      {
         path: '/pricing',
         element: <PricingPage />,
       },

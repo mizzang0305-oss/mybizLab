@@ -19,6 +19,12 @@ describe('app routing', () => {
     expect(matchedPaths('/terms')).not.toContain('/:storeSlug');
   });
 
+  it('keeps the admin login page on /login only', () => {
+    expect(matchedPaths('/login')).toContain('/login');
+    expect(matchedPaths('/admin/login')).toContain('*');
+    expect(matchedPaths('/admin/login')).not.toContain('/login');
+  });
+
   it('resolves dashboard separately from public store pages', () => {
     expect(matchedPaths('/dashboard')).toContain('/dashboard');
     expect(matchedPaths('/dashboard')).not.toContain('/:storeSlug');
