@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BillingApiStageError } from '@/server/billingApiRuntime';
 import {
   buildBillingWebhookMutation,
   createBillingWebhookErrorResponse,
@@ -106,19 +107,28 @@ describe('billing webhook processing', () => {
   it('returns a misconfiguration response when the PortOne webhook secret is missing', async () => {
     await expect(
       handleBillingWebhook({
+        env: {},
         rawBody: '{}',
         headers: new Headers(webhookHeaders),
         requestUrl: 'https://example.com/api/billing/webhook',
       }),
     ).rejects.toThrowError(/PORTONE_WEBHOOK_SECRET/);
 
-    const response = createBillingWebhookErrorResponse(new Error('Missing required server env PORTONE_WEBHOOK_SECRET'));
+    const response = createBillingWebhookErrorResponse(
+      new BillingApiStageError({
+        stage: 'env-load',
+        status: 500,
+        code: 'SERVER_MISCONFIGURED',
+        message: 'PORTONE_WEBHOOK_SECRET is required for /api/billing/webhook',
+      }),
+    );
     const payload = await response.json();
 
     expect(response.status).toBe(500);
     expect(payload).toMatchObject({
       ok: false,
       code: 'SERVER_MISCONFIGURED',
+      stage: 'env-load',
     });
   });
 });
