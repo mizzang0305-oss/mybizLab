@@ -23,6 +23,22 @@ describe('/api/billing checkout and verify handlers', () => {
     vi.restoreAllMocks();
   });
 
+  it('returns 405 with a clear message for GET /api/billing/checkout', async () => {
+    const response = await checkoutHandler.fetch(
+      new Request('https://example.com/api/billing/checkout', {
+        method: 'GET',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(405);
+    expect(payload).toEqual({
+      ok: false,
+      message: 'Checkout endpoint. Use POST.',
+    });
+  });
+
   it('returns a clear env error for checkout when the channel key is missing', async () => {
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
 

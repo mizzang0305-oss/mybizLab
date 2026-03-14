@@ -1,8 +1,6 @@
 import {
-  BillingApiStageError,
   callPortOneApi,
   createBillingApiErrorResponse,
-  createBillingMethodNotAllowedResponse,
   getBillingEnvStatus,
   logBillingStage,
   parseJsonBody,
@@ -19,16 +17,23 @@ function pickStoreId(body: Record<string, unknown>, fallbackStoreId: string) {
 }
 
 async function handleRequest(request: Request) {
-  logBillingStage(ENDPOINT, 'request received', {
-    method: request.method,
-    url: request.url,
-  });
-
-  if (request.method !== 'POST') {
-    return createBillingMethodNotAllowedResponse(ENDPOINT);
-  }
-
   try {
+    logBillingStage(ENDPOINT, 'request received', {
+      method: request.method,
+      url: request.url,
+    });
+
+    if (request.method !== 'POST') {
+      return responseJson(
+        {
+          ok: false,
+          message: 'Checkout endpoint. Use POST.',
+        },
+        405,
+        { allow: 'POST' },
+      );
+    }
+
     const env = validateBillingEnv(['apiSecret', 'storeId', 'channelKey'], ENDPOINT);
     logBillingStage(ENDPOINT, 'env loaded', {
       envStatus: getBillingEnvStatus(env),
@@ -83,10 +88,6 @@ async function handleRequest(request: Request) {
 
     return responseJson(payload, 200);
   } catch (error) {
-    if (error instanceof BillingApiStageError) {
-      return createBillingApiErrorResponse(ENDPOINT, error);
-    }
-
     return createBillingApiErrorResponse(ENDPOINT, error);
   }
 }
