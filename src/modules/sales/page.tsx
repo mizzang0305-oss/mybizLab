@@ -21,6 +21,7 @@ export function SalesPage() {
   }
 
   const totals = salesQuery.data?.totals;
+  const summaries = salesQuery.data?.summaries;
   const chartMax = Math.max(...(salesQuery.data?.sales.map((entry) => entry.total_sales) || [1]));
 
   return (
@@ -31,7 +32,10 @@ export function SalesPage() {
         description="일간/주간/월간 집계, 주문 수, 총매출, 객단가, 채널별 주문 비중을 store_id 기준으로 표시합니다."
       />
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <MetricCard label="오늘 매출" value={summaries?.daily ? formatCurrency(summaries.daily.total_sales) : '-'} />
+        <MetricCard label="최근 7일 매출" value={summaries ? formatCurrency(summaries.weekly.totalSales) : '-'} />
+        <MetricCard label="최근 30일 매출" value={summaries ? formatCurrency(summaries.monthly.totalSales) : '-'} />
         <MetricCard label="총매출" value={totals ? formatCurrency(totals.totalSales) : '-'} />
         <MetricCard label="주문 수" value={totals?.orderCount ?? '-'} />
         <MetricCard label="객단가" value={totals ? formatCurrency(totals.averageOrderValue) : '-'} />

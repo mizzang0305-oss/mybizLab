@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Icons } from '@/shared/components/Icons';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { createDemoAdminSession, sanitizeAdminNextPath, useAdminSessionStore } from '@/shared/lib/adminSession';
+import { LEGAL_LINKS } from '@/shared/lib/siteConfig';
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
@@ -13,6 +15,8 @@ export function AdminLoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const nextPath = sanitizeAdminNextPath(searchParams.get('next'));
+
+  usePageMeta('관리자 로그인', '마이비즈랩 관리자 로그인 페이지입니다. 홈페이지와 공개 스토어와 분리된 관리자 접근 경로를 제공합니다.');
 
   if (session) {
     return <Navigate replace to={nextPath} />;
@@ -44,23 +48,18 @@ export function AdminLoginPage() {
             <div className="space-y-4">
               <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">관리자 로그인</h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                루트 홈페이지와 공개 스토어는 일반 방문자에게 열려 있고, 운영 대시보드는 별도 관리자 로그인 경로에서만 진입합니다.
+                `/` 는 방문자용 홈페이지이고, `/login` 은 관리자 전용 진입점입니다. 대시보드와 공개 스토어 흐름을 명확히 분리했습니다.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <p className="text-sm font-semibold text-orange-300">Public home</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">`/` 에서 랜딩 페이지를 보여주고, 스토어 공개 페이지는 `/:storeSlug` 구조로 동작합니다.</p>
+                <p className="text-sm font-semibold text-orange-300">Landing</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">홈페이지에서 서비스 소개와 App Explorer를 먼저 보여주고, 로그인은 별도 경로에서만 실행합니다.</p>
               </div>
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <p className="text-sm font-semibold text-orange-300">Admin console</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">`/login` 또는 `/admin/login` 에서만 관리자 세션을 시작한 뒤 `/dashboard` 로 이동합니다.</p>
+                <p className="text-sm font-semibold text-orange-300">Dashboard</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">관리자 세션을 시작하면 `/dashboard` 로 이동하고 store_id 기준 앱 데이터를 불러옵니다.</p>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-3 text-sm text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">mybiz.ai.kr</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">mybiz.ai.kr/{'{storeSlug}'}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">mybiz.ai.kr/dashboard</span>
             </div>
           </div>
         </section>
@@ -73,9 +72,7 @@ export function AdminLoginPage() {
               </div>
               <div className="space-y-2">
                 <h2 className="font-display text-3xl font-black tracking-tight text-slate-900">운영 콘솔 입장</h2>
-                <p className="text-sm leading-6 text-slate-500">
-                  현재 프로젝트에는 정식 백엔드 인증이 없어 MVP용 관리자 세션으로 대시보드 접근을 분리했습니다.
-                </p>
+                <p className="text-sm leading-6 text-slate-500">현재는 mock/local 기반 데모 세션으로 접근을 분리해 두었고, 이후 실제 인증/결제 흐름을 연결할 수 있습니다.</p>
               </div>
             </div>
 
@@ -84,9 +81,15 @@ export function AdminLoginPage() {
                 {isSubmitting ? '세션 준비 중...' : '관리자 로그인 후 대시보드 열기'}
               </button>
               {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</p> : null}
-              <div className="rounded-3xl bg-slate-50 p-5 text-sm text-slate-600">
-                <p className="font-semibold text-slate-900">접근 규칙</p>
-                <p className="mt-2 leading-6">비로그인 상태에서 `/dashboard` 로 접근하면 현재 페이지를 보존한 채 `/login` 으로 리다이렉트됩니다.</p>
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+                <p className="font-semibold text-slate-900">정책 문서</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {LEGAL_LINKS.map((link) => (
+                    <Link key={link.href} className="btn-secondary !px-3 !py-2" to={link.href}>
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -94,8 +97,8 @@ export function AdminLoginPage() {
               <Link className="btn-secondary" to="/">
                 홈페이지로 돌아가기
               </Link>
-              <Link className="btn-secondary" to="/onboarding">
-                스토어 등록 보기
+              <Link className="btn-secondary" to="/pricing">
+                요금제 보기
               </Link>
             </div>
           </div>

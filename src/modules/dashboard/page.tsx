@@ -8,7 +8,7 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatCurrency } from '@/shared/lib/format';
-import { featureDefinitions } from '@/shared/lib/moduleCatalog';
+import { appExplorerDefinitions } from '@/shared/lib/moduleCatalog';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { getDashboardSnapshot } from '@/shared/lib/services/mvpService';
 import { buildStorePath, buildStoreUrl } from '@/shared/lib/storeSlug';
@@ -101,14 +101,18 @@ export function DashboardPage() {
       </div>
 
       <Panel title="운영 앱 탐색" subtitle="기존 카드형 앱 탐색 UI를 실제 페이지 링크와 연결했습니다.">
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {featureDefinitions.map((feature) => (
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {appExplorerDefinitions.map((feature) => (
             <AppCard
               key={feature.key}
+              ctaLabel="앱 열기"
               title={feature.label}
               description={feature.description}
+              highlights={feature.highlights}
               to={feature.route}
               icon={feature.icon}
+              status={feature.status}
+              statusLabel={feature.statusLabel}
             />
           ))}
         </div>

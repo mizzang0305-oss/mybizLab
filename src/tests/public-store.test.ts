@@ -11,6 +11,7 @@ describe('public store lookup', () => {
 
     expect(store?.store.slug).toBe('golden-coffee');
     expect(store?.tables.some((table) => table.table_no === 'A1')).toBe(true);
+    expect(store?.tables.some((table) => table.table_no === 'B1')).toBe(true);
   });
 
   it('returns null for an invalid slug', async () => {

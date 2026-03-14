@@ -13,6 +13,10 @@ describe('store slug utilities', () => {
 
   it('guards reserved words and duplicate suffixes', () => {
     expect(isReservedSlug('dashboard')).toBe(true);
+    expect(isReservedSlug('pricing')).toBe(true);
+    expect(isReservedSlug('terms')).toBe(true);
+    expect(isReservedSlug('privacy')).toBe(true);
+    expect(isReservedSlug('refund')).toBe(true);
     expect(ensureUniqueStoreSlug('dashboard', [])).toBe('dashboard-store');
     expect(ensureUniqueStoreSlug('golden-coffee', ['golden-coffee', 'golden-coffee-2'])).toBe('golden-coffee-3');
   });

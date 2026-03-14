@@ -4,13 +4,12 @@ export const RESERVED_STORE_SLUGS = [
   'admin',
   'api',
   'login',
-  'signup',
   'onboarding',
   'dashboard',
   'pricing',
-  'about',
-  'contact',
-  'support',
+  'terms',
+  'privacy',
+  'refund',
   'store',
 ] as const;
 

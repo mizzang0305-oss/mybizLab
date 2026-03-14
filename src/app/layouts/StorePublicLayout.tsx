@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, Outlet, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
+import { AppFooter } from '@/shared/components/AppFooter';
 import { EmptyState } from '@/shared/components/EmptyState';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { getPublicStore } from '@/shared/lib/services/mvpService';
 import { buildStorePath } from '@/shared/lib/storeSlug';
@@ -27,6 +29,13 @@ export function StorePublicLayout() {
     enabled: Boolean(storeSlug),
   });
 
+  const pageTitle = publicStoreQuery.data ? `${publicStoreQuery.data.store.name} 스토어` : '공개 스토어';
+  const pageDescription = publicStoreQuery.data
+    ? `${publicStoreQuery.data.store.name}의 공개 스토어 페이지입니다. 메뉴와 주문 화면으로 이동할 수 있습니다.`
+    : '마이비즈랩 공개 스토어 페이지입니다.';
+
+  usePageMeta(pageTitle, pageDescription);
+
   if (publicStoreQuery.isLoading) {
     return (
       <div className="page-shell py-20">
@@ -39,20 +48,20 @@ export function StorePublicLayout() {
     return (
       <div className="page-shell py-20">
         <EmptyState
-          title="스토어를 찾을 수 없습니다"
-          description="잘못된 slug 이거나 아직 공개되지 않은 스토어입니다."
           action={
             <Link className="btn-primary" to="/">
               홈페이지로 이동
             </Link>
           }
+          description="잘못된 slug 이거나 아직 공개되지 않은 스토어입니다."
+          title="스토어를 찾을 수 없습니다"
         />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#fffaf3]">
+    <div className="flex min-h-screen flex-col bg-[#fffaf3]">
       <header className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
         <div className="page-shell flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -74,9 +83,12 @@ export function StorePublicLayout() {
           </div>
         </div>
       </header>
-      <main className="page-shell py-8">
+
+      <main className="page-shell flex-1 py-8">
         <Outlet context={{ publicStore: publicStoreQuery.data, tableNo }} />
       </main>
+
+      <AppFooter />
     </div>
   );
 }

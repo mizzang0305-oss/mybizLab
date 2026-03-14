@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, type RouteObject } from 'react-router-dom';
 
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
 import { DashboardLayout } from '@/app/layouts/DashboardLayout';
@@ -17,16 +17,20 @@ import { ReservationsPage } from '@/modules/reservations/page';
 import { SalesPage } from '@/modules/sales/page';
 import { SchedulesPage } from '@/modules/schedules/page';
 import { SurveysPage } from '@/modules/surveys/page';
+import { TableOrderAdminPage } from '@/modules/table-order/admin-page';
 import { StoreHomePage } from '@/modules/table-order/public-home-page';
 import { StoreMenuPage } from '@/modules/table-order/public-menu-page';
 import { StoreOrderPage } from '@/modules/table-order/public-order-page';
-import { TableOrderAdminPage } from '@/modules/table-order/admin-page';
 import { WaitingPage } from '@/modules/waiting/page';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
 import { LandingPage } from '@/pages/LandingPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { PricingPage } from '@/pages/PricingPage';
+import { PrivacyPage } from '@/pages/PrivacyPage';
+import { RefundPage } from '@/pages/RefundPage';
+import { TermsPage } from '@/pages/TermsPage';
 
-const router = createBrowserRouter([
+export const appRoutes: RouteObject[] = [
   {
     element: <PublicLayout />,
     children: [
@@ -45,6 +49,22 @@ const router = createBrowserRouter([
       {
         path: '/admin/login',
         element: <AdminLoginPage />,
+      },
+      {
+        path: '/pricing',
+        element: <PricingPage />,
+      },
+      {
+        path: '/terms',
+        element: <TermsPage />,
+      },
+      {
+        path: '/privacy',
+        element: <PrivacyPage />,
+      },
+      {
+        path: '/refund',
+        element: <RefundPage />,
       },
     ],
   },
@@ -137,8 +157,18 @@ const router = createBrowserRouter([
     path: '*',
     element: <NotFoundPage />,
   },
-]);
+];
+
+let router: ReturnType<typeof createBrowserRouter> | null = null;
+
+function getRouter() {
+  if (!router) {
+    router = createBrowserRouter(appRoutes);
+  }
+
+  return router;
+}
 
 export function AppRouter() {
-  return <RouterProvider router={router} />;
+  return <RouterProvider router={getRouter()} />;
 }

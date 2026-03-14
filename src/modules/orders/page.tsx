@@ -58,12 +58,17 @@ export function OrdersPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-bold text-slate-900">
-                      {order.table_no ? `Table ${order.table_no}` : order.channel} · {formatCurrency(order.total_amount)}
+                      주문번호 {order.id.slice(-6)} · {order.table_no ? `Table ${order.table_no}` : order.channel}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">{formatDateTime(order.placed_at)}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {formatDateTime(order.placed_at)} · {formatCurrency(order.total_amount)}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
                   </div>
-                  <StatusBadge status={order.status} />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={order.status} />
+                    <StatusBadge status={order.payment_status} />
+                  </div>
                 </div>
               </button>
             ))}
@@ -76,6 +81,8 @@ export function OrdersPage() {
               <div className="rounded-3xl bg-slate-50 p-4">
                 <p className="text-sm text-slate-500">채널</p>
                 <p className="font-bold text-slate-900">{selectedOrder.table_no ? `Table ${selectedOrder.table_no}` : selectedOrder.channel}</p>
+                <p className="mt-2 text-sm text-slate-500">결제상태</p>
+                <p className="font-semibold text-slate-700">{selectedOrder.payment_status}</p>
                 <p className="mt-2 text-sm text-slate-500">고객</p>
                 <p className="font-semibold text-slate-700">{selectedOrder.customer?.name || '미등록 고객'}</p>
               </div>

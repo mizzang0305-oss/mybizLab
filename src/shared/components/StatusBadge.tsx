@@ -5,6 +5,8 @@ const statusMap: Record<string, string> = {
   accepted: 'bg-blue-100 text-blue-700',
   preparing: 'bg-violet-100 text-violet-700',
   ready: 'bg-emerald-100 text-emerald-700',
+  paid: 'bg-emerald-100 text-emerald-700',
+  refunded: 'bg-slate-200 text-slate-700',
   completed: 'bg-slate-200 text-slate-700',
   cancelled: 'bg-rose-100 text-rose-700',
   booked: 'bg-blue-100 text-blue-700',

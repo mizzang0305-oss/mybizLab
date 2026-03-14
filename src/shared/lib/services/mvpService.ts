@@ -597,6 +597,9 @@ export async function listSales(storeId: string) {
     accumulator[order.channel] = (accumulator[order.channel] || 0) + 1;
     return accumulator;
   }, {});
+  const todayKey = startOfDayKey(new Date());
+  const weeklySales = sales.filter((entry) => Math.abs(new Date(todayKey).getTime() - new Date(entry.sale_date).getTime()) <= 6 * 24 * 60 * 60 * 1000);
+  const monthlySales = sales.filter((entry) => Math.abs(new Date(todayKey).getTime() - new Date(entry.sale_date).getTime()) <= 29 * 24 * 60 * 60 * 1000);
 
   return {
     sales,
@@ -605,6 +608,17 @@ export async function listSales(storeId: string) {
       orderCount: completedOrders.length,
       averageOrderValue: completedOrders.length ? Math.round(totalSales / completedOrders.length) : 0,
       channelMix,
+    },
+    summaries: {
+      daily: sales.find((entry) => entry.sale_date === todayKey) || null,
+      weekly: {
+        totalSales: sumBy(weeklySales, (entry) => entry.total_sales),
+        orderCount: sumBy(weeklySales, (entry) => entry.order_count),
+      },
+      monthly: {
+        totalSales: sumBy(monthlySales, (entry) => entry.total_sales),
+        orderCount: sumBy(monthlySales, (entry) => entry.order_count),
+      },
     },
   };
 }
@@ -629,6 +643,7 @@ function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {
   const completedOrder: Order = {
     ...order,
     status: 'completed',
+    payment_status: 'paid',
     completed_at: nowIso(),
   };
 
@@ -902,6 +917,7 @@ export async function submitPublicOrder(input: {
     table_no: table?.table_no,
     channel: table ? 'table' : 'walk_in',
     status: 'pending',
+    payment_status: 'pending',
     total_amount: calculateOrderTotal(lineItems),
     placed_at: nowIso(),
     note: input.note,

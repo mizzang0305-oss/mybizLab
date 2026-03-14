@@ -15,6 +15,7 @@ export const ALL_FEATURES = [
 
 export type FeatureKey = (typeof ALL_FEATURES)[number];
 export type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export type PaymentStatus = 'pending' | 'paid' | 'refunded';
 export type ReservationStatus = 'booked' | 'seated' | 'completed' | 'cancelled' | 'no_show';
 export type WaitingStatus = 'waiting' | 'called' | 'seated' | 'cancelled';
 export type ContractStatus = 'draft' | 'sent' | 'signed';
@@ -127,6 +128,7 @@ export interface Order {
   table_no?: string;
   channel: OrderChannel;
   status: OrderStatus;
+  payment_status: PaymentStatus;
   total_amount: number;
   placed_at: string;
   completed_at?: string;

@@ -49,6 +49,7 @@ export const Icons = {
   Reservation: Calendar,
   Search,
   Settings,
+  ShieldCheck,
   Store,
   Survey: ClipboardList,
   Table: TableProperties,
