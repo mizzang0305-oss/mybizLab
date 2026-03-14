@@ -1,5 +1,5 @@
 import {
-  callPortOneApi,
+  BillingApiStageError,
   createBillingApiErrorResponse,
   getBillingEnvStatus,
   logBillingStage,
@@ -7,13 +7,22 @@ import {
   responseJson,
   validateBillingEnv,
 } from '../../src/server/billingApiRuntime';
+import { getBillingPlan, isBillingPlanCode } from '../../src/shared/lib/billingPlans';
 
 const ENDPOINT = '/api/billing/checkout';
 
-function pickStoreId(body: Record<string, unknown>, fallbackStoreId: string) {
-  const storeId = typeof body.storeId === 'string' && body.storeId.trim() ? body.storeId.trim() : fallbackStoreId;
+function resolveBaseUrl(request: Request) {
+  const configuredBaseUrl = process.env.VITE_APP_BASE_URL;
 
-  return storeId;
+  if (typeof configuredBaseUrl === 'string' && configuredBaseUrl.trim()) {
+    return configuredBaseUrl.trim().replace(/\/$/, '');
+  }
+
+  try {
+    return new URL(request.url).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 async function handleRequest(request: Request) {
@@ -39,51 +48,63 @@ async function handleRequest(request: Request) {
       envStatus: getBillingEnvStatus(env),
     });
 
-    const { body } = await parseJsonBody(request, ENDPOINT, 'request-body', true);
+    const { body } = await parseJsonBody(request, ENDPOINT, 'request-body', false);
     logBillingStage(ENDPOINT, 'request body parsed', {
       bodyKeys: Object.keys(body),
     });
 
-    const targetStoreId = pickStoreId(body, env.storeId!);
-    const requestBody = JSON.stringify({
-      size: 1,
-      storeId: targetStoreId,
-    });
+    const requestedPlan = body.plan;
 
-    logBillingStage(ENDPOINT, 'PortOne API call start', {
-      path: '/payments-by-cursor',
-      storeId: targetStoreId,
-    });
+    if (!isBillingPlanCode(requestedPlan)) {
+      throw new BillingApiStageError({
+        stage: 'request-body',
+        status: 400,
+        code: 'INVALID_PLAN',
+        message: 'Checkout requires plan to be one of starter, pro, business.',
+        details: {
+          receivedPlan: requestedPlan ?? null,
+        },
+      });
+    }
 
-    const portoneResponse = await callPortOneApi({
-      apiSecret: env.apiSecret!,
-      endpoint: ENDPOINT,
-      method: 'GET',
-      path: '/payments-by-cursor',
-      query: {
-        requestBody,
+    const billingPlan = getBillingPlan(requestedPlan);
+    const baseUrl = resolveBaseUrl(request);
+    const paymentId = `subscription-${requestedPlan}-${crypto.randomUUID()}`;
+    const checkoutPayload = {
+      channelKey: env.channelKey!,
+      currency: 'KRW' as const,
+      customData: {
+        initiatedAt: new Date().toISOString(),
+        plan: requestedPlan,
+        source: 'pricing-page',
       },
-      stage: 'portone-api-call',
-    });
+      noticeUrls: baseUrl ? [`${baseUrl}/api/billing/webhook`] : undefined,
+      orderName: billingPlan.orderName,
+      payMethod: 'CARD' as const,
+      paymentId,
+      plan: requestedPlan,
+      storeId: env.storeId!,
+      totalAmount: billingPlan.amount,
+    };
 
-    logBillingStage(ENDPOINT, 'PortOne API response status', {
-      status: portoneResponse.status,
+    logBillingStage(ENDPOINT, 'checkout payload built', {
+      amount: billingPlan.amount,
+      orderName: billingPlan.orderName,
+      paymentId,
+      plan: requestedPlan,
     });
 
     const payload = {
-      ok: true,
+      checkout: checkoutPayload,
       endpoint: ENDPOINT,
-      checkout: {
-        channelKey: env.channelKey,
-        storeId: targetStoreId,
-      },
-      probeStatus: portoneResponse.status,
-      probe: portoneResponse.data,
+      ok: true,
+      plan: requestedPlan,
     };
 
     logBillingStage(ENDPOINT, 'final response', {
       ok: true,
-      probeStatus: portoneResponse.status,
+      paymentId,
+      plan: requestedPlan,
     });
 
     return responseJson(payload, 200);

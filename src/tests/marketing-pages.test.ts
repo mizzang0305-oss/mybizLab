@@ -13,15 +13,15 @@ function renderRoute(pathname: string) {
 }
 
 describe('marketing pages', () => {
-  it('renders the landing page at root with app explorer cards and footer business info', () => {
+  it('renders the landing page at root with app explorer cards and pricing-first subscription CTA', () => {
     const html = renderRoute('/');
 
     expect(html).toContain('SaaS MVP for store operations');
     expect(html).toContain('App Explorer');
-    expect(html).toContain('AI 점장');
-    expect(html).toContain('고객관리');
     expect(html).toContain('741-01-03857');
     expect(html).toContain('032-214-5757');
+    expect(html).toContain('/pricing');
+    expect(html).not.toContain('/login?next=/dashboard');
     expect(html).not.toContain('Admin access');
   });
 
@@ -32,21 +32,24 @@ describe('marketing pages', () => {
     expect(html).toContain('/dashboard');
   });
 
-  it('renders the pricing page with setup fee, four plans, comparison table, and onboarding steps', () => {
+  it('renders the pricing page with setup fee, checkout buttons, comparison table, and onboarding steps', () => {
     const html = renderRoute('/pricing');
 
     expect(html).toContain('Pricing');
     expect(html).toContain('초기 세팅비');
-    expect(html).toContain('390,000원부터');
+    expect(html).toContain('390,000원');
     expect(html).toContain('Starter');
     expect(html).toContain('Pro');
     expect(html).toContain('Business');
     expect(html).toContain('Enterprise');
     expect(html).toContain('구독 시작');
     expect(html).toContain('상담 요청');
-    expect(html).toContain('앱 포함 기능 비교');
-    expect(html).toContain('도입 절차');
-    expect(html).toContain('10개 이상 별도 상담');
+    expect(html).toContain('포함 기능 비교');
+    expect(html).toContain('서비스 도입 순서');
+    expect(html).toContain('data-plan="starter"');
+    expect(html).toContain('data-plan="pro"');
+    expect(html).toContain('data-plan="business"');
+    expect(html).not.toContain('/login?next=/dashboard');
     expect(html).toContain('032-214-5757');
   });
 });
