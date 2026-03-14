@@ -4,23 +4,41 @@ import checkoutHandler from '../../api/billing/checkout';
 import verifyHandler from '../../api/billing/verify';
 
 describe('/api/billing checkout and verify handlers', () => {
-  const originalApiSecret = process.env.PORTONE_V2_API_SECRET;
-  const originalStoreId = process.env.VITE_PORTONE_STORE_ID;
-  const originalChannelKey = process.env.VITE_PORTONE_CHANNEL_KEY;
+  const originalApiSecret = process.env.PORTONE_API_SECRET;
+  const originalLegacyApiSecret = process.env.PORTONE_V2_API_SECRET;
+  const originalStoreId = process.env.PORTONE_STORE_ID;
+  const originalPublicStoreId = process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
+  const originalViteStoreId = process.env.VITE_PORTONE_STORE_ID;
+  const originalChannelKey = process.env.PORTONE_CHANNEL_KEY;
+  const originalPublicChannelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
+  const originalViteChannelKey = process.env.VITE_PORTONE_CHANNEL_KEY;
   const originalAppBaseUrl = process.env.VITE_APP_BASE_URL;
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    process.env.PORTONE_V2_API_SECRET = 'ptn_secret_test';
-    process.env.VITE_PORTONE_STORE_ID = 'store-v2-test';
-    process.env.VITE_PORTONE_CHANNEL_KEY = 'channel-key-test';
+    process.env.PORTONE_API_SECRET = 'ptn_secret_test';
+    delete process.env.PORTONE_V2_API_SECRET;
+
+    process.env.PORTONE_STORE_ID = 'store-v2-test';
+    delete process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
+    delete process.env.VITE_PORTONE_STORE_ID;
+
+    process.env.PORTONE_CHANNEL_KEY = 'channel-key-test';
+    delete process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
+    delete process.env.VITE_PORTONE_CHANNEL_KEY;
+
     process.env.VITE_APP_BASE_URL = 'https://example.com';
   });
 
   afterEach(() => {
-    process.env.PORTONE_V2_API_SECRET = originalApiSecret;
-    process.env.VITE_PORTONE_STORE_ID = originalStoreId;
-    process.env.VITE_PORTONE_CHANNEL_KEY = originalChannelKey;
+    process.env.PORTONE_API_SECRET = originalApiSecret;
+    process.env.PORTONE_V2_API_SECRET = originalLegacyApiSecret;
+    process.env.PORTONE_STORE_ID = originalStoreId;
+    process.env.NEXT_PUBLIC_PORTONE_STORE_ID = originalPublicStoreId;
+    process.env.VITE_PORTONE_STORE_ID = originalViteStoreId;
+    process.env.PORTONE_CHANNEL_KEY = originalChannelKey;
+    process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY = originalPublicChannelKey;
+    process.env.VITE_PORTONE_CHANNEL_KEY = originalViteChannelKey;
     process.env.VITE_APP_BASE_URL = originalAppBaseUrl;
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
@@ -43,6 +61,8 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns a clear env error for checkout when the channel key is missing', async () => {
+    delete process.env.PORTONE_CHANNEL_KEY;
+    delete process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
 
     const response = await checkoutHandler.fetch(

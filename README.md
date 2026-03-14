@@ -32,49 +32,80 @@ src/
   shared/
 supabase/
   schema.sql
-```
+Environment variables
+Browser public envs
 
-## Environment variables
+These values are exposed to the browser through Vite. The preferred PortOne names are
+NEXT_PUBLIC_*, and this app still accepts VITE_* as a compatibility fallback.
 
-### Browser public envs
+VITE_APP_BASE_URL
 
-These values are exposed to the browser through Vite and must use the `VITE_` prefix.
+NEXT_PUBLIC_PORTONE_STORE_ID
 
-- `VITE_APP_BASE_URL`
-- `VITE_PORTONE_STORE_ID`
-- `VITE_PORTONE_CHANNEL_KEY`
-- `VITE_DATA_PROVIDER`
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_GEMINI_API_KEY`
+NEXT_PUBLIC_PORTONE_CHANNEL_KEY
 
-### Server-only envs
+VITE_PORTONE_STORE_ID (fallback)
 
-These values must never be exposed with a `VITE_` prefix.
+VITE_PORTONE_CHANNEL_KEY (fallback)
 
-- `PORTONE_V2_API_SECRET`
-- `PORTONE_WEBHOOK_SECRET`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GEMINI_API_KEY`
+VITE_DATA_PROVIDER
 
-## Vercel setup
+VITE_SUPABASE_URL
+
+VITE_SUPABASE_ANON_KEY
+
+VITE_GEMINI_API_KEY
+
+Server-only envs
+
+These values must never be exposed with a VITE_ prefix.
+
+PORTONE_API_SECRET
+
+PORTONE_WEBHOOK_SECRET
+
+PORTONE_STORE_ID
+
+PORTONE_CHANNEL_KEY
+
+SUPABASE_URL
+
+SUPABASE_SERVICE_ROLE_KEY
+
+GEMINI_API_KEY
+
+Vercel setup
 
 Register these variables in Vercel Project Settings > Environment Variables for Development, Preview, and Production:
 
-- `VITE_APP_BASE_URL`
-- `VITE_PORTONE_STORE_ID`
-- `VITE_PORTONE_CHANNEL_KEY`
-- `PORTONE_V2_API_SECRET`
-- `PORTONE_WEBHOOK_SECRET`
+VITE_APP_BASE_URL
+
+PORTONE_API_SECRET
+
+PORTONE_WEBHOOK_SECRET
+
+PORTONE_STORE_ID
+
+PORTONE_CHANNEL_KEY
+
+NEXT_PUBLIC_PORTONE_STORE_ID
+
+NEXT_PUBLIC_PORTONE_CHANNEL_KEY
 
 Add the Supabase and Gemini variables too if those integrations are enabled in that environment.
 
-## PortOne webhook
+PortOne webhook
 
-- Production endpoint: `https://mybiz.ai.kr/api/billing/webhook`
-- Local endpoint with Vercel dev: `http://localhost:3000/api/billing/webhook`
-- `npm run dev` serves only the Vite frontend. It does not run `/api/*`.
-- Use `vercel dev` or a Vercel Preview deployment when testing PortOne webhooks locally.
-- `/api/billing/webhook` requires `PORTONE_WEBHOOK_SECRET` for signature verification.
-- Future PortOne payment verification and billing-key server calls should use `PORTONE_V2_API_SECRET`.
+Production endpoint: https://mybiz.ai.kr/api/billing/webhook
+
+Local endpoint with Vercel dev: http://localhost:3000/api/billing/webhook
+
+npm run dev serves only the Vite frontend. It does not run /api/*.
+
+Use vercel dev or a Vercel Preview deployment when testing PortOne webhooks locally.
+
+/api/billing/webhook requires PORTONE_WEBHOOK_SECRET for signature verification.
+
+/api/billing/webhook re-verifies known Transaction.* and BillingKey.* events by calling PortOne with PORTONE_API_SECRET.
+
+Unknown webhook event types are ignored and return 200 so Standard Webhooks delivery is not blocked.
