@@ -1,6 +1,9 @@
 import { Webhook } from '@portone/server-sdk';
 import { createClient } from '@supabase/supabase-js';
 
+import { getPortOneWebhookSecret } from '@/server/portoneEnv';
+import { readServerEnv } from '@/server/serverEnv';
+
 const PORTONE_REQUIRED_HEADERS = ['webhook-id', 'webhook-signature', 'webhook-timestamp'] as const;
 const SUPABASE_WEBHOOK_EVENTS_TABLE = 'billing_webhook_events';
 const SUPABASE_WEBHOOK_STATES_TABLE = 'billing_webhook_states';
@@ -82,11 +85,6 @@ const memoryStore: BillingWebhookPersistenceStore = {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function getEnv(name: string) {
-  const value = process.env[name];
-  return value && value.trim() ? value.trim() : undefined;
 }
 
 function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?: Record<string, string>) {
@@ -281,8 +279,8 @@ function upsertInMemoryStore(mutation: BillingWebhookMutation) {
 }
 
 async function persistToSupabase(mutation: BillingWebhookMutation) {
-  const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
-  const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const supabaseUrl = readServerEnv('SUPABASE_URL') || readServerEnv('VITE_SUPABASE_URL');
+  const serviceRoleKey = readServerEnv('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!supabaseUrl || !serviceRoleKey) {
     return false;
@@ -353,11 +351,7 @@ export async function persistBillingWebhookMutation(mutation: BillingWebhookMuta
 }
 
 export async function handleBillingWebhook(input: HandleBillingWebhookInput): Promise<HandleBillingWebhookSuccess> {
-  const webhookSecret = getEnv('PORTONE_WEBHOOK_SECRET');
-  if (!webhookSecret) {
-    throw new Error('PORTONE_WEBHOOK_SECRET is not configured');
-  }
-
+  const webhookSecret = getPortOneWebhookSecret();
   const requiredHeaders = readRequiredHeaders(input.headers);
   const verifiedWebhook = await Webhook.verify(webhookSecret, input.rawBody, requiredHeaders);
   const mutation = buildBillingWebhookMutation(verifiedWebhook, requiredHeaders);
@@ -422,7 +416,10 @@ export function createBillingWebhookErrorResponse(error: unknown) {
     );
   }
 
-  if (error instanceof Error && error.message.includes('PORTONE_WEBHOOK_SECRET')) {
+  if (
+    error instanceof Error &&
+    (error.message.includes('PORTONE_WEBHOOK_SECRET') || error.message.includes('PORTONE_V2_API_SECRET'))
+  ) {
     return responseJson(
       {
         ok: false,

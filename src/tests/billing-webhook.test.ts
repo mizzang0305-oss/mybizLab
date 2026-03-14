@@ -1,8 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildBillingWebhookMutation,
+  createBillingWebhookErrorResponse,
   getBillingWebhookStoreSnapshotForTests,
+  handleBillingWebhook,
   persistBillingWebhookMutation,
   resetBillingWebhookStoreForTests,
 } from '@/server/billingWebhook';
@@ -17,11 +19,13 @@ describe('billing webhook processing', () => {
   const originalSupabaseUrl = process.env.SUPABASE_URL;
   const originalViteSupabaseUrl = process.env.VITE_SUPABASE_URL;
   const originalServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const originalWebhookSecret = process.env.PORTONE_WEBHOOK_SECRET;
 
   beforeEach(() => {
     delete process.env.SUPABASE_URL;
     delete process.env.VITE_SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.PORTONE_WEBHOOK_SECRET;
     resetBillingWebhookStoreForTests();
   });
 
@@ -29,6 +33,8 @@ describe('billing webhook processing', () => {
     process.env.SUPABASE_URL = originalSupabaseUrl;
     process.env.VITE_SUPABASE_URL = originalViteSupabaseUrl;
     process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRole;
+    process.env.PORTONE_WEBHOOK_SECRET = originalWebhookSecret;
+    vi.unstubAllEnvs();
     resetBillingWebhookStoreForTests();
   });
 
@@ -95,5 +101,24 @@ describe('billing webhook processing', () => {
     expect(failedMutation.eventLog.normalizedStatus).toBe('payment_failed');
     expect(snapshot.states[0]?.paymentStatus).toBe('failed');
     expect(snapshot.states[0]?.subscriptionStatus).toBe('past_due');
+  });
+
+  it('returns a misconfiguration response when the PortOne webhook secret is missing', async () => {
+    await expect(
+      handleBillingWebhook({
+        rawBody: '{}',
+        headers: new Headers(webhookHeaders),
+        requestUrl: 'https://example.com/api/billing/webhook',
+      }),
+    ).rejects.toThrowError(/PORTONE_WEBHOOK_SECRET/);
+
+    const response = createBillingWebhookErrorResponse(new Error('Missing required server env PORTONE_WEBHOOK_SECRET'));
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(payload).toMatchObject({
+      ok: false,
+      code: 'SERVER_MISCONFIGURED',
+    });
   });
 });
