@@ -4,11 +4,7 @@ import {
   handleBillingWebhook,
 } from '../../src/server/billingWebhook';
 
-export const config = {
-  runtime: 'edge',
-};
-
-export default async function handler(request: Request) {
+async function handleRequest(request: Request) {
   if (request.method !== 'POST') {
     return createMethodNotAllowedResponse();
   }
@@ -26,3 +22,9 @@ export default async function handler(request: Request) {
     return createBillingWebhookErrorResponse(error);
   }
 }
+
+export default {
+  async fetch(request: Request) {
+    return handleRequest(request);
+  },
+};

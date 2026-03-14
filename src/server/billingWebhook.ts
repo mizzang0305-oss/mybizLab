@@ -1,12 +1,11 @@
 import { Webhook } from '@portone/server-sdk';
 import { createClient } from '@supabase/supabase-js';
 
-import { getPortOneWebhookSecret } from '@/server/portoneEnv';
-import { readServerEnv } from '@/server/serverEnv';
-
 const PORTONE_REQUIRED_HEADERS = ['webhook-id', 'webhook-signature', 'webhook-timestamp'] as const;
 const SUPABASE_WEBHOOK_EVENTS_TABLE = 'billing_webhook_events';
 const SUPABASE_WEBHOOK_STATES_TABLE = 'billing_webhook_states';
+const SERVER_ENV_HINT =
+  'Add it to .env.local when using vercel dev, and to Vercel Project Settings > Environment Variables for Development, Preview, and Production.';
 
 type PortOneHeaderName = (typeof PORTONE_REQUIRED_HEADERS)[number];
 
@@ -85,6 +84,32 @@ const memoryStore: BillingWebhookPersistenceStore = {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function readServerEnv(name: string) {
+  const value = process.env[name];
+
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function requireServerEnv(name: string, usage: string) {
+  const value = readServerEnv(name);
+
+  if (!value) {
+    throw new Error(`Missing required server env ${name} for ${usage}. ${SERVER_ENV_HINT}`);
+  }
+
+  return value;
+}
+
+function readPortOneServerEnv() {
+  return {
+    apiSecret: readServerEnv('PORTONE_V2_API_SECRET'),
+    webhookSecret: requireServerEnv(
+      'PORTONE_WEBHOOK_SECRET',
+      'PortOne webhook signature verification on /api/billing/webhook',
+    ),
+  };
 }
 
 function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?: Record<string, string>) {
@@ -351,7 +376,7 @@ export async function persistBillingWebhookMutation(mutation: BillingWebhookMuta
 }
 
 export async function handleBillingWebhook(input: HandleBillingWebhookInput): Promise<HandleBillingWebhookSuccess> {
-  const webhookSecret = getPortOneWebhookSecret();
+  const { apiSecret, webhookSecret } = readPortOneServerEnv();
   const requiredHeaders = readRequiredHeaders(input.headers);
   const verifiedWebhook = await Webhook.verify(webhookSecret, input.rawBody, requiredHeaders);
   const mutation = buildBillingWebhookMutation(verifiedWebhook, requiredHeaders);
@@ -361,6 +386,7 @@ export async function handleBillingWebhook(input: HandleBillingWebhookInput): Pr
     webhookId: mutation.eventLog.webhookId,
     eventType: mutation.eventLog.portoneEventType,
     actions: mutation.eventLog.actions,
+    apiSecretConfigured: Boolean(apiSecret),
     payload: mutation.eventLog.payload,
   });
 
