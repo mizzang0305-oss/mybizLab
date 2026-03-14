@@ -30,7 +30,7 @@ import type {
   WaitingStatus,
 } from '@/shared/types/models';
 
-const DEMO_PROFILE_ID = 'profile_demo_owner';
+const DEMO_PROFILE_ID = 'profile_platform_owner';
 
 function nowIso() {
   return new Date().toISOString();
@@ -130,12 +130,12 @@ export async function getCurrentProfile() {
 }
 
 export async function listAccessibleStores() {
-  return getStoreMembersStores();
+  return getDatabase().stores.slice().sort((left, right) => right.created_at.localeCompare(left.created_at));
 }
 
 export async function listSetupRequests() {
   const database = getDatabase();
-  return database.store_setup_requests.slice().sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+  return database.store_requests.slice().sort((left, right) => right.updated_at.localeCompare(left.updated_at));
 }
 
 export async function saveSetupRequest(input: SetupRequestInput) {
@@ -144,13 +144,39 @@ export async function saveSetupRequest(input: SetupRequestInput) {
     id: createId('setup_request'),
     ...input,
     requested_slug: normalizeStoreSlug(input.requested_slug || input.business_name),
+    requested_plan: 'starter' as const,
+    brand_name: input.business_name,
+    brand_color: '#ec5b13',
+    tagline: `${input.business_name} 오픈 준비 중`,
+    description: `${input.business_name} 스토어 오픈을 위한 기본 요청서입니다.`,
+    hero_image_url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80',
+    storefront_image_url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1200&q=80',
+    interior_image_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
+    directions: `${input.address} 기준 위치 안내를 추가해 주세요.`,
+    menu_preview: [
+      {
+        id: createId('request_menu'),
+        category: '대표 메뉴',
+        name: '시그니처 메뉴',
+        price: 12000,
+        description: '기본 생성된 대표 메뉴 예시',
+        is_signature: true,
+      },
+    ],
+    notices: [
+      {
+        id: createId('request_notice'),
+        title: '운영 공지 초안',
+        content: '오픈 전 운영 공지를 이 영역에서 검토합니다.',
+      },
+    ],
     status: 'submitted' as const,
     created_at: timestamp,
     updated_at: timestamp,
   };
 
   updateDatabase((database) => {
-    database.store_setup_requests.unshift(request);
+    database.store_requests.unshift(request);
   });
 
   return request;
@@ -178,6 +204,9 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
     logo_url: '',
     tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
     description: `${input.business_name} SaaS MVP 스토어`,
+    public_status: 'private',
+    subscription_plan: 'starter',
+    admin_email: input.email,
     created_at: timestamp,
     updated_at: timestamp,
   };
@@ -221,6 +250,23 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
 
   updateDatabase((database) => {
     database.stores.unshift(store);
+    database.store_brand_profiles.unshift({
+      id: createId('store_brand_profile'),
+      store_id: storeId,
+      brand_name: input.business_name,
+      logo_url: '',
+      primary_color: '#ec5b13',
+      tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
+      description: `${input.business_name} SaaS MVP 스토어`,
+      updated_at: timestamp,
+    });
+    database.store_locations.unshift({
+      id: createId('store_location'),
+      store_id: storeId,
+      address: input.address,
+      directions: `${input.address} 기준 기본 길안내`,
+      published: false,
+    });
     database.store_members.unshift({
       id: createId('store_member'),
       store_id: storeId,
@@ -232,13 +278,59 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
     database.menu_categories.push(...defaultCategories);
     database.menu_items.push(...defaultMenuItems);
     database.store_tables.push(...defaultTables);
-    database.store_setup_requests.unshift({
+    database.store_requests.unshift({
       id: createId('setup_request'),
       ...input,
       requested_slug: uniqueSlug,
-      status: 'converted',
+      requested_plan: 'starter',
+      brand_name: input.business_name,
+      brand_color: '#ec5b13',
+      tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
+      description: `${input.business_name} SaaS MVP 스토어`,
+      hero_image_url: '',
+      storefront_image_url: '',
+      interior_image_url: '',
+      directions: `${input.address} 기준 기본 길안내`,
+      menu_preview: defaultMenuItems.map((item) => ({
+        id: createId('request_menu'),
+        category: item.category_id === defaultCategories[0].id ? '대표 메뉴' : '사이드',
+        name: item.name,
+        price: item.price,
+        description: item.description,
+        is_signature: item.is_popular,
+      })),
+      notices: [
+        {
+          id: createId('request_notice'),
+          title: '자동 생성된 공지 초안',
+          content: '스토어 생성과 함께 기본 공지 초안이 만들어졌습니다.',
+        },
+      ],
+      status: 'approved',
+      linked_store_id: storeId,
       created_at: timestamp,
       updated_at: timestamp,
+    });
+    database.billing_records.unshift({
+      id: createId('billing_record'),
+      store_id: storeId,
+      admin_email: input.email,
+      plan: 'starter',
+      setup_status: 'setup_pending',
+      subscription_status: 'subscription_pending',
+      payment_method_status: 'missing',
+      updated_at: timestamp,
+      events: [
+        {
+          id: createId('billing_event'),
+          store_id: storeId,
+          event_type: 'setup_fee',
+          title: '초기 세팅비 결제 대기',
+          amount: 390000,
+          status: 'pending',
+          occurred_at: timestamp,
+        },
+      ],
     });
   });
 

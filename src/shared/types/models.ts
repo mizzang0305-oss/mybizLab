@@ -22,6 +22,33 @@ export type ContractStatus = 'draft' | 'sent' | 'signed';
 export type ScheduleType = 'shift' | 'task' | 'meeting';
 export type OrderChannel = 'table' | 'walk_in' | 'delivery' | 'reservation';
 export type ReportType = 'daily' | 'weekly';
+export type StoreRequestStatus = 'draft' | 'submitted' | 'reviewing' | 'approved' | 'rejected';
+export type StoreVisibility = 'public' | 'private';
+export type SubscriptionPlan = 'starter' | 'pro' | 'business' | 'enterprise';
+export type SetupPaymentStatus = 'setup_pending' | 'setup_paid';
+export type SubscriptionStatus =
+  | 'subscription_pending'
+  | 'subscription_active'
+  | 'subscription_past_due'
+  | 'subscription_cancelled'
+  | 'refund_requested';
+export type PaymentMethodStatus = 'ready' | 'action_required' | 'missing';
+export type BillingEventStatus = 'pending' | 'paid' | 'failed' | 'requested';
+export type AdminUserRole = 'platform_owner' | 'platform_admin' | 'store_owner' | 'store_manager';
+export type AdminUserStatus = 'active' | 'pending' | 'inactive';
+export type InvitationStatus = 'sent' | 'scheduled' | 'accepted' | 'none';
+export type StoreMediaType = 'hero' | 'storefront' | 'interior';
+export type SystemStatusState = 'active' | 'ready' | 'warning' | 'pending' | 'error';
+export type ProvisioningAction =
+  | 'requested'
+  | 'review_started'
+  | 'approved'
+  | 'rejected'
+  | 'store_created'
+  | 'billing_created'
+  | 'owner_linked'
+  | 'features_applied';
+export type ProvisioningLevel = 'info' | 'success' | 'warning';
 
 export interface Profile {
   id: string;
@@ -31,7 +58,22 @@ export interface Profile {
   created_at: string;
 }
 
-export interface StoreSetupRequest {
+export interface StoreRequestMenuItem {
+  id: string;
+  category: string;
+  name: string;
+  price: number;
+  description: string;
+  is_signature: boolean;
+}
+
+export interface StoreRequestNotice {
+  id: string;
+  title: string;
+  content: string;
+}
+
+export interface StoreRequest {
   id: string;
   business_name: string;
   owner_name: string;
@@ -41,11 +83,28 @@ export interface StoreSetupRequest {
   address: string;
   business_type: string;
   requested_slug: string;
+  requested_plan: SubscriptionPlan;
   selected_features: FeatureKey[];
-  status: 'draft' | 'submitted' | 'converted';
+  brand_name: string;
+  brand_color: string;
+  tagline: string;
+  description: string;
+  hero_image_url: string;
+  storefront_image_url: string;
+  interior_image_url: string;
+  directions: string;
+  menu_preview: StoreRequestMenuItem[];
+  notices: StoreRequestNotice[];
+  status: StoreRequestStatus;
+  review_notes?: string;
+  reviewed_by_email?: string;
+  reviewed_at?: string;
+  linked_store_id?: string;
   created_at: string;
   updated_at: string;
 }
+
+export type StoreSetupRequest = StoreRequest;
 
 export interface Store {
   id: string;
@@ -61,8 +120,51 @@ export interface Store {
   brand_color: string;
   tagline: string;
   description: string;
+  public_status: StoreVisibility;
+  subscription_plan: SubscriptionPlan;
+  admin_email: string;
+  created_from_request_id?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface StoreBrandProfile {
+  id: string;
+  store_id: string;
+  brand_name: string;
+  logo_url?: string;
+  primary_color: string;
+  tagline: string;
+  description: string;
+  updated_at: string;
+}
+
+export interface StoreMedia {
+  id: string;
+  store_id: string;
+  type: StoreMediaType;
+  title: string;
+  image_url: string;
+  caption: string;
+  sort_order: number;
+}
+
+export interface StoreLocation {
+  id: string;
+  store_id: string;
+  address: string;
+  directions: string;
+  parking_note?: string;
+  published: boolean;
+}
+
+export interface StoreNotice {
+  id: string;
+  store_id: string;
+  title: string;
+  content: string;
+  is_pinned: boolean;
+  published_at: string;
 }
 
 export interface StoreMember {
@@ -244,6 +346,64 @@ export interface AIReport {
   source: 'gemini' | 'fallback';
 }
 
+export interface BillingEvent {
+  id: string;
+  store_id: string;
+  event_type: 'setup_fee' | 'subscription_charge' | 'payment_failure' | 'refund_request' | 'manual_adjustment';
+  title: string;
+  amount: number;
+  status: BillingEventStatus;
+  occurred_at: string;
+  note?: string;
+}
+
+export interface BillingRecord {
+  id: string;
+  store_id: string;
+  admin_email: string;
+  plan: SubscriptionPlan;
+  setup_status: SetupPaymentStatus;
+  subscription_status: SubscriptionStatus;
+  last_payment_at?: string;
+  next_billing_at?: string;
+  payment_method_status: PaymentMethodStatus;
+  updated_at: string;
+  events: BillingEvent[];
+}
+
+export interface AdminUser {
+  id: string;
+  profile_id?: string;
+  name: string;
+  email: string;
+  role: AdminUserRole;
+  linked_store_ids: string[];
+  status: AdminUserStatus;
+  invitation_status: InvitationStatus;
+  last_sign_in_at?: string;
+  created_at: string;
+}
+
+export interface SystemStatusItem {
+  id: string;
+  key: string;
+  label: string;
+  value: string;
+  status: SystemStatusState;
+  description: string;
+  updated_at: string;
+}
+
+export interface StoreProvisioningLog {
+  id: string;
+  request_id: string;
+  store_id?: string;
+  action: ProvisioningAction;
+  level: ProvisioningLevel;
+  message: string;
+  created_at: string;
+}
+
 export interface SalesDaily {
   id: string;
   store_id: string;
@@ -256,8 +416,12 @@ export interface SalesDaily {
 
 export interface MvpDatabase {
   profiles: Profile[];
-  store_setup_requests: StoreSetupRequest[];
+  store_requests: StoreRequest[];
   stores: Store[];
+  store_brand_profiles: StoreBrandProfile[];
+  store_media: StoreMedia[];
+  store_locations: StoreLocation[];
+  store_notices: StoreNotice[];
   store_members: StoreMember[];
   store_features: StoreFeature[];
   store_tables: StoreTable[];
@@ -275,6 +439,10 @@ export interface MvpDatabase {
   contracts: Contract[];
   ai_reports: AIReport[];
   sales_daily: SalesDaily[];
+  billing_records: BillingRecord[];
+  admin_users: AdminUser[];
+  system_status: SystemStatusItem[];
+  store_provisioning_logs: StoreProvisioningLog[];
 }
 
 export interface CartItemInput {

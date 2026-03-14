@@ -35,13 +35,13 @@ export const PRICING_PLANS: PricingPlan[] = [
   {
     name: 'Starter',
     priceLabel: '월 29,000원',
-    summary: '단일 매장을 빠르게 시작하기 위한 기본 운영 플랜',
+    summary: '1개 매장을 빠르게 시작하는 기본 운영 플랜',
     features: ['매장 1개', 'AI 매장 분석', '기본 매출 리포트', 'QR 주문'],
   },
   {
     name: 'Pro',
     priceLabel: '월 79,000원',
-    summary: '여러 매장을 운영하며 고객관리와 리포트를 함께 강화하는 플랜',
+    summary: '여러 매장을 운영하며 고객관리와 리포트를 강화하는 추천 플랜',
     features: ['매장 3개', 'AI 매니저', 'AI 리포트', '고객관리', '예약관리'],
     highlighted: true,
   },
@@ -49,6 +49,6 @@ export const PRICING_PLANS: PricingPlan[] = [
     name: 'Business',
     priceLabel: '월 149,000원',
     summary: '브랜드 단위 운영과 자동화를 고려한 확장형 플랜',
-    features: ['매장 무제한', 'AI 자동 분석', 'CRM 자동화', '브랜드 관리'],
+    features: ['매장 최대 10개', 'AI 자동 분석', 'CRM 자동화', '브랜드 관리'],
   },
 ] as const;

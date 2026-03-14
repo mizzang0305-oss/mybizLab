@@ -485,3 +485,37 @@ create index if not exists schedules_store_starts_at_idx on public.store_schedul
 create index if not exists contracts_store_idx on public.contracts (store_id);
 create index if not exists ai_reports_store_generated_idx on public.ai_reports (store_id, generated_at desc);
 create index if not exists sales_daily_store_date_idx on public.sales_daily (store_id, sale_date desc);
+
+create table if not exists public.billing_webhook_events (
+  webhook_id text primary key,
+  portone_event_type text not null,
+  normalized_status text not null,
+  actions text[] not null default '{}',
+  portone_store_id text,
+  payment_id text,
+  billing_key text,
+  transaction_id text,
+  cancellation_id text,
+  payload jsonb not null default '{}'::jsonb,
+  received_at timestamptz not null default timezone('utc', now()),
+  processed_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.billing_webhook_states (
+  source_key text primary key,
+  portone_store_id text,
+  payment_id text,
+  billing_key text,
+  last_event_type text not null,
+  normalized_status text not null,
+  actions text[] not null default '{}',
+  payment_status text,
+  billing_key_status text,
+  subscription_status text,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists billing_webhook_events_store_idx on public.billing_webhook_events (portone_store_id, processed_at desc);
+create index if not exists billing_webhook_events_payment_idx on public.billing_webhook_events (payment_id);
+create index if not exists billing_webhook_states_store_idx on public.billing_webhook_states (portone_store_id, updated_at desc);

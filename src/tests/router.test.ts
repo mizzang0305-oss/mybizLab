@@ -28,6 +28,13 @@ describe('app routing', () => {
   it('resolves dashboard separately from public store pages', () => {
     expect(matchedPaths('/dashboard')).toContain('/dashboard');
     expect(matchedPaths('/dashboard')).not.toContain('/:storeSlug');
+    expect(matchedPaths('/dashboard/store-requests')).toContain('store-requests');
+    expect(matchedPaths('/dashboard/store-requests/request_aurora')).toContain('store-requests/:requestId');
+    expect(matchedPaths('/dashboard/stores')).toContain('stores');
+    expect(matchedPaths('/dashboard/stores/store_golden_coffee')).toContain('stores/:storeId');
+    expect(matchedPaths('/dashboard/billing')).toContain('billing');
+    expect(matchedPaths('/dashboard/admin-users')).toContain('admin-users');
+    expect(matchedPaths('/dashboard/system')).toContain('system');
   });
 
   it('resolves store public routes under the store slug pattern', () => {

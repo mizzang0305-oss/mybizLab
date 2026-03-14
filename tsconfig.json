@@ -21,12 +21,14 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "types": [
+      "node",
       "vite/client",
       "vitest/globals"
     ]
   },
   "include": [
     "src",
+    "api",
     "vite.config.ts"
   ]
 }

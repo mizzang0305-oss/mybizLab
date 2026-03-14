@@ -6,6 +6,8 @@ import { PublicLayout } from '@/app/layouts/PublicLayout';
 import { StorePublicLayout } from '@/app/layouts/StorePublicLayout';
 import { AiManagerPage } from '@/modules/ai-manager/page';
 import { AiReportsPage } from '@/modules/ai-report/page';
+import { AdminUsersPage } from '@/modules/admin-users/page';
+import { BillingPage } from '@/modules/billing/page';
 import { BrandPage } from '@/modules/brand/page';
 import { ContractsPage } from '@/modules/contracts/page';
 import { CustomersPage } from '@/modules/customers/page';
@@ -16,7 +18,12 @@ import { OrdersPage } from '@/modules/orders/page';
 import { ReservationsPage } from '@/modules/reservations/page';
 import { SalesPage } from '@/modules/sales/page';
 import { SchedulesPage } from '@/modules/schedules/page';
+import { StoreRequestDetailPage } from '@/modules/store-requests/detail-page';
+import { StoreRequestsPage } from '@/modules/store-requests/page';
+import { StoreDetailPage } from '@/modules/stores/detail-page';
+import { StoresPage } from '@/modules/stores/page';
 import { SurveysPage } from '@/modules/surveys/page';
+import { SystemPage } from '@/modules/system/page';
 import { TableOrderAdminPage } from '@/modules/table-order/admin-page';
 import { StoreHomePage } from '@/modules/table-order/public-home-page';
 import { StoreMenuPage } from '@/modules/table-order/public-menu-page';
@@ -74,6 +81,34 @@ export const appRoutes: RouteObject[] = [
           {
             index: true,
             element: <DashboardPage />,
+          },
+          {
+            path: 'store-requests',
+            element: <StoreRequestsPage />,
+          },
+          {
+            path: 'store-requests/:requestId',
+            element: <StoreRequestDetailPage />,
+          },
+          {
+            path: 'stores',
+            element: <StoresPage />,
+          },
+          {
+            path: 'stores/:storeId',
+            element: <StoreDetailPage />,
+          },
+          {
+            path: 'billing',
+            element: <BillingPage />,
+          },
+          {
+            path: 'admin-users',
+            element: <AdminUsersPage />,
+          },
+          {
+            path: 'system',
+            element: <SystemPage />,
           },
           {
             path: 'ai-manager',
