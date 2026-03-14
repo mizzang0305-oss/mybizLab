@@ -5,7 +5,7 @@ export const SERVICE_DESCRIPTION =
   '마이비즈랩은 공개 스토어, QR 주문, 예약, 고객관리, 매출 분석을 하나의 운영 대시보드로 연결하는 SaaS 플랫폼입니다.';
 export const POLICY_UPDATED_AT = '2026년 3월 14일';
 export const SUPPORT_PHONE_NUMBER = '032-214-5757';
-export const SUBSCRIPTION_START_PATH = '/login?next=/dashboard';
+export const SUBSCRIPTION_START_PATH = '/pricing';
 
 export const BUSINESS_INFO = {
   companyName: '마이비즈랩',

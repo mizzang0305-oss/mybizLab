@@ -1,6 +1,8 @@
 import { Webhook } from '@portone/server-sdk';
 import { createClient } from '@supabase/supabase-js';
 
+import { BillingApiStageError, type BillingEnv, responseJson } from './billingApiRuntime';
+
 const PORTONE_REQUIRED_HEADERS = ['webhook-id', 'webhook-signature', 'webhook-timestamp'] as const;
 const SUPABASE_WEBHOOK_EVENTS_TABLE = 'billing_webhook_events';
 const SUPABASE_WEBHOOK_STATES_TABLE = 'billing_webhook_states';
@@ -58,6 +60,8 @@ export interface BillingWebhookMutation {
 }
 
 export interface HandleBillingWebhookInput {
+  env: BillingEnv;
+  logStage?: (stage: string, payload?: Record<string, unknown>) => void;
   rawBody: string;
   headers: Headers;
   requestUrl: string;
@@ -84,21 +88,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function getEnv(name: string) {
-  const value = process.env[name];
-  return value && value.trim() ? value.trim() : undefined;
-}
-
-function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?: Record<string, string>) {
-  return new Response(JSON.stringify(body, null, 2), {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      ...extraHeaders,
-    },
-  });
-}
-
 function requiredHeader(headers: Headers, name: PortOneHeaderName) {
   return headers.get(name) || undefined;
 }
@@ -112,7 +101,13 @@ function readRequiredHeaders(headers: Headers) {
 
   const missing = PORTONE_REQUIRED_HEADERS.filter((name) => !normalized[name]);
   if (missing.length > 0) {
-    throw new Error(`Missing webhook headers: ${missing.join(', ')}`);
+    throw new BillingApiStageError({
+      stage: 'headers-parsed',
+      status: 400,
+      code: 'INVALID_WEBHOOK_HEADERS',
+      message: `Missing webhook headers: ${missing.join(', ')}`,
+      details: { missing },
+    });
   }
 
   return normalized as Record<PortOneHeaderName, string>;
@@ -281,8 +276,8 @@ function upsertInMemoryStore(mutation: BillingWebhookMutation) {
 }
 
 async function persistToSupabase(mutation: BillingWebhookMutation) {
-  const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
-  const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const supabaseUrl = process.env.SUPABASE_URL?.trim() || process.env.VITE_SUPABASE_URL?.trim() || undefined;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || undefined;
 
   if (!supabaseUrl || !serviceRoleKey) {
     return false;
@@ -353,24 +348,58 @@ export async function persistBillingWebhookMutation(mutation: BillingWebhookMuta
 }
 
 export async function handleBillingWebhook(input: HandleBillingWebhookInput): Promise<HandleBillingWebhookSuccess> {
-  const webhookSecret = getEnv('PORTONE_WEBHOOK_SECRET');
-  if (!webhookSecret) {
-    throw new Error('PORTONE_WEBHOOK_SECRET is not configured');
+  if (!input.env.webhookSecret) {
+    throw new BillingApiStageError({
+      stage: 'env-load',
+      status: 500,
+      code: 'SERVER_MISCONFIGURED',
+      message: 'PORTONE_WEBHOOK_SECRET is required for /api/billing/webhook',
+    });
   }
 
   const requiredHeaders = readRequiredHeaders(input.headers);
-  const verifiedWebhook = await Webhook.verify(webhookSecret, input.rawBody, requiredHeaders);
+  input.logStage?.('headers parsed', {
+    headerNames: PORTONE_REQUIRED_HEADERS,
+    webhookId: requiredHeaders['webhook-id'],
+  });
+
+  input.logStage?.('signature verification start', {
+    rawBodyLength: input.rawBody.length,
+    webhookId: requiredHeaders['webhook-id'],
+  });
+
+  let verifiedWebhook: unknown;
+
+  try {
+    verifiedWebhook = await Webhook.verify(input.env.webhookSecret, input.rawBody, requiredHeaders);
+  } catch (error) {
+    input.logStage?.('signature verification failed', {
+      error: error instanceof Error ? error.message : 'Unknown webhook verification error',
+    });
+    throw error;
+  }
+
+  input.logStage?.('signature verification passed', {
+    webhookId: requiredHeaders['webhook-id'],
+  });
+
   const mutation = buildBillingWebhookMutation(verifiedWebhook, requiredHeaders);
 
-  console.info('[billing-webhook] verified payload', {
+  input.logStage?.('payload logged', {
     url: input.requestUrl,
     webhookId: mutation.eventLog.webhookId,
     eventType: mutation.eventLog.portoneEventType,
     actions: mutation.eventLog.actions,
+    apiSecretConfigured: Boolean(input.env.apiSecret),
     payload: mutation.eventLog.payload,
   });
 
   const persistence = await persistBillingWebhookMutation(mutation);
+
+  input.logStage?.('response 200', {
+    persistence,
+    webhookId: mutation.eventLog.webhookId,
+  });
 
   return {
     ok: true,
@@ -398,36 +427,43 @@ export function resetBillingWebhookStoreForTests() {
 }
 
 export function createBillingWebhookErrorResponse(error: unknown) {
+  if (error instanceof BillingApiStageError) {
+    return responseJson(
+      {
+        ok: false,
+        code: error.code,
+        stage: error.stage,
+        error: error.message,
+        details: error.details,
+      },
+      error.status,
+    );
+  }
+
   if (error instanceof Webhook.WebhookVerificationError) {
     const status = error.reason === 'MISSING_REQUIRED_HEADERS' ? 400 : 401;
     return responseJson(
       {
         ok: false,
         code: 'PORTONE_WEBHOOK_VERIFICATION_FAILED',
+        stage: 'webhook-verify',
+        error: error.message,
         reason: error.reason,
-        message: error.message,
       },
       status,
     );
   }
 
-  if (error instanceof Error && error.message.includes('Missing webhook headers')) {
-    return responseJson(
-      {
-        ok: false,
-        code: 'INVALID_WEBHOOK_HEADERS',
-        message: error.message,
-      },
-      400,
-    );
-  }
-
-  if (error instanceof Error && error.message.includes('PORTONE_WEBHOOK_SECRET')) {
+  if (
+    error instanceof Error &&
+    (error.message.includes('PORTONE_WEBHOOK_SECRET') || error.message.includes('PORTONE_V2_API_SECRET'))
+  ) {
     return responseJson(
       {
         ok: false,
         code: 'SERVER_MISCONFIGURED',
-        message: error.message,
+        stage: 'env-load',
+        error: error.message,
       },
       500,
     );
@@ -439,7 +475,8 @@ export function createBillingWebhookErrorResponse(error: unknown) {
     {
       ok: false,
       code: 'PORTONE_WEBHOOK_INTERNAL_ERROR',
-      message: error instanceof Error ? error.message : 'Unknown webhook processing error',
+      stage: 'webhook-unhandled',
+      error: error instanceof Error ? error.message : 'Unknown webhook processing error',
     },
     500,
   );
@@ -450,7 +487,8 @@ export function createMethodNotAllowedResponse() {
     {
       ok: false,
       code: 'METHOD_NOT_ALLOWED',
-      message: 'Only POST is supported on /api/billing/webhook',
+      stage: 'method-check',
+      error: 'Only POST is supported on /api/billing/webhook',
     },
     405,
     { allow: 'POST' },

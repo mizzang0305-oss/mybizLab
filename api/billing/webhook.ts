@@ -1,23 +1,42 @@
 import {
   createBillingWebhookErrorResponse,
-  createMethodNotAllowedResponse,
   handleBillingWebhook,
 } from '../../src/server/billingWebhook';
+import {
+  createBillingMethodNotAllowedResponse,
+  getBillingEnvStatus,
+  logBillingStage,
+  validateBillingEnv,
+} from '../../src/server/billingApiRuntime';
 
-export const config = {
-  runtime: 'edge',
-};
+const ENDPOINT = '/api/billing/webhook';
 
-export default async function handler(request: Request) {
+async function handleRequest(request: Request) {
+  logBillingStage(ENDPOINT, 'request received', {
+    method: request.method,
+    url: request.url,
+  });
+
   if (request.method !== 'POST') {
-    return createMethodNotAllowedResponse();
+    return createBillingMethodNotAllowedResponse(ENDPOINT);
   }
 
   try {
+    const env = validateBillingEnv(['webhookSecret'], ENDPOINT);
+    logBillingStage(ENDPOINT, 'env loaded', {
+      envStatus: getBillingEnvStatus(env),
+    });
+
     const rawBody = await request.text();
+    logBillingStage(ENDPOINT, 'body parsed', {
+      rawBodyLength: rawBody.length,
+    });
+
     const result = await handleBillingWebhook({
+      env,
       rawBody,
       headers: request.headers,
+      logStage: (stage, payload) => logBillingStage(ENDPOINT, stage, payload),
       requestUrl: request.url,
     });
 
@@ -26,3 +45,9 @@ export default async function handler(request: Request) {
     return createBillingWebhookErrorResponse(error);
   }
 }
+
+export default {
+  async fetch(request: Request) {
+    return handleRequest(request);
+  },
+};
