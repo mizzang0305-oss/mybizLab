@@ -1,20 +1,52 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# My Biz Lab MVP
 
-# Run and deploy your AI Studio app
+Vite + React 19 + Tailwind 4 기반의 스토어 운영 SaaS MVP 예제입니다.
 
-This contains everything you need to run your app locally.
+핵심 시나리오:
 
-View your app in AI Studio: https://ai.studio/apps/87663a75-4281-47cb-9c26-987062c61d26
+- 스토어 온보딩 신청/생성
+- `store_id` 기반 운영 대시보드
+- 주문 / 고객 / 예약 / 웨이팅 / 설문 / 계약 / 매출 / 브랜드 관리
+- `slug` 기반 공개 스토어 주소와 QR 주문
+- 주방 보드 반영 및 주문 완료 시 `sales_daily` 집계
+- Gemini 2.5 Flash 연결 가능한 AI 점장 / AI 리포트
 
-## Run Locally
+## 실행
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
+1. `.env.example`을 `.env.local`로 복사합니다.
+2. 의존성을 설치합니다.
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+3. 개발 서버를 실행합니다.
    `npm run dev`
+
+기본 데이터 모드는 `mock`이며, 로컬에서도 핵심 MVP 플로우를 바로 확인할 수 있습니다.
+
+## 스크립트
+
+- `npm run dev`
+- `npm run lint`
+- `npm test`
+- `npm run build`
+- `npm run clean`
+
+## 주요 구조
+
+```text
+src/
+  app/
+  modules/
+  shared/
+  integrations/
+  pages/
+supabase/
+  schema.sql
+```
+
+## 환경 변수
+
+- `VITE_APP_BASE_URL`
+- `VITE_DATA_PROVIDER`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_GEMINI_API_KEY`
+- `GEMINI_API_KEY` (server proxy 전용)
