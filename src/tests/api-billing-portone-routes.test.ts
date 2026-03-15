@@ -45,7 +45,7 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns 405 with a clear message for GET /api/billing/checkout', async () => {
-    const response = await checkoutHandler.fetch(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         method: 'GET',
       }),
@@ -55,8 +55,13 @@ describe('/api/billing checkout and verify handlers', () => {
 
     expect(response.status).toBe(405);
     expect(payload).toEqual({
+      code: 'METHOD_NOT_ALLOWED',
+      details: {
+        allow: ['POST'],
+      },
+      error: 'Only POST is supported on /api/billing/checkout',
       ok: false,
-      message: 'Checkout endpoint. Use POST.',
+      stage: 'method-check',
     });
   });
 
@@ -65,7 +70,7 @@ describe('/api/billing checkout and verify handlers', () => {
     delete process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
 
-    const response = await checkoutHandler.fetch(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'starter' }),
         method: 'POST',
@@ -83,7 +88,7 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns 400 from checkout when the plan is missing', async () => {
-    const response = await checkoutHandler.fetch(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({}),
         method: 'POST',
@@ -101,7 +106,7 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns a PortOne checkout session for a valid subscription plan', async () => {
-    const response = await checkoutHandler.fetch(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
@@ -118,6 +123,11 @@ describe('/api/billing checkout and verify handlers', () => {
       checkout: {
         channelKey: 'channel-key-test',
         currency: 'KRW',
+        customer: {
+          email: expect.any(String),
+          fullName: expect.any(String),
+          phoneNumber: expect.any(String),
+        },
         orderName: 'Pro 월 구독',
         payMethod: 'CARD',
         plan: 'pro',
@@ -125,7 +135,8 @@ describe('/api/billing checkout and verify handlers', () => {
         totalAmount: 79000,
       },
     });
-    expect(payload.checkout.paymentId).toMatch(/^subscription-pro-/);
+    expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
+    expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
     expect(payload.checkout.noticeUrls).toEqual(['https://example.com/api/billing/webhook']);
   });
 

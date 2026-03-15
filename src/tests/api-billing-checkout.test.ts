@@ -2,9 +2,22 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import checkoutHandler from '../../api/billing/checkout';
 import {
+  createCheckoutPaymentId,
+  type CheckoutCustomerPayload,
   type CheckoutSessionPayload,
   validateCheckoutSessionPayload,
 } from '../../src/server/billingCheckout';
+
+function createValidCheckoutCustomer(
+  overrides: Partial<CheckoutCustomerPayload> = {},
+): CheckoutCustomerPayload {
+  return {
+    email: 'buyer@example.com',
+    fullName: '홍길동',
+    phoneNumber: '010-1234-5678',
+    ...overrides,
+  };
+}
 
 function createValidCheckoutSessionPayload(
   overrides: Partial<CheckoutSessionPayload> = {},
@@ -17,6 +30,7 @@ function createValidCheckoutSessionPayload(
       plan: 'starter',
       source: 'pricing-page',
     },
+    customer: createValidCheckoutCustomer(),
     noticeUrls: ['https://example.com/api/billing/webhook'],
     orderName: 'Starter 구독',
     payMethod: 'CARD',
@@ -237,12 +251,85 @@ describe('/api/billing/checkout', () => {
     expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['channelKey']));
   });
 
+  it('fails validation when paymentId exceeds the KG Inicis limit', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        paymentId: `mb_st_${'a'.repeat(35)}`,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        paymentId: `mb_st_${'a'.repeat(35)}`,
+      },
+      status: 500,
+    });
+
+    if (result.ok) {
+      throw new Error('Expected invalid checkout session result');
+    }
+
+    expect(result.details.validationErrors).toEqual(
+      expect.arrayContaining([
+        {
+          field: 'paymentId',
+          reason: 'must be 40 characters or fewer for KG Inicis',
+        },
+      ]),
+    );
+  });
+
+  it('fails validation when KG Inicis customer data is blank', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        customer: createValidCheckoutCustomer({
+          email: '',
+          fullName: '',
+          phoneNumber: '',
+        }),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        customerConfigured: {
+          email: false,
+          fullName: false,
+          phoneNumber: false,
+        },
+      },
+      status: 500,
+    });
+
+    if (result.ok) {
+      throw new Error('Expected invalid checkout session result');
+    }
+
+    expect(result.details.missingOrInvalidFields).toEqual(
+      expect.arrayContaining(['customer.email', 'customer.fullName', 'customer.phoneNumber']),
+    );
+  });
+
   it('keeps the validator result ok for a valid checkout session', () => {
     const result = validateCheckoutSessionPayload(createValidCheckoutSessionPayload());
 
     expect(result).toEqual({
       ok: true,
     });
+  });
+
+  it.each([
+    ['starter', /^mb_st_[a-f0-9]{16}$/],
+    ['pro', /^mb_pro_[a-f0-9]{16}$/],
+    ['business', /^mb_biz_[a-f0-9]{16}$/],
+  ] as const)('creates a short ASCII-safe paymentId for %s', (plan, pattern) => {
+    const paymentId = createCheckoutPaymentId(plan);
+
+    expect(paymentId).toMatch(pattern);
+    expect(paymentId.length).toBeLessThanOrEqual(40);
+    expect(paymentId).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
   it('does not require PORTONE_API_SECRET for checkout success', async () => {
@@ -263,6 +350,11 @@ describe('/api/billing/checkout', () => {
       checkout: {
         channelKey: 'channel-key-test',
         currency: 'KRW',
+        customer: {
+          email: expect.any(String),
+          fullName: expect.any(String),
+          phoneNumber: expect.any(String),
+        },
         noticeUrls: ['https://example.com/api/billing/webhook'],
         orderName: 'Pro 월 구독',
         payMethod: 'CARD',
@@ -272,6 +364,7 @@ describe('/api/billing/checkout', () => {
         totalAmount: 79000,
       },
     });
-    expect(payload.checkout.paymentId).toMatch(/^subscription-pro-/);
+    expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
+    expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
   });
 });

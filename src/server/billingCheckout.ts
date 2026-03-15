@@ -1,21 +1,35 @@
 import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../shared/lib/billingPlans';
+import { BUSINESS_INFO } from '../shared/lib/siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const SERVER_ENV_HINT =
   'Add it to .env.local when using vercel dev, and to Vercel Project Settings > Environment Variables for Development, Preview, and Production.';
 
 const CHECKOUT_ENV_NAMES = {
-  appBaseUrl: ['APP_BASE_URL', 'NEXT_PUBLIC_APP_BASE_URL', 'VITE_APP_BASE_URL'],
-  channelKey: ['PORTONE_CHANNEL_KEY', 'NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'VITE_PORTONE_CHANNEL_KEY'],
-  storeId: ['PORTONE_STORE_ID', 'NEXT_PUBLIC_PORTONE_STORE_ID', 'VITE_PORTONE_STORE_ID'],
+  appBaseUrl: ['VITE_APP_BASE_URL'],
+  channelKey: ['PORTONE_CHANNEL_KEY'],
+  storeId: ['PORTONE_STORE_ID'],
 } as const;
+const KG_INICIS_PAYMENT_ID_MAX_LENGTH = 40;
+const COMPACT_PLAN_CODE: Record<BillingPlanCode, string> = {
+  business: 'biz',
+  pro: 'pro',
+  starter: 'st',
+};
 
 type CheckoutEnvKey = keyof typeof CHECKOUT_ENV_NAMES;
+
+export interface CheckoutCustomerPayload {
+  email: string;
+  fullName: string;
+  phoneNumber: string;
+}
 
 export interface CheckoutSessionPayload {
   channelKey: string;
   currency: 'KRW';
   customData: Record<string, unknown>;
+  customer: CheckoutCustomerPayload;
   noticeUrls: string[];
   orderName: string;
   payMethod: 'CARD';
@@ -31,6 +45,12 @@ export interface CheckoutSessionResponse {
   endpoint: typeof CHECKOUT_ENDPOINT;
   ok: true;
   plan: BillingPlanCode;
+}
+
+interface BrowserCheckoutContext {
+  appBaseUrl?: string;
+  channelKey?: string;
+  storeId?: string;
 }
 
 interface CheckoutEnv {
@@ -119,7 +139,7 @@ function normalizeBaseUrl(value: string) {
       details: {
         receivedAppBaseUrl: value,
       },
-      message: `APP_BASE_URL is invalid for ${CHECKOUT_ENDPOINT}. ${SERVER_ENV_HINT}`,
+      message: `VITE_APP_BASE_URL is invalid for ${CHECKOUT_ENDPOINT}. ${SERVER_ENV_HINT}`,
       stage: 'env-load',
       status: 500,
     });
@@ -246,17 +266,11 @@ function readCheckoutEnv(): CheckoutEnv {
 
 function getCheckoutEnvStatus(env: CheckoutEnv) {
   return {
-    APP_BASE_URL: Boolean(process.env.APP_BASE_URL?.trim()),
-    NEXT_PUBLIC_APP_BASE_URL: Boolean(process.env.NEXT_PUBLIC_APP_BASE_URL?.trim()),
-    NEXT_PUBLIC_PORTONE_CHANNEL_KEY: Boolean(process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY?.trim()),
-    NEXT_PUBLIC_PORTONE_STORE_ID: Boolean(process.env.NEXT_PUBLIC_PORTONE_STORE_ID?.trim()),
     PORTONE_API_SECRET: Boolean(process.env.PORTONE_API_SECRET?.trim()),
     PORTONE_CHANNEL_KEY: Boolean(process.env.PORTONE_CHANNEL_KEY?.trim()),
     PORTONE_STORE_ID: Boolean(process.env.PORTONE_STORE_ID?.trim()),
-    PORTONE_V2_API_SECRET: Boolean(process.env.PORTONE_V2_API_SECRET?.trim()),
+    PORTONE_WEBHOOK_SECRET: Boolean(process.env.PORTONE_WEBHOOK_SECRET?.trim()),
     VITE_APP_BASE_URL: Boolean(process.env.VITE_APP_BASE_URL?.trim()),
-    VITE_PORTONE_CHANNEL_KEY: Boolean(process.env.VITE_PORTONE_CHANNEL_KEY?.trim()),
-    VITE_PORTONE_STORE_ID: Boolean(process.env.VITE_PORTONE_STORE_ID?.trim()),
     resolvedAppBaseUrl: Boolean(env.appBaseUrl),
     resolvedChannelKey: Boolean(env.channelKey),
     resolvedStoreId: Boolean(env.storeId),
@@ -335,6 +349,32 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
   return requestedPlan;
 }
 
+export function createCheckoutPaymentId(plan: BillingPlanCode) {
+  const compactPlan = COMPACT_PLAN_CODE[plan];
+  const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  const paymentId = `mb_${compactPlan}_${shortId}`;
+
+  if (
+    !paymentId ||
+    !isAsciiSafePaymentId(paymentId) ||
+    paymentId.length > KG_INICIS_PAYMENT_ID_MAX_LENGTH
+  ) {
+    throw new CheckoutApiError({
+      code: 'INVALID_CHECKOUT_SESSION',
+      details: {
+        paymentId,
+        paymentIdLength: paymentId.length,
+        shortId,
+      },
+      message: 'Failed to generate an ASCII-safe paymentId for checkout.',
+      stage: 'checkout-session-build',
+      status: 500,
+    });
+  }
+
+  return paymentId;
+}
+
 export function responseJson(body: unknown, status = 200, extraHeaders?: Record<string, string>) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
@@ -349,8 +389,10 @@ export function createCheckoutMethodNotAllowedResponse() {
   return responseJson(
     {
       code: 'METHOD_NOT_ALLOWED',
-      endpoint: CHECKOUT_ENDPOINT,
-      message: `Only POST is supported on ${CHECKOUT_ENDPOINT}`,
+      details: {
+        allow: ['POST'],
+      },
+      error: `Only POST is supported on ${CHECKOUT_ENDPOINT}`,
       ok: false,
       stage: 'method-check',
     },
@@ -362,9 +404,12 @@ export function createCheckoutMethodNotAllowedResponse() {
 export async function handleCheckoutRequest(request: Request) {
   const env = requireCheckoutEnv();
   const body = await parseRequestBody(request);
+
+  assertBrowserContextMatchesEnv(readBrowserCheckoutContext(body), env);
+
   const requestedPlan = resolveRequestedPlan(body);
   const billingPlan = getBillingPlan(requestedPlan);
-  const paymentId = `subscription-${requestedPlan}-${crypto.randomUUID()}`;
+  const paymentId = createCheckoutPaymentId(requestedPlan);
 
   const payload: CheckoutSessionResponse = {
     checkout: {
@@ -372,9 +417,12 @@ export async function handleCheckoutRequest(request: Request) {
       currency: 'KRW',
       customData: {
         initiatedAt: new Date().toISOString(),
+        payMethod: 'CARD',
+        pgProvider: 'KG_INICIS',
         plan: requestedPlan,
         source: 'pricing-page',
       },
+      customer: readCheckoutCustomer(body),
       noticeUrls: [`${env.appBaseUrl}/api/billing/webhook`],
       orderName: billingPlan.orderName,
       payMethod: 'CARD',
@@ -412,7 +460,6 @@ export function createCheckoutErrorResponse(error: unknown) {
       {
         code: error.code,
         details: error.details,
-        endpoint: CHECKOUT_ENDPOINT,
         error: error.message,
         ok: false,
         stage: error.stage,
@@ -426,7 +473,7 @@ export function createCheckoutErrorResponse(error: unknown) {
   return responseJson(
     {
       code: 'UNEXPECTED_BILLING_ERROR',
-      endpoint: CHECKOUT_ENDPOINT,
+      details: error instanceof Error ? { name: error.name } : undefined,
       error: error instanceof Error ? error.message : 'Unknown checkout processing error',
       ok: false,
       stage: 'unhandled',

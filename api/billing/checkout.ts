@@ -9,11 +9,11 @@ export const config = {
 };
 
 export default async function handler(request: Request) {
-  if (request.method !== 'POST') {
-    return createCheckoutMethodNotAllowedResponse();
-  }
-
   try {
+    if (request.method !== 'POST') {
+      return createCheckoutMethodNotAllowedResponse();
+    }
+
     return await handleCheckoutRequest(request);
   } catch (error) {
     return createCheckoutErrorResponse(error);

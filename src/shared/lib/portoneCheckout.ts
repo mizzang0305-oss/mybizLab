@@ -1,13 +1,28 @@
-import PortOne, { Currency, PaymentPayMethod, WindowType, type PaymentRequest, type PaymentResponse } from '@portone/browser-sdk/v2';
+import PortOne, { Currency, PaymentPayMethod, type PaymentRequest, type PaymentResponse } from '@portone/browser-sdk/v2';
 
 import type { BillingPlanCode } from './billingPlans';
+import { BUSINESS_INFO } from './siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
+const KG_INICIS_PAYMENT_ID_MAX_LENGTH = 40;
+
+interface BrowserCheckoutContext {
+  appBaseUrl: string;
+  channelKey: string;
+  storeId: string;
+}
+
+export interface CheckoutCustomerPayload {
+  email: string;
+  fullName: string;
+  phoneNumber: string;
+}
 
 export interface CheckoutSessionPayload {
   channelKey: string;
   currency: 'KRW';
   customData?: Record<string, unknown>;
+  customer: CheckoutCustomerPayload;
   noticeUrls?: string[];
   orderName: string;
   payMethod: 'CARD';
@@ -117,6 +132,11 @@ export function assertCheckoutSession(
       field: 'storeId',
       reason: 'must be a non-empty string',
     });
+  } else if (checkout.storeId !== browserEnv.storeId) {
+    issues.push({
+      field: 'storeId',
+      reason: 'must match NEXT_PUBLIC_PORTONE_STORE_ID',
+    });
   }
 
   if (!normalizeNonEmptyString(checkout.channelKey)) {
@@ -124,12 +144,27 @@ export function assertCheckoutSession(
       field: 'channelKey',
       reason: 'must be a non-empty string',
     });
+  } else if (checkout.channelKey !== browserEnv.channelKey) {
+    issues.push({
+      field: 'channelKey',
+      reason: 'must match NEXT_PUBLIC_PORTONE_CHANNEL_KEY',
+    });
   }
 
   if (!normalizeNonEmptyString(checkout.paymentId)) {
     issues.push({
       field: 'paymentId',
       reason: 'must be a non-empty string',
+    });
+  } else if (!isAsciiSafePaymentId(checkout.paymentId)) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must contain only ASCII letters, numbers, underscores, or hyphens',
+    });
+  } else if (checkout.paymentId.length > KG_INICIS_PAYMENT_ID_MAX_LENGTH) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must be 40 characters or fewer for KG Inicis',
     });
   }
 
@@ -144,6 +179,11 @@ export function assertCheckoutSession(
     issues.push({
       field: 'redirectUrl',
       reason: 'must be an absolute http/https URL',
+    });
+  } else if (!checkout.redirectUrl.startsWith(browserEnv.appBaseUrl)) {
+    issues.push({
+      field: 'redirectUrl',
+      reason: 'must use the VITE_APP_BASE_URL origin',
     });
   }
 
@@ -168,12 +208,59 @@ export function assertCheckoutSession(
     });
   }
 
+  if (!customer || typeof customer !== 'object') {
+    issues.push({
+      field: 'customer.fullName',
+      reason: 'is required for KG Inicis card checkout',
+    });
+    issues.push({
+      field: 'customer.phoneNumber',
+      reason: 'is required for KG Inicis card checkout',
+    });
+    issues.push({
+      field: 'customer.email',
+      reason: 'is required for KG Inicis card checkout',
+    });
+  } else {
+    if (!normalizeNonEmptyString(customer.fullName)) {
+      issues.push({
+        field: 'customer.fullName',
+        reason: 'is required for KG Inicis card checkout',
+      });
+    }
+
+    if (!normalizeNonEmptyString(customer.phoneNumber)) {
+      issues.push({
+        field: 'customer.phoneNumber',
+        reason: 'is required for KG Inicis card checkout',
+      });
+    }
+
+    if (!normalizeNonEmptyString(customer.email)) {
+      issues.push({
+        field: 'customer.email',
+        reason: 'is required for KG Inicis card checkout',
+      });
+    } else if (!isValidEmailAddress(customer.email)) {
+      issues.push({
+        field: 'customer.email',
+        reason: 'must be a valid email address',
+      });
+    }
+  }
+
   if (issues.length > 0) {
     throw new PortOneCheckoutError({
       code: 'INVALID_CHECKOUT_SESSION',
       details: {
         channelKeyConfigured: Boolean(normalizeNonEmptyString(checkout.channelKey)),
+        customerConfigured: {
+          email: Boolean(normalizeNonEmptyString(customer?.email)),
+          fullName: Boolean(normalizeNonEmptyString(customer?.fullName)),
+          phoneNumber: Boolean(normalizeNonEmptyString(customer?.phoneNumber)),
+        },
         missingOrInvalidFields: issues.map(({ field }) => field),
+        paymentId: normalizeNonEmptyString(checkout.paymentId) || null,
         plan: checkout.plan ?? null,
         redirectUrl: normalizeNonEmptyString(checkout.redirectUrl) || null,
         storeIdConfigured: Boolean(normalizeNonEmptyString(checkout.storeId)),
@@ -202,7 +289,7 @@ function buildFriendlyApiError(
     return new PortOneCheckoutError({
       code: payload.code ?? 'CHECKOUT_API_ERROR',
       details: payload.details,
-      message: payload.error ?? payload.message ?? `${endpoint} 요청에 실패했습니다.`,
+      message: payload.error ?? payload.message ?? `${endpoint} ?붿껌???ㅽ뙣?덉뒿?덈떎.`,
       stage: payload.stage,
       status,
     });
@@ -217,7 +304,7 @@ function buildFriendlyApiError(
         details: {
           responseText: normalizedText,
         },
-        message: `서버 함수 실행에 실패했습니다. ${normalizedText}`,
+        message: `?쒕쾭 ?⑥닔 ?ㅽ뻾???ㅽ뙣?덉뒿?덈떎. ${normalizedText}`,
         stage: 'server-invocation',
         status,
       });
@@ -236,7 +323,7 @@ function buildFriendlyApiError(
 
   return new PortOneCheckoutError({
     code: 'CHECKOUT_API_ERROR',
-    message: `${endpoint} 요청에 실패했습니다.`,
+    message: `${endpoint} ?붿껌???ㅽ뙣?덉뒿?덈떎.`,
     stage: 'server-response',
     status,
   });
@@ -272,7 +359,7 @@ async function readApiResponse<T>(response: Response) {
 
       throw new PortOneCheckoutError({
         code: 'INVALID_API_RESPONSE',
-        message: '결제 API 응답을 해석하지 못했습니다. 잠시 후 다시 시도해주세요.',
+        message: '寃곗젣 API ?묐떟???댁꽍?섏? 紐삵뻽?듬땲?? ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.',
         stage: 'response-parse',
         status: response.status,
       });
@@ -287,8 +374,9 @@ async function readApiResponse<T>(response: Response) {
 }
 
 export async function createCheckoutSession(plan: BillingPlanCode) {
+  const body = buildCheckoutSessionRequestBody(plan);
   const response = await fetch(CHECKOUT_ENDPOINT, {
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify(body),
     headers: {
       'content-type': 'application/json',
     },
@@ -311,20 +399,18 @@ export function buildPortOnePaymentRequest(session: CheckoutSessionPayload): Pay
     channelKey: checkout.channelKey,
     currency: Currency.KRW,
     customData: checkout.customData,
+    customer: {
+      email: checkout.customer.email,
+      fullName: checkout.customer.fullName,
+      phoneNumber: checkout.customer.phoneNumber,
+    },
     noticeUrls: checkout.noticeUrls,
     orderName: checkout.orderName,
     payMethod: PaymentPayMethod.CARD,
     paymentId: checkout.paymentId,
-    popup: {
-      center: true,
-    },
     redirectUrl: checkout.redirectUrl,
     storeId: checkout.storeId,
     totalAmount: checkout.totalAmount,
-    windowType: {
-      mobile: WindowType.REDIRECTION,
-      pc: WindowType.POPUP,
-    },
   };
 }
 
@@ -337,34 +423,24 @@ export function getPortOnePaymentErrorMessage(payment: PaymentResponse) {
     return payment.pgMessage.trim();
   }
 
-  return '결제창에서 요청을 완료하지 못했습니다. 팝업 차단을 해제한 뒤 다시 시도해주세요.';
+  return '寃곗젣李쎌뿉???붿껌???꾨즺?섏? 紐삵뻽?듬땲?? ?앹뾽 李⑤떒???댁젣?????ㅼ떆 ?쒕룄?댁＜?몄슂.';
 }
 
 export function getPortOnePaymentSuccessMessage(payment: PaymentResponse) {
   const status = (payment as Record<string, unknown>).status;
 
   if (typeof status === 'string' && status.trim()) {
-    return `결제 요청이 접수되었습니다. PortOne 상태: ${status}`;
+    return `寃곗젣 ?붿껌???묒닔?섏뿀?듬땲?? PortOne ?곹깭: ${status}`;
   }
 
-  return `결제 요청이 접수되었습니다. 결제 ID: ${payment.paymentId}`;
+  return `寃곗젣 ?붿껌???묒닔?섏뿀?듬땲?? 寃곗젣 ID: ${payment.paymentId}`;
 }
 
 export async function launchPortOneCheckout(plan: BillingPlanCode) {
   const session = await createCheckoutSession(plan);
-  console.info('[portone-checkout] checkout session', {
-    channelKey: session.checkout.channelKey,
-    currency: session.checkout.currency,
-    orderName: session.checkout.orderName,
-    payMethod: session.checkout.payMethod,
-    paymentId: session.checkout.paymentId,
-    plan: session.checkout.plan,
-    redirectUrl: session.checkout.redirectUrl,
-    storeId: session.checkout.storeId,
-    totalAmount: session.checkout.totalAmount,
-  });
-  const checkout = assertCheckoutSession(session);
-  const paymentRequest = buildPortOnePaymentRequest(checkout);
+  console.info('[portone-checkout] checkout session', buildMaskedCheckoutLog(session.checkout));
+  const paymentRequest = buildPortOnePaymentRequest(session.checkout);
+  console.info('[portone-checkout] requestPayment payload', buildMaskedPaymentRequestLog(paymentRequest));
   const payment = await PortOne.requestPayment(paymentRequest);
 
   return {
