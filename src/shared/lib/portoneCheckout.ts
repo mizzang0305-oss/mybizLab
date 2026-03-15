@@ -52,6 +52,9 @@ interface BillingApiErrorPayload {
 type CheckoutSessionField =
   | 'channelKey'
   | 'currency'
+  | 'customer.email'
+  | 'customer.fullName'
+  | 'customer.phoneNumber'
   | 'orderName'
   | 'payMethod'
   | 'paymentId'
@@ -90,6 +93,11 @@ function normalizeNonEmptyString(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeBaseUrl(value: string) {
+  const url = new URL(value.trim());
+  return url.toString().replace(/\/$/, '');
+}
+
 function isAbsoluteHttpUrl(value: unknown) {
   const normalized = normalizeNonEmptyString(value);
 
@@ -109,6 +117,100 @@ function isPositiveFiniteNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function isValidEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isAsciiSafePaymentId(value: string) {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function requireBrowserCheckoutEnv(): BrowserCheckoutContext {
+  const storeId = normalizeNonEmptyString(import.meta.env.NEXT_PUBLIC_PORTONE_STORE_ID);
+  const channelKey = normalizeNonEmptyString(import.meta.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY);
+  const rawAppBaseUrl = normalizeNonEmptyString(import.meta.env.VITE_APP_BASE_URL);
+  const missing: string[] = [];
+
+  if (!storeId) {
+    missing.push('NEXT_PUBLIC_PORTONE_STORE_ID');
+  }
+
+  if (!channelKey) {
+    missing.push('NEXT_PUBLIC_PORTONE_CHANNEL_KEY');
+  }
+
+  if (!rawAppBaseUrl) {
+    missing.push('VITE_APP_BASE_URL');
+  }
+
+  if (missing.length > 0) {
+    throw new PortOneCheckoutError({
+      code: 'PORTONE_BROWSER_ENV_MISSING',
+      details: {
+        missing,
+      },
+      message: `Missing required browser env for PortOne checkout: ${missing.join(', ')}`,
+      stage: 'browser-env-load',
+    });
+  }
+
+  try {
+    return {
+      appBaseUrl: normalizeBaseUrl(rawAppBaseUrl),
+      channelKey,
+      storeId,
+    };
+  } catch {
+    throw new PortOneCheckoutError({
+      code: 'PORTONE_BROWSER_ENV_INVALID',
+      details: {
+        appBaseUrl: rawAppBaseUrl,
+      },
+      message: 'VITE_APP_BASE_URL must be an absolute http/https URL for PortOne checkout',
+      stage: 'browser-env-load',
+    });
+  }
+}
+
+function defaultCheckoutCustomer(): CheckoutCustomerPayload {
+  return {
+    email: BUSINESS_INFO.email,
+    fullName: BUSINESS_INFO.representative,
+    phoneNumber: BUSINESS_INFO.customerCenter,
+  };
+}
+
+function buildCheckoutSessionRequestCustomer() {
+  const customer = defaultCheckoutCustomer();
+
+  if (
+    !normalizeNonEmptyString(customer.fullName) ||
+    !normalizeNonEmptyString(customer.phoneNumber) ||
+    !normalizeNonEmptyString(customer.email)
+  ) {
+    throw new PortOneCheckoutError({
+      code: 'INVALID_CHECKOUT_CUSTOMER',
+      details: {
+        customer,
+      },
+      message: 'Checkout customer defaults are missing required fullName, phoneNumber, or email.',
+      stage: 'checkout-request-build',
+    });
+  }
+
+  return customer;
+}
+
+function buildCheckoutSessionRequestBody(plan: BillingPlanCode) {
+  const browserContext = requireBrowserCheckoutEnv();
+
+  return {
+    browserContext,
+    customer: buildCheckoutSessionRequestCustomer(),
+    plan,
+  };
+}
+
 function resolveCheckoutPayload(session: CheckoutSessionPayload | CheckoutSessionResponse) {
   if ('checkout' in session) {
     return session.checkout;
@@ -121,11 +223,99 @@ function createCheckoutSessionValidationMessage(issues: CheckoutSessionValidatio
   return `Checkout session is invalid: ${issues.map(({ field, reason }) => `${field} (${reason})`).join(', ')}`;
 }
 
+function maskSensitiveValue(value: unknown) {
+  const normalized = normalizeNonEmptyString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length <= 8) {
+    return `${normalized.slice(0, 1)}***${normalized.slice(-1)}`;
+  }
+
+  return `${normalized.slice(0, 4)}***${normalized.slice(-4)}`;
+}
+
+function maskEmailForLog(value: unknown) {
+  const normalized = normalizeNonEmptyString(value);
+
+  if (!normalized || !normalized.includes('@')) {
+    return maskSensitiveValue(normalized);
+  }
+
+  const [localPart, domain] = normalized.split('@');
+  return `${maskSensitiveValue(localPart)}@${domain}`;
+}
+
+function maskUrlForLog(value: unknown) {
+  const normalized = normalizeNonEmptyString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    const url = new URL(normalized);
+    const search = url.search ? '?***' : '';
+    const hash = url.hash ? '#***' : '';
+
+    return `${url.origin}${url.pathname}${search}${hash}`;
+  } catch {
+    return '***';
+  }
+}
+
+function buildMaskedCustomerLog(customer: CheckoutCustomerPayload) {
+  return {
+    email: maskEmailForLog(customer.email),
+    fullName: maskSensitiveValue(customer.fullName),
+    phoneNumber: maskSensitiveValue(customer.phoneNumber),
+  };
+}
+
+function buildMaskedCheckoutLog(checkout: CheckoutSessionPayload) {
+  return {
+    channelKey: maskSensitiveValue(checkout.channelKey),
+    currency: checkout.currency,
+    customer: buildMaskedCustomerLog(checkout.customer),
+    orderName: checkout.orderName,
+    payMethod: checkout.payMethod,
+    paymentId: maskSensitiveValue(checkout.paymentId),
+    plan: checkout.plan,
+    redirectUrl: maskUrlForLog(checkout.redirectUrl),
+    storeId: maskSensitiveValue(checkout.storeId),
+    totalAmount: checkout.totalAmount,
+  };
+}
+
+function buildMaskedPaymentRequestLog(paymentRequest: PaymentRequest) {
+  return {
+    channelKey: maskSensitiveValue(paymentRequest.channelKey),
+    currency: paymentRequest.currency,
+    customer:
+      paymentRequest.customer &&
+      typeof paymentRequest.customer === 'object' &&
+      'fullName' in paymentRequest.customer &&
+      'phoneNumber' in paymentRequest.customer &&
+      'email' in paymentRequest.customer
+        ? buildMaskedCustomerLog(paymentRequest.customer as CheckoutCustomerPayload)
+        : null,
+    payMethod: paymentRequest.payMethod,
+    paymentId: maskSensitiveValue(paymentRequest.paymentId),
+    redirectUrl: maskUrlForLog(paymentRequest.redirectUrl),
+    storeId: maskSensitiveValue(paymentRequest.storeId),
+    totalAmount: paymentRequest.totalAmount,
+  };
+}
+
 export function assertCheckoutSession(
   session: CheckoutSessionPayload | CheckoutSessionResponse,
 ): CheckoutSessionPayload {
   const checkout = resolveCheckoutPayload(session);
+  const browserEnv = requireBrowserCheckoutEnv();
   const issues: CheckoutSessionValidationIssue[] = [];
+  const customer = checkout.customer;
 
   if (!normalizeNonEmptyString(checkout.storeId)) {
     issues.push({

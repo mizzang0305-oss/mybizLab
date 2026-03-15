@@ -62,6 +62,9 @@ interface CheckoutEnv {
 type CheckoutSessionField =
   | 'channelKey'
   | 'currency'
+  | 'customer.email'
+  | 'customer.fullName'
+  | 'customer.phoneNumber'
   | 'orderName'
   | 'payMethod'
   | 'paymentId'
@@ -76,7 +79,13 @@ interface CheckoutSessionValidationIssue {
 
 export interface InvalidCheckoutSessionDetails {
   channelKeyConfigured: boolean;
+  customerConfigured: {
+    email: boolean;
+    fullName: boolean;
+    phoneNumber: boolean;
+  };
   missingOrInvalidFields: CheckoutSessionField[];
+  paymentId: string | null;
   plan: BillingPlanCode | null;
   redirectUrl: string | null;
   storeIdConfigured: boolean;
@@ -169,14 +178,88 @@ function isPositiveFiniteNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function isValidEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isAsciiSafePaymentId(value: string) {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
 function createCheckoutSessionValidationMessage(issues: CheckoutSessionValidationIssue[]) {
   return `Checkout session is invalid: ${issues.map(({ field, reason }) => `${field} (${reason})`).join(', ')}`;
+}
+
+function defaultCheckoutCustomer(): CheckoutCustomerPayload {
+  return {
+    email: BUSINESS_INFO.email,
+    fullName: BUSINESS_INFO.representative,
+    phoneNumber: BUSINESS_INFO.customerCenter,
+  };
+}
+
+function readCheckoutCustomer(body: Record<string, unknown>): CheckoutCustomerPayload {
+  const defaults = defaultCheckoutCustomer();
+  const customer = typeof body.customer === 'object' && body.customer ? (body.customer as Record<string, unknown>) : {};
+
+  return {
+    email: normalizeNonEmptyString(customer.email) || defaults.email,
+    fullName: normalizeNonEmptyString(customer.fullName) || defaults.fullName,
+    phoneNumber: normalizeNonEmptyString(customer.phoneNumber) || defaults.phoneNumber,
+  };
+}
+
+function readBrowserCheckoutContext(body: Record<string, unknown>): BrowserCheckoutContext | null {
+  if (typeof body.browserContext !== 'object' || !body.browserContext) {
+    return null;
+  }
+
+  const browserContext = body.browserContext as Record<string, unknown>;
+
+  return {
+    appBaseUrl: normalizeNonEmptyString(browserContext.appBaseUrl) || undefined,
+    channelKey: normalizeNonEmptyString(browserContext.channelKey) || undefined,
+    storeId: normalizeNonEmptyString(browserContext.storeId) || undefined,
+  };
+}
+
+function assertBrowserContextMatchesEnv(context: BrowserCheckoutContext | null, env: Required<CheckoutEnv>) {
+  if (!context) {
+    return;
+  }
+
+  const mismatchedFields = (
+    [
+      ['appBaseUrl', context.appBaseUrl, env.appBaseUrl],
+      ['channelKey', context.channelKey, env.channelKey],
+      ['storeId', context.storeId, env.storeId],
+    ] as const
+  )
+    .filter(([, received, expected]) => received && received !== expected)
+    .map(([field]) => field);
+
+  if (mismatchedFields.length === 0) {
+    return;
+  }
+
+  throw new CheckoutApiError({
+    code: 'SERVER_MISCONFIGURED',
+    details: {
+      browserContext: context,
+      mismatchedFields,
+      resolvedEnv: env,
+    },
+    message: `Browser checkout env does not match server checkout env for ${CHECKOUT_ENDPOINT}.`,
+    stage: 'env-load',
+    status: 500,
+  });
 }
 
 export function validateCheckoutSessionPayload(
   payload: CheckoutSessionPayload,
 ): CheckoutSessionValidationResult {
   const issues: CheckoutSessionValidationIssue[] = [];
+  const customer = payload.customer;
 
   if (!normalizeNonEmptyString(payload.storeId)) {
     issues.push({
@@ -196,6 +279,16 @@ export function validateCheckoutSessionPayload(
     issues.push({
       field: 'paymentId',
       reason: 'must be a non-empty string',
+    });
+  } else if (!isAsciiSafePaymentId(payload.paymentId)) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must contain only ASCII letters, numbers, underscores, or hyphens',
+    });
+  } else if (payload.paymentId.length > KG_INICIS_PAYMENT_ID_MAX_LENGTH) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must be 40 characters or fewer for KG Inicis',
     });
   }
 
@@ -234,6 +327,32 @@ export function validateCheckoutSessionPayload(
     });
   }
 
+  if (!normalizeNonEmptyString(customer.fullName)) {
+    issues.push({
+      field: 'customer.fullName',
+      reason: 'is required for KG Inicis card checkout',
+    });
+  }
+
+  if (!normalizeNonEmptyString(customer.phoneNumber)) {
+    issues.push({
+      field: 'customer.phoneNumber',
+      reason: 'is required for KG Inicis card checkout',
+    });
+  }
+
+  if (!normalizeNonEmptyString(customer.email)) {
+    issues.push({
+      field: 'customer.email',
+      reason: 'is required for KG Inicis card checkout',
+    });
+  } else if (!isValidEmailAddress(customer.email)) {
+    issues.push({
+      field: 'customer.email',
+      reason: 'must be a valid email address',
+    });
+  }
+
   if (issues.length === 0) {
     return {
       ok: true,
@@ -243,7 +362,13 @@ export function validateCheckoutSessionPayload(
   return {
     details: {
       channelKeyConfigured: Boolean(normalizeNonEmptyString(payload.channelKey)),
+      customerConfigured: {
+        email: Boolean(normalizeNonEmptyString(customer.email)),
+        fullName: Boolean(normalizeNonEmptyString(customer.fullName)),
+        phoneNumber: Boolean(normalizeNonEmptyString(customer.phoneNumber)),
+      },
       missingOrInvalidFields: issues.map(({ field }) => field),
+      paymentId: normalizeNonEmptyString(payload.paymentId) || null,
       plan: payload.plan ?? null,
       redirectUrl: normalizeNonEmptyString(payload.redirectUrl) || null,
       storeIdConfigured: Boolean(normalizeNonEmptyString(payload.storeId)),
