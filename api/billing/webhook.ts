@@ -1,4 +1,5 @@
 import {
+  assertJsonWebhookContentType,
   createBillingWebhookErrorResponse,
   handleBillingWebhook,
 } from '../../src/server/billingWebhook';
@@ -6,6 +7,7 @@ import {
   createBillingMethodNotAllowedResponse,
   getBillingEnvStatus,
   logBillingStage,
+  parseJsonBody,
   validateBillingEnv,
 } from '../../src/server/billingApiRuntime';
 
@@ -27,8 +29,10 @@ async function handleRequest(request: Request) {
       envStatus: getBillingEnvStatus(env),
     });
 
-    const rawBody = await request.text();
+    assertJsonWebhookContentType(request.headers);
+    const { body, rawBody } = await parseJsonBody(request, ENDPOINT, 'body-parsed', false);
     logBillingStage(ENDPOINT, 'body parsed', {
+      bodyKeys: Object.keys(body),
       rawBodyLength: rawBody.length,
     });
 

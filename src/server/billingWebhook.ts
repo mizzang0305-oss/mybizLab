@@ -6,6 +6,7 @@ import { BillingApiStageError, callPortOneApi, type BillingEnv, responseJson } f
 const PORTONE_REQUIRED_HEADERS = ['webhook-id', 'webhook-signature', 'webhook-timestamp'] as const;
 const SUPABASE_WEBHOOK_EVENTS_TABLE = 'billing_webhook_events';
 const SUPABASE_WEBHOOK_STATES_TABLE = 'billing_webhook_states';
+const PORTONE_WEBHOOK_CONTENT_TYPE = 'application/json';
 
 type PortOneHeaderName = (typeof PORTONE_REQUIRED_HEADERS)[number];
 
@@ -110,6 +111,25 @@ function nowIso() {
 
 function requiredHeader(headers: Headers, name: PortOneHeaderName) {
   return headers.get(name) || undefined;
+}
+
+export function assertJsonWebhookContentType(headers: Headers) {
+  const contentType = headers.get('content-type')?.toLowerCase() ?? '';
+
+  if (contentType.includes(PORTONE_WEBHOOK_CONTENT_TYPE)) {
+    return;
+  }
+
+  throw new BillingApiStageError({
+    stage: 'body-parsed',
+    status: 400,
+    code: 'INVALID_REQUEST_BODY',
+    message: `PortOne V2 webhook requests must use ${PORTONE_WEBHOOK_CONTENT_TYPE}.`,
+    details: {
+      contentType: contentType || null,
+      supportedContentType: PORTONE_WEBHOOK_CONTENT_TYPE,
+    },
+  });
 }
 
 function readRequiredHeaders(headers: Headers) {
@@ -602,7 +622,13 @@ async function persistToSupabase(mutation: BillingWebhookMutation) {
 }
 
 export async function persistBillingWebhookMutation(mutation: BillingWebhookMutation) {
-  const supabasePersisted = await persistToSupabase(mutation);
+  let supabasePersisted = false;
+
+  try {
+    supabasePersisted = await persistToSupabase(mutation);
+  } catch (error) {
+    console.error('[billing-webhook] failed to persist webhook mutation, falling back to memory', error);
+  }
 
   upsertInMemoryStore(mutation);
 

@@ -99,6 +99,56 @@ describe('/api/billing/webhook function', () => {
     });
   });
 
+  it('returns 400 JSON when the webhook body is not valid JSON', async () => {
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: '{"broken":',
+        headers: webhookHeaders,
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload).toMatchObject({
+      code: 'INVALID_REQUEST_BODY',
+      ok: false,
+      stage: 'body-parsed',
+    });
+    expect(verifyMock).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 JSON when the webhook content-type is not application/json', async () => {
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: JSON.stringify({ ok: true }),
+        headers: {
+          ...webhookHeaders,
+          'content-type': 'text/plain',
+        },
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload).toMatchObject({
+      code: 'INVALID_REQUEST_BODY',
+      ok: false,
+      stage: 'body-parsed',
+      error: 'PortOne V2 webhook requests must use application/json.',
+    });
+    expect(verifyMock).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('returns 401 when PortOne webhook signature verification fails', async () => {
     verifyMock.mockRejectedValue(new MockWebhookVerificationError('Signature mismatch', 'INVALID_SIGNATURE'));
     globalThis.fetch = vi.fn() as typeof fetch;
@@ -303,6 +353,66 @@ describe('/api/billing/webhook function', () => {
       },
       timestamp: '2026-03-14T10:30:00.000Z',
       type: 'Transaction.Paid',
+    });
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: JSON.stringify({ ok: true }),
+        headers: webhookHeaders,
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      endpoint: '/api/billing/webhook',
+      normalizedStatus: 'ignored',
+      ok: true,
+      actions: ['ignored'],
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 ignored for identifierless BillingKey sample payloads', async () => {
+    delete process.env.PORTONE_API_SECRET;
+    verifyMock.mockResolvedValue({
+      data: {
+        storeId: 'portone-store-001',
+      },
+      timestamp: '2026-03-14T10:45:00.000Z',
+      type: 'BillingKey.Issued',
+    });
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: JSON.stringify({ ok: true }),
+        headers: webhookHeaders,
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      endpoint: '/api/billing/webhook',
+      normalizedStatus: 'ignored',
+      ok: true,
+      actions: ['ignored'],
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 ignored when the verified webhook payload does not include type', async () => {
+    verifyMock.mockResolvedValue({
+      data: {
+        storeId: 'portone-store-001',
+      },
+      timestamp: '2026-03-14T11:30:00.000Z',
     });
     globalThis.fetch = vi.fn() as typeof fetch;
 
