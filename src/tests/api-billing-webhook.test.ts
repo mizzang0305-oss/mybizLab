@@ -123,6 +123,30 @@ describe('/api/billing/webhook function', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it('returns JSON 500 when an unexpected webhook verification error bubbles up', async () => {
+    verifyMock.mockRejectedValue(new Error('Unexpected verifier failure'));
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: JSON.stringify({ ok: true }),
+        headers: webhookHeaders,
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(payload).toMatchObject({
+      code: 'PORTONE_WEBHOOK_INTERNAL_ERROR',
+      ok: false,
+      stage: 'webhook-unhandled',
+      error: 'Unexpected verifier failure',
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('returns 400 when required webhook headers are missing during verification', async () => {
     verifyMock.mockRejectedValue(
       new MockWebhookVerificationError('Missing webhook headers', 'MISSING_REQUIRED_HEADERS'),
@@ -237,6 +261,38 @@ describe('/api/billing/webhook function', () => {
     });
     expect(String(url)).toContain('/payments/payment-001');
     expect(String(url)).toContain('storeId=portone-store-001');
+  });
+
+  it('returns JSON 500 when a real webhook event requires PORTONE_API_SECRET but it is missing', async () => {
+    delete process.env.PORTONE_API_SECRET;
+    verifyMock.mockResolvedValue({
+      data: {
+        paymentId: 'payment-001',
+        storeId: 'portone-store-001',
+      },
+      timestamp: '2026-03-14T10:15:00.000Z',
+      type: 'Transaction.Paid',
+    });
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: JSON.stringify({ ok: true }),
+        headers: webhookHeaders,
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(payload).toMatchObject({
+      code: 'SERVER_MISCONFIGURED',
+      ok: false,
+      stage: 'env-load',
+      error: 'PORTONE_API_SECRET is required for /api/billing/webhook sync',
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it('returns 200 ignored for identifierless Transaction sample payloads', async () => {
