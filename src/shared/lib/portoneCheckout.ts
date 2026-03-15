@@ -34,6 +34,21 @@ interface BillingApiErrorPayload {
   stage?: string;
 }
 
+type CheckoutSessionField =
+  | 'channelKey'
+  | 'currency'
+  | 'orderName'
+  | 'payMethod'
+  | 'paymentId'
+  | 'redirectUrl'
+  | 'storeId'
+  | 'totalAmount';
+
+interface CheckoutSessionValidationIssue {
+  field: CheckoutSessionField;
+  reason: string;
+}
+
 export class PortOneCheckoutError extends Error {
   code?: string;
   details?: Record<string, unknown>;
@@ -54,6 +69,123 @@ export class PortOneCheckoutError extends Error {
     this.stage = input.stage;
     this.status = input.status;
   }
+}
+
+function normalizeNonEmptyString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isAbsoluteHttpUrl(value: unknown) {
+  const normalized = normalizeNonEmptyString(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  try {
+    const url = new URL(normalized);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isPositiveFiniteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function resolveCheckoutPayload(session: CheckoutSessionPayload | CheckoutSessionResponse) {
+  if ('checkout' in session) {
+    return session.checkout;
+  }
+
+  return session;
+}
+
+function createCheckoutSessionValidationMessage(issues: CheckoutSessionValidationIssue[]) {
+  return `Checkout session is invalid: ${issues.map(({ field, reason }) => `${field} (${reason})`).join(', ')}`;
+}
+
+export function assertCheckoutSession(
+  session: CheckoutSessionPayload | CheckoutSessionResponse,
+): CheckoutSessionPayload {
+  const checkout = resolveCheckoutPayload(session);
+  const issues: CheckoutSessionValidationIssue[] = [];
+
+  if (!normalizeNonEmptyString(checkout.storeId)) {
+    issues.push({
+      field: 'storeId',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!normalizeNonEmptyString(checkout.channelKey)) {
+    issues.push({
+      field: 'channelKey',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!normalizeNonEmptyString(checkout.paymentId)) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!normalizeNonEmptyString(checkout.orderName)) {
+    issues.push({
+      field: 'orderName',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!isAbsoluteHttpUrl(checkout.redirectUrl)) {
+    issues.push({
+      field: 'redirectUrl',
+      reason: 'must be an absolute http/https URL',
+    });
+  }
+
+  if (!isPositiveFiniteNumber(checkout.totalAmount)) {
+    issues.push({
+      field: 'totalAmount',
+      reason: 'must be a positive finite number',
+    });
+  }
+
+  if (checkout.currency !== 'KRW') {
+    issues.push({
+      field: 'currency',
+      reason: 'must be KRW',
+    });
+  }
+
+  if (checkout.payMethod !== 'CARD') {
+    issues.push({
+      field: 'payMethod',
+      reason: 'must be CARD',
+    });
+  }
+
+  if (issues.length > 0) {
+    throw new PortOneCheckoutError({
+      code: 'INVALID_CHECKOUT_SESSION',
+      details: {
+        channelKeyConfigured: Boolean(normalizeNonEmptyString(checkout.channelKey)),
+        missingOrInvalidFields: issues.map(({ field }) => field),
+        plan: checkout.plan ?? null,
+        redirectUrl: normalizeNonEmptyString(checkout.redirectUrl) || null,
+        storeIdConfigured: Boolean(normalizeNonEmptyString(checkout.storeId)),
+        totalAmount: checkout.totalAmount,
+        validationErrors: issues,
+      },
+      message: createCheckoutSessionValidationMessage(issues),
+      stage: 'checkout-session-validate',
+    });
+  }
+
+  return checkout;
 }
 
 function normalizeResponseText(value: string) {
@@ -173,20 +305,22 @@ export async function createCheckoutSession(plan: BillingPlanCode) {
 }
 
 export function buildPortOnePaymentRequest(session: CheckoutSessionPayload): PaymentRequest {
+  const checkout = assertCheckoutSession(session);
+
   return {
-    channelKey: session.channelKey,
+    channelKey: checkout.channelKey,
     currency: Currency.KRW,
-    customData: session.customData,
-    noticeUrls: session.noticeUrls,
-    orderName: session.orderName,
+    customData: checkout.customData,
+    noticeUrls: checkout.noticeUrls,
+    orderName: checkout.orderName,
     payMethod: PaymentPayMethod.CARD,
-    paymentId: session.paymentId,
+    paymentId: checkout.paymentId,
     popup: {
       center: true,
     },
-    redirectUrl: session.redirectUrl,
-    storeId: session.storeId,
-    totalAmount: session.totalAmount,
+    redirectUrl: checkout.redirectUrl,
+    storeId: checkout.storeId,
+    totalAmount: checkout.totalAmount,
     windowType: {
       mobile: WindowType.REDIRECTION,
       pc: WindowType.POPUP,
@@ -218,7 +352,19 @@ export function getPortOnePaymentSuccessMessage(payment: PaymentResponse) {
 
 export async function launchPortOneCheckout(plan: BillingPlanCode) {
   const session = await createCheckoutSession(plan);
-  const paymentRequest = buildPortOnePaymentRequest(session.checkout);
+  console.info('[portone-checkout] checkout session', {
+    channelKey: session.checkout.channelKey,
+    currency: session.checkout.currency,
+    orderName: session.checkout.orderName,
+    payMethod: session.checkout.payMethod,
+    paymentId: session.checkout.paymentId,
+    plan: session.checkout.plan,
+    redirectUrl: session.checkout.redirectUrl,
+    storeId: session.checkout.storeId,
+    totalAmount: session.checkout.totalAmount,
+  });
+  const checkout = assertCheckoutSession(session);
+  const paymentRequest = buildPortOnePaymentRequest(checkout);
   const payment = await PortOne.requestPayment(paymentRequest);
 
   return {

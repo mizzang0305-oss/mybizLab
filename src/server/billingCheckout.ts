@@ -39,6 +39,42 @@ interface CheckoutEnv {
   storeId?: string;
 }
 
+type CheckoutSessionField =
+  | 'channelKey'
+  | 'currency'
+  | 'orderName'
+  | 'payMethod'
+  | 'paymentId'
+  | 'redirectUrl'
+  | 'storeId'
+  | 'totalAmount';
+
+interface CheckoutSessionValidationIssue {
+  field: CheckoutSessionField;
+  reason: string;
+}
+
+export interface InvalidCheckoutSessionDetails {
+  channelKeyConfigured: boolean;
+  missingOrInvalidFields: CheckoutSessionField[];
+  plan: BillingPlanCode | null;
+  redirectUrl: string | null;
+  storeIdConfigured: boolean;
+  totalAmount: unknown;
+  validationErrors: CheckoutSessionValidationIssue[];
+}
+
+type CheckoutSessionValidationResult =
+  | {
+      ok: true;
+    }
+  | {
+      details: InvalidCheckoutSessionDetails;
+      message: string;
+      ok: false;
+      status: number;
+    };
+
 class CheckoutApiError extends Error {
   code: string;
   details?: Record<string, unknown>;
@@ -88,6 +124,116 @@ function normalizeBaseUrl(value: string) {
       status: 500,
     });
   }
+}
+
+function normalizeNonEmptyString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isAbsoluteHttpUrl(value: unknown) {
+  const normalized = normalizeNonEmptyString(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  try {
+    const url = new URL(normalized);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isPositiveFiniteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function createCheckoutSessionValidationMessage(issues: CheckoutSessionValidationIssue[]) {
+  return `Checkout session is invalid: ${issues.map(({ field, reason }) => `${field} (${reason})`).join(', ')}`;
+}
+
+export function validateCheckoutSessionPayload(
+  payload: CheckoutSessionPayload,
+): CheckoutSessionValidationResult {
+  const issues: CheckoutSessionValidationIssue[] = [];
+
+  if (!normalizeNonEmptyString(payload.storeId)) {
+    issues.push({
+      field: 'storeId',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!normalizeNonEmptyString(payload.channelKey)) {
+    issues.push({
+      field: 'channelKey',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!normalizeNonEmptyString(payload.paymentId)) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!normalizeNonEmptyString(payload.orderName)) {
+    issues.push({
+      field: 'orderName',
+      reason: 'must be a non-empty string',
+    });
+  }
+
+  if (!isAbsoluteHttpUrl(payload.redirectUrl)) {
+    issues.push({
+      field: 'redirectUrl',
+      reason: 'must be an absolute http/https URL',
+    });
+  }
+
+  if (!isPositiveFiniteNumber(payload.totalAmount)) {
+    issues.push({
+      field: 'totalAmount',
+      reason: 'must be a positive finite number',
+    });
+  }
+
+  if (payload.currency !== 'KRW') {
+    issues.push({
+      field: 'currency',
+      reason: 'must be KRW',
+    });
+  }
+
+  if (payload.payMethod !== 'CARD') {
+    issues.push({
+      field: 'payMethod',
+      reason: 'must be CARD',
+    });
+  }
+
+  if (issues.length === 0) {
+    return {
+      ok: true,
+    };
+  }
+
+  return {
+    details: {
+      channelKeyConfigured: Boolean(normalizeNonEmptyString(payload.channelKey)),
+      missingOrInvalidFields: issues.map(({ field }) => field),
+      plan: payload.plan ?? null,
+      redirectUrl: normalizeNonEmptyString(payload.redirectUrl) || null,
+      storeIdConfigured: Boolean(normalizeNonEmptyString(payload.storeId)),
+      totalAmount: payload.totalAmount,
+      validationErrors: issues,
+    },
+    message: createCheckoutSessionValidationMessage(issues),
+    ok: false,
+    status: 500,
+  };
 }
 
 function readCheckoutEnv(): CheckoutEnv {
@@ -242,6 +388,20 @@ export async function handleCheckoutRequest(request: Request) {
     ok: true,
     plan: requestedPlan,
   };
+
+  const validation = validateCheckoutSessionPayload(payload.checkout);
+
+  if (!validation.ok) {
+    return createCheckoutErrorResponse(
+      new CheckoutApiError({
+        code: 'INVALID_CHECKOUT_SESSION',
+        details: validation.details,
+        message: validation.message,
+        stage: 'checkout-session-build',
+        status: validation.status,
+      }),
+    );
+  }
 
   return responseJson(payload, 200);
 }
