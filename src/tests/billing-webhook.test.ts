@@ -104,6 +104,24 @@ describe('billing webhook processing', () => {
     expect(snapshot.states[0]?.subscriptionStatus).toBe('past_due');
   });
 
+  it('treats identifierless transaction test payloads as ignored mutations', () => {
+    const mutation = buildBillingWebhookMutation(
+      {
+        type: 'Transaction.Paid',
+        timestamp: '2026-03-14T10:30:00.000Z',
+        data: {
+          storeId: 'portone-store-001',
+        },
+      },
+      webhookHeaders,
+    );
+
+    expect(mutation.eventLog.normalizedStatus).toBe('ignored');
+    expect(mutation.eventLog.actions).toEqual(['ignored']);
+    expect(mutation.nextState.normalizedStatus).toBe('ignored');
+    expect(mutation.nextState.paymentStatus).toBeUndefined();
+  });
+
   it('returns a misconfiguration response when the PortOne webhook secret is missing', async () => {
     await expect(
       handleBillingWebhook({

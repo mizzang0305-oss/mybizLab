@@ -132,10 +132,7 @@ describe('/api/billing/webhook function', () => {
     const response = await webhookHandler.fetch(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
-        headers: {
-          'content-type': 'application/json',
-          'webhook-id': 'test-webhook-id',
-        },
+        headers: webhookHeaders,
         method: 'POST',
       }),
     );
@@ -242,6 +239,37 @@ describe('/api/billing/webhook function', () => {
     expect(String(url)).toContain('storeId=portone-store-001');
   });
 
+  it('returns 200 ignored for identifierless Transaction sample payloads', async () => {
+    delete process.env.PORTONE_API_SECRET;
+    verifyMock.mockResolvedValue({
+      data: {
+        storeId: 'portone-store-001',
+      },
+      timestamp: '2026-03-14T10:30:00.000Z',
+      type: 'Transaction.Paid',
+    });
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler.fetch(
+      new Request('https://example.com/api/billing/webhook', {
+        body: JSON.stringify({ ok: true }),
+        headers: webhookHeaders,
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      endpoint: '/api/billing/webhook',
+      normalizedStatus: 'ignored',
+      ok: true,
+      actions: ['ignored'],
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('ignores unknown webhook types and still returns 200', async () => {
     verifyMock.mockResolvedValue({
       data: {
@@ -264,6 +292,8 @@ describe('/api/billing/webhook function', () => {
 
     expect(response.status).toBe(200);
     expect(payload).toMatchObject({
+      actions: ['ignored'],
+      endpoint: '/api/billing/webhook',
       normalizedStatus: 'ignored',
       ok: true,
     });
