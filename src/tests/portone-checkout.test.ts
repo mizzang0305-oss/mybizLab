@@ -318,6 +318,36 @@ describe('PortOne checkout client helpers', () => {
     ).toThrowError(PortOneCheckoutError);
   });
 
+  it('throws INVALID_CHECKOUT_SESSION when paymentId exceeds 40 characters', () => {
+    expect(() =>
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          paymentId: `mb_st_${'a'.repeat(35)}`,
+        }),
+      ),
+    ).toThrowError(PortOneCheckoutError);
+
+    try {
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          paymentId: `mb_st_${'a'.repeat(35)}`,
+        }),
+      );
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'INVALID_CHECKOUT_SESSION',
+        details: {
+          validationErrors: expect.arrayContaining([
+            {
+              field: 'paymentId',
+              reason: 'must be 40 characters or fewer for KG Inicis',
+            },
+          ]),
+        },
+      });
+    }
+  });
+
   it('throws INVALID_CHECKOUT_SESSION when currency is not KRW', () => {
     expect(() =>
       buildPortOnePaymentRequest(

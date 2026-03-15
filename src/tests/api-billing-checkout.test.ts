@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import checkoutHandler from '../../api/billing/checkout';
 import {
+  createCheckoutPaymentId,
   type CheckoutCustomerPayload,
   type CheckoutSessionPayload,
   validateCheckoutSessionPayload,
@@ -250,6 +251,35 @@ describe('/api/billing/checkout', () => {
     expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['channelKey']));
   });
 
+  it('fails validation when paymentId exceeds the KG Inicis limit', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        paymentId: `mb_st_${'a'.repeat(35)}`,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        paymentId: `mb_st_${'a'.repeat(35)}`,
+      },
+      status: 500,
+    });
+
+    if (result.ok) {
+      throw new Error('Expected invalid checkout session result');
+    }
+
+    expect(result.details.validationErrors).toEqual(
+      expect.arrayContaining([
+        {
+          field: 'paymentId',
+          reason: 'must be 40 characters or fewer for KG Inicis',
+        },
+      ]),
+    );
+  });
+
   it('fails validation when KG Inicis customer data is blank', () => {
     const result = validateCheckoutSessionPayload(
       createValidCheckoutSessionPayload({
@@ -290,6 +320,18 @@ describe('/api/billing/checkout', () => {
     });
   });
 
+  it.each([
+    ['starter', /^mb_st_[a-f0-9]{16}$/],
+    ['pro', /^mb_pro_[a-f0-9]{16}$/],
+    ['business', /^mb_biz_[a-f0-9]{16}$/],
+  ] as const)('creates a short ASCII-safe paymentId for %s', (plan, pattern) => {
+    const paymentId = createCheckoutPaymentId(plan);
+
+    expect(paymentId).toMatch(pattern);
+    expect(paymentId.length).toBeLessThanOrEqual(40);
+    expect(paymentId).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
   it('does not require PORTONE_API_SECRET for checkout success', async () => {
     const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
@@ -322,6 +364,7 @@ describe('/api/billing/checkout', () => {
         totalAmount: 79000,
       },
     });
-    expect(payload.checkout.paymentId).toMatch(/^subscription-pro-/);
+    expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
+    expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
   });
 });

@@ -10,6 +10,12 @@ const CHECKOUT_ENV_NAMES = {
   channelKey: ['PORTONE_CHANNEL_KEY'],
   storeId: ['PORTONE_STORE_ID'],
 } as const;
+const KG_INICIS_PAYMENT_ID_MAX_LENGTH = 40;
+const COMPACT_PLAN_CODE: Record<BillingPlanCode, string> = {
+  business: 'biz',
+  pro: 'pro',
+  starter: 'st',
+};
 
 type CheckoutEnvKey = keyof typeof CHECKOUT_ENV_NAMES;
 
@@ -279,6 +285,11 @@ export function validateCheckoutSessionPayload(
       field: 'paymentId',
       reason: 'must contain only ASCII letters, numbers, underscores, or hyphens',
     });
+  } else if (payload.paymentId.length > KG_INICIS_PAYMENT_ID_MAX_LENGTH) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must be 40 characters or fewer for KG Inicis',
+    });
   }
 
   if (!normalizeNonEmptyString(payload.orderName)) {
@@ -463,16 +474,22 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
   return requestedPlan;
 }
 
-function createCheckoutPaymentId(plan: BillingPlanCode) {
-  const rawPaymentId = `subscription-${plan}-${crypto.randomUUID()}`;
-  const paymentId = rawPaymentId.replace(/[^A-Za-z0-9_-]/g, '');
+export function createCheckoutPaymentId(plan: BillingPlanCode) {
+  const compactPlan = COMPACT_PLAN_CODE[plan];
+  const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  const paymentId = `mb_${compactPlan}_${shortId}`;
 
-  if (!paymentId || !isAsciiSafePaymentId(paymentId)) {
+  if (
+    !paymentId ||
+    !isAsciiSafePaymentId(paymentId) ||
+    paymentId.length > KG_INICIS_PAYMENT_ID_MAX_LENGTH
+  ) {
     throw new CheckoutApiError({
       code: 'INVALID_CHECKOUT_SESSION',
       details: {
         paymentId,
-        rawPaymentId,
+        paymentIdLength: paymentId.length,
+        shortId,
       },
       message: 'Failed to generate an ASCII-safe paymentId for checkout.',
       stage: 'checkout-session-build',

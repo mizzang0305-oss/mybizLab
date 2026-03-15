@@ -135,7 +135,8 @@ describe('/api/billing checkout and verify handlers', () => {
         totalAmount: 79000,
       },
     });
-    expect(payload.checkout.paymentId).toMatch(/^subscription-pro-/);
+    expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
+    expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
     expect(payload.checkout.noticeUrls).toEqual(['https://example.com/api/billing/webhook']);
   });
 

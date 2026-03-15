@@ -4,6 +4,7 @@ import type { BillingPlanCode } from './billingPlans';
 import { BUSINESS_INFO } from './siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
+const KG_INICIS_PAYMENT_ID_MAX_LENGTH = 40;
 
 interface BrowserCheckoutContext {
   appBaseUrl: string;
@@ -349,6 +350,11 @@ export function assertCheckoutSession(
     issues.push({
       field: 'paymentId',
       reason: 'must contain only ASCII letters, numbers, underscores, or hyphens',
+    });
+  } else if (checkout.paymentId.length > KG_INICIS_PAYMENT_ID_MAX_LENGTH) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must be 40 characters or fewer for KG Inicis',
     });
   }
 
