@@ -7,14 +7,8 @@ import type { BillingPlanCode } from '@/shared/lib/billingPlans';
 import {
   PortOneCheckoutError,
   getPortOnePaymentErrorMessage,
-<<<<<<< HEAD
-  getPortOneVerifyMessage,
-  launchPortOneCheckout,
-  verifyCheckoutPayment,
-=======
   getPortOnePaymentSuccessMessage,
   launchPortOneCheckout,
->>>>>>> 84c4d6c (Fix billing checkout env errors)
 } from '@/shared/lib/portoneCheckout';
 import { BUSINESS_INFO, LEGAL_LINKS, SERVICE_TAGLINE } from '@/shared/lib/siteConfig';
 
@@ -233,14 +227,8 @@ export function PricingPage() {
         return;
       }
 
-<<<<<<< HEAD
-      const verification = await verifyCheckoutPayment(payment.paymentId);
-      setCheckoutMessage({
-        text: getPortOneVerifyMessage(verification),
-=======
       setCheckoutMessage({
         text: getPortOnePaymentSuccessMessage(payment),
->>>>>>> 84c4d6c (Fix billing checkout env errors)
         tone: 'success',
       });
     } catch (error) {
@@ -270,11 +258,7 @@ export function PricingPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-orange-200">초기 세팅비</p>
-<<<<<<< HEAD
-              <p className="mt-2 font-display text-3xl font-black">390,000원</p>
-=======
               <p className="mt-2 font-display text-3xl font-black">390,000원부터</p>
->>>>>>> 84c4d6c (Fix billing checkout env errors)
               <p className="mt-2 text-sm text-slate-300">스토어 구축과 운영 시작을 위한 1회성 비용입니다.</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -308,7 +292,7 @@ export function PricingPage() {
             </div>
             <div className="rounded-3xl bg-slate-950 px-6 py-5 text-white">
               <p className="text-sm font-semibold text-orange-200">가격 예시</p>
-              <p className="mt-2 font-display text-4xl font-black">390,000원</p>
+              <p className="mt-2 font-display text-4xl font-black">390,000원부터</p>
             </div>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -438,11 +422,7 @@ export function PricingPage() {
       <section className="mt-12">
         <div className="mb-6 space-y-2">
           <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">기능 비교</span>
-<<<<<<< HEAD
-          <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">포함 기능 비교</h2>
-=======
           <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">앱 포함 기능 비교</h2>
->>>>>>> 84c4d6c (Fix billing checkout env errors)
           <p className="text-sm text-slate-500 sm:text-base">각 플랜에서 어떤 운영 영역을 사용할 수 있는지 한 번에 비교할 수 있습니다.</p>
         </div>
 
