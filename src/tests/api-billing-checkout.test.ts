@@ -1,6 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import checkoutHandler from '../../api/billing/checkout';
+import {
+  type CheckoutSessionPayload,
+  validateCheckoutSessionPayload,
+} from '../../src/server/billingCheckout';
+
+function createValidCheckoutSessionPayload(
+  overrides: Partial<CheckoutSessionPayload> = {},
+): CheckoutSessionPayload {
+  return {
+    channelKey: 'channel-key-test',
+    currency: 'KRW',
+    customData: {
+      initiatedAt: '2026-03-15T00:00:00.000Z',
+      plan: 'starter',
+      source: 'pricing-page',
+    },
+    noticeUrls: ['https://example.com/api/billing/webhook'],
+    orderName: 'Starter 구독',
+    payMethod: 'CARD',
+    paymentId: 'subscription-starter-001',
+    plan: 'starter',
+    redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+    storeId: 'store-v2-test',
+    totalAmount: 29000,
+    ...overrides,
+  };
+}
 
 describe('/api/billing/checkout', () => {
   const originalAppBaseUrl = process.env.APP_BASE_URL;
@@ -119,6 +146,102 @@ describe('/api/billing/checkout', () => {
       code: 'SERVER_MISCONFIGURED',
       ok: false,
       stage: 'env-load',
+    });
+  });
+
+  it('fails validation when redirectUrl is not an absolute URL', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        redirectUrl: '/pricing?portone=redirect&plan=starter',
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        redirectUrl: '/pricing?portone=redirect&plan=starter',
+      },
+      status: 500,
+    });
+
+    if (result.ok) {
+      throw new Error('Expected invalid checkout session result');
+    }
+
+    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['redirectUrl']));
+  });
+
+  it('fails validation when totalAmount is zero or negative', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        totalAmount: 0,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        totalAmount: 0,
+      },
+      status: 500,
+    });
+
+    if (result.ok) {
+      throw new Error('Expected invalid checkout session result');
+    }
+
+    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['totalAmount']));
+  });
+
+  it('fails validation when storeId is blank', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        storeId: '   ',
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        storeIdConfigured: false,
+      },
+      status: 500,
+    });
+
+    if (result.ok) {
+      throw new Error('Expected invalid checkout session result');
+    }
+
+    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['storeId']));
+  });
+
+  it('fails validation when channelKey is blank', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        channelKey: '   ',
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        channelKeyConfigured: false,
+      },
+      status: 500,
+    });
+
+    if (result.ok) {
+      throw new Error('Expected invalid checkout session result');
+    }
+
+    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['channelKey']));
+  });
+
+  it('keeps the validator result ok for a valid checkout session', () => {
+    const result = validateCheckoutSessionPayload(createValidCheckoutSessionPayload());
+
+    expect(result).toEqual({
+      ok: true,
     });
   });
 

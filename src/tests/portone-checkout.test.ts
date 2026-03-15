@@ -22,9 +22,46 @@ vi.mock('@portone/browser-sdk/v2', () => ({
 
 import {
   PortOneCheckoutError,
+  buildPortOnePaymentRequest,
+  type CheckoutSessionPayload,
+  type CheckoutSessionResponse,
   createCheckoutSession,
   launchPortOneCheckout,
 } from '@/shared/lib/portoneCheckout';
+
+function createValidCheckoutSessionPayload(
+  overrides: Partial<CheckoutSessionPayload> = {},
+): CheckoutSessionPayload {
+  return {
+    channelKey: 'channel-key-test',
+    currency: 'KRW',
+    customData: {
+      initiatedAt: '2026-03-15T00:00:00.000Z',
+      plan: 'starter',
+      source: 'pricing-page',
+    },
+    noticeUrls: ['https://example.com/api/billing/webhook'],
+    orderName: 'Starter 구독',
+    payMethod: 'CARD',
+    paymentId: 'subscription-starter-001',
+    plan: 'starter',
+    redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+    storeId: 'store-v2-test',
+    totalAmount: 29000,
+    ...overrides,
+  };
+}
+
+function createValidCheckoutSessionResponse(
+  overrides: Partial<CheckoutSessionPayload> = {},
+): CheckoutSessionResponse {
+  return {
+    checkout: createValidCheckoutSessionPayload(overrides),
+    endpoint: '/api/billing/checkout',
+    ok: true,
+    plan: 'starter',
+  };
+}
 
 describe('PortOne checkout client helpers', () => {
   const originalFetch = globalThis.fetch;
@@ -116,6 +153,92 @@ describe('PortOne checkout client helpers', () => {
 
     await expect(request).rejects.toBeInstanceOf(PortOneCheckoutError);
     await expect(request).rejects.toThrowError(/Missing required env/);
+  });
+
+  it('throws before SDK invocation when the server returns an invalid checkout session', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(createValidCheckoutSessionResponse({ redirectUrl: '/pricing' })), {
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        status: 200,
+      }),
+    ) as typeof fetch;
+
+    const request = launchPortOneCheckout('starter');
+
+    await expect(request).rejects.toMatchObject({
+      code: 'INVALID_CHECKOUT_SESSION',
+      stage: 'checkout-session-validate',
+    });
+    expect(requestPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it('builds a PortOne payment request when the checkout session is valid', () => {
+    const paymentRequest = buildPortOnePaymentRequest(createValidCheckoutSessionPayload());
+
+    expect(paymentRequest).toMatchObject({
+      channelKey: 'channel-key-test',
+      currency: 'KRW',
+      orderName: 'Starter 구독',
+      payMethod: 'CARD',
+      paymentId: 'subscription-starter-001',
+      redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+      storeId: 'store-v2-test',
+      totalAmount: 29000,
+      windowType: {
+        mobile: 'REDIRECTION',
+        pc: 'POPUP',
+      },
+    });
+  });
+
+  it('throws INVALID_CHECKOUT_SESSION when redirectUrl is invalid', () => {
+    expect(() =>
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          redirectUrl: '/pricing?portone=redirect&plan=starter',
+        }),
+      ),
+    ).toThrowError(PortOneCheckoutError);
+
+    try {
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          redirectUrl: '/pricing?portone=redirect&plan=starter',
+        }),
+      );
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'INVALID_CHECKOUT_SESSION',
+      });
+      expect(error).toBeInstanceOf(PortOneCheckoutError);
+    }
+  });
+
+  it.each([
+    ['string', '29000'],
+    ['zero', 0],
+    ['NaN', Number.NaN],
+  ])('throws when totalAmount is %s', (_label, totalAmount) => {
+    expect(() =>
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          totalAmount: totalAmount as never,
+        }),
+      ),
+    ).toThrowError(PortOneCheckoutError);
+
+    try {
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          totalAmount: totalAmount as never,
+        }),
+      );
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'INVALID_CHECKOUT_SESSION',
+      });
+      expect(error).toBeInstanceOf(PortOneCheckoutError);
+    }
   });
 
   it('distinguishes FUNCTION_INVOCATION_FAILED from non-JSON server errors', async () => {
