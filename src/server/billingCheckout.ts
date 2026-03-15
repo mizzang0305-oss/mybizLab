@@ -1,21 +1,29 @@
 import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../shared/lib/billingPlans';
+import { BUSINESS_INFO } from '../shared/lib/siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const SERVER_ENV_HINT =
   'Add it to .env.local when using vercel dev, and to Vercel Project Settings > Environment Variables for Development, Preview, and Production.';
 
 const CHECKOUT_ENV_NAMES = {
-  appBaseUrl: ['APP_BASE_URL', 'NEXT_PUBLIC_APP_BASE_URL', 'VITE_APP_BASE_URL'],
-  channelKey: ['PORTONE_CHANNEL_KEY', 'NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'VITE_PORTONE_CHANNEL_KEY'],
-  storeId: ['PORTONE_STORE_ID', 'NEXT_PUBLIC_PORTONE_STORE_ID', 'VITE_PORTONE_STORE_ID'],
+  appBaseUrl: ['VITE_APP_BASE_URL'],
+  channelKey: ['PORTONE_CHANNEL_KEY'],
+  storeId: ['PORTONE_STORE_ID'],
 } as const;
 
 type CheckoutEnvKey = keyof typeof CHECKOUT_ENV_NAMES;
+
+export interface CheckoutCustomerPayload {
+  email: string;
+  fullName: string;
+  phoneNumber: string;
+}
 
 export interface CheckoutSessionPayload {
   channelKey: string;
   currency: 'KRW';
   customData: Record<string, unknown>;
+  customer: CheckoutCustomerPayload;
   noticeUrls: string[];
   orderName: string;
   payMethod: 'CARD';
@@ -33,6 +41,12 @@ export interface CheckoutSessionResponse {
   plan: BillingPlanCode;
 }
 
+interface BrowserCheckoutContext {
+  appBaseUrl?: string;
+  channelKey?: string;
+  storeId?: string;
+}
+
 interface CheckoutEnv {
   appBaseUrl?: string;
   channelKey?: string;
@@ -42,6 +56,9 @@ interface CheckoutEnv {
 type CheckoutSessionField =
   | 'channelKey'
   | 'currency'
+  | 'customer.email'
+  | 'customer.fullName'
+  | 'customer.phoneNumber'
   | 'orderName'
   | 'payMethod'
   | 'paymentId'
@@ -56,7 +73,13 @@ interface CheckoutSessionValidationIssue {
 
 export interface InvalidCheckoutSessionDetails {
   channelKeyConfigured: boolean;
+  customerConfigured: {
+    email: boolean;
+    fullName: boolean;
+    phoneNumber: boolean;
+  };
   missingOrInvalidFields: CheckoutSessionField[];
+  paymentId: string | null;
   plan: BillingPlanCode | null;
   redirectUrl: string | null;
   storeIdConfigured: boolean;
@@ -119,7 +142,7 @@ function normalizeBaseUrl(value: string) {
       details: {
         receivedAppBaseUrl: value,
       },
-      message: `APP_BASE_URL is invalid for ${CHECKOUT_ENDPOINT}. ${SERVER_ENV_HINT}`,
+      message: `VITE_APP_BASE_URL is invalid for ${CHECKOUT_ENDPOINT}. ${SERVER_ENV_HINT}`,
       stage: 'env-load',
       status: 500,
     });
@@ -149,14 +172,88 @@ function isPositiveFiniteNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function isValidEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isAsciiSafePaymentId(value: string) {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
 function createCheckoutSessionValidationMessage(issues: CheckoutSessionValidationIssue[]) {
   return `Checkout session is invalid: ${issues.map(({ field, reason }) => `${field} (${reason})`).join(', ')}`;
+}
+
+function defaultCheckoutCustomer(): CheckoutCustomerPayload {
+  return {
+    email: BUSINESS_INFO.email,
+    fullName: BUSINESS_INFO.representative,
+    phoneNumber: BUSINESS_INFO.customerCenter,
+  };
+}
+
+function readCheckoutCustomer(body: Record<string, unknown>): CheckoutCustomerPayload {
+  const defaults = defaultCheckoutCustomer();
+  const customer = typeof body.customer === 'object' && body.customer ? (body.customer as Record<string, unknown>) : {};
+
+  return {
+    email: normalizeNonEmptyString(customer.email) || defaults.email,
+    fullName: normalizeNonEmptyString(customer.fullName) || defaults.fullName,
+    phoneNumber: normalizeNonEmptyString(customer.phoneNumber) || defaults.phoneNumber,
+  };
+}
+
+function readBrowserCheckoutContext(body: Record<string, unknown>): BrowserCheckoutContext | null {
+  if (typeof body.browserContext !== 'object' || !body.browserContext) {
+    return null;
+  }
+
+  const browserContext = body.browserContext as Record<string, unknown>;
+
+  return {
+    appBaseUrl: normalizeNonEmptyString(browserContext.appBaseUrl) || undefined,
+    channelKey: normalizeNonEmptyString(browserContext.channelKey) || undefined,
+    storeId: normalizeNonEmptyString(browserContext.storeId) || undefined,
+  };
+}
+
+function assertBrowserContextMatchesEnv(context: BrowserCheckoutContext | null, env: Required<CheckoutEnv>) {
+  if (!context) {
+    return;
+  }
+
+  const mismatchedFields = (
+    [
+      ['appBaseUrl', context.appBaseUrl, env.appBaseUrl],
+      ['channelKey', context.channelKey, env.channelKey],
+      ['storeId', context.storeId, env.storeId],
+    ] as const
+  )
+    .filter(([, received, expected]) => received && received !== expected)
+    .map(([field]) => field);
+
+  if (mismatchedFields.length === 0) {
+    return;
+  }
+
+  throw new CheckoutApiError({
+    code: 'SERVER_MISCONFIGURED',
+    details: {
+      browserContext: context,
+      mismatchedFields,
+      resolvedEnv: env,
+    },
+    message: `Browser checkout env does not match server checkout env for ${CHECKOUT_ENDPOINT}.`,
+    stage: 'env-load',
+    status: 500,
+  });
 }
 
 export function validateCheckoutSessionPayload(
   payload: CheckoutSessionPayload,
 ): CheckoutSessionValidationResult {
   const issues: CheckoutSessionValidationIssue[] = [];
+  const customer = payload.customer;
 
   if (!normalizeNonEmptyString(payload.storeId)) {
     issues.push({
@@ -176,6 +273,11 @@ export function validateCheckoutSessionPayload(
     issues.push({
       field: 'paymentId',
       reason: 'must be a non-empty string',
+    });
+  } else if (!isAsciiSafePaymentId(payload.paymentId)) {
+    issues.push({
+      field: 'paymentId',
+      reason: 'must contain only ASCII letters, numbers, underscores, or hyphens',
     });
   }
 
@@ -214,6 +316,32 @@ export function validateCheckoutSessionPayload(
     });
   }
 
+  if (!normalizeNonEmptyString(customer.fullName)) {
+    issues.push({
+      field: 'customer.fullName',
+      reason: 'is required for KG Inicis card checkout',
+    });
+  }
+
+  if (!normalizeNonEmptyString(customer.phoneNumber)) {
+    issues.push({
+      field: 'customer.phoneNumber',
+      reason: 'is required for KG Inicis card checkout',
+    });
+  }
+
+  if (!normalizeNonEmptyString(customer.email)) {
+    issues.push({
+      field: 'customer.email',
+      reason: 'is required for KG Inicis card checkout',
+    });
+  } else if (!isValidEmailAddress(customer.email)) {
+    issues.push({
+      field: 'customer.email',
+      reason: 'must be a valid email address',
+    });
+  }
+
   if (issues.length === 0) {
     return {
       ok: true,
@@ -223,7 +351,13 @@ export function validateCheckoutSessionPayload(
   return {
     details: {
       channelKeyConfigured: Boolean(normalizeNonEmptyString(payload.channelKey)),
+      customerConfigured: {
+        email: Boolean(normalizeNonEmptyString(customer.email)),
+        fullName: Boolean(normalizeNonEmptyString(customer.fullName)),
+        phoneNumber: Boolean(normalizeNonEmptyString(customer.phoneNumber)),
+      },
       missingOrInvalidFields: issues.map(({ field }) => field),
+      paymentId: normalizeNonEmptyString(payload.paymentId) || null,
       plan: payload.plan ?? null,
       redirectUrl: normalizeNonEmptyString(payload.redirectUrl) || null,
       storeIdConfigured: Boolean(normalizeNonEmptyString(payload.storeId)),
@@ -246,17 +380,11 @@ function readCheckoutEnv(): CheckoutEnv {
 
 function getCheckoutEnvStatus(env: CheckoutEnv) {
   return {
-    APP_BASE_URL: Boolean(process.env.APP_BASE_URL?.trim()),
-    NEXT_PUBLIC_APP_BASE_URL: Boolean(process.env.NEXT_PUBLIC_APP_BASE_URL?.trim()),
-    NEXT_PUBLIC_PORTONE_CHANNEL_KEY: Boolean(process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY?.trim()),
-    NEXT_PUBLIC_PORTONE_STORE_ID: Boolean(process.env.NEXT_PUBLIC_PORTONE_STORE_ID?.trim()),
     PORTONE_API_SECRET: Boolean(process.env.PORTONE_API_SECRET?.trim()),
     PORTONE_CHANNEL_KEY: Boolean(process.env.PORTONE_CHANNEL_KEY?.trim()),
     PORTONE_STORE_ID: Boolean(process.env.PORTONE_STORE_ID?.trim()),
-    PORTONE_V2_API_SECRET: Boolean(process.env.PORTONE_V2_API_SECRET?.trim()),
+    PORTONE_WEBHOOK_SECRET: Boolean(process.env.PORTONE_WEBHOOK_SECRET?.trim()),
     VITE_APP_BASE_URL: Boolean(process.env.VITE_APP_BASE_URL?.trim()),
-    VITE_PORTONE_CHANNEL_KEY: Boolean(process.env.VITE_PORTONE_CHANNEL_KEY?.trim()),
-    VITE_PORTONE_STORE_ID: Boolean(process.env.VITE_PORTONE_STORE_ID?.trim()),
     resolvedAppBaseUrl: Boolean(env.appBaseUrl),
     resolvedChannelKey: Boolean(env.channelKey),
     resolvedStoreId: Boolean(env.storeId),
@@ -335,6 +463,26 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
   return requestedPlan;
 }
 
+function createCheckoutPaymentId(plan: BillingPlanCode) {
+  const rawPaymentId = `subscription-${plan}-${crypto.randomUUID()}`;
+  const paymentId = rawPaymentId.replace(/[^A-Za-z0-9_-]/g, '');
+
+  if (!paymentId || !isAsciiSafePaymentId(paymentId)) {
+    throw new CheckoutApiError({
+      code: 'INVALID_CHECKOUT_SESSION',
+      details: {
+        paymentId,
+        rawPaymentId,
+      },
+      message: 'Failed to generate an ASCII-safe paymentId for checkout.',
+      stage: 'checkout-session-build',
+      status: 500,
+    });
+  }
+
+  return paymentId;
+}
+
 export function responseJson(body: unknown, status = 200, extraHeaders?: Record<string, string>) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
@@ -349,8 +497,10 @@ export function createCheckoutMethodNotAllowedResponse() {
   return responseJson(
     {
       code: 'METHOD_NOT_ALLOWED',
-      endpoint: CHECKOUT_ENDPOINT,
-      message: `Only POST is supported on ${CHECKOUT_ENDPOINT}`,
+      details: {
+        allow: ['POST'],
+      },
+      error: `Only POST is supported on ${CHECKOUT_ENDPOINT}`,
       ok: false,
       stage: 'method-check',
     },
@@ -362,9 +512,12 @@ export function createCheckoutMethodNotAllowedResponse() {
 export async function handleCheckoutRequest(request: Request) {
   const env = requireCheckoutEnv();
   const body = await parseRequestBody(request);
+
+  assertBrowserContextMatchesEnv(readBrowserCheckoutContext(body), env);
+
   const requestedPlan = resolveRequestedPlan(body);
   const billingPlan = getBillingPlan(requestedPlan);
-  const paymentId = `subscription-${requestedPlan}-${crypto.randomUUID()}`;
+  const paymentId = createCheckoutPaymentId(requestedPlan);
 
   const payload: CheckoutSessionResponse = {
     checkout: {
@@ -372,9 +525,12 @@ export async function handleCheckoutRequest(request: Request) {
       currency: 'KRW',
       customData: {
         initiatedAt: new Date().toISOString(),
+        payMethod: 'CARD',
+        pgProvider: 'KG_INICIS',
         plan: requestedPlan,
         source: 'pricing-page',
       },
+      customer: readCheckoutCustomer(body),
       noticeUrls: [`${env.appBaseUrl}/api/billing/webhook`],
       orderName: billingPlan.orderName,
       payMethod: 'CARD',
@@ -412,7 +568,6 @@ export function createCheckoutErrorResponse(error: unknown) {
       {
         code: error.code,
         details: error.details,
-        endpoint: CHECKOUT_ENDPOINT,
         error: error.message,
         ok: false,
         stage: error.stage,
@@ -426,7 +581,7 @@ export function createCheckoutErrorResponse(error: unknown) {
   return responseJson(
     {
       code: 'UNEXPECTED_BILLING_ERROR',
-      endpoint: CHECKOUT_ENDPOINT,
+      details: error instanceof Error ? { name: error.name } : undefined,
       error: error instanceof Error ? error.message : 'Unknown checkout processing error',
       ok: false,
       stage: 'unhandled',
