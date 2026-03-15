@@ -24,23 +24,18 @@ import {
   PortOneCheckoutError,
   createCheckoutSession,
   launchPortOneCheckout,
-  verifyCheckoutPayment,
 } from '@/shared/lib/portoneCheckout';
 
 describe('PortOne checkout client helpers', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    vi.stubEnv('VITE_APP_BASE_URL', 'https://example.com');
-    vi.stubEnv('VITE_PORTONE_STORE_ID', 'store-v2-test');
-    vi.stubEnv('VITE_PORTONE_CHANNEL_KEY', 'channel-key-test');
+    requestPaymentMock.mockReset();
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    requestPaymentMock.mockReset();
     vi.restoreAllMocks();
-    vi.unstubAllEnvs();
   });
 
   it('creates a checkout session and forwards it to PortOne.requestPayment', async () => {
@@ -50,10 +45,12 @@ describe('PortOne checkout client helpers', () => {
           checkout: {
             channelKey: 'channel-key-test',
             currency: 'KRW',
+            noticeUrls: ['https://example.com/api/billing/webhook'],
             orderName: 'Starter 월 구독',
             payMethod: 'CARD',
             paymentId: 'subscription-starter-001',
             plan: 'starter',
+            redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
             storeId: 'store-v2-test',
             totalAmount: 29000,
           },
@@ -62,7 +59,7 @@ describe('PortOne checkout client helpers', () => {
           plan: 'starter',
         }),
         {
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json; charset=utf-8' },
           status: 200,
         },
       ),
@@ -99,7 +96,7 @@ describe('PortOne checkout client helpers', () => {
     });
   });
 
-  it('returns a clear error when checkout API responds with a billing error payload', async () => {
+  it('returns a clear error when checkout API responds with JSON', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -109,7 +106,7 @@ describe('PortOne checkout client helpers', () => {
           stage: 'env-load',
         }),
         {
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json; charset=utf-8' },
           status: 500,
         },
       ),
@@ -121,38 +118,18 @@ describe('PortOne checkout client helpers', () => {
     await expect(request).rejects.toThrowError(/Missing required env/);
   });
 
-  it('verifies a payment through the verify endpoint', async () => {
+  it('distinguishes FUNCTION_INVOCATION_FAILED from non-JSON server errors', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          endpoint: '/api/billing/verify',
-          ok: true,
-          payment: {
-            id: 'payment-123',
-            status: 'PAID',
-          },
-          paymentId: 'payment-123',
-          portoneStatus: 200,
-        }),
-        {
-          headers: { 'content-type': 'application/json' },
-          status: 200,
-        },
-      ),
+      new Response('FUNCTION_INVOCATION_FAILED', {
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        status: 500,
+      }),
     ) as typeof fetch;
 
-    const payload = await verifyCheckoutPayment('payment-123');
-
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/billing/verify',
-      expect.objectContaining({
-        method: 'POST',
-      }),
-    );
-    expect(payload).toMatchObject({
-      ok: true,
-      paymentId: 'payment-123',
-      portoneStatus: 200,
+    await expect(createCheckoutSession('business')).rejects.toMatchObject({
+      code: 'FUNCTION_INVOCATION_FAILED',
+      stage: 'server-invocation',
+      status: 500,
     });
   });
 });

@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_cqqs3j2rJ5II7GWhCh1o2zO96mmf",
+  "orgId": "team_FNwj4ocrtRGdttpJPdEWRRoP",
+  "projectName": "mybizlab",
+  "settings": {
+    "createdAt": 1771190757426,
+    "framework": "vite",
+    "devCommand": null,
+    "installCommand": "npm install",
+    "buildCommand": "npm run build",
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}
