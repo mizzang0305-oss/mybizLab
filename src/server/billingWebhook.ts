@@ -84,6 +84,7 @@ export interface HandleBillingWebhookSuccess {
 interface BillingWebhookSyncTarget {
   billingKey?: string;
   eventType: string;
+  ignoreReason?: string;
   kind: BillingWebhookSyncKind;
   paymentId?: string;
   storeId?: string;
@@ -153,11 +154,20 @@ function extractWebhookSyncTarget(verifiedWebhook: unknown): BillingWebhookSyncT
   const paymentId = toStringValue(data.paymentId);
   const billingKey = toStringValue(data.billingKey);
 
-  if (eventType.startsWith('Transaction.')) {
+  if (eventType.startsWith('Transaction.') && paymentId) {
     return {
       eventType,
       kind: 'payment',
       paymentId,
+      storeId,
+    };
+  }
+
+  if (eventType.startsWith('Transaction.')) {
+    return {
+      eventType,
+      ignoreReason: 'missing-paymentId',
+      kind: 'ignored',
       storeId,
     };
   }
@@ -175,6 +185,7 @@ function extractWebhookSyncTarget(verifiedWebhook: unknown): BillingWebhookSyncT
     return {
       billingKey,
       eventType,
+      ignoreReason: 'missing-billingKey',
       kind: 'ignored',
       storeId,
     };
@@ -182,6 +193,7 @@ function extractWebhookSyncTarget(verifiedWebhook: unknown): BillingWebhookSyncT
 
   return {
     eventType,
+    ignoreReason: 'unsupported-event-type',
     kind: 'ignored',
     storeId,
   };
@@ -208,7 +220,7 @@ async function resolveWebhookResourceForSync(input: {
   if (target.kind === 'ignored') {
     input.logStage?.('event ignored', {
       eventType: target.eventType,
-      reason: 'unsupported-event-type-or-missing-resource-identifier',
+      reason: target.ignoreReason ?? 'unsupported-event-type-or-missing-resource-identifier',
     });
     return null;
   }
@@ -219,30 +231,6 @@ async function resolveWebhookResourceForSync(input: {
       status: 500,
       code: 'SERVER_MISCONFIGURED',
       message: 'PORTONE_API_SECRET is required for /api/billing/webhook sync',
-    });
-  }
-
-  if (target.kind === 'payment' && !target.paymentId) {
-    throw new BillingApiStageError({
-      stage: 'webhook-resource',
-      status: 400,
-      code: 'INVALID_WEBHOOK_PAYLOAD',
-      message: 'Verified PortOne payment webhook did not include paymentId.',
-      details: {
-        eventType: target.eventType,
-      },
-    });
-  }
-
-  if (target.kind === 'billing_key' && !target.billingKey) {
-    throw new BillingApiStageError({
-      stage: 'webhook-resource',
-      status: 400,
-      code: 'INVALID_WEBHOOK_PAYLOAD',
-      message: 'Verified PortOne billing key webhook did not include billingKey.',
-      details: {
-        eventType: target.eventType,
-      },
     });
   }
 
@@ -433,6 +421,7 @@ export function buildBillingWebhookMutation(
   resolvedResource: BillingWebhookResolvedResource | null = null,
 ): BillingWebhookMutation {
   const { portoneEventType, baseEventLog, baseState, sourceKey } = normalizeWebhookPayload(verifiedWebhook, headers);
+  const syncTarget = extractWebhookSyncTarget(verifiedWebhook);
   const previous = findExistingState(sourceKey);
   const actions: BillingWebhookAction[] = [];
   const nextState: BillingWebhookStateSnapshot = {
@@ -468,7 +457,10 @@ export function buildBillingWebhookMutation(
     baseEventLog.cancellationId = resolvedIdentifiers.cancellationId;
   }
 
-  if (!applyResolvedResourceMutation(nextState, actions, resolvedResource, previous)) {
+  if (syncTarget.kind === 'ignored') {
+    actions.push('ignored');
+    nextState.normalizedStatus = 'ignored';
+  } else if (!applyResolvedResourceMutation(nextState, actions, resolvedResource, previous)) {
     switch (portoneEventType) {
       case 'Transaction.Paid':
         actions.push('payment_completed');
