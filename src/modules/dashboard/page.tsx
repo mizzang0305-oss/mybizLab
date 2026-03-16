@@ -7,250 +7,186 @@ import { MetricCard } from '@/shared/components/MetricCard';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
-import { formatCurrency, formatDateTime, formatNumber } from '@/shared/lib/format';
+import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import {
-  SETUP_STATUS_LABELS,
-  STORE_REQUEST_STATUS_LABELS,
-  STORE_VISIBILITY_LABELS,
-  SUBSCRIPTION_STATUS_LABELS,
-} from '@/shared/lib/platformConsole';
-import { getPlatformOverviewSnapshot } from '@/shared/lib/services/platformConsoleService';
+import { getDashboardSnapshot, listAiReports } from '@/shared/lib/services/mvpService';
 import { buildStorePath } from '@/shared/lib/storeSlug';
 
-export function DashboardPage() {
-  usePageMeta('플랫폼 운영 콘솔', '스토어 생성 요청, 운영 중인 스토어, 결제 이슈와 시스템 경고를 한눈에 관리하는 dev 관리자 홈입니다.');
+const orderChannelLabelMap: Record<string, string> = {
+  delivery: '배달',
+  reservation: '예약 주문',
+  table: '테이블 주문',
+  walk_in: '매장 주문',
+};
 
-  const overviewQuery = useQuery({
-    queryKey: queryKeys.platformOverview,
-    queryFn: getPlatformOverviewSnapshot,
+export function DashboardPage() {
+  const { currentStore } = useCurrentStore();
+
+  usePageMeta('스토어 현황', '로그인 후 바로 스토어 운영 현황, 최근 주문, AI 리포트 요약을 확인할 수 있습니다.');
+
+  const dashboardQuery = useQuery({
+    queryKey: queryKeys.dashboard(currentStore?.id || ''),
+    queryFn: () => Promise.resolve(getDashboardSnapshot(currentStore!.id)),
+    enabled: Boolean(currentStore),
   });
 
-  const overview = overviewQuery.data;
+  const reportsQuery = useQuery({
+    queryKey: queryKeys.aiReports(currentStore?.id || ''),
+    queryFn: () => listAiReports(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
 
-  const stats = [
+  if (!currentStore) {
+    return (
+      <EmptyState
+        title="대시보드를 준비하고 있습니다"
+        description="스토어 정보와 데모 데이터를 확인한 뒤 운영 대시보드를 다시 불러옵니다."
+      />
+    );
+  }
+
+  const snapshot = dashboardQuery.data;
+  const latestReport = reportsQuery.data?.[0];
+
+  const quickLinks = [
     {
-      label: '총 스토어 수',
-      value: formatNumber(overview?.stats.totalStores ?? 0),
-      hint: '운영 중이거나 생성 완료된 스토어',
-      accent: 'slate' as const,
-      icon: <Icons.Store size={20} />,
+      title: '고객 관리',
+      description: `고객 ${snapshot?.recentOrders.filter((order) => Boolean(order.customer_id)).length ?? 0}건의 최근 주문 연결 상태를 확인합니다.`,
+      to: '/dashboard/customers',
+      icon: Icons.Users,
     },
     {
-      label: '활성 스토어 수',
-      value: formatNumber(overview?.stats.activeStores ?? 0),
-      hint: '공개 상태로 운영 중인 스토어',
-      accent: 'emerald' as const,
-      icon: <Icons.Globe size={20} />,
+      title: '예약 관리',
+      description: `오늘 확인할 예약 ${snapshot?.upcomingReservations ?? 0}건을 바로 점검합니다.`,
+      to: '/dashboard/reservations',
+      icon: Icons.Reservation,
     },
     {
-      label: '생성 요청 대기',
-      value: formatNumber(overview?.stats.pendingRequests ?? 0),
-      hint: 'submitted / reviewing 요청 합계',
-      accent: 'blue' as const,
-      icon: <Icons.Survey size={20} />,
+      title: '매출 분석',
+      description: `오늘 매출 ${snapshot ? formatCurrency(snapshot.todaySales) : '-'} 기준으로 흐름을 확인합니다.`,
+      to: '/dashboard/sales',
+      icon: Icons.Chart,
     },
     {
-      label: '구독 활성 수',
-      value: formatNumber(overview?.stats.activeSubscriptions ?? 0),
-      hint: '정기 구독이 활성화된 스토어',
-      accent: 'emerald' as const,
-      icon: <Icons.Chart size={20} />,
-    },
-    {
-      label: '결제 대기·문제 건수',
-      value: formatNumber(overview?.stats.paymentIssues ?? 0),
-      hint: '결제 실패 / 환불 요청 / 수단 확인 필요',
-      accent: 'orange' as const,
-      icon: <Icons.Alert size={20} />,
-    },
-    {
-      label: '오늘 신규 요청',
-      value: formatNumber(overview?.stats.todayNewRequests ?? 0),
-      hint: '오늘 접수된 스토어 생성 요청',
-      accent: 'blue' as const,
-      icon: <Icons.Calendar size={20} />,
+      title: 'AI 운영 리포트',
+      description: latestReport ? '최신 운영 리포트를 이어서 확인하고 새 리포트를 생성합니다.' : '스토어 운영 데이터를 바탕으로 AI 리포트를 준비합니다.',
+      to: '/dashboard/ai-reports',
+      icon: Icons.AI,
     },
   ];
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Platform operations"
-        title="플랫폼 운영 콘솔"
-        description="플랫폼 전체 현황, 스토어 생성 요청, 결제/구독 이슈, 운영 경고를 한 화면에서 확인하고 처리합니다."
+        eyebrow="운영 대시보드"
+        title="스토어 현황"
+        description={`${currentStore.name}의 핵심 운영 지표와 최근 주문 흐름을 한눈에 확인할 수 있습니다.`}
         actions={
           <>
-            <Link className="btn-secondary" to="/dashboard/store-requests">
-              요청 검토
-            </Link>
-            <Link className="btn-secondary" to="/dashboard/billing">
-              결제 상태 보기
-            </Link>
-            <Link className="btn-primary" to="/onboarding">
-              새 스토어 생성
+            <a className="btn-secondary" href={buildStorePath(currentStore.slug)} rel="noreferrer" target="_blank">
+              스토어 홈 보기
+            </a>
+            <Link className="btn-primary" to="/dashboard/ai-reports">
+              AI 운영 리포트 보기
             </Link>
           </>
         }
       />
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {stats.map((stat) => (
-          <MetricCard key={stat.label} accent={stat.accent} hint={stat.hint} icon={stat.icon} label={stat.label} value={stat.value} />
-        ))}
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <MetricCard accent="blue" icon={<Icons.Delivery size={20} />} label="오늘 주문" value={snapshot?.todayOrders ?? 0} />
+        <MetricCard accent="emerald" icon={<Icons.Chart size={20} />} label="오늘 매출" value={snapshot ? formatCurrency(snapshot.todaySales) : '-'} />
+        <MetricCard accent="orange" icon={<Icons.Reservation size={20} />} label="오늘 예약" value={snapshot?.upcomingReservations ?? 0} />
+        <MetricCard accent="slate" icon={<Icons.Waiting size={20} />} label="대기 현황" value={`${snapshot?.activeWaiting ?? 0}팀`} />
+        <MetricCard accent="orange" icon={<Icons.Apps size={20} />} label="인기 메뉴" value={snapshot?.popularMenu ?? '-'} />
+        <MetricCard accent="blue" icon={<Icons.Store size={20} />} label="활성 기능" value={`${snapshot?.enabledFeatures ?? 0}개`} />
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
-        <Panel title="최근 생성 요청 5건" subtitle="가장 최근에 들어온 요청부터 상태와 희망 slug를 확인합니다.">
-          {overview?.recentRequests.length ? (
-            <div className="space-y-3">
-              {overview.recentRequests.map((request) => (
-                <div key={request.id} className="rounded-3xl border border-slate-200/80 bg-white p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold text-slate-900">{request.business_name}</p>
-                        <StatusBadge status={request.status} />
-                      </div>
-                      <p className="text-sm text-slate-500">
-                        {request.business_type} · {request.email} · /{request.requested_slug}
-                      </p>
-                      <p className="text-sm text-slate-500">{formatDateTime(request.created_at)}</p>
+      <div className="grid gap-8 xl:grid-cols-[0.9fr_1.1fr]">
+        <Panel title="핵심 탭 바로가기" subtitle="로그인 후 가장 자주 확인하는 운영 영역만 먼저 모아두었습니다.">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {quickLinks.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <Link
+                  key={item.to}
+                  className="rounded-3xl border border-slate-200 bg-slate-50 p-4 transition hover:border-orange-200 hover:bg-orange-50"
+                  to={item.to}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl bg-white p-3 text-orange-700 shadow-sm">
+                      <Icon size={20} />
                     </div>
-                    <Link className="btn-secondary !px-3 !py-2" to={`/dashboard/store-requests/${request.id}`}>
-                      상세 보기
-                    </Link>
+                    <div>
+                      <p className="font-bold text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">{item.description}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="생성 요청이 없습니다" description="새로운 스토어 생성 요청이 들어오면 이 영역에서 바로 검토할 수 있습니다." />
-          )}
+                </Link>
+              );
+            })}
+          </div>
         </Panel>
 
-        <Panel title="운영 알림 / 주의 항목" subtitle="결제 이슈나 검토 대기 요청처럼 바로 확인해야 하는 항목입니다.">
+        <Panel title="운영 진단 요약" subtitle="지금 바로 확인하면 좋은 운영 포인트입니다.">
           <div className="space-y-3">
-            {overview?.alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={[
-                  'rounded-3xl border p-4',
-                  alert.tone === 'warning'
-                    ? 'border-amber-200 bg-amber-50'
-                    : alert.tone === 'info'
-                      ? 'border-blue-200 bg-blue-50'
-                      : 'border-slate-200 bg-slate-50',
-                ].join(' ')}
-              >
-                <p className="font-semibold text-slate-900">{alert.title}</p>
-                <p className="mt-1 text-sm text-slate-600">{alert.description}</p>
+            <div className="rounded-3xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">주문 흐름</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                오늘 주문은 {snapshot?.todayOrders ?? 0}건이며, 인기 메뉴는 {snapshot?.popularMenu ?? '-'}입니다.
+              </p>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">현장 운영</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                예약 {snapshot?.upcomingReservations ?? 0}건, 대기 {snapshot?.activeWaiting ?? 0}팀이 있어 피크타임 응대 준비가 필요합니다.
+              </p>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">AI 리포트 상태</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {latestReport
+                  ? `${new Date(latestReport.generated_at).toLocaleString('ko-KR')} 기준 최신 리포트가 준비되어 있습니다.`
+                  : '아직 생성된 AI 운영 리포트가 없어 첫 리포트를 생성할 수 있습니다.'}
+              </p>
+            </div>
+            {latestReport ? (
+              <div className="rounded-3xl bg-slate-950 p-5 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-200">최신 리포트 미리보기</p>
+                <p className="mt-3 text-sm leading-7 text-slate-200">{latestReport.summary}</p>
+              </div>
+            ) : null}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="최근 주문" subtitle="로그인 직후 현재 운영 상황을 빠르게 이해할 수 있도록 최근 주문을 먼저 보여줍니다.">
+        {snapshot?.recentOrders.length ? (
+          <div className="space-y-3">
+            {snapshot.recentOrders.map((order) => (
+              <div key={order.id} className="rounded-3xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {order.table_no ? `테이블 ${order.table_no}` : orderChannelLabelMap[order.channel] || order.channel}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
+                    <p className="mt-1 text-sm text-slate-500">{formatDateTime(order.placed_at)}</p>
+                  </div>
+                  <div className="flex flex-col items-start gap-2 sm:items-end">
+                    <StatusBadge status={order.status} />
+                    <p className="text-sm font-semibold text-slate-700">{formatCurrency(order.total_amount)}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <Link className="btn-secondary justify-between" to="/dashboard/store-requests">
-              스토어 요청 보기
-              <Icons.ArrowRight size={16} />
-            </Link>
-            <Link className="btn-secondary justify-between" to="/onboarding">
-              새 스토어 생성
-              <Icons.ArrowRight size={16} />
-            </Link>
-            <Link className="btn-secondary justify-between" to="/dashboard/billing">
-              결제 상태 보기
-              <Icons.ArrowRight size={16} />
-            </Link>
-            <Link className="btn-secondary justify-between" to="/dashboard/admin-users">
-              관리자 계정 보기
-              <Icons.ArrowRight size={16} />
-            </Link>
-          </div>
-        </Panel>
-      </div>
-
-      <div className="grid gap-8 xl:grid-cols-2">
-        <Panel title="최근 생성된 스토어 5건" subtitle="공개 상태와 구독 상태를 빠르게 점검할 수 있습니다.">
-          {overview?.recentStores.length ? (
-            <div className="space-y-3">
-              {overview.recentStores.map((store) => (
-                <div key={store.id} className="rounded-3xl border border-slate-200/80 bg-white p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold text-slate-900">{store.name}</p>
-                        <StatusBadge status={store.public_status} />
-                      </div>
-                      <p className="text-sm text-slate-500">
-                        /{store.slug} · {store.admin_email}
-                      </p>
-                      <p className="text-sm text-slate-500">{formatDateTime(store.created_at)}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Link className="btn-secondary !px-3 !py-2" to={`/dashboard/stores/${store.id}`}>
-                        운영 상세
-                      </Link>
-                      <a className="btn-secondary !px-3 !py-2" href={buildStorePath(store.slug)} target="_blank" rel="noreferrer">
-                        공개 홈
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="스토어가 없습니다" description="스토어 생성 요청을 승인하면 운영 가능한 스토어가 이 영역에 추가됩니다." />
-          )}
-        </Panel>
-
-        <Panel title="최근 결제 이벤트 5건" subtitle="PortOne 연동 전 단계에서도 결제 운영 이슈를 같은 방식으로 점검할 수 있습니다.">
-          {overview?.recentBillingEvents.length ? (
-            <div className="space-y-3">
-              {overview.recentBillingEvents.map((event) => (
-                <div key={event.id} className="rounded-3xl border border-slate-200/80 bg-white p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold text-slate-900">{event.store?.name || '연결 전 스토어'}</p>
-                        <StatusBadge status={event.status} />
-                      </div>
-                      <p className="text-sm text-slate-500">{event.title}</p>
-                      <p className="text-sm text-slate-500">
-                        {formatCurrency(event.amount)} · {formatDateTime(event.occurred_at)}
-                      </p>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-600">{event.note || event.event_type.replace(/_/g, ' ')}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="결제 이벤트가 없습니다" description="세팅비 결제, 구독 갱신, 환불 요청 등 billing 이벤트가 여기에 표시됩니다." />
-          )}
-        </Panel>
-      </div>
-
-      <Panel title="운영 요약 스냅샷" subtitle="상태 기준을 한 번 더 확인할 수 있도록 현재 KPI 정의를 요약했습니다.">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-3xl bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">요청 상태 기준</p>
-            <p className="mt-2 text-sm text-slate-500">{Object.values(STORE_REQUEST_STATUS_LABELS).join(' / ')}</p>
-          </div>
-          <div className="rounded-3xl bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">스토어 공개 상태</p>
-            <p className="mt-2 text-sm text-slate-500">{Object.values(STORE_VISIBILITY_LABELS).join(' / ')}</p>
-          </div>
-          <div className="rounded-3xl bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">세팅비 상태</p>
-            <p className="mt-2 text-sm text-slate-500">{Object.values(SETUP_STATUS_LABELS).join(' / ')}</p>
-          </div>
-          <div className="rounded-3xl bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">구독 상태</p>
-            <p className="mt-2 text-sm text-slate-500">{Object.values(SUBSCRIPTION_STATUS_LABELS).join(' / ')}</p>
-          </div>
-        </div>
+        ) : (
+          <EmptyState title="최근 주문이 없습니다" description="데모 주문 데이터를 준비한 뒤 이 영역에 최신 주문이 표시됩니다." />
+        )}
       </Panel>
     </div>
   );

@@ -16,7 +16,7 @@ export function StoreSwitcher({
 
   return (
     <div className="flex flex-col gap-2 sm:min-w-72">
-      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Active Store</label>
+      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">현재 스토어</label>
       <div className="flex items-center gap-3">
         <select
           className="input-base"
@@ -36,7 +36,7 @@ export function StoreSwitcher({
             rel="noreferrer"
             target="_blank"
           >
-            공개 주소
+            스토어 홈
           </a>
         ) : null}
       </div>

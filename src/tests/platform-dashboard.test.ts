@@ -6,8 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DashboardLayout } from '@/app/layouts/DashboardLayout';
 import { AdminUsersPage } from '@/modules/admin-users/page';
+import { AiReportsPage } from '@/modules/ai-report/page';
 import { BillingPage } from '@/modules/billing/page';
+import { CustomersPage } from '@/modules/customers/page';
 import { DashboardPage } from '@/modules/dashboard/page';
+import { ReservationsPage } from '@/modules/reservations/page';
+import { SalesPage } from '@/modules/sales/page';
 import { StoreRequestDetailPage } from '@/modules/store-requests/detail-page';
 import { StoreRequestsPage } from '@/modules/store-requests/page';
 import { StoreDetailPage } from '@/modules/stores/detail-page';
@@ -16,11 +20,11 @@ import { SystemPage } from '@/modules/system/page';
 import { useAdminSessionStore } from '@/shared/lib/adminSession';
 import { resetDatabase } from '@/shared/lib/mockDb';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { listAccessibleStores } from '@/shared/lib/services/mvpService';
+import { useUiStore } from '@/shared/lib/uiStore';
+import { getDashboardSnapshot, listAccessibleStores, listAiReports, listCustomers, listOrders, listReservations, listSales } from '@/shared/lib/services/mvpService';
 import {
   getBillingConsoleSnapshot,
   getInternalAppAccessSnapshot,
-  getPlatformOverviewSnapshot,
   getPlatformStoreDetail,
   getStoreRequestDetail,
   listAdminUsers,
@@ -102,23 +106,90 @@ describe('platform dashboard routes', () => {
   beforeEach(() => {
     resetDatabase();
     useAdminSessionStore.setState({ session: null });
+    useUiStore.setState({ selectedStoreId: undefined, sidebarOpen: false });
   });
 
   afterEach(() => {
     useAdminSessionStore.setState({ session: null });
+    useUiStore.setState({ selectedStoreId: undefined, sidebarOpen: false });
   });
 
   it('renders the dashboard overview', async () => {
     const html = await renderDashboardRoute('/dashboard', undefined, createElement(DashboardPage), async (queryClient) => {
+      await Promise.all([
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.dashboard('store_golden_coffee'),
+          queryFn: () => Promise.resolve(getDashboardSnapshot('store_golden_coffee')),
+        }),
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.aiReports('store_golden_coffee'),
+          queryFn: () => listAiReports('store_golden_coffee'),
+        }),
+      ]);
+    });
+
+    expect(html).toContain('스토어 현황');
+    expect(html).toContain('Golden Coffee');
+    expect(html).toContain('AI 운영 리포트');
+    expect(html).toContain('고객 관리');
+  });
+
+  it('renders the core dashboard tabs for store operations', async () => {
+    const customersHtml = await renderDashboardRoute('/dashboard/customers', 'customers', createElement(CustomersPage), async (queryClient) => {
+      await Promise.all([
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.customers('store_golden_coffee'),
+          queryFn: () => listCustomers('store_golden_coffee'),
+        }),
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.orders('store_golden_coffee'),
+          queryFn: () => listOrders('store_golden_coffee'),
+        }),
+      ]);
+    });
+
+    expect(customersHtml).toContain('고객 관리');
+    expect(customersHtml).toContain('현재 스토어');
+
+    const reservationsHtml = await renderDashboardRoute(
+      '/dashboard/reservations',
+      'reservations',
+      createElement(ReservationsPage),
+      async (queryClient) => {
+        await queryClient.prefetchQuery({
+          queryKey: queryKeys.reservations('store_golden_coffee'),
+          queryFn: () => listReservations('store_golden_coffee'),
+        });
+      },
+    );
+
+    expect(reservationsHtml).toContain('예약 관리');
+    expect(reservationsHtml).toContain('예약 저장');
+
+    const salesHtml = await renderDashboardRoute('/dashboard/sales', 'sales', createElement(SalesPage), async (queryClient) => {
       await queryClient.prefetchQuery({
-        queryKey: queryKeys.platformOverview,
-        queryFn: getPlatformOverviewSnapshot,
+        queryKey: queryKeys.sales('store_golden_coffee'),
+        queryFn: () => listSales('store_golden_coffee'),
       });
     });
 
-    expect(html).toContain('Platform operations');
-    expect(html).toContain('My Biz Lab');
-    expect(html).toContain('Golden Coffee');
+    expect(salesHtml).toContain('매출 분석');
+    expect(salesHtml).toContain('오늘 매출');
+
+    const reportsHtml = await renderDashboardRoute(
+      '/dashboard/ai-reports',
+      'ai-reports',
+      createElement(AiReportsPage),
+      async (queryClient) => {
+        await queryClient.prefetchQuery({
+          queryKey: queryKeys.aiReports('store_golden_coffee'),
+          queryFn: () => listAiReports('store_golden_coffee'),
+        });
+      },
+    );
+
+    expect(reportsHtml).toContain('AI 운영 리포트');
+    expect(reportsHtml).toContain('최신 리포트');
   });
 
   it('renders the store requests list and detail routes', async () => {

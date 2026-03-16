@@ -4,25 +4,34 @@ import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
 import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
 import { createId } from '@/shared/lib/ids';
-import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
+import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
+import { createSeedDatabase } from '@/shared/lib/mockSeed';
 import { buildStoreUrl, ensureUniqueStoreSlug, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
 import type {
   AIReport,
+  BillingEvent,
+  BillingEventStatus,
   CartItemInput,
   Contract,
   Customer,
   KitchenTicket,
   MenuCategory,
   MenuItem,
+  MvpDatabase,
   Order,
   OrderItem,
   OrderStatus,
+  PaymentMethodStatus,
   ReportType,
   Reservation,
   ReservationStatus,
+  SetupPaymentStatus,
   SetupRequestInput,
+  StoreRequestStatus,
   Store,
   StoreSchedule,
+  SubscriptionPlan,
+  SubscriptionStatus,
   Survey,
   SurveyQuestion,
   SurveyResponse,
@@ -31,16 +40,415 @@ import type {
 } from '@/shared/types/models';
 
 const DEMO_PROFILE_ID = 'profile_platform_owner';
+const SETUP_FEE_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
+  starter: 390000,
+  pro: 390000,
+  business: 590000,
+  enterprise: 990000,
+};
+const SUBSCRIPTION_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
+  starter: 29000,
+  pro: 79000,
+  business: 149000,
+  enterprise: 0,
+};
+
+interface SaveSetupRequestOptions {
+  requestedPlan?: SubscriptionPlan;
+}
+
+interface CreateStoreFromSetupRequestOptions {
+  paymentId?: string;
+  paymentMethodStatus?: PaymentMethodStatus;
+  plan?: SubscriptionPlan;
+  requestId?: string;
+  requestStatus?: StoreRequestStatus;
+  reviewNotes?: string;
+  reviewerEmail?: string;
+  setupEventStatus?: BillingEventStatus;
+  setupStatus?: SetupPaymentStatus;
+  subscriptionEventStatus?: BillingEventStatus;
+  subscriptionStatus?: SubscriptionStatus;
+}
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function getStoreMembersStores() {
-  const database = getDatabase();
+function isoDaysAgo(daysAgo: number, hours = 9) {
+  const value = new Date();
+  value.setDate(value.getDate() - daysAgo);
+  value.setHours(hours, 0, 0, 0);
+  return value.toISOString();
+}
+
+function isoDaysFromNow(daysAhead: number, hours = 9) {
+  const value = new Date();
+  value.setDate(value.getDate() + daysAhead);
+  value.setHours(hours, 0, 0, 0);
+  return value.toISOString();
+}
+
+function mergeMissingById<T extends { id: string }>(current: T[], seeded: T[]) {
+  const existingIds = new Set(current.map((item) => item.id));
+  let changed = false;
+
+  seeded.forEach((item) => {
+    if (existingIds.has(item.id)) {
+      return;
+    }
+
+    current.push(item);
+    existingIds.add(item.id);
+    changed = true;
+  });
+
+  return changed;
+}
+
+function getStoreMembersStores(database = getDatabase()) {
   const memberships = database.store_members.filter((member) => member.profile_id === DEMO_PROFILE_ID);
   const storeIdSet = new Set(memberships.map((member) => member.store_id));
   return database.stores.filter((store) => storeIdSet.has(store.id));
+}
+
+function getStoreOperationalScore(database: MvpDatabase, storeId: string) {
+  let score = 0;
+
+  if (database.customers.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  if (database.orders.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  if (database.reservations.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  if (database.sales_daily.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  if (database.ai_reports.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function compareStoresByDashboardReady(database: MvpDatabase, left: Store, right: Store) {
+  const scoreDelta = getStoreOperationalScore(database, right.id) - getStoreOperationalScore(database, left.id);
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  if (left.public_status !== right.public_status) {
+    return left.public_status === 'public' ? -1 : 1;
+  }
+
+  return right.created_at.localeCompare(left.created_at);
+}
+
+function createDemoOperationalDataset(store: Store, menuItems: MenuItem[]) {
+  const primaryMenu = menuItems[0];
+  const secondaryMenu = menuItems[1] ?? menuItems[0];
+
+  if (!primaryMenu || !secondaryMenu) {
+    return null;
+  }
+
+  const regularCustomerId = createId('customer');
+  const returningCustomerId = createId('customer');
+  const recentVisitAt = isoDaysAgo(0, 11);
+
+  const customers: Customer[] = [
+    {
+      id: regularCustomerId,
+      store_id: store.id,
+      name: `${store.name} 단골 고객`,
+      phone: '010-4100-1100',
+      email: `${store.slug}-vip@mybiz.ai.kr`,
+      visit_count: 6,
+      last_visit_at: recentVisitAt,
+      is_regular: true,
+      marketing_opt_in: true,
+      created_at: isoDaysAgo(45, 9),
+    },
+    {
+      id: returningCustomerId,
+      store_id: store.id,
+      name: `${store.name} 재방문 고객`,
+      phone: '010-4200-2200',
+      email: `${store.slug}-member@mybiz.ai.kr`,
+      visit_count: 2,
+      last_visit_at: isoDaysAgo(1, 18),
+      is_regular: false,
+      marketing_opt_in: true,
+      created_at: isoDaysAgo(21, 12),
+    },
+  ];
+
+  const completedTodayId = createId('order');
+  const preparingOrderId = createId('order');
+  const reservationOrderId = createId('order');
+  const completedYesterdayId = createId('order');
+
+  const completedTodayLines = [
+    { menuItemId: primaryMenu.id, menuName: primaryMenu.name, quantity: 2, unitPrice: primaryMenu.price },
+    { menuItemId: secondaryMenu.id, menuName: secondaryMenu.name, quantity: 1, unitPrice: secondaryMenu.price },
+  ];
+  const preparingLines = [{ menuItemId: secondaryMenu.id, menuName: secondaryMenu.name, quantity: 2, unitPrice: secondaryMenu.price }];
+  const reservationLines = [{ menuItemId: primaryMenu.id, menuName: primaryMenu.name, quantity: 3, unitPrice: primaryMenu.price }];
+  const completedYesterdayLines = [{ menuItemId: primaryMenu.id, menuName: primaryMenu.name, quantity: 1, unitPrice: primaryMenu.price }];
+
+  const completedTodayTotal = calculateOrderTotal(completedTodayLines);
+  const preparingTotal = calculateOrderTotal(preparingLines);
+  const reservationTotal = calculateOrderTotal(reservationLines);
+  const completedYesterdayTotal = calculateOrderTotal(completedYesterdayLines);
+
+  const orders: Order[] = [
+    {
+      id: completedTodayId,
+      store_id: store.id,
+      customer_id: regularCustomerId,
+      table_no: 'A1',
+      channel: 'table',
+      status: 'completed',
+      payment_status: 'paid',
+      total_amount: completedTodayTotal,
+      placed_at: isoDaysAgo(0, 11),
+      completed_at: isoDaysAgo(0, 11),
+      note: '점심 피크 주문',
+    },
+    {
+      id: preparingOrderId,
+      store_id: store.id,
+      customer_id: returningCustomerId,
+      table_no: 'A2',
+      channel: 'table',
+      status: 'preparing',
+      payment_status: 'pending',
+      total_amount: preparingTotal,
+      placed_at: isoDaysAgo(0, 12),
+      note: '현장 주문 진행 중',
+    },
+    {
+      id: reservationOrderId,
+      store_id: store.id,
+      customer_id: regularCustomerId,
+      table_no: 'B1',
+      channel: 'reservation',
+      status: 'accepted',
+      payment_status: 'pending',
+      total_amount: reservationTotal,
+      placed_at: isoDaysAgo(0, 17),
+      note: '예약 고객 선주문',
+    },
+    {
+      id: completedYesterdayId,
+      store_id: store.id,
+      customer_id: returningCustomerId,
+      channel: 'delivery',
+      status: 'completed',
+      payment_status: 'paid',
+      total_amount: completedYesterdayTotal,
+      placed_at: isoDaysAgo(1, 18),
+      completed_at: isoDaysAgo(1, 18),
+    },
+  ];
+
+  const orderItems = [
+    ...buildOrderItems(completedTodayId, store.id, completedTodayLines),
+    ...buildOrderItems(preparingOrderId, store.id, preparingLines),
+    ...buildOrderItems(reservationOrderId, store.id, reservationLines),
+    ...buildOrderItems(completedYesterdayId, store.id, completedYesterdayLines),
+  ];
+
+  const kitchenTickets: KitchenTicket[] = [
+    {
+      id: createId('kitchen_ticket'),
+      store_id: store.id,
+      order_id: preparingOrderId,
+      table_no: 'A2',
+      status: 'preparing',
+      created_at: isoDaysAgo(0, 12),
+      updated_at: isoDaysAgo(0, 12),
+    },
+  ];
+
+  const reservations: Reservation[] = [
+    {
+      id: createId('reservation'),
+      store_id: store.id,
+      customer_name: `${store.name} 예약 고객`,
+      phone: '010-4300-3300',
+      party_size: 2,
+      reserved_at: isoDaysAgo(0, 18),
+      status: 'booked',
+    },
+    {
+      id: createId('reservation'),
+      store_id: store.id,
+      customer_name: `${store.name} 단체 예약`,
+      phone: '010-4400-4400',
+      party_size: 4,
+      reserved_at: isoDaysAgo(0, 19),
+      status: 'seated',
+      note: '창가 자리 요청',
+    },
+  ];
+
+  const waitingEntries: WaitingEntry[] = [
+    {
+      id: createId('waiting'),
+      store_id: store.id,
+      customer_name: `${store.name} 대기 1팀`,
+      phone: '010-4500-5500',
+      party_size: 2,
+      quoted_wait_minutes: 10,
+      status: 'waiting',
+      created_at: isoDaysAgo(0, 12),
+    },
+    {
+      id: createId('waiting'),
+      store_id: store.id,
+      customer_name: `${store.name} 대기 2팀`,
+      phone: '010-4600-6600',
+      party_size: 3,
+      quoted_wait_minutes: 5,
+      status: 'called',
+      created_at: isoDaysAgo(0, 12),
+    },
+  ];
+
+  const sales = [completedTodayTotal + reservationTotal, completedYesterdayTotal + completedTodayTotal, 42800, 38700, 45100, 39900, 47200].map(
+    (totalSales, index) => ({
+      id: createId('sales_daily'),
+      store_id: store.id,
+      sale_date: startOfDayKey(isoDaysAgo(index)),
+      order_count: index === 0 ? 3 : index === 1 ? 2 : 3,
+      total_sales: totalSales,
+      average_order_value: index === 0 ? Math.round(totalSales / 3) : index === 1 ? Math.round(totalSales / 2) : Math.round(totalSales / 3),
+      channel_mix: index === 0 ? { table: 2, reservation: 1 } : index === 1 ? { delivery: 1, table: 1 } : { table: 2, delivery: 1 },
+    }),
+  );
+
+  const reports: AIReport[] = [
+    {
+      id: createId('ai_report'),
+      store_id: store.id,
+      report_type: 'daily',
+      title: '일간 운영 리포트',
+      summary: `${store.name}은 오늘 주문 흐름과 예약 상황이 안정적입니다. 인기 메뉴 중심 묶음 제안과 재방문 고객 관리로 추가 매출을 기대할 수 있습니다.`,
+      metrics: {
+        todaySales: completedTodayTotal + reservationTotal,
+        todayOrders: 3,
+        popularMenu: primaryMenu.name,
+      },
+      generated_at: isoDaysAgo(0, 14),
+      source: 'fallback',
+    },
+  ];
+
+  return {
+    customers,
+    orders,
+    orderItems,
+    kitchenTickets,
+    reservations,
+    waitingEntries,
+    sales,
+    reports,
+  };
+}
+
+function ensureDemoAdminBootstrapData() {
+  const database = getDatabase();
+  const seededDatabase = createSeedDatabase();
+  let changed = false;
+
+  changed = mergeMissingById(database.profiles, seededDatabase.profiles) || changed;
+  changed = mergeMissingById(database.stores, seededDatabase.stores) || changed;
+  changed = mergeMissingById(database.store_members, seededDatabase.store_members) || changed;
+  changed = mergeMissingById(database.store_features, seededDatabase.store_features) || changed;
+  changed = mergeMissingById(database.store_tables, seededDatabase.store_tables) || changed;
+  changed = mergeMissingById(database.menu_categories, seededDatabase.menu_categories) || changed;
+  changed = mergeMissingById(database.menu_items, seededDatabase.menu_items) || changed;
+  changed = mergeMissingById(database.billing_records, seededDatabase.billing_records) || changed;
+  changed = mergeMissingById(database.admin_users, seededDatabase.admin_users) || changed;
+
+  changed = mergeMissingById(database.customers, seededDatabase.customers) || changed;
+  changed = mergeMissingById(database.orders, seededDatabase.orders) || changed;
+  changed = mergeMissingById(database.order_items, seededDatabase.order_items) || changed;
+  changed = mergeMissingById(database.kitchen_tickets, seededDatabase.kitchen_tickets) || changed;
+  changed = mergeMissingById(database.reservations, seededDatabase.reservations) || changed;
+  changed = mergeMissingById(database.waiting_entries, seededDatabase.waiting_entries) || changed;
+  changed = mergeMissingById(database.ai_reports, seededDatabase.ai_reports) || changed;
+  changed = mergeMissingById(database.sales_daily, seededDatabase.sales_daily) || changed;
+
+  database.stores.forEach((store) => {
+    const operationalScore = getStoreOperationalScore(database, store.id);
+    if (operationalScore >= 4) {
+      return;
+    }
+
+    const generated = createDemoOperationalDataset(
+      store,
+      database.menu_items.filter((item) => item.store_id === store.id && item.is_active),
+    );
+
+    if (!generated) {
+      return;
+    }
+
+    if (!database.customers.some((item) => item.store_id === store.id)) {
+      database.customers.unshift(...generated.customers);
+      changed = true;
+    }
+
+    if (!database.orders.some((item) => item.store_id === store.id)) {
+      database.orders.unshift(...generated.orders);
+      changed = true;
+    }
+
+    if (!database.order_items.some((item) => item.store_id === store.id)) {
+      database.order_items.push(...generated.orderItems);
+      changed = true;
+    }
+
+    if (!database.kitchen_tickets.some((item) => item.store_id === store.id)) {
+      database.kitchen_tickets.unshift(...generated.kitchenTickets);
+      changed = true;
+    }
+
+    if (!database.reservations.some((item) => item.store_id === store.id)) {
+      database.reservations.unshift(...generated.reservations);
+      changed = true;
+    }
+
+    if (!database.waiting_entries.some((item) => item.store_id === store.id)) {
+      database.waiting_entries.unshift(...generated.waitingEntries);
+      changed = true;
+    }
+
+    if (!database.sales_daily.some((item) => item.store_id === store.id)) {
+      database.sales_daily.unshift(...generated.sales);
+      changed = true;
+    }
+
+    if (!database.ai_reports.some((item) => item.store_id === store.id)) {
+      database.ai_reports.unshift(...generated.reports);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    return saveDatabase(database);
+  }
+
+  return database;
 }
 
 function getStoreScopedData(storeId: string) {
@@ -125,12 +533,16 @@ async function generateAiNarrative(storeId: string) {
 }
 
 export async function getCurrentProfile() {
-  const database = getDatabase();
+  const database = ensureDemoAdminBootstrapData();
   return database.profiles.find((profile) => profile.id === DEMO_PROFILE_ID) || null;
 }
 
 export async function listAccessibleStores() {
-  return getDatabase().stores.slice().sort((left, right) => right.created_at.localeCompare(left.created_at));
+  const database = ensureDemoAdminBootstrapData();
+  const accessibleStores = getStoreMembersStores(database);
+  const stores = accessibleStores.length ? accessibleStores : database.stores;
+
+  return stores.slice().sort((left, right) => compareStoresByDashboardReady(database, left, right));
 }
 
 export async function listSetupRequests() {
@@ -138,13 +550,14 @@ export async function listSetupRequests() {
   return database.store_requests.slice().sort((left, right) => right.updated_at.localeCompare(left.updated_at));
 }
 
-export async function saveSetupRequest(input: SetupRequestInput) {
+export async function saveSetupRequest(input: SetupRequestInput, options?: SaveSetupRequestOptions) {
   const timestamp = nowIso();
+  const requestedPlan = options?.requestedPlan ?? 'starter';
   const request = {
     id: createId('setup_request'),
     ...input,
     requested_slug: normalizeStoreSlug(input.requested_slug || input.business_name),
-    requested_plan: 'starter' as const,
+    requested_plan: requestedPlan,
     brand_name: input.business_name,
     brand_color: '#ec5b13',
     tagline: `${input.business_name} 오픈 준비 중`,
@@ -182,7 +595,7 @@ export async function saveSetupRequest(input: SetupRequestInput) {
   return request;
 }
 
-export async function createStoreFromSetupRequest(input: SetupRequestInput) {
+export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const existingStores = await listAccessibleStores();
   const uniqueSlug = ensureUniqueStoreSlug(
     input.requested_slug || input.business_name,
@@ -190,6 +603,16 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
   );
   const timestamp = nowIso();
   const storeId = createId('store');
+  const subscriptionPlan = options?.plan ?? 'starter';
+  const requestStatus = options?.requestStatus ?? 'approved';
+  const reviewNotes = options?.reviewNotes;
+  const reviewerEmail = options?.reviewerEmail;
+  const setupStatus = options?.setupStatus ?? 'setup_pending';
+  const subscriptionStatus = options?.subscriptionStatus ?? 'subscription_pending';
+  const paymentMethodStatus = options?.paymentMethodStatus ?? 'missing';
+  const setupEventStatus = options?.setupEventStatus ?? (setupStatus === 'setup_paid' ? 'paid' : 'pending');
+  const subscriptionEventStatus =
+    options?.subscriptionEventStatus ?? (subscriptionStatus === 'subscription_active' ? 'paid' : 'pending');
   const store: Store = {
     id: storeId,
     name: input.business_name,
@@ -205,7 +628,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
     tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
     description: `${input.business_name} SaaS MVP 스토어`,
     public_status: 'private',
-    subscription_plan: 'starter',
+    subscription_plan: subscriptionPlan,
     admin_email: input.email,
     created_at: timestamp,
     updated_at: timestamp,
@@ -249,6 +672,36 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
   }));
 
   updateDatabase((database) => {
+    const existingRequestIndex = options?.requestId
+      ? database.store_requests.findIndex((request) => request.id === options.requestId)
+      : -1;
+    const existingRequest = existingRequestIndex >= 0 ? database.store_requests[existingRequestIndex] : null;
+    const billingEvents: BillingEvent[] = [
+      {
+        id: createId('billing_event'),
+        store_id: storeId,
+        event_type: 'setup_fee' as const,
+        title: setupStatus === 'setup_paid' ? '초기 세팅비 결제 완료' : '초기 세팅비 결제 대기',
+        amount: SETUP_FEE_AMOUNT_BY_PLAN[subscriptionPlan],
+        status: setupEventStatus,
+        occurred_at: timestamp,
+        note: options?.paymentId ? `결제 ID ${options.paymentId}` : undefined,
+      },
+    ];
+
+    if (subscriptionStatus === 'subscription_active' && SUBSCRIPTION_AMOUNT_BY_PLAN[subscriptionPlan] > 0) {
+      billingEvents.push({
+        id: createId('billing_event'),
+        store_id: storeId,
+        event_type: 'subscription_charge',
+        title: `${subscriptionPlan === 'starter' ? 'Starter' : subscriptionPlan === 'pro' ? 'Pro' : 'Business'} 구독 결제 완료`,
+        amount: SUBSCRIPTION_AMOUNT_BY_PLAN[subscriptionPlan],
+        status: subscriptionEventStatus,
+        occurred_at: timestamp,
+        note: options?.paymentId ? `결제 ID ${options.paymentId}` : undefined,
+      });
+    }
+
     database.stores.unshift(store);
     database.store_brand_profiles.unshift({
       id: createId('store_brand_profile'),
@@ -278,11 +731,11 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
     database.menu_categories.push(...defaultCategories);
     database.menu_items.push(...defaultMenuItems);
     database.store_tables.push(...defaultTables);
-    database.store_requests.unshift({
-      id: createId('setup_request'),
+    const nextRequest = {
+      id: existingRequest?.id || createId('setup_request'),
       ...input,
       requested_slug: uniqueSlug,
-      requested_plan: 'starter',
+      requested_plan: subscriptionPlan,
       brand_name: input.business_name,
       brand_color: '#ec5b13',
       tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
@@ -306,19 +759,30 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
           content: '스토어 생성과 함께 기본 공지 초안이 만들어졌습니다.',
         },
       ],
-      status: 'approved',
-      linked_store_id: storeId,
-      created_at: timestamp,
+      status: requestStatus,
+      review_notes: reviewNotes || existingRequest?.review_notes,
+      reviewed_by_email: reviewerEmail || existingRequest?.reviewed_by_email,
+      reviewed_at: requestStatus === 'approved' || reviewerEmail ? timestamp : existingRequest?.reviewed_at,
+      linked_store_id: requestStatus === 'approved' ? storeId : existingRequest?.linked_store_id,
+      created_at: existingRequest?.created_at || timestamp,
       updated_at: timestamp,
-    });
+    };
+
+    if (existingRequestIndex >= 0) {
+      database.store_requests[existingRequestIndex] = nextRequest;
+    } else {
+      database.store_requests.unshift(nextRequest);
+    }
     database.billing_records.unshift({
       id: createId('billing_record'),
       store_id: storeId,
       admin_email: input.email,
-      plan: 'starter',
-      setup_status: 'setup_pending',
-      subscription_status: 'subscription_pending',
-      payment_method_status: 'missing',
+      plan: subscriptionPlan,
+      setup_status: setupStatus,
+      subscription_status: subscriptionStatus,
+      last_payment_at: setupStatus === 'setup_paid' ? timestamp : undefined,
+      next_billing_at: subscriptionStatus === 'subscription_active' ? isoDaysFromNow(30, 10) : undefined,
+      payment_method_status: paymentMethodStatus,
       updated_at: timestamp,
       events: [
         {
@@ -332,6 +796,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput) {
         },
       ],
     });
+    database.billing_records[0].events = billingEvents;
   });
 
   return {

@@ -5,6 +5,7 @@ import { EmptyState } from '@/shared/components/EmptyState';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { formatCurrency } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { listCustomers, listOrders, upsertCustomer } from '@/shared/lib/services/mvpService';
@@ -18,11 +19,20 @@ const initialForm = {
   marketing_opt_in: false,
 };
 
+const orderChannelLabelMap: Record<string, string> = {
+  delivery: '배달',
+  reservation: '예약 주문',
+  table: '테이블 주문',
+  walk_in: '매장 주문',
+};
+
 export function CustomersPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initialForm);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>();
+
+  usePageMeta('고객 관리', '방문 이력과 최근 주문 연결 상태를 확인하는 고객 관리 화면입니다.');
 
   const customersQuery = useQuery({
     queryKey: queryKeys.customers(currentStore?.id || ''),
@@ -51,15 +61,20 @@ export function CustomersPage() {
   );
 
   if (!currentStore) {
-    return null;
+    return (
+      <EmptyState
+        title="고객 데이터를 준비하고 있습니다"
+        description="현재 스토어를 확인한 뒤 고객 관리 화면을 다시 불러옵니다."
+      />
+    );
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Customer management"
+        eyebrow="운영 대시보드"
         title="고객 관리"
-        description="고객 생성/수정, 방문 횟수, 마지막 방문일, 단골 여부, 마케팅 수신 동의와 주문 이력을 store_id 기준으로 관리합니다."
+        description="방문 이력, 단골 여부, 마케팅 수신 동의, 최근 주문 연결 상태를 한 곳에서 관리합니다."
       />
 
       <div className="grid gap-8 xl:grid-cols-[1fr_0.8fr]">
@@ -142,7 +157,9 @@ export function CustomersPage() {
                   relatedOrders.map((order) => (
                     <div key={order.id} className="rounded-3xl border border-slate-200 p-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="font-bold text-slate-900">{order.table_no ? `Table ${order.table_no}` : order.channel}</p>
+                        <p className="font-bold text-slate-900">
+                          {order.table_no ? `테이블 ${order.table_no}` : orderChannelLabelMap[order.channel] || order.channel}
+                        </p>
                         <StatusBadge status={order.status} />
                       </div>
                       <p className="mt-2 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
