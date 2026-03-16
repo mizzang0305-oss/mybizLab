@@ -39,26 +39,22 @@ export function LandingPage() {
   return (
     <div className="space-y-16 pb-6">
       <section className="page-shell pt-10 sm:pt-16">
-        <div className="relative overflow-hidden rounded-[36px] bg-slate-950 px-6 py-10 text-white shadow-[0_45px_90px_-40px_rgba(15,23,42,0.8)] sm:px-10 lg:px-14 lg:py-16">
+        <div className="relative overflow-hidden rounded-[36px] bg-slate-950 px-6 py-10 text-white shadow-[0_45px_90px_-40px_rgba(15,23,42,0.8)] sm:px-10 lg:px-14 lg:py-18">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,91,19,0.55),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(251,146,60,0.2),_transparent_25%)]" />
 
-          <div className="relative grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="space-y-6">
+          <div className="relative grid items-center gap-10 lg:grid-cols-[1.02fr_0.98fr]">
+            <div className="space-y-7">
               <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-200">
                 스토어 AI 진단
               </span>
 
-              <div className="space-y-4">
-                <h1 className="max-w-4xl font-display text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
-                  우리 가게를 AI가 분석하고
-                  <br />
-                  매출 성장 전략을 제안하는
-                  <br />
-                  소상공인 운영 AI 플랫폼
+              <div className="space-y-5">
+                <h1 className="max-w-[13ch] text-balance font-display text-4xl font-black tracking-tight sm:text-5xl lg:text-[4.15rem] lg:leading-[1.04]">
+                  AI가 우리 가게 운영을 진단하고 매출 성장 전략까지 정리해 주는 소상공인 운영 AI 플랫폼
                 </h1>
-                <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                  MyBizLab은 매장의 고객관리, 예약, 주문, 매출 데이터를 기반으로 AI가 매장 운영을 진단하고 성장 전략을
-                  제안하는 소상공인 AI SaaS 플랫폼입니다.
+                <p className="max-w-2xl text-pretty text-base leading-8 text-slate-300 sm:text-lg">
+                  MyBizLab은 고객관리, 예약, 주문, 매출 흐름을 하나의 운영 문맥으로 묶어 AI 진단, 실행 전략, 리포트,
+                  관리자 대시보드, 고객용 스토어까지 연결하는 소상공인 운영 SaaS입니다.
                 </p>
               </div>
 
@@ -89,12 +85,12 @@ export function LandingPage() {
       </section>
 
       <section className="page-shell">
-        <div className="mb-8 space-y-2">
+        <div className="mb-8 space-y-3">
           <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">운영 개선 기능</span>
-          <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">
+          <h2 className="max-w-[16ch] text-balance font-display text-3xl font-extrabold tracking-tight text-slate-900 sm:text-[2.15rem]">
             AI 진단 결과를 실행으로 연결하는 핵심 기능
           </h2>
-          <p className="text-sm text-slate-500 sm:text-base">
+          <p className="max-w-3xl text-pretty text-sm leading-7 text-slate-500 sm:text-base">
             진단, 고객 관리, 예약 운영, 매출 분석을 한 곳에서 연결해 매장별 개선 액션을 빠르게 실행할 수 있습니다.
           </p>
         </div>
@@ -102,8 +98,8 @@ export function LandingPage() {
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {featureCards.map((feature) => (
             <article key={feature.title} className="section-card flex h-full flex-col p-6">
-              <h3 className="text-lg font-bold text-slate-900">{feature.title}</h3>
-              <p className="mt-3 flex-1 text-sm leading-6 text-slate-500">{feature.description}</p>
+              <h3 className="text-lg font-bold leading-7 text-slate-900">{feature.title}</h3>
+              <p className="mt-3 flex-1 text-sm leading-7 text-slate-500">{feature.description}</p>
               <Link className="btn-secondary mt-5 w-fit" to={SUBSCRIPTION_START_PATH}>
                 AI 진단 시작
               </Link>

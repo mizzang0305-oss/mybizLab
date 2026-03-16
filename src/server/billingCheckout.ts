@@ -1,4 +1,5 @@
 import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../shared/lib/billingPlans';
+import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData';
 import { BUSINESS_INFO } from '../shared/lib/siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
@@ -61,6 +62,7 @@ interface CheckoutEnv {
 
 type CheckoutSessionField =
   | 'channelKey'
+  | 'customData'
   | 'currency'
   | 'customer.email'
   | 'customer.fullName'
@@ -79,6 +81,7 @@ interface CheckoutSessionValidationIssue {
 
 export interface InvalidCheckoutSessionDetails {
   channelKeyConfigured: boolean;
+  customDataConfigured: boolean;
   customerConfigured: {
     email: boolean;
     fullName: boolean;
@@ -214,7 +217,7 @@ function readCheckoutCustomData(body: Record<string, unknown>) {
     return {};
   }
 
-  return body.customData as Record<string, unknown>;
+  return sanitizeCheckoutCustomData(body.customData as Record<string, unknown>);
 }
 
 function readCheckoutSource(body: Record<string, unknown>) {
@@ -324,6 +327,13 @@ export function validateCheckoutSessionPayload(
     });
   }
 
+  if (!isAsciiSerializableJson(payload.customData)) {
+    issues.push({
+      field: 'customData',
+      reason: 'must serialize to ASCII-safe JSON for KG Inicis merchantData',
+    });
+  }
+
   if (!normalizeNonEmptyString(payload.paymentId)) {
     issues.push({
       field: 'paymentId',
@@ -411,6 +421,7 @@ export function validateCheckoutSessionPayload(
   return {
     details: {
       channelKeyConfigured: Boolean(normalizeNonEmptyString(payload.channelKey)),
+      customDataConfigured: typeof payload.customData === 'object' && payload.customData !== null,
       customerConfigured: {
         email: Boolean(normalizeNonEmptyString(customer.email)),
         fullName: Boolean(normalizeNonEmptyString(customer.fullName)),
@@ -595,7 +606,6 @@ export async function handleCheckoutRequest(request: Request) {
       customData: {
         ...readCheckoutCustomData(body),
         initiatedAt: new Date().toISOString(),
-        orderName,
         payMethod: 'CARD',
         pgProvider: 'KG_INICIS',
         plan: requestedPlan,

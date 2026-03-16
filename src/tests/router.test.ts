@@ -1,6 +1,7 @@
 import { matchRoutes } from 'react-router-dom';
 
 import { appRoutes } from '@/app/router';
+import { resolveAdminNavigation } from '@/shared/lib/moduleCatalog';
 
 function matchedPaths(pathname: string) {
   return (matchRoutes(appRoutes, pathname) ?? []).map(({ route }) => route.path ?? (route.index ? '(index)' : '(layout)'));
@@ -28,13 +29,26 @@ describe('app routing', () => {
   it('resolves dashboard separately from public store pages', () => {
     expect(matchedPaths('/dashboard')).toContain('/dashboard');
     expect(matchedPaths('/dashboard')).not.toContain('/:storeSlug');
+    expect(matchedPaths('/dashboard/ai-manager')).toContain('ai-manager');
     expect(matchedPaths('/dashboard/store-requests')).toContain('store-requests');
     expect(matchedPaths('/dashboard/store-requests/request_aurora')).toContain('store-requests/:requestId');
     expect(matchedPaths('/dashboard/stores')).toContain('stores');
     expect(matchedPaths('/dashboard/stores/store_golden_coffee')).toContain('stores/:storeId');
+    expect(matchedPaths('/dashboard/orders')).toContain('orders');
+    expect(matchedPaths('/dashboard/waiting')).toContain('waiting');
+    expect(matchedPaths('/dashboard/table-order')).toContain('table-order');
+    expect(matchedPaths('/dashboard/brand')).toContain('brand');
     expect(matchedPaths('/dashboard/billing')).toContain('billing');
     expect(matchedPaths('/dashboard/admin-users')).toContain('admin-users');
     expect(matchedPaths('/dashboard/system')).toContain('system');
+  });
+
+  it('resolves the most specific admin navigation item for nested dashboard paths', () => {
+    expect(resolveAdminNavigation('/dashboard')?.route).toBe('/dashboard');
+    expect(resolveAdminNavigation('/dashboard/orders')?.route).toBe('/dashboard/orders');
+    expect(resolveAdminNavigation('/dashboard/waiting')?.route).toBe('/dashboard/waiting');
+    expect(resolveAdminNavigation('/dashboard/table-order')?.route).toBe('/dashboard/table-order');
+    expect(resolveAdminNavigation('/dashboard/ai-manager')?.route).toBe('/dashboard/ai-manager');
   });
 
   it('resolves store public routes under the store slug pattern', () => {

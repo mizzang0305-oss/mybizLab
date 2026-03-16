@@ -130,6 +130,13 @@ describe('platform dashboard routes', () => {
 
     expect(html).toContain('스토어 현황');
     expect(html).toContain('Golden Coffee');
+    expect(html).toContain('href="/dashboard/ai-manager"');
+    expect(html).toContain('href="/dashboard/orders"');
+    expect(html).toContain('href="/dashboard/waiting"');
+    expect(html).toContain('href="/dashboard/table-order"');
+    expect(html).toContain('href="/dashboard/brand"');
+    expect(html).toContain('메뉴 및 QR 관리');
+    expect(html).toContain('상담/문의 대응 허브');
     expect(html).toContain('AI 운영 리포트');
     expect(html).toContain('고객 관리');
   });
@@ -189,7 +196,7 @@ describe('platform dashboard routes', () => {
     );
 
     expect(reportsHtml).toContain('AI 운영 리포트');
-    expect(reportsHtml).toContain('최신 리포트');
+    expect(reportsHtml).toContain('리포트 기록');
   });
 
   it('renders the store requests list and detail routes', async () => {

@@ -121,6 +121,11 @@ export interface Store {
   tagline: string;
   description: string;
   public_status: StoreVisibility;
+  homepage_visible?: boolean;
+  consultation_enabled?: boolean;
+  inquiry_enabled?: boolean;
+  reservation_enabled?: boolean;
+  order_entry_enabled?: boolean;
   subscription_plan: SubscriptionPlan;
   admin_email: string;
   created_from_request_id?: string;
@@ -155,6 +160,7 @@ export interface StoreLocation {
   address: string;
   directions: string;
   parking_note?: string;
+  opening_hours?: string;
   published: boolean;
 }
 

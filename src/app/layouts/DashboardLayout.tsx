@@ -5,7 +5,7 @@ import { Icons } from '@/shared/components/Icons';
 import { StoreSwitcher } from '@/shared/components/StoreSwitcher';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { useAdminSessionStore } from '@/shared/lib/adminSession';
-import { adminNavigation } from '@/shared/lib/moduleCatalog';
+import { adminNavigation, resolveAdminNavigation } from '@/shared/lib/moduleCatalog';
 import { buildStorePath } from '@/shared/lib/storeSlug';
 import { useUiStore } from '@/shared/lib/uiStore';
 
@@ -26,7 +26,7 @@ export function DashboardLayout() {
   }, [closeSidebar, location.pathname]);
 
   const currentNav = useMemo(() => {
-    return adminNavigation.find((item) => location.pathname === item.route || location.pathname.startsWith(`${item.route}/`));
+    return resolveAdminNavigation(location.pathname);
   }, [location.pathname]);
 
   function handleSignOut() {

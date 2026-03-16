@@ -1,6 +1,7 @@
 import PortOne, { Currency, PaymentPayMethod, type PaymentRequest, type PaymentResponse } from '@portone/browser-sdk/v2';
 
 import type { BillingPlanCode } from './billingPlans';
+import { isAsciiSerializableJson } from './checkoutCustomData';
 import { BUSINESS_INFO } from './siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
@@ -59,6 +60,7 @@ interface BillingApiErrorPayload {
 
 type CheckoutSessionField =
   | 'channelKey'
+  | 'customData'
   | 'currency'
   | 'customer.email'
   | 'customer.fullName'
@@ -352,6 +354,13 @@ export function assertCheckoutSession(
     });
   }
 
+  if (!isAsciiSerializableJson(checkout.customData)) {
+    issues.push({
+      field: 'customData',
+      reason: 'must serialize to ASCII-safe JSON for KG Inicis merchantData',
+    });
+  }
+
   if (!normalizeNonEmptyString(checkout.paymentId)) {
     issues.push({
       field: 'paymentId',
@@ -455,6 +464,7 @@ export function assertCheckoutSession(
       code: 'INVALID_CHECKOUT_SESSION',
       details: {
         channelKeyConfigured: Boolean(normalizeNonEmptyString(checkout.channelKey)),
+        customDataConfigured: typeof checkout.customData === 'object' && checkout.customData !== null,
         customerConfigured: {
           email: Boolean(normalizeNonEmptyString(customer?.email)),
           fullName: Boolean(normalizeNonEmptyString(customer?.fullName)),

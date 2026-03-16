@@ -31,8 +31,14 @@ describe('onboarding flow helpers', () => {
     });
 
     expect(result.score).toBeGreaterThan(60);
+    expect(result.coreBottlenecks).toHaveLength(3);
     expect(result.recommendedStrategies).toHaveLength(3);
     expect(result.revenueOpportunities).toHaveLength(3);
+    expect(result.immediateActions).toHaveLength(3);
+    expect(result.expansionFeatures).toHaveLength(3);
+    expect(result.reportSummary).toContain('서울 성수동');
+    expect(result.analysisSource).toBe('fallback');
+    expect(result.limitationsNote).toContain('실시간 POS');
     expect(['starter', 'pro', 'business']).toContain(result.recommendedPlan);
   });
 

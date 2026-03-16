@@ -31,8 +31,8 @@ export function StorePublicLayout() {
 
   const pageTitle = publicStoreQuery.data ? `${publicStoreQuery.data.store.name} 스토어` : '공개 스토어';
   const pageDescription = publicStoreQuery.data
-    ? `${publicStoreQuery.data.store.name}의 공개 스토어 페이지입니다. 메뉴와 주문 화면으로 이동할 수 있습니다.`
-    : '마이비즈랩 공개 스토어 페이지입니다.';
+    ? `${publicStoreQuery.data.store.name}의 공지, 매장 정보, 상담/문의/예약/주문 진입을 한 화면에서 확인할 수 있습니다.`
+    : 'MyBizLab 공개 스토어 페이지입니다.';
 
   usePageMeta(pageTitle, pageDescription);
 
@@ -50,36 +50,73 @@ export function StorePublicLayout() {
         <EmptyState
           action={
             <Link className="btn-primary" to="/">
-              홈페이지로 이동
+              홈으로 이동
             </Link>
           }
-          description="잘못된 slug 이거나 아직 공개되지 않은 스토어입니다."
+          description="잘못된 주소이거나 아직 공개되지 않은 스토어입니다."
           title="스토어를 찾을 수 없습니다"
         />
       </div>
     );
   }
 
+  const consultationLink = `tel:${publicStoreQuery.data.store.phone.replace(/[^0-9+]/g, '')}`;
+  const inquiryLink = `mailto:${publicStoreQuery.data.store.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 문의`)}`;
+  const reservationLink = `mailto:${publicStoreQuery.data.store.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 예약 문의`)}`;
+
   return (
     <div className="flex min-h-screen flex-col bg-[#fffaf3]">
-      <header className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="page-shell flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-600">{publicStoreQuery.data.store.slug}</p>
-            <h1 className="font-display text-3xl font-black text-slate-900">{publicStoreQuery.data.store.name}</h1>
-            <p className="mt-1 text-sm text-slate-500">{publicStoreQuery.data.store.tagline}</p>
+      <header className="border-b border-slate-200/70 bg-white/85 backdrop-blur">
+        <div className="page-shell flex flex-col gap-4 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-600">{publicStoreQuery.data.store.slug}</p>
+                {publicStoreQuery.data.store.public_status !== 'public' ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">미공개 프리뷰</span>
+                ) : null}
+              </div>
+              <h1 className="font-display text-3xl font-black text-slate-900">{publicStoreQuery.data.store.name}</h1>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{publicStoreQuery.data.store.tagline}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {tableNo ? <span className="rounded-full bg-orange-100 px-4 py-2 text-sm font-bold text-orange-700">Table {tableNo}</span> : null}
+              {publicStoreQuery.data.capabilities.consultationEnabled ? (
+                <a className="btn-secondary" href={consultationLink}>
+                  상담
+                </a>
+              ) : null}
+              {publicStoreQuery.data.capabilities.inquiryEnabled ? (
+                <a className="btn-secondary" href={inquiryLink}>
+                  문의
+                </a>
+              ) : null}
+              {publicStoreQuery.data.capabilities.reservationEnabled ? (
+                <a className="btn-secondary" href={reservationLink}>
+                  예약
+                </a>
+              ) : null}
+              {publicStoreQuery.data.capabilities.orderEntryEnabled ? (
+                <NavLink className="btn-primary" to={`${buildStorePath(storeSlug, 'order')}${tableNo ? `?table=${tableNo}` : ''}`}>
+                  주문하기
+                </NavLink>
+              ) : null}
+            </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-3">
-            {tableNo ? <span className="rounded-full bg-orange-100 px-4 py-2 text-sm font-bold text-orange-700">Table {tableNo}</span> : null}
             <NavLink className="btn-secondary" to={buildStorePath(storeSlug)}>
               스토어 홈
             </NavLink>
             <NavLink className="btn-secondary" to={buildStorePath(storeSlug, 'menu')}>
               메뉴
             </NavLink>
-            <NavLink className="btn-primary" to={`${buildStorePath(storeSlug, 'order')}${tableNo ? `?table=${tableNo}` : ''}`}>
-              주문하기
-            </NavLink>
+            {publicStoreQuery.data.capabilities.orderEntryEnabled ? (
+              <NavLink className="btn-secondary" to={`${buildStorePath(storeSlug, 'order')}${tableNo ? `?table=${tableNo}` : ''}`}>
+                주문
+              </NavLink>
+            ) : null}
           </div>
         </div>
       </header>
