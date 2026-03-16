@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { Icons } from '@/shared/components/Icons';
 import { StoreSwitcher } from '@/shared/components/StoreSwitcher';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
-import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { useAdminSessionStore } from '@/shared/lib/adminSession';
 import { adminNavigation } from '@/shared/lib/moduleCatalog';
 import { buildStorePath } from '@/shared/lib/storeSlug';
@@ -19,18 +18,12 @@ export function DashboardLayout() {
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
   const closeSidebar = useUiStore((state) => state.closeSidebar);
-  const [searchValue, setSearchValue] = useState('');
-
-  usePageMeta('플랫폼 운영 콘솔', 'dev 관리자 전용 콘솔에서 스토어 요청, billing, 관리자 계정, 시스템 상태를 운영 기준으로 관리합니다.');
+  const adminDisplayName = session?.fullName === 'Platform Owner' ? '운영 관리자' : session?.fullName || '운영 관리자';
+  const adminDisplayEmail = session?.email || 'admin@mybiz.ai.kr';
 
   useEffect(() => {
     closeSidebar();
   }, [closeSidebar, location.pathname]);
-
-  useEffect(() => {
-    const keyword = new URLSearchParams(location.search).get('keyword') || '';
-    setSearchValue(keyword);
-  }, [location.search]);
 
   const currentNav = useMemo(() => {
     return adminNavigation.find((item) => location.pathname === item.route || location.pathname.startsWith(`${item.route}/`));
@@ -41,19 +34,12 @@ export function DashboardLayout() {
     navigate('/login', { replace: true });
   }
 
-  function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const trimmed = searchValue.trim();
-    navigate(trimmed ? `/dashboard/stores?keyword=${encodeURIComponent(trimmed)}` : '/dashboard/stores');
-  }
-
   const sidebar = (
     <aside className="flex h-full flex-col gap-6 border-r border-slate-800 bg-slate-950 px-5 py-6 text-white">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-display text-xl font-black">My Biz Lab</p>
-          <p className="text-xs text-slate-400">Platform Operator Console</p>
+          <p className="font-display text-xl font-black">MyBizLab</p>
+          <p className="text-xs text-slate-400">스토어 운영 대시보드</p>
         </div>
         <button className="btn-ghost sm:hidden" onClick={closeSidebar} type="button">
           닫기
@@ -84,18 +70,20 @@ export function DashboardLayout() {
       </nav>
 
       <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current Admin</p>
-        <p className="mt-2 font-semibold text-white">{session?.fullName || 'Platform Admin'}</p>
-        <p className="mt-1 text-xs text-slate-400">{session?.email || 'ops@mybiz.ai.kr'}</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">로그인 계정</p>
+        <p className="mt-2 font-semibold text-white">{adminDisplayName}</p>
+        <p className="mt-1 text-xs text-slate-400">{adminDisplayEmail}</p>
       </div>
 
       {currentStore ? (
         <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Quick Store Context</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">현재 스토어</p>
           <p className="mt-2 font-semibold text-white">{currentStore.name}</p>
-          <p className="mt-1 text-xs text-slate-400">/{currentStore.slug}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {currentStore.business_type} · {currentStore.address}
+          </p>
           <Link className="mt-3 inline-flex text-xs font-bold text-orange-300" to={buildStorePath(currentStore.slug)}>
-            공개 스토어 보기
+            스토어 홈 보기
           </Link>
         </div>
       ) : null}
@@ -123,15 +111,15 @@ export function DashboardLayout() {
                     메뉴
                   </button>
                   <div>
-                    <p className="text-sm font-semibold text-slate-500">Dev admin dashboard</p>
-                    <p className="font-display text-2xl font-black text-slate-950">{currentNav?.label || '운영 콘솔'}</p>
+                    <p className="text-sm font-semibold text-slate-500">{currentStore?.name || '스토어 데이터를 불러오는 중'}</p>
+                    <p className="font-display text-2xl font-black text-slate-950">{currentNav?.label || '운영 대시보드'}</p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
-                    <p className="font-semibold text-slate-900">{session?.fullName || 'Platform Admin'}</p>
-                    <p className="text-xs text-slate-500">{session?.email || 'ops@mybiz.ai.kr'}</p>
+                    <p className="font-semibold text-slate-900">{adminDisplayName}</p>
+                    <p className="text-xs text-slate-500">로그인 계정 · {adminDisplayEmail}</p>
                   </div>
                   <button className="btn-secondary" onClick={handleSignOut} type="button">
                     로그아웃
@@ -139,20 +127,34 @@ export function DashboardLayout() {
                 </div>
               </div>
 
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-                <form className="relative" onSubmit={handleSearchSubmit}>
-                  <Icons.Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    className="input-base pl-11"
-                    onChange={(event) => setSearchValue(event.target.value)}
-                    placeholder="스토어명, slug, 관리자 이메일로 검색"
-                    value={searchValue}
-                  />
-                </form>
-
+              <div className="grid gap-3 xl:grid-cols-[340px_minmax(0,1fr)]">
                 <div className="rounded-[28px] border border-slate-200 bg-white p-3">
                   <StoreSwitcher currentStore={currentStore} onChange={setSelectedStoreId} stores={stores} />
                 </div>
+
+                <nav className="rounded-[28px] border border-slate-200 bg-white p-3">
+                  <div className="flex flex-wrap gap-2">
+                    {adminNavigation.map((item) => {
+                      const Icon = item.icon;
+
+                      return (
+                        <NavLink
+                          key={item.route}
+                          className={({ isActive }) =>
+                            [
+                              'inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition',
+                              isActive ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-orange-700',
+                            ].join(' ')
+                          }
+                          to={item.route}
+                        >
+                          <Icon size={16} />
+                          {item.label}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                </nav>
               </div>
             </div>
           </header>

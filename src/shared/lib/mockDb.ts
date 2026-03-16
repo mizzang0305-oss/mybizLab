@@ -1,7 +1,9 @@
+import { createStoreFeatureId } from '@/shared/lib/domain/features';
 import type { MvpDatabase } from '@/shared/types/models';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
 
 const STORAGE_KEY = 'mybizlab:mvp-db';
+const SESSION_STORAGE_KEY = 'mybizlab:mvp-db:session';
 const CHANGE_EVENT = 'mybizlab:data-changed';
 
 let memoryDatabase: MvpDatabase | null = null;
@@ -14,6 +16,44 @@ function canUseLocalStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
+function canUseSessionStorage() {
+  return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+}
+
+function isStorageQuotaError(error: unknown) {
+  if (!(error instanceof DOMException)) {
+    return false;
+  }
+
+  return error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22 || error.code === 1014;
+}
+
+function warnStorageFallback(error: unknown) {
+  if (typeof console === 'undefined') {
+    return;
+  }
+
+  console.warn('MyBizLab demo data is only available for this browser session because persistent storage is unavailable.', error);
+}
+
+function normalizeStoreFeatures(storeFeatures: MvpDatabase['store_features']) {
+  const featureMap = new Map<string, MvpDatabase['store_features'][number]>();
+
+  storeFeatures.forEach((feature) => {
+    const key = `${feature.store_id}:${feature.feature_key}`;
+    const previous = featureMap.get(key);
+
+    featureMap.set(key, {
+      ...previous,
+      ...feature,
+      id: createStoreFeatureId(feature.store_id, feature.feature_key),
+      enabled: (previous?.enabled ?? false) || feature.enabled,
+    });
+  });
+
+  return [...featureMap.values()];
+}
+
 function normalizeDatabase(database: Record<string, unknown>) {
   const seeded = createSeedDatabase();
   const nextDatabase = {
@@ -22,6 +62,7 @@ function normalizeDatabase(database: Record<string, unknown>) {
   } as MvpDatabase & { store_setup_requests?: MvpDatabase['store_requests'] };
 
   nextDatabase.store_requests = (database.store_requests as MvpDatabase['store_requests']) ?? nextDatabase.store_setup_requests ?? seeded.store_requests;
+  nextDatabase.store_features = normalizeStoreFeatures((database.store_features as MvpDatabase['store_features']) ?? seeded.store_features);
   nextDatabase.stores = ((database.stores as MvpDatabase['stores']) ?? seeded.stores).map((store) => ({
     ...store,
     public_status: store.public_status ?? 'public',
@@ -62,7 +103,9 @@ function normalizeDatabase(database: Record<string, unknown>) {
 
 function dispatchChange() {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+    }, 0);
   }
 }
 
@@ -70,33 +113,94 @@ export function getChangeEventName() {
   return CHANGE_EVENT;
 }
 
+function readStoredDatabase() {
+  if (!canUseLocalStorage() && !canUseSessionStorage()) {
+    return null;
+  }
+
+  const storageCandidates = [
+    canUseSessionStorage() ? window.sessionStorage : null,
+    canUseLocalStorage() ? window.localStorage : null,
+  ].filter((storage): storage is Storage => Boolean(storage));
+
+  for (const storage of storageCandidates) {
+    const key = storage === window.sessionStorage ? SESSION_STORAGE_KEY : STORAGE_KEY;
+    const raw = storage.getItem(key);
+    if (!raw) {
+      continue;
+    }
+
+    try {
+      return normalizeDatabase(JSON.parse(raw) as Record<string, unknown>);
+    } catch {
+      storage.removeItem(key);
+    }
+  }
+
+  return null;
+}
+
+function persistDatabaseSnapshot(database: MvpDatabase) {
+  if (!canUseLocalStorage() && !canUseSessionStorage()) {
+    return;
+  }
+
+  const raw = JSON.stringify(database);
+
+  if (canUseLocalStorage()) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, raw);
+      if (canUseSessionStorage()) {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+      return;
+    } catch (error) {
+      if (!isStorageQuotaError(error)) {
+        warnStorageFallback(error);
+      }
+    }
+  }
+
+  if (canUseSessionStorage()) {
+    try {
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, raw);
+      return;
+    } catch (error) {
+      warnStorageFallback(error);
+      if (!isStorageQuotaError(error)) {
+        return;
+      }
+    }
+  }
+
+  warnStorageFallback(new Error('Persistent browser storage is unavailable.'));
+}
+
 export function getDatabase() {
   if (memoryDatabase) {
     return cloneDatabase(memoryDatabase);
   }
 
-  if (!canUseLocalStorage()) {
+  if (!canUseLocalStorage() && !canUseSessionStorage()) {
     memoryDatabase = createSeedDatabase();
     return cloneDatabase(memoryDatabase);
   }
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (raw) {
-    memoryDatabase = normalizeDatabase(JSON.parse(raw) as Record<string, unknown>);
+  const storedDatabase = readStoredDatabase();
+  if (storedDatabase) {
+    memoryDatabase = storedDatabase;
     return cloneDatabase(memoryDatabase);
   }
 
   memoryDatabase = createSeedDatabase();
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryDatabase));
+  persistDatabaseSnapshot(memoryDatabase);
   return cloneDatabase(memoryDatabase);
 }
 
 export function saveDatabase(database: MvpDatabase) {
-  memoryDatabase = cloneDatabase(database);
+  memoryDatabase = normalizeDatabase(cloneDatabase(database) as unknown as Record<string, unknown>);
 
-  if (canUseLocalStorage()) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryDatabase));
-  }
+  persistDatabaseSnapshot(memoryDatabase);
 
   dispatchChange();
   return cloneDatabase(memoryDatabase);

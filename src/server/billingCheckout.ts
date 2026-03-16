@@ -209,6 +209,55 @@ function readCheckoutCustomer(body: Record<string, unknown>): CheckoutCustomerPa
   };
 }
 
+function readCheckoutCustomData(body: Record<string, unknown>) {
+  if (typeof body.customData !== 'object' || !body.customData || Array.isArray(body.customData)) {
+    return {};
+  }
+
+  return body.customData as Record<string, unknown>;
+}
+
+function readCheckoutSource(body: Record<string, unknown>) {
+  return normalizeNonEmptyString(body.source) || 'pricing-page';
+}
+
+function readCheckoutOrderName(body: Record<string, unknown>, fallbackOrderName: string) {
+  return normalizeNonEmptyString(body.orderName) || fallbackOrderName;
+}
+
+function readCheckoutRedirectPath(body: Record<string, unknown>) {
+  const redirectPath = normalizeNonEmptyString(body.redirectPath);
+
+  if (!redirectPath) {
+    return null;
+  }
+
+  if (!redirectPath.startsWith('/') || redirectPath.startsWith('//')) {
+    throw new CheckoutApiError({
+      code: 'INVALID_REDIRECT_PATH',
+      details: {
+        redirectPath,
+      },
+      message: 'Checkout redirectPath must be an internal application path that starts with a single slash.',
+      stage: 'request-body',
+      status: 400,
+    });
+  }
+
+  return redirectPath;
+}
+
+function buildCheckoutRedirectUrl(appBaseUrl: string, redirectPath: string | null, plan: BillingPlanCode) {
+  const url = new URL(redirectPath || `/pricing?portone=redirect&plan=${encodeURIComponent(plan)}`, appBaseUrl);
+
+  if (redirectPath) {
+    url.searchParams.set('portone', 'redirect');
+    url.searchParams.set('plan', plan);
+  }
+
+  return url.toString();
+}
+
 function readBrowserCheckoutContext(body: Record<string, unknown>): BrowserCheckoutContext | null {
   if (typeof body.browserContext !== 'object' || !body.browserContext) {
     return null;
@@ -535,25 +584,30 @@ export async function handleCheckoutRequest(request: Request) {
   const requestedPlan = resolveRequestedPlan(body);
   const billingPlan = getBillingPlan(requestedPlan);
   const paymentId = createCheckoutPaymentId(requestedPlan);
+  const redirectPath = readCheckoutRedirectPath(body);
+  const orderName = readCheckoutOrderName(body, billingPlan.orderName);
+  const source = readCheckoutSource(body);
 
   const payload: CheckoutSessionResponse = {
     checkout: {
       channelKey: env.channelKey,
       currency: 'KRW',
       customData: {
+        ...readCheckoutCustomData(body),
         initiatedAt: new Date().toISOString(),
+        orderName,
         payMethod: 'CARD',
         pgProvider: 'KG_INICIS',
         plan: requestedPlan,
-        source: 'pricing-page',
+        source,
       },
       customer: readCheckoutCustomer(body),
       noticeUrls: [`${env.appBaseUrl}/api/billing/webhook`],
-      orderName: billingPlan.orderName,
+      orderName,
       payMethod: 'CARD',
       paymentId,
       plan: requestedPlan,
-      redirectUrl: `${env.appBaseUrl}/pricing?portone=redirect&plan=${encodeURIComponent(requestedPlan)}`,
+      redirectUrl: buildCheckoutRedirectUrl(env.appBaseUrl, redirectPath, requestedPlan),
       storeId: env.storeId,
       totalAmount: billingPlan.amount,
     },
@@ -565,13 +619,14 @@ export async function handleCheckoutRequest(request: Request) {
   const validation = validateCheckoutSessionPayload(payload.checkout);
 
   if (!validation.ok) {
+    const invalidValidation = validation as Extract<CheckoutSessionValidationResult, { ok: false }>;
     return createCheckoutErrorResponse(
       new CheckoutApiError({
         code: 'INVALID_CHECKOUT_SESSION',
-        details: validation.details,
-        message: validation.message,
+        details: invalidValidation.details as unknown as Record<string, unknown>,
+        message: invalidValidation.message,
         stage: 'checkout-session-build',
-        status: validation.status,
+        status: invalidValidation.status,
       }),
     );
   }

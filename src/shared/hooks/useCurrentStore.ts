@@ -18,7 +18,9 @@ export function useCurrentStore() {
   const setSelectedStoreId = useUiStore((state) => state.setSelectedStoreId);
 
   useEffect(() => {
-    if (!selectedStoreId && storesQuery.data?.[0]) {
+    const hasSelectedStore = storesQuery.data?.some((store) => store.id === selectedStoreId);
+
+    if ((!selectedStoreId || !hasSelectedStore) && storesQuery.data?.[0]) {
       setSelectedStoreId(storesQuery.data[0].id);
     }
   }, [selectedStoreId, setSelectedStoreId, storesQuery.data]);

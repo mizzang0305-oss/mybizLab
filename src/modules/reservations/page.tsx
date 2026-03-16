@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { EmptyState } from '@/shared/components/EmptyState';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { toDateInputValue } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { listReservations, saveReservation, updateReservationStatus } from '@/shared/lib/services/mvpService';
@@ -19,10 +21,20 @@ const initialForm = {
   note: '',
 };
 
+const reservationStatusLabelMap: Record<ReservationStatus, string> = {
+  booked: '예약 완료',
+  seated: '착석',
+  completed: '방문 완료',
+  cancelled: '취소',
+  no_show: '노쇼',
+};
+
 export function ReservationsPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initialForm);
+
+  usePageMeta('예약 관리', '예약 상태와 방문 일정을 관리하는 예약 운영 화면입니다.');
 
   const reservationsQuery = useQuery({
     queryKey: queryKeys.reservations(currentStore?.id || ''),
@@ -51,15 +63,20 @@ export function ReservationsPage() {
   });
 
   if (!currentStore) {
-    return null;
+    return (
+      <EmptyState
+        title="예약 데이터를 준비하고 있습니다"
+        description="현재 스토어를 확인한 뒤 예약 관리 화면을 다시 불러옵니다."
+      />
+    );
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Reservation management"
+        eyebrow="운영 대시보드"
         title="예약 관리"
-        description="예약 등록/수정/취소와 booked, seated, completed, cancelled, no_show 상태 변경을 관리합니다."
+        description="예약 등록, 상태 변경, 방문 메모를 한 번에 관리해 현장 운영 흐름을 정리합니다."
       />
 
       <div className="grid gap-8 xl:grid-cols-[0.75fr_1.25fr]">
@@ -114,7 +131,7 @@ export function ReservationsPage() {
                       onClick={() => updateStatusMutation.mutate({ reservationId: reservation.id, status })}
                       type="button"
                     >
-                      {status}
+                      {reservationStatusLabelMap[status]}
                     </button>
                   ))}
                 </div>

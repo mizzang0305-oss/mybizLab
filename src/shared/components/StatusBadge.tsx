@@ -38,10 +38,48 @@ const statusMap: Record<string, string> = {
   error: 'bg-rose-100 text-rose-700',
 };
 
+const statusLabelMap: Record<string, string> = {
+  pending: '대기',
+  accepted: '접수',
+  preparing: '준비 중',
+  ready: '준비 완료',
+  paid: '결제 완료',
+  refunded: '환불 완료',
+  completed: '완료',
+  cancelled: '취소',
+  booked: '예약 완료',
+  seated: '착석',
+  no_show: '노쇼',
+  waiting: '대기 중',
+  called: '호출 완료',
+  draft: '임시 저장',
+  submitted: '접수됨',
+  reviewing: '검토 중',
+  approved: '승인됨',
+  rejected: '반려됨',
+  sent: '발송됨',
+  signed: '서명 완료',
+  public: '공개',
+  private: '비공개',
+  setup_pending: '세팅 대기',
+  setup_paid: '세팅 완료',
+  subscription_pending: '구독 준비',
+  subscription_active: '구독 활성',
+  subscription_past_due: '결제 필요',
+  subscription_cancelled: '구독 해지',
+  refund_requested: '환불 요청',
+  action_required: '확인 필요',
+  missing: '미연결',
+  active: '활성',
+  inactive: '비활성',
+  warning: '주의',
+  error: '오류',
+};
+
 export function StatusBadge({ status }: { status: string }) {
   return (
     <span className={cn('status-badge', statusMap[status] || 'bg-slate-100 text-slate-700')}>
-      {status.replace(/_/g, ' ')}
+      {statusLabelMap[status] || status.replace(/_/g, ' ')}
     </span>
   );
 }

@@ -144,10 +144,9 @@ export const featureDefinitions: FeatureDefinition[] = [
 export const appExplorerDefinitions = featureDefinitions.filter((feature) => feature.showInExplorer !== false);
 
 export const adminNavigation = [
-  { label: '개요', route: '/dashboard', icon: Icons.Dashboard },
-  { label: '스토어 요청', route: '/dashboard/store-requests', icon: Icons.Survey },
-  { label: '스토어 관리', route: '/dashboard/stores', icon: Icons.Store },
-  { label: '결제 / 구독', route: '/dashboard/billing', icon: Icons.Chart },
-  { label: '관리자 계정', route: '/dashboard/admin-users', icon: Icons.Users },
-  { label: '시스템 상태', route: '/dashboard/system', icon: Icons.Settings },
+  { label: '스토어 현황', route: '/dashboard', icon: Icons.Dashboard },
+  { label: '고객 관리', route: '/dashboard/customers', icon: Icons.Users },
+  { label: '예약 관리', route: '/dashboard/reservations', icon: Icons.Reservation },
+  { label: '매출 분석', route: '/dashboard/sales', icon: Icons.Chart },
+  { label: 'AI 운영 리포트', route: '/dashboard/ai-reports', icon: Icons.AI },
 ];

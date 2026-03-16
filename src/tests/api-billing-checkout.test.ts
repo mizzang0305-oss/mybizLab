@@ -5,6 +5,7 @@ import {
   createCheckoutPaymentId,
   type CheckoutCustomerPayload,
   type CheckoutSessionPayload,
+  type InvalidCheckoutSessionDetails,
   validateCheckoutSessionPayload,
 } from '../../src/server/billingCheckout';
 
@@ -40,6 +41,19 @@ function createValidCheckoutSessionPayload(
     storeId: 'store-v2-test',
     totalAmount: 29000,
     ...overrides,
+  };
+}
+
+function expectInvalidResult(result: ReturnType<typeof validateCheckoutSessionPayload>) {
+  if (result.ok) {
+    throw new Error('Expected invalid checkout session result');
+  }
+
+  return result as {
+    details: InvalidCheckoutSessionDetails;
+    message: string;
+    ok: false;
+    status: number;
   };
 }
 
@@ -178,11 +192,7 @@ describe('/api/billing/checkout', () => {
       status: 500,
     });
 
-    if (result.ok) {
-      throw new Error('Expected invalid checkout session result');
-    }
-
-    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['redirectUrl']));
+    expect(expectInvalidResult(result).details.missingOrInvalidFields).toEqual(expect.arrayContaining(['redirectUrl']));
   });
 
   it('fails validation when totalAmount is zero or negative', () => {
@@ -200,11 +210,7 @@ describe('/api/billing/checkout', () => {
       status: 500,
     });
 
-    if (result.ok) {
-      throw new Error('Expected invalid checkout session result');
-    }
-
-    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['totalAmount']));
+    expect(expectInvalidResult(result).details.missingOrInvalidFields).toEqual(expect.arrayContaining(['totalAmount']));
   });
 
   it('fails validation when storeId is blank', () => {
@@ -222,11 +228,7 @@ describe('/api/billing/checkout', () => {
       status: 500,
     });
 
-    if (result.ok) {
-      throw new Error('Expected invalid checkout session result');
-    }
-
-    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['storeId']));
+    expect(expectInvalidResult(result).details.missingOrInvalidFields).toEqual(expect.arrayContaining(['storeId']));
   });
 
   it('fails validation when channelKey is blank', () => {
@@ -244,11 +246,7 @@ describe('/api/billing/checkout', () => {
       status: 500,
     });
 
-    if (result.ok) {
-      throw new Error('Expected invalid checkout session result');
-    }
-
-    expect(result.details.missingOrInvalidFields).toEqual(expect.arrayContaining(['channelKey']));
+    expect(expectInvalidResult(result).details.missingOrInvalidFields).toEqual(expect.arrayContaining(['channelKey']));
   });
 
   it('fails validation when paymentId exceeds the KG Inicis limit', () => {
@@ -266,11 +264,7 @@ describe('/api/billing/checkout', () => {
       status: 500,
     });
 
-    if (result.ok) {
-      throw new Error('Expected invalid checkout session result');
-    }
-
-    expect(result.details.validationErrors).toEqual(
+    expect(expectInvalidResult(result).details.validationErrors).toEqual(
       expect.arrayContaining([
         {
           field: 'paymentId',
@@ -303,11 +297,7 @@ describe('/api/billing/checkout', () => {
       status: 500,
     });
 
-    if (result.ok) {
-      throw new Error('Expected invalid checkout session result');
-    }
-
-    expect(result.details.missingOrInvalidFields).toEqual(
+    expect(expectInvalidResult(result).details.missingOrInvalidFields).toEqual(
       expect.arrayContaining(['customer.email', 'customer.fullName', 'customer.phoneNumber']),
     );
   });
@@ -366,5 +356,26 @@ describe('/api/billing/checkout', () => {
     });
     expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
     expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
+  });
+
+  it('supports an onboarding redirect path and source metadata', async () => {
+    const response = await checkoutHandler(
+      new Request('https://example.com/api/billing/checkout', {
+        body: JSON.stringify({
+          plan: 'starter',
+          redirectPath: '/onboarding?step=payment',
+          source: 'onboarding-flow',
+          orderName: '성수 브런치 하우스 Starter 결제',
+        }),
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.checkout.redirectUrl).toBe('https://example.com/onboarding?step=payment&portone=redirect&plan=starter');
+    expect(payload.checkout.orderName).toBe('성수 브런치 하우스 Starter 결제');
+    expect(payload.checkout.customData.source).toBe('onboarding-flow');
   });
 });

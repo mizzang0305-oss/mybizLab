@@ -2,10 +2,10 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { AppFooter } from '@/shared/components/AppFooter';
 import { Icons } from '@/shared/components/Icons';
-import { SITE_NAME, SERVICE_TAGLINE } from '@/shared/lib/siteConfig';
+import { SITE_NAME, SERVICE_TAGLINE, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const navigationLinks = [
-  { label: '홈', href: '/' },
+  { label: '소개', href: '/' },
   { label: '요금제', href: '/pricing' },
   { label: '이용약관', href: '/terms' },
   { label: '개인정보', href: '/privacy' },
@@ -34,10 +34,7 @@ export function PublicLayout() {
                   <NavLink
                     key={item.href}
                     className={({ isActive }) =>
-                      [
-                        'rounded-full px-3 py-2 transition',
-                        isActive ? 'bg-white text-slate-900 shadow-sm' : 'hover:bg-white/70 hover:text-slate-900',
-                      ].join(' ')
+                      ['rounded-full px-3 py-2 transition', isActive ? 'bg-white text-slate-900 shadow-sm' : 'hover:bg-white/70 hover:text-slate-900'].join(' ')
                     }
                     end={item.href === '/'}
                     to={item.href}
@@ -50,8 +47,8 @@ export function PublicLayout() {
                 <Link className="btn-secondary" to="/login">
                   관리자 로그인
                 </Link>
-                <Link className="btn-primary" to="/pricing">
-                  구독 시작
+                <Link className="btn-primary" to={SUBSCRIPTION_START_PATH}>
+                  스토어 AI 진단 시작
                 </Link>
               </div>
             </div>

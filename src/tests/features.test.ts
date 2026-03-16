@@ -9,5 +9,6 @@ describe('feature selection mapping', () => {
     expect(features).toHaveLength(12);
     expect(aiFeature?.enabled).toBe(true);
     expect(reportFeature?.enabled).toBe(false);
+    expect(features[0]?.id).toBe('store_feature_store_1_ai_manager');
   });
 });

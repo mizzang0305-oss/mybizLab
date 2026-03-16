@@ -40,6 +40,14 @@ export interface CheckoutSessionResponse {
   plan: BillingPlanCode;
 }
 
+export interface CheckoutSessionRequestOptions {
+  customData?: Record<string, unknown>;
+  customer?: Partial<CheckoutCustomerPayload>;
+  orderName?: string;
+  redirectPath?: string;
+  source?: string;
+}
+
 interface BillingApiErrorPayload {
   code?: string;
   details?: Record<string, unknown>;
@@ -180,14 +188,13 @@ function defaultCheckoutCustomer(): CheckoutCustomerPayload {
   };
 }
 
-function buildCheckoutSessionRequestCustomer() {
-  const customer = defaultCheckoutCustomer();
+function buildCheckoutSessionRequestCustomer(overrides?: Partial<CheckoutCustomerPayload>) {
+  const customer = {
+    ...defaultCheckoutCustomer(),
+    ...overrides,
+  };
 
-  if (
-    !normalizeNonEmptyString(customer.fullName) ||
-    !normalizeNonEmptyString(customer.phoneNumber) ||
-    !normalizeNonEmptyString(customer.email)
-  ) {
+  if (!normalizeNonEmptyString(customer.fullName) || !normalizeNonEmptyString(customer.phoneNumber) || !normalizeNonEmptyString(customer.email)) {
     throw new PortOneCheckoutError({
       code: 'INVALID_CHECKOUT_CUSTOMER',
       details: {
@@ -201,13 +208,17 @@ function buildCheckoutSessionRequestCustomer() {
   return customer;
 }
 
-function buildCheckoutSessionRequestBody(plan: BillingPlanCode) {
+function buildCheckoutSessionRequestBody(plan: BillingPlanCode, options?: CheckoutSessionRequestOptions) {
   const browserContext = requireBrowserCheckoutEnv();
 
   return {
     browserContext,
-    customer: buildCheckoutSessionRequestCustomer(),
+    customData: options?.customData,
+    customer: buildCheckoutSessionRequestCustomer(options?.customer),
+    orderName: options?.orderName,
     plan,
+    redirectPath: options?.redirectPath,
+    source: options?.source,
   };
 }
 
@@ -563,8 +574,8 @@ async function readApiResponse<T>(response: Response) {
   };
 }
 
-export async function createCheckoutSession(plan: BillingPlanCode) {
-  const body = buildCheckoutSessionRequestBody(plan);
+export async function createCheckoutSession(plan: BillingPlanCode, options?: CheckoutSessionRequestOptions) {
+  const body = buildCheckoutSessionRequestBody(plan, options);
   const response = await fetch(CHECKOUT_ENDPOINT, {
     body: JSON.stringify(body),
     headers: {
@@ -626,8 +637,8 @@ export function getPortOnePaymentSuccessMessage(payment: PaymentResponse) {
   return `寃곗젣 ?붿껌???묒닔?섏뿀?듬땲?? 寃곗젣 ID: ${payment.paymentId}`;
 }
 
-export async function launchPortOneCheckout(plan: BillingPlanCode) {
-  const session = await createCheckoutSession(plan);
+export async function launchPortOneCheckout(plan: BillingPlanCode, options?: CheckoutSessionRequestOptions) {
+  const session = await createCheckoutSession(plan, options);
   console.info('[portone-checkout] checkout session', buildMaskedCheckoutLog(session.checkout));
   const paymentRequest = buildPortOnePaymentRequest(session.checkout);
   console.info('[portone-checkout] requestPayment payload', buildMaskedPaymentRequestLog(paymentRequest));

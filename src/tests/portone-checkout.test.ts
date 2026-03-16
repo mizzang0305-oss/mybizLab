@@ -207,6 +207,46 @@ describe('PortOne checkout client helpers', () => {
     });
   });
 
+  it('forwards onboarding checkout options to the billing checkout API', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(createValidCheckoutSessionResponse()), {
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        status: 200,
+      }),
+    ) as typeof fetch;
+    requestPaymentMock.mockResolvedValue({
+      paymentId: 'subscription-starter-001',
+      transactionType: 'PAYMENT',
+    });
+
+    await launchPortOneCheckout('starter', {
+      customData: { requestId: 'request_123' },
+      customer: {
+        email: 'owner@store.kr',
+        fullName: '홍길동',
+        phoneNumber: '010-1234-5678',
+      },
+      orderName: '성수 브런치 하우스 Starter 결제',
+      redirectPath: '/onboarding?step=payment',
+      source: 'onboarding-flow',
+    });
+
+    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
+    const requestBody = JSON.parse(String(fetchCall?.[1]?.body));
+
+    expect(requestBody).toMatchObject({
+      customData: { requestId: 'request_123' },
+      customer: {
+        email: 'owner@store.kr',
+        fullName: '홍길동',
+        phoneNumber: '010-1234-5678',
+      },
+      orderName: '성수 브런치 하우스 Starter 결제',
+      redirectPath: '/onboarding?step=payment',
+      source: 'onboarding-flow',
+    });
+  });
+
   it('returns a clear error when checkout API responds with JSON', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(
