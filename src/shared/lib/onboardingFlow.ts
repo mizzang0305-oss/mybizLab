@@ -1,8 +1,22 @@
 import type { BillingPlanCode } from '@/shared/lib/billingPlans';
-import { slugifyStoreName } from '@/shared/lib/storeSlug';
-import { ALL_FEATURES, type FeatureKey } from '@/shared/types/models';
 
 const STORAGE_KEY = 'mybizlab:onboarding-flow';
+const ALL_FEATURES = [
+  'ai_manager',
+  'ai_business_report',
+  'customer_management',
+  'reservation_management',
+  'schedule_management',
+  'surveys',
+  'brand_management',
+  'sales_analysis',
+  'order_management',
+  'waiting_board',
+  'contracts',
+  'table_order',
+] as const;
+
+type FeatureKey = (typeof ALL_FEATURES)[number];
 
 export type OnboardingStep = 'diagnosis' | 'result' | 'request' | 'payment' | 'activation';
 export type OnboardingPaymentStatus = 'idle' | 'processing' | 'paid' | 'failed';
@@ -153,6 +167,21 @@ function includesAny(value: string, keywords: readonly string[]) {
 
 function compactText(value: string) {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeRequestedStoreSlug(input: string) {
+  const normalized = input
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFC')
+    .replace(/[^\p{Script=Hangul}a-z0-9\s-]/gu, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return normalized || 'store';
 }
 
 function fillStringArray(candidate: unknown, fallback: string[], maxItems = 3) {
@@ -438,7 +467,7 @@ export function buildRequestDraftFromDiagnosis(input: DiagnosisInput): StoreRequ
 }
 
 export function createRequestedSlug(storeName: string) {
-  return slugifyStoreName(storeName);
+  return normalizeRequestedStoreSlug(storeName);
 }
 
 export function readOnboardingFlowState() {
