@@ -19,7 +19,8 @@ export function normalizeStoreSlug(input: string) {
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s-]/g, '')
+    .normalize('NFC')
+    .replace(/[^\p{Script=Hangul}a-z0-9\s-]/gu, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');

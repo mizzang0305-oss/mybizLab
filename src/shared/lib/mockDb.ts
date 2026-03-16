@@ -66,6 +66,11 @@ function normalizeDatabase(database: Record<string, unknown>) {
   nextDatabase.stores = ((database.stores as MvpDatabase['stores']) ?? seeded.stores).map((store) => ({
     ...store,
     public_status: store.public_status ?? 'public',
+    homepage_visible: store.homepage_visible ?? store.public_status !== 'private',
+    consultation_enabled: store.consultation_enabled ?? true,
+    inquiry_enabled: store.inquiry_enabled ?? true,
+    reservation_enabled: store.reservation_enabled ?? true,
+    order_entry_enabled: store.order_entry_enabled ?? true,
     subscription_plan: store.subscription_plan ?? 'starter',
     admin_email: store.admin_email ?? store.email,
   }));
@@ -89,8 +94,13 @@ function normalizeDatabase(database: Record<string, unknown>) {
       store_id: store.id,
       address: store.address,
       directions: `${store.name} 매장 주소 기준으로 길 안내가 노출됩니다.`,
+      opening_hours: '매일 10:00 - 21:00',
       published: true,
     }));
+  nextDatabase.store_locations = nextDatabase.store_locations.map((location) => ({
+    ...location,
+    opening_hours: location.opening_hours ?? '매일 10:00 - 21:00',
+  }));
   nextDatabase.store_notices = (database.store_notices as MvpDatabase['store_notices']) ?? seeded.store_notices;
   nextDatabase.billing_records = (database.billing_records as MvpDatabase['billing_records']) ?? seeded.billing_records;
   nextDatabase.admin_users = (database.admin_users as MvpDatabase['admin_users']) ?? seeded.admin_users;

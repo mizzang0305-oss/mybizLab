@@ -302,6 +302,26 @@ describe('/api/billing/checkout', () => {
     );
   });
 
+  it('fails validation when customData is not ASCII-safe', () => {
+    const result = validateCheckoutSessionPayload(
+      createValidCheckoutSessionPayload({
+        customData: {
+          storeName: '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4',
+        },
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      details: {
+        customDataConfigured: true,
+      },
+      status: 500,
+    });
+
+    expect(expectInvalidResult(result).details.missingOrInvalidFields).toEqual(expect.arrayContaining(['customData']));
+  });
+
   it('keeps the validator result ok for a valid checkout session', () => {
     const result = validateCheckoutSessionPayload(createValidCheckoutSessionPayload());
 
@@ -359,9 +379,15 @@ describe('/api/billing/checkout', () => {
   });
 
   it('supports an onboarding redirect path and source metadata', async () => {
+    const rawStoreName = '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4';
+
     const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({
+          customData: {
+            requestId: 'request_123',
+            storeName: rawStoreName,
+          },
           plan: 'starter',
           redirectPath: '/onboarding?step=payment',
           source: 'onboarding-flow',
@@ -377,5 +403,8 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.redirectUrl).toBe('https://example.com/onboarding?step=payment&portone=redirect&plan=starter');
     expect(payload.checkout.orderName).toBe('성수 브런치 하우스 Starter 결제');
     expect(payload.checkout.customData.source).toBe('onboarding-flow');
+    expect(payload.checkout.customData.requestId).toBe('request_123');
+    expect(payload.checkout.customData.storeName).toBe(encodeURIComponent(rawStoreName));
+    expect(payload.checkout.customData.orderName).toBeUndefined();
   });
 });

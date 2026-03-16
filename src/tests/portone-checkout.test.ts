@@ -295,6 +295,40 @@ describe('PortOne checkout client helpers', () => {
     expect(requestPaymentMock).not.toHaveBeenCalled();
   });
 
+  it('throws INVALID_CHECKOUT_SESSION when customData is not ASCII-safe', () => {
+    expect(() =>
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          customData: {
+            storeName: '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4',
+          },
+        }),
+      ),
+    ).toThrowError(PortOneCheckoutError);
+
+    try {
+      buildPortOnePaymentRequest(
+        createValidCheckoutSessionPayload({
+          customData: {
+            storeName: '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4',
+          },
+        }),
+      );
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'INVALID_CHECKOUT_SESSION',
+        details: {
+          validationErrors: expect.arrayContaining([
+            {
+              field: 'customData',
+              reason: 'must serialize to ASCII-safe JSON for KG Inicis merchantData',
+            },
+          ]),
+        },
+      });
+    }
+  });
+
   it('builds a PortOne payment request when the checkout session is valid', () => {
     const paymentRequest = buildPortOnePaymentRequest(createValidCheckoutSessionPayload());
 

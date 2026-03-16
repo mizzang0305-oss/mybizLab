@@ -6,7 +6,7 @@ import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
 import { createId } from '@/shared/lib/ids';
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
-import { buildStoreUrl, ensureUniqueStoreSlug, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
+import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
 import type {
   AIReport,
   BillingEvent,
@@ -29,7 +29,12 @@ import type {
   SetupRequestInput,
   StoreRequestStatus,
   Store,
+  StoreFeature,
+  StoreLocation,
+  StoreMedia,
+  StoreNotice,
   StoreSchedule,
+  StoreVisibility,
   SubscriptionPlan,
   SubscriptionStatus,
   Survey,
@@ -69,6 +74,74 @@ interface CreateStoreFromSetupRequestOptions {
   setupStatus?: SetupPaymentStatus;
   subscriptionEventStatus?: BillingEventStatus;
   subscriptionStatus?: SubscriptionStatus;
+}
+
+export interface StoreSettingsSnapshot {
+  store: Store;
+  location: StoreLocation | null;
+  notices: StoreNotice[];
+  media: StoreMedia[];
+}
+
+export interface UpdateStoreSettingsInput {
+  storeName: string;
+  slug: string;
+  businessType: string;
+  phone: string;
+  email: string;
+  address: string;
+  publicStatus: StoreVisibility;
+  homepageVisible: boolean;
+  consultationEnabled: boolean;
+  inquiryEnabled: boolean;
+  reservationEnabled: boolean;
+  orderEntryEnabled: boolean;
+  logoUrl: string;
+  brandColor: string;
+  tagline: string;
+  description: string;
+  openingHours: string;
+  directions: string;
+  parkingNote: string;
+  heroImageUrl: string;
+  storefrontImageUrl: string;
+  interiorImageUrl: string;
+  noticeTitle: string;
+  noticeContent: string;
+}
+
+export type AiReportRange = 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export interface AiReportDashboardInput {
+  range: AiReportRange;
+  customStart?: string;
+  customEnd?: string;
+}
+
+export interface AiReportDashboardSnapshot {
+  store: Store;
+  range: AiReportRange;
+  periodLabel: string;
+  customStart?: string;
+  customEnd?: string;
+  totals: {
+    sales: number;
+    orders: number;
+    reservations: number;
+    waiting: number;
+    repeatCustomerRate: number;
+  };
+  trend: Array<{
+    label: string;
+    sales: number;
+    orders: number;
+    reservations: number;
+    waiting: number;
+  }>;
+  recommendationSummary: string[];
+  topBottlenecks: string[];
+  improvementChecklist: string[];
+  latestReport: AIReport | null;
 }
 
 function nowIso() {
@@ -456,6 +529,9 @@ function getStoreScopedData(storeId: string) {
   return {
     database,
     store: database.stores.find((item) => item.id === storeId),
+    media: database.store_media.filter((item) => item.store_id === storeId),
+    locations: database.store_locations.filter((item) => item.store_id === storeId),
+    notices: database.store_notices.filter((item) => item.store_id === storeId),
     features: database.store_features.filter((item) => item.store_id === storeId),
     tables: database.store_tables.filter((item) => item.store_id === storeId),
     menuCategories: database.menu_categories.filter((item) => item.store_id === storeId),
@@ -472,6 +548,188 @@ function getStoreScopedData(storeId: string) {
     contracts: database.contracts.filter((item) => item.store_id === storeId),
     reports: database.ai_reports.filter((item) => item.store_id === storeId),
     sales: database.sales_daily.filter((item) => item.store_id === storeId),
+  };
+}
+
+function getSortedStoreMedia(media: StoreMedia[]) {
+  return media.slice().sort((left, right) => left.sort_order - right.sort_order);
+}
+
+function getPublishedStoreNotices(notices: StoreNotice[]) {
+  return notices
+    .slice()
+    .sort((left, right) => right.published_at.localeCompare(left.published_at))
+    .filter((notice) => Boolean(notice.published_at));
+}
+
+function getPrimaryStoreLocation(locations: StoreLocation[]) {
+  return locations.find((location) => location.published) || locations[0] || null;
+}
+
+function hasEnabledFeature(features: StoreFeature[], key: StoreFeature['feature_key']) {
+  return features.some((feature) => feature.feature_key === key && feature.enabled);
+}
+
+function assertAvailableStoreSlug(candidate: string, options?: { excludeStoreId?: string }) {
+  const normalized = normalizeStoreSlug(candidate);
+  const database = getDatabase();
+
+  if (isReservedSlug(normalized)) {
+    throw new Error('이미 사용 중이거나 예약된 스토어 주소입니다.');
+  }
+
+  const duplicated = database.stores.some(
+    (store) => store.id !== options?.excludeStoreId && normalizeStoreSlug(store.slug) === normalized,
+  );
+
+  if (duplicated) {
+    throw new Error('이미 사용 중인 스토어 주소입니다.');
+  }
+
+  return normalized;
+}
+
+function buildStoreCapabilityFlags(store: Store, features: StoreFeature[]) {
+  return {
+    homepageVisible: store.homepage_visible ?? store.public_status === 'public',
+    consultationEnabled: store.consultation_enabled ?? true,
+    inquiryEnabled: store.inquiry_enabled ?? true,
+    reservationEnabled: store.reservation_enabled ?? hasEnabledFeature(features, 'reservation_management'),
+    orderEntryEnabled:
+      store.order_entry_enabled ?? (hasEnabledFeature(features, 'table_order') || hasEnabledFeature(features, 'order_management')),
+  };
+}
+
+function startOfDay(value: string | Date) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfDay(value: string | Date) {
+  const date = startOfDay(value);
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+function isWithinDateRange(value: string | undefined, start: Date, end: Date) {
+  if (!value) {
+    return false;
+  }
+
+  const target = new Date(value).getTime();
+  return target >= start.getTime() && target <= end.getTime();
+}
+
+function formatBucketLabel(value: Date) {
+  return `${value.getMonth() + 1}.${value.getDate()}`;
+}
+
+function resolveAiReportWindow(input: AiReportDashboardInput) {
+  const today = new Date();
+  const end = endOfDay(today);
+  const start = startOfDay(today);
+
+  if (input.range === 'daily') {
+    return {
+      range: input.range,
+      start,
+      end,
+      label: '오늘',
+      trendDays: 7,
+    };
+  }
+
+  if (input.range === 'weekly') {
+    const weeklyStart = startOfDay(today);
+    weeklyStart.setDate(weeklyStart.getDate() - 6);
+    return {
+      range: input.range,
+      start: weeklyStart,
+      end,
+      label: '최근 7일',
+      trendDays: 7,
+    };
+  }
+
+  if (input.range === 'monthly') {
+    const monthlyStart = startOfDay(today);
+    monthlyStart.setDate(monthlyStart.getDate() - 29);
+    return {
+      range: input.range,
+      start: monthlyStart,
+      end,
+      label: '최근 30일',
+      trendDays: 10,
+    };
+  }
+
+  const customStart = input.customStart ? startOfDay(input.customStart) : startOfDay(today);
+  const customEnd = input.customEnd ? endOfDay(input.customEnd) : end;
+  const safeStart = customStart.getTime() <= customEnd.getTime() ? customStart : startOfDay(customEnd);
+  const diffDays = Math.max(1, Math.ceil((customEnd.getTime() - safeStart.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+
+  return {
+    range: input.range,
+    start: safeStart,
+    end: customEnd,
+    label: `${safeStart.toLocaleDateString('ko-KR')} - ${customEnd.toLocaleDateString('ko-KR')}`,
+    trendDays: Math.min(10, diffDays),
+  };
+}
+
+function buildAiReportDashboardSummary(input: {
+  store: Store;
+  orders: Order[];
+  reservations: Reservation[];
+  waitingEntries: WaitingEntry[];
+  repeatCustomerRate: number;
+  latestReport: AIReport | null;
+  popularMenu: string;
+  weakMenu: string;
+}) {
+  const topBottlenecks: string[] = [];
+  const recommendationSummary: string[] = [];
+  const improvementChecklist: string[] = [];
+
+  if (input.waitingEntries.length >= 2) {
+    topBottlenecks.push(`현재 웨이팅 ${input.waitingEntries.length}건이 쌓여 피크타임 응대 속도가 매출 전환을 제한하고 있습니다.`);
+    recommendationSummary.push('웨이팅 호출 문구와 좌석 회전 기준을 한 화면에서 정리해 피크타임 이탈을 줄이세요.');
+    improvementChecklist.push('웨이팅 호출 순서와 좌석 준비 상태를 운영 시작 전 체크리스트에 넣으세요.');
+  }
+
+  if (input.reservations.length > 0) {
+    topBottlenecks.push(`예약 ${input.reservations.length}건이 주문·현장 동선과 분리되면 좌석 운영 효율이 떨어질 수 있습니다.`);
+    recommendationSummary.push('예약 고객의 도착 시간과 대표 주문 패턴을 함께 보며 사전 준비 시간을 앞당기세요.');
+    improvementChecklist.push('예약 고객 응대 문구와 좌석 배정 기준을 직원 공지에 고정하세요.');
+  }
+
+  if (input.repeatCustomerRate < 35) {
+    topBottlenecks.push(`재방문 고객 비중이 ${input.repeatCustomerRate}% 수준이라 단골 전환 액션이 더 필요합니다.`);
+    recommendationSummary.push('최근 방문 고객을 재방문 가능성과 주문 취향으로 나눠 후속 메시지를 설계하세요.');
+    improvementChecklist.push('재방문 가능 고객 20명만 먼저 뽑아 다음 방문 제안 문구를 두 가지로 줄이세요.');
+  }
+
+  if (input.weakMenu !== '-' && input.popularMenu !== input.weakMenu) {
+    topBottlenecks.push(`${input.weakMenu} 메뉴가 주력 흐름에서 밀려 메뉴 믹스 개선 여지가 남아 있습니다.`);
+    recommendationSummary.push(`${input.popularMenu}와 ${input.weakMenu}를 묶는 세트 제안을 테스트해 객단가를 높이세요.`);
+    improvementChecklist.push('부진 메뉴 1개만 선택해 가격, 문구, 추천 위치를 이번 주 안에 조정하세요.');
+  }
+
+  if (!topBottlenecks.length) {
+    topBottlenecks.push(`${input.store.name}의 운영 흐름은 안정적이지만 일·주·월 지표를 같은 기준으로 보는 리듬이 더 필요합니다.`);
+    recommendationSummary.push('주문, 예약, 재방문 지표를 한 대시보드에서 함께 보며 주간 점검 루틴을 유지하세요.');
+    improvementChecklist.push('이번 주 핵심 지표 3개를 고정하고 같은 시간에 매일 점검하세요.');
+  }
+
+  if (input.latestReport?.summary) {
+    recommendationSummary.unshift(input.latestReport.summary);
+  }
+
+  return {
+    topBottlenecks: topBottlenecks.slice(0, 3),
+    recommendationSummary: recommendationSummary.slice(0, 3),
+    improvementChecklist: improvementChecklist.slice(0, 3),
   };
 }
 
@@ -553,10 +811,11 @@ export async function listSetupRequests() {
 export async function saveSetupRequest(input: SetupRequestInput, options?: SaveSetupRequestOptions) {
   const timestamp = nowIso();
   const requestedPlan = options?.requestedPlan ?? 'starter';
+  const requestedSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
   const request = {
     id: createId('setup_request'),
     ...input,
-    requested_slug: normalizeStoreSlug(input.requested_slug || input.business_name),
+    requested_slug: requestedSlug,
     requested_plan: requestedPlan,
     brand_name: input.business_name,
     brand_color: '#ec5b13',
@@ -596,11 +855,7 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 }
 
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
-  const existingStores = await listAccessibleStores();
-  const uniqueSlug = ensureUniqueStoreSlug(
-    input.requested_slug || input.business_name,
-    existingStores.map((store) => store.slug),
-  );
+  const uniqueSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
   const timestamp = nowIso();
   const storeId = createId('store');
   const subscriptionPlan = options?.plan ?? 'starter';
@@ -625,9 +880,15 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     business_type: input.business_type,
     brand_color: '#ec5b13',
     logo_url: '',
-    tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
-    description: `${input.business_name} SaaS MVP 스토어`,
+    tagline: `${input.business_name} 운영을 더 매끄럽게 만드는 AI 스토어`,
+    description: `${input.business_name}의 예약, 주문, 고객, 매출 흐름을 한 곳에서 운영할 수 있는 스토어입니다.`,
     public_status: 'private',
+    homepage_visible: false,
+    consultation_enabled: true,
+    inquiry_enabled: true,
+    reservation_enabled: input.selected_features.includes('reservation_management'),
+    order_entry_enabled:
+      input.selected_features.includes('table_order') || input.selected_features.includes('order_management'),
     subscription_plan: subscriptionPlan,
     admin_email: input.email,
     created_at: timestamp,
@@ -702,6 +963,67 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       });
     }
 
+    const requestTagline = existingRequest?.tagline || `${input.business_name} 운영을 더 매끄럽게 만드는 AI 스토어`;
+    const requestDescription =
+      existingRequest?.description || `${input.business_name}의 예약, 주문, 고객, 매출 흐름을 한 곳에서 운영할 수 있는 스토어입니다.`;
+    const requestDirections = existingRequest?.directions || `${input.address} 기준 방문 동선을 안내해 주세요.`;
+    const requestHeroImage =
+      existingRequest?.hero_image_url || 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80';
+    const requestStorefrontImage =
+      existingRequest?.storefront_image_url ||
+      'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1200&q=80';
+    const requestInteriorImage =
+      existingRequest?.interior_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80';
+    const storeMedia: StoreMedia[] = [
+      {
+        id: createId('store_media'),
+        store_id: storeId,
+        type: 'hero',
+        title: '대표 이미지',
+        image_url: requestHeroImage,
+        caption: `${input.business_name} 대표 이미지`,
+        sort_order: 1,
+      },
+      {
+        id: createId('store_media'),
+        store_id: storeId,
+        type: 'storefront',
+        title: '매장 전경',
+        image_url: requestStorefrontImage,
+        caption: `${input.business_name} 외부 전경`,
+        sort_order: 2,
+      },
+      {
+        id: createId('store_media'),
+        store_id: storeId,
+        type: 'interior',
+        title: '매장 내부',
+        image_url: requestInteriorImage,
+        caption: `${input.business_name} 내부 이미지`,
+        sort_order: 3,
+      },
+    ];
+    const storeNotices: StoreNotice[] =
+      existingRequest?.notices?.length
+        ? existingRequest.notices.map((notice, index) => ({
+            id: createId('store_notice'),
+            store_id: storeId,
+            title: notice.title,
+            content: notice.content,
+            is_pinned: index === 0,
+            published_at: timestamp,
+          }))
+        : [
+            {
+              id: createId('store_notice'),
+              store_id: storeId,
+              title: '운영 공지 초안',
+              content: '오픈 전 운영 공지를 먼저 검토하고 공개 스토어에서 노출해 보세요.',
+              is_pinned: true,
+              published_at: timestamp,
+            },
+          ];
+
     database.stores.unshift(store);
     database.store_brand_profiles.unshift({
       id: createId('store_brand_profile'),
@@ -720,6 +1042,22 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       directions: `${input.address} 기준 기본 길안내`,
       published: false,
     });
+    if (database.store_brand_profiles[0]?.store_id === storeId) {
+      database.store_brand_profiles[0] = {
+        ...database.store_brand_profiles[0],
+        tagline: requestTagline,
+        description: requestDescription,
+      };
+    }
+    if (database.store_locations[0]?.store_id === storeId) {
+      database.store_locations[0] = {
+        ...database.store_locations[0],
+        directions: requestDirections,
+        opening_hours: '매일 10:00 - 21:00',
+      };
+    }
+    database.store_media.push(...storeMedia);
+    database.store_notices.push(...storeNotices);
     database.store_members.unshift({
       id: createId('store_member'),
       store_id: storeId,
@@ -767,6 +1105,17 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       created_at: existingRequest?.created_at || timestamp,
       updated_at: timestamp,
     };
+    nextRequest.tagline = requestTagline;
+    nextRequest.description = requestDescription;
+    nextRequest.hero_image_url = requestHeroImage;
+    nextRequest.storefront_image_url = requestStorefrontImage;
+    nextRequest.interior_image_url = requestInteriorImage;
+    nextRequest.directions = requestDirections;
+    nextRequest.notices = storeNotices.map((notice) => ({
+      id: notice.id,
+      title: notice.title,
+      content: notice.content,
+    }));
 
     if (existingRequestIndex >= 0) {
       database.store_requests[existingRequestIndex] = nextRequest;
@@ -1145,6 +1494,288 @@ export async function updateBrandProfile(
   return nextStore;
 }
 
+export async function getStoreSettings(storeId: string): Promise<StoreSettingsSnapshot | null> {
+  const data = getStoreScopedData(storeId);
+  if (!data.store) {
+    return null;
+  }
+
+  return {
+    store: data.store,
+    location: getPrimaryStoreLocation(data.locations),
+    notices: getPublishedStoreNotices(data.notices),
+    media: getSortedStoreMedia(data.media),
+  };
+}
+
+export async function updateStoreSettings(storeId: string, input: UpdateStoreSettingsInput) {
+  const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
+  const timestamp = nowIso();
+  let snapshot: StoreSettingsSnapshot | null = null;
+
+  updateDatabase((database) => {
+    const storeIndex = database.stores.findIndex((store) => store.id === storeId);
+    if (storeIndex < 0) {
+      return;
+    }
+
+    const currentStore = database.stores[storeIndex];
+    const nextStore: Store = {
+      ...currentStore,
+      name: input.storeName.trim(),
+      slug: normalizedSlug,
+      business_type: input.businessType.trim(),
+      phone: input.phone.trim(),
+      email: input.email.trim(),
+      address: input.address.trim(),
+      public_status: input.publicStatus,
+      homepage_visible: input.homepageVisible,
+      consultation_enabled: input.consultationEnabled,
+      inquiry_enabled: input.inquiryEnabled,
+      reservation_enabled: input.reservationEnabled,
+      order_entry_enabled: input.orderEntryEnabled,
+      logo_url: input.logoUrl.trim(),
+      brand_color: input.brandColor.trim() || currentStore.brand_color,
+      tagline: input.tagline.trim(),
+      description: input.description.trim(),
+      updated_at: timestamp,
+    };
+
+    database.stores[storeIndex] = nextStore;
+
+    const brandProfileIndex = database.store_brand_profiles.findIndex((profile) => profile.store_id === storeId);
+    if (brandProfileIndex >= 0) {
+      database.store_brand_profiles[brandProfileIndex] = {
+        ...database.store_brand_profiles[brandProfileIndex],
+        brand_name: nextStore.name,
+        logo_url: nextStore.logo_url,
+        primary_color: nextStore.brand_color,
+        tagline: nextStore.tagline,
+        description: nextStore.description,
+        updated_at: timestamp,
+      };
+    } else {
+      database.store_brand_profiles.unshift({
+        id: createId('store_brand_profile'),
+        store_id: storeId,
+        brand_name: nextStore.name,
+        logo_url: nextStore.logo_url,
+        primary_color: nextStore.brand_color,
+        tagline: nextStore.tagline,
+        description: nextStore.description,
+        updated_at: timestamp,
+      });
+    }
+
+    const locationIndex = database.store_locations.findIndex((location) => location.store_id === storeId);
+    const nextLocation: StoreLocation = {
+      id: locationIndex >= 0 ? database.store_locations[locationIndex].id : createId('store_location'),
+      store_id: storeId,
+      address: input.address.trim(),
+      directions: input.directions.trim(),
+      parking_note: input.parkingNote.trim(),
+      opening_hours: input.openingHours.trim(),
+      published: input.homepageVisible,
+    };
+
+    if (locationIndex >= 0) {
+      database.store_locations[locationIndex] = nextLocation;
+    } else {
+      database.store_locations.unshift(nextLocation);
+    }
+
+    const mediaByType: Array<{ type: StoreMedia['type']; url: string; title: string; caption: string; sortOrder: number }> = [
+      { type: 'hero', url: input.heroImageUrl.trim(), title: '대표 이미지', caption: `${nextStore.name} 대표 이미지`, sortOrder: 1 },
+      { type: 'storefront', url: input.storefrontImageUrl.trim(), title: '매장 전경', caption: `${nextStore.name} 외부 전경`, sortOrder: 2 },
+      { type: 'interior', url: input.interiorImageUrl.trim(), title: '매장 내부', caption: `${nextStore.name} 내부 이미지`, sortOrder: 3 },
+    ];
+
+    mediaByType.forEach((mediaInput) => {
+      const existingIndex = database.store_media.findIndex(
+        (media) => media.store_id === storeId && media.type === mediaInput.type,
+      );
+
+      if (!mediaInput.url) {
+        if (existingIndex >= 0) {
+          database.store_media.splice(existingIndex, 1);
+        }
+        return;
+      }
+
+      const nextMedia: StoreMedia = {
+        id: existingIndex >= 0 ? database.store_media[existingIndex].id : createId('store_media'),
+        store_id: storeId,
+        type: mediaInput.type,
+        title: mediaInput.title,
+        image_url: mediaInput.url,
+        caption: mediaInput.caption,
+        sort_order: mediaInput.sortOrder,
+      };
+
+      if (existingIndex >= 0) {
+        database.store_media[existingIndex] = nextMedia;
+      } else {
+        database.store_media.push(nextMedia);
+      }
+    });
+
+    const existingNotices = database.store_notices.filter((notice) => notice.store_id === storeId);
+    if (!input.noticeTitle.trim() && !input.noticeContent.trim()) {
+      database.store_notices = database.store_notices.filter((notice) => notice.store_id !== storeId || !notice.is_pinned);
+    } else if (existingNotices.length) {
+      const pinnedNotice = existingNotices.find((notice) => notice.is_pinned) || existingNotices[0];
+      database.store_notices = database.store_notices.map((notice) =>
+        notice.id === pinnedNotice.id
+          ? {
+              ...notice,
+              title: input.noticeTitle.trim(),
+              content: input.noticeContent.trim(),
+              is_pinned: true,
+              published_at: timestamp,
+            }
+          : notice,
+      );
+    } else {
+      database.store_notices.unshift({
+        id: createId('store_notice'),
+        store_id: storeId,
+        title: input.noticeTitle.trim(),
+        content: input.noticeContent.trim(),
+        is_pinned: true,
+        published_at: timestamp,
+      });
+    }
+
+    database.store_tables = database.store_tables.map((table) =>
+      table.store_id === storeId
+        ? {
+            ...table,
+            qr_value: `${buildStoreUrl(normalizedSlug)}/order?table=${encodeURIComponent(table.table_no)}`,
+          }
+        : table,
+    );
+
+    database.store_requests = database.store_requests.map((request) =>
+      request.linked_store_id === storeId
+        ? {
+            ...request,
+            business_name: nextStore.name,
+            phone: nextStore.phone,
+            email: nextStore.email,
+            address: nextStore.address,
+            business_type: nextStore.business_type,
+            requested_slug: normalizedSlug,
+            brand_name: nextStore.name,
+            brand_color: nextStore.brand_color,
+            tagline: nextStore.tagline,
+            description: nextStore.description,
+            hero_image_url: input.heroImageUrl.trim(),
+            storefront_image_url: input.storefrontImageUrl.trim(),
+            interior_image_url: input.interiorImageUrl.trim(),
+            directions: nextLocation.directions,
+            notices: input.noticeTitle.trim() || input.noticeContent.trim()
+              ? [
+                  {
+                    id: createId('request_notice'),
+                    title: input.noticeTitle.trim(),
+                    content: input.noticeContent.trim(),
+                  },
+                ]
+              : [],
+            updated_at: timestamp,
+          }
+        : request,
+    );
+
+    snapshot = {
+      store: nextStore,
+      location: nextLocation,
+      notices: getPublishedStoreNotices(database.store_notices.filter((notice) => notice.store_id === storeId)),
+      media: getSortedStoreMedia(database.store_media.filter((media) => media.store_id === storeId)),
+    };
+  });
+
+  return snapshot;
+}
+
+export async function getAiReportDashboard(storeId: string, input: AiReportDashboardInput): Promise<AiReportDashboardSnapshot> {
+  const data = getStoreScopedData(storeId);
+  const resolved = resolveAiReportWindow(input);
+  const latestReport = data.reports.slice().sort((left, right) => right.generated_at.localeCompare(left.generated_at))[0] || null;
+  const customersById = new Map(data.customers.map((customer) => [customer.id, customer]));
+  const completedOrders = data.orders.filter(
+    (order) => order.status === 'completed' && isWithinDateRange(order.completed_at || order.placed_at, resolved.start, resolved.end),
+  );
+  const activeOrders = data.orders.filter(
+    (order) => order.status !== 'cancelled' && isWithinDateRange(order.placed_at, resolved.start, resolved.end),
+  );
+  const periodReservations = data.reservations.filter((reservation) =>
+    isWithinDateRange(reservation.reserved_at, resolved.start, resolved.end),
+  );
+  const periodWaiting = data.waitingEntries.filter((entry) => isWithinDateRange(entry.created_at, resolved.start, resolved.end));
+  const performance = buildMenuPerformance(data.menuItems, data.orderItems);
+  const repeatOrders = completedOrders.filter((order) => {
+    if (!order.customer_id) {
+      return false;
+    }
+
+    return Boolean(customersById.get(order.customer_id)?.is_regular);
+  }).length;
+  const repeatCustomerRate = completedOrders.length ? Math.round((repeatOrders / completedOrders.length) * 100) : 0;
+
+  const trendStart = startOfDay(resolved.end);
+  trendStart.setDate(trendStart.getDate() - (resolved.trendDays - 1));
+
+  const trend = Array.from({ length: resolved.trendDays }).map((_, index) => {
+    const bucketDate = startOfDay(trendStart);
+    bucketDate.setDate(trendStart.getDate() + index);
+    const bucketStart = startOfDay(bucketDate);
+    const bucketEnd = endOfDay(bucketDate);
+
+    return {
+      label: formatBucketLabel(bucketDate),
+      sales: sumBy(
+        data.sales.filter((sale) => isWithinDateRange(sale.sale_date, bucketStart, bucketEnd)),
+        (sale) => sale.total_sales,
+      ),
+      orders: data.orders.filter((order) => isWithinDateRange(order.placed_at, bucketStart, bucketEnd)).length,
+      reservations: data.reservations.filter((reservation) => isWithinDateRange(reservation.reserved_at, bucketStart, bucketEnd)).length,
+      waiting: data.waitingEntries.filter((entry) => isWithinDateRange(entry.created_at, bucketStart, bucketEnd)).length,
+    };
+  });
+
+  const summary = buildAiReportDashboardSummary({
+    store: data.store!,
+    orders: activeOrders,
+    reservations: periodReservations,
+    waitingEntries: periodWaiting,
+    repeatCustomerRate,
+    latestReport,
+    popularMenu: performance.popular?.menuItem.name || '-',
+    weakMenu: performance.weak?.menuItem.name || '-',
+  });
+
+  return {
+    store: data.store!,
+    range: resolved.range,
+    periodLabel: resolved.label,
+    customStart: input.customStart,
+    customEnd: input.customEnd,
+    totals: {
+      sales: sumBy(completedOrders, (order) => order.total_amount),
+      orders: activeOrders.length,
+      reservations: periodReservations.length,
+      waiting: periodWaiting.length,
+      repeatCustomerRate,
+    },
+    trend,
+    latestReport,
+    recommendationSummary: summary.recommendationSummary,
+    topBottlenecks: summary.topBottlenecks,
+    improvementChecklist: summary.improvementChecklist,
+  };
+}
+
 export async function listSales(storeId: string) {
   const data = getStoreScopedData(storeId);
   const sales = data.sales.slice().sort((left, right) => left.sale_date.localeCompare(right.sale_date));
@@ -1423,13 +2054,20 @@ export async function getPublicStore(storeSlug: string) {
     return null;
   }
 
+  const scoped = getStoreScopedData(store.id);
   const menu = await listMenu(store.id);
   const tables = await listStoreTables(store.id);
+  const capabilities = buildStoreCapabilityFlags(store, scoped.features);
 
   return {
     store,
     menu,
     tables,
+    location: getPrimaryStoreLocation(scoped.locations),
+    media: getSortedStoreMedia(scoped.media),
+    notices: getPublishedStoreNotices(scoped.notices),
+    capabilities,
+    features: scoped.features.filter((feature) => feature.enabled),
   };
 }
 
