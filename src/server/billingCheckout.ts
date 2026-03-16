@@ -606,6 +606,7 @@ export async function handleCheckoutRequest(request: Request) {
       customData: {
         ...readCheckoutCustomData(body),
         initiatedAt: new Date().toISOString(),
+        orderName,
         payMethod: 'CARD',
         pgProvider: 'KG_INICIS',
         plan: requestedPlan,

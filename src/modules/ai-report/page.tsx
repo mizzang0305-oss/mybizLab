@@ -75,7 +75,7 @@ export function AiReportsPage() {
         actions={
           <>
             <button className="btn-secondary" onClick={() => generateMutation.mutate('daily')} type="button">
-              일간 리포트 생성
+              일간 리포트 다시 생성
             </button>
             <button className="btn-primary" onClick={() => generateMutation.mutate('weekly')} type="button">
               주간 리포트 생성
