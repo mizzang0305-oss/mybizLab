@@ -359,6 +359,9 @@ describe('/api/billing/checkout', () => {
       plan: 'pro',
       checkout: {
         channelKey: 'channel-key-test',
+        customData: {
+          planKey: 'pro',
+        },
         currency: 'KRW',
         customer: {
           email: expect.any(String),
@@ -376,16 +379,23 @@ describe('/api/billing/checkout', () => {
     });
     expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
     expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
+    expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
   });
 
-  it('supports an onboarding redirect path and source metadata', async () => {
+  it('keeps only minimal ASCII-safe merchant data for onboarding checkout', async () => {
     const rawStoreName = '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4';
+    const rawRegion = '\uC11C\uC6B8 \uC131\uC218\uB3D9';
+    const rawCustomerType = '\uC9C1\uC7A5\uC778 \uC810\uC2EC \uACE0\uAC1D';
+    const rawSlug = '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4';
 
     const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({
           customData: {
+            customerType: rawCustomerType,
             requestId: 'request_123',
+            region: rawRegion,
+            slug: rawSlug,
             storeName: rawStoreName,
           },
           plan: 'starter',
@@ -402,9 +412,14 @@ describe('/api/billing/checkout', () => {
     expect(response.status).toBe(200);
     expect(payload.checkout.redirectUrl).toBe('https://example.com/onboarding?step=payment&portone=redirect&plan=starter');
     expect(payload.checkout.orderName).toBe('성수 브런치 하우스 Starter 결제');
-    expect(payload.checkout.customData.source).toBe('onboarding-flow');
     expect(payload.checkout.customData.requestId).toBe('request_123');
-    expect(payload.checkout.customData.storeName).toBe(encodeURIComponent(rawStoreName));
+    expect(payload.checkout.customData.planKey).toBe('starter');
+    expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
+    expect(payload.checkout.customData.slug).toBe(encodeURIComponent('성수-브런치-하우스'));
+    expect(payload.checkout.customData.source).toBeUndefined();
+    expect(payload.checkout.customData.storeName).toBeUndefined();
+    expect(payload.checkout.customData.region).toBeUndefined();
+    expect(payload.checkout.customData.customerType).toBeUndefined();
     expect(payload.checkout.customData.orderName).toBeUndefined();
   });
 });

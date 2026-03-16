@@ -381,7 +381,9 @@ export function HeroDiagnosisVisual({ starterPrice }: HeroDiagnosisVisualProps) 
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{item.label}</p>
-                    <p className="mt-1 truncate text-sm font-semibold">{item.value === 'price' ? starterPrice : item.value}</p>
+                    <p className={['mt-1 text-sm font-semibold', item.value === 'price' ? 'whitespace-nowrap leading-none' : 'line-clamp-2 leading-5'].join(' ')}>
+                      {item.value === 'price' ? starterPrice : item.value}
+                    </p>
                   </div>
                 </div>
               </div>

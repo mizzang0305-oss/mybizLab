@@ -20,11 +20,11 @@ export function PageHeader({
           </span>
         ) : null}
         <div className="space-y-2">
-          <h1 className="max-w-[16ch] text-balance font-display text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-[2.7rem]">
+          <h1 className="max-w-[14ch] text-balance font-display text-[2.15rem] font-extrabold leading-[1.08] tracking-[-0.03em] text-slate-900 sm:max-w-[16ch] sm:text-4xl lg:text-[2.7rem]">
             {title}
           </h1>
           {description ? (
-            <p className="max-w-3xl text-pretty text-sm leading-7 text-slate-500 sm:text-base">
+            <p className="max-w-3xl text-pretty text-[15px] leading-7 text-slate-500 sm:text-base">
               {description}
             </p>
           ) : null}

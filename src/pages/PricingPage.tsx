@@ -250,30 +250,32 @@ export function PricingPage() {
             Pricing
           </span>
           <div className="space-y-3">
-            <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">구독형 SaaS 요금제</h1>
-            <p className="max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
+            <h1 className="max-w-[12ch] text-balance font-display text-[2.35rem] font-black leading-[1.05] tracking-[-0.03em] sm:text-5xl">
+              구독형 SaaS 요금제
+            </h1>
+            <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-lg sm:leading-8">
               {SERVICE_TAGLINE}. 초기 세팅비는 1회성으로 운영 시작 전에 결제하고, 월 구독은 매장 규모에 맞는 플랜으로 이어집니다.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-orange-200">초기 세팅비</p>
-              <p className="mt-2 font-display text-3xl font-black">390,000원부터</p>
+              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">390,000원부터</p>
               <p className="mt-2 text-sm text-slate-300">스토어 구축과 운영 시작을 위한 1회성 비용입니다.</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-orange-200">월 구독</p>
-              <p className="mt-2 font-display text-3xl font-black">29,000원부터</p>
+              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">29,000원부터</p>
               <p className="mt-2 text-sm text-slate-300">Starter부터 Business까지 같은 checkout 흐름으로 바로 결제를 시작합니다.</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-orange-200">Business 범위</p>
-              <p className="mt-2 font-display text-3xl font-black">최대 10개</p>
+              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">최대 10개</p>
               <p className="mt-2 text-sm text-slate-300">브랜드 단위 운영과 다점포 관리를 고려한 확장 플랜입니다.</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-orange-200">Enterprise</p>
-              <p className="mt-2 font-display text-3xl font-black">별도 상담</p>
+              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">별도 상담</p>
               <p className="mt-2 text-sm text-slate-300">10개 초과 매장이나 프랜차이즈는 상담 후 맞춤 구축으로 진행합니다.</p>
             </div>
           </div>
@@ -292,7 +294,7 @@ export function PricingPage() {
             </div>
             <div className="rounded-3xl bg-slate-950 px-6 py-5 text-white">
               <p className="text-sm font-semibold text-orange-200">가격 예시</p>
-              <p className="mt-2 font-display text-4xl font-black">390,000원부터</p>
+              <p className="mt-2 whitespace-nowrap font-display text-[2rem] font-black leading-none sm:text-4xl">390,000원부터</p>
             </div>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -360,10 +362,10 @@ export function PricingPage() {
                   plan.tone === 'accent' ? 'border-slate-900 bg-slate-950 text-white shadow-[0_25px_70px_-35px_rgba(15,23,42,0.8)]' : '',
                 ].join(' ')}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <p className={`text-sm font-bold uppercase tracking-[0.18em] ${plan.tone === 'accent' ? 'text-orange-200' : 'text-orange-600'}`}>{plan.name}</p>
-                    <p className={`mt-3 font-display text-3xl font-black ${plan.tone === 'accent' ? 'text-white' : 'text-slate-900'}`}>{plan.priceLabel}</p>
+                    <p className={`mt-3 whitespace-nowrap font-display text-[2rem] font-black leading-none sm:text-3xl ${plan.tone === 'accent' ? 'text-white' : 'text-slate-900'}`}>{plan.priceLabel}</p>
                   </div>
                   {plan.badge ? (
                     <span
@@ -411,7 +413,7 @@ export function PricingPage() {
                       {isBusy ? '결제창 준비 중...' : cta.label}
                     </button>
                   )}
-                  <p className={`text-xs leading-5 ${plan.tone === 'accent' ? 'text-slate-400' : 'text-slate-500'}`}>{plan.ctaNote}</p>
+                  <p className={`text-xs leading-6 ${plan.tone === 'accent' ? 'text-slate-400' : 'text-slate-500'}`}>{plan.ctaNote}</p>
                 </div>
               </article>
             );
@@ -455,7 +457,7 @@ export function PricingPage() {
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
                 <div>
                   <p className="text-sm font-bold text-slate-900">{plan.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">{plan.priceLabel}</p>
+                  <p className="mt-1 whitespace-nowrap text-xs text-slate-500">{plan.priceLabel}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold text-orange-600">{plan.note}</p>
