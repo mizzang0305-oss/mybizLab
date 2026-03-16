@@ -217,11 +217,7 @@ function readCheckoutCustomData(body: Record<string, unknown>) {
     return {};
   }
 
-  return sanitizeCheckoutCustomData(body.customData as Record<string, unknown>);
-}
-
-function readCheckoutSource(body: Record<string, unknown>) {
-  return normalizeNonEmptyString(body.source) || 'pricing-page';
+  return body.customData as Record<string, unknown>;
 }
 
 function readCheckoutOrderName(body: Record<string, unknown>, fallbackOrderName: string) {
@@ -534,6 +530,46 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
   return requestedPlan;
 }
 
+function readCheckoutRequestId(customData: Record<string, unknown>) {
+  return normalizeNonEmptyString(customData.requestId);
+}
+
+function readCheckoutSlug(customData: Record<string, unknown>) {
+  const rawSlug =
+    normalizeNonEmptyString(customData.slug) ||
+    normalizeNonEmptyString(customData.requestedSlug) ||
+    normalizeNonEmptyString(customData.storeSlug);
+
+  if (!rawSlug) {
+    return '';
+  }
+
+  const normalizedSlug = rawSlug
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return normalizedSlug ? encodeURIComponent(normalizedSlug) : '';
+}
+
+function buildCheckoutMerchantData(
+  body: Record<string, unknown>,
+  plan: BillingPlanCode,
+  paymentId: string,
+) {
+  const customData = readCheckoutCustomData(body);
+  const requestId = readCheckoutRequestId(customData);
+  const slug = readCheckoutSlug(customData);
+
+  return sanitizeCheckoutCustomData({
+    ...(requestId ? { requestId } : {}),
+    ...(slug ? { slug } : {}),
+    planKey: plan,
+    sessionId: paymentId,
+  });
+}
+
 export function createCheckoutPaymentId(plan: BillingPlanCode) {
   const compactPlan = COMPACT_PLAN_CODE[plan];
   const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -597,21 +633,12 @@ export async function handleCheckoutRequest(request: Request) {
   const paymentId = createCheckoutPaymentId(requestedPlan);
   const redirectPath = readCheckoutRedirectPath(body);
   const orderName = readCheckoutOrderName(body, billingPlan.orderName);
-  const source = readCheckoutSource(body);
 
   const payload: CheckoutSessionResponse = {
     checkout: {
       channelKey: env.channelKey,
       currency: 'KRW',
-      customData: {
-        ...readCheckoutCustomData(body),
-        initiatedAt: new Date().toISOString(),
-        orderName,
-        payMethod: 'CARD',
-        pgProvider: 'KG_INICIS',
-        plan: requestedPlan,
-        source,
-      },
+      customData: buildCheckoutMerchantData(body, requestedPlan, paymentId),
       customer: readCheckoutCustomer(body),
       noticeUrls: [`${env.appBaseUrl}/api/billing/webhook`],
       orderName,

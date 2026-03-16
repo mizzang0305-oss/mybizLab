@@ -49,10 +49,10 @@ export function LandingPage() {
               </span>
 
               <div className="space-y-5">
-                <h1 className="max-w-[13ch] text-balance font-display text-4xl font-black tracking-tight sm:text-5xl lg:text-[4.15rem] lg:leading-[1.04]">
+                <h1 className="max-w-[11.5ch] text-balance font-display text-[2.45rem] font-black leading-[1.06] tracking-[-0.03em] sm:max-w-[13ch] sm:text-5xl sm:leading-[1.04] lg:text-[4.15rem]">
                   AI가 우리 가게 운영을 진단하고 매출 성장 전략까지 정리해 주는 소상공인 운영 AI 플랫폼
                 </h1>
-                <p className="max-w-2xl text-pretty text-base leading-8 text-slate-300 sm:text-lg">
+                <p className="max-w-[34rem] text-pretty text-[15px] leading-7 text-slate-300 sm:text-lg sm:leading-8">
                   MyBizLab은 고객관리, 예약, 주문, 매출 흐름을 하나의 운영 문맥으로 묶어 AI 진단, 실행 전략, 리포트,
                   관리자 대시보드, 고객용 스토어까지 연결하는 소상공인 운영 SaaS입니다.
                 </p>

@@ -143,14 +143,14 @@ function InsightCard({
   title: string;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5">
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
       <p className="text-sm font-semibold text-slate-500">{title}</p>
       <div className="mt-4 space-y-3">
         {items.map((item, index) => (
           <div
             key={`${title}-${index}-${item.slice(0, 16)}`}
             className={[
-              'rounded-2xl px-4 py-3 text-sm leading-6',
+              'rounded-2xl px-4 py-3.5 text-[15px] leading-7 break-words',
               accentClassName || 'bg-slate-50 text-slate-700',
             ].join(' ')}
           >
@@ -371,7 +371,7 @@ export function OnboardingPage() {
           fullName: flow.requestDraft.ownerName.trim(),
           phoneNumber: flow.requestDraft.phone.trim(),
         },
-        customData: { requestId: flow.requestId, step: 'onboarding' },
+        customData: { requestId: flow.requestId, slug: slugPreview },
         orderName: `${flow.requestDraft.storeName.trim()} ${planCards.find((item) => item.code === flow.selectedPlan)?.title || '구독'} 결제`,
         redirectPath: '/onboarding?step=payment',
         source: 'onboarding-flow',
@@ -512,16 +512,16 @@ export function OnboardingPage() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-orange-200">운영 점수</p>
-                        <p className="mt-3 font-display text-5xl font-black">{flow.diagnosisResult.score}점</p>
+                        <p className="mt-3 font-display text-4xl font-black leading-none sm:text-5xl">{flow.diagnosisResult.score}점</p>
                       </div>
                       <span className={`rounded-full border px-3 py-1 text-xs font-bold ${analysisToneClasses(flow.diagnosisResult.analysisSource)}`}>
                         {diagnosisSourceLabel(flow.diagnosisResult.analysisSource)}
                       </span>
                     </div>
-                    <p className="mt-5 max-w-2xl text-pretty text-base leading-8 text-slate-200">{flow.diagnosisResult.summary}</p>
+                    <p className="mt-5 max-w-2xl break-words text-pretty text-[15px] leading-7 text-slate-200 sm:text-base sm:leading-8">{flow.diagnosisResult.summary}</p>
                     <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.07] p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">리포트 요약</p>
-                      <p className="mt-2 text-sm leading-7 text-slate-200">{flow.diagnosisResult.reportSummary}</p>
+                      <p className="mt-2 break-words text-[15px] leading-7 text-slate-200">{flow.diagnosisResult.reportSummary}</p>
                     </div>
                   </div>
 
@@ -529,25 +529,25 @@ export function OnboardingPage() {
                     <div className="rounded-3xl border border-slate-200 bg-white p-5">
                       <p className="text-sm font-semibold text-slate-500">핵심 병목 수</p>
                       <p className="mt-3 font-display text-3xl font-black text-slate-900">{flow.diagnosisResult.coreBottlenecks.length}개</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">가장 먼저 손봐야 할 운영 병목을 우선순위 순서대로 정리했습니다.</p>
+                      <p className="mt-2 text-[15px] leading-7 text-slate-500">가장 먼저 손봐야 할 운영 병목을 우선순위 순서대로 정리했습니다.</p>
                     </div>
                     <div className="rounded-3xl border border-slate-200 bg-white p-5">
                       <p className="text-sm font-semibold text-slate-500">추천 플랜</p>
                       <p className="mt-3 font-display text-3xl font-black text-slate-900">{currentPlanTitle}</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">현재 진단 결과에서 필요한 기능 구성을 기준으로 권장했습니다.</p>
+                      <p className="mt-2 text-[15px] leading-7 text-slate-500">현재 진단 결과에서 필요한 기능 구성을 기준으로 권장했습니다.</p>
                     </div>
                     <div className="rounded-3xl border border-slate-200 bg-white p-5">
                       <p className="text-sm font-semibold text-slate-500">즉시 실행 액션</p>
                       <p className="mt-3 font-display text-3xl font-black text-slate-900">{flow.diagnosisResult.immediateActions.length}개</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">오늘 바로 시작할 수 있는 액션만 추려 운영 부담을 줄였습니다.</p>
+                      <p className="mt-2 text-[15px] leading-7 text-slate-500">오늘 바로 시작할 수 있는 액션만 추려 운영 부담을 줄였습니다.</p>
                     </div>
                   </div>
 
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
                     <p className="text-sm font-semibold text-slate-500">진단 근거와 한계</p>
                     <div className="mt-4 space-y-3">
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">{flow.diagnosisResult.analysisBasis}</div>
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">{flow.diagnosisResult.limitationsNote}</div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3.5 text-[15px] leading-7 text-slate-700">{flow.diagnosisResult.analysisBasis}</div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3.5 text-[15px] leading-7 text-slate-600">{flow.diagnosisResult.limitationsNote}</div>
                     </div>
                   </div>
                 </div>
@@ -755,7 +755,7 @@ export function OnboardingPage() {
                       {diagnosisSourceLabel(flow.diagnosisResult.analysisSource)}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm leading-7 text-slate-700">{flow.diagnosisResult.reportSummary}</p>
+                  <p className="mt-3 break-words text-[15px] leading-7 text-slate-700">{flow.diagnosisResult.reportSummary}</p>
                 </div>
               ) : null}
               {suggestionLabels.length && !runDiagnosis.isPending ? (
