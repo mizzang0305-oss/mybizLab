@@ -42,6 +42,8 @@ begin
 end;
 $$;
 
+drop function if exists public.create_store_with_owner(text, text, text, text, text, text, text, text);
+
 create or replace function public.create_store_with_owner(
   p_store_name text,
   p_owner_name text,
@@ -50,7 +52,8 @@ create or replace function public.create_store_with_owner(
   p_email text,
   p_address text,
   p_business_type text,
-  p_requested_slug text default null
+  p_requested_slug text default null,
+  p_owner_profile_id uuid default null
 )
 returns public.stores
 language plpgsql
@@ -72,8 +75,12 @@ begin
   v_actor_id := auth.uid();
 
   if v_actor_id is null then
-    raise exception 'AUTHENTICATION_REQUIRED'
-      using errcode = '42501', hint = 'create_store_with_owner requires an authenticated user.';
+    if auth.role() = 'service_role' and p_owner_profile_id is not null then
+      v_actor_id := p_owner_profile_id;
+    else
+      raise exception 'AUTHENTICATION_REQUIRED'
+        using errcode = '42501', hint = 'create_store_with_owner requires an authenticated owner or a service-role call with p_owner_profile_id.';
+    end if;
   end if;
 
   if nullif(trim(coalesce(p_store_name, '')), '') is null then
@@ -249,9 +256,9 @@ begin
 end;
 $$;
 
-revoke all on function public.create_store_with_owner(text, text, text, text, text, text, text, text) from public;
-grant execute on function public.create_store_with_owner(text, text, text, text, text, text, text, text) to authenticated;
-grant execute on function public.create_store_with_owner(text, text, text, text, text, text, text, text) to service_role;
+revoke all on function public.create_store_with_owner(text, text, text, text, text, text, text, text, uuid) from public;
+grant execute on function public.create_store_with_owner(text, text, text, text, text, text, text, text, uuid) to authenticated;
+grant execute on function public.create_store_with_owner(text, text, text, text, text, text, text, text, uuid) to service_role;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
