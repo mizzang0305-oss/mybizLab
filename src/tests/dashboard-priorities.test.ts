@@ -8,6 +8,22 @@ describe('dashboard priority settings', () => {
     resetDatabase();
   });
 
+  it('builds expected trend lengths for each dashboard period', () => {
+    const daily = getDashboardSnapshot('store_golden_coffee', { range: 'daily' });
+    const weekly = getDashboardSnapshot('store_golden_coffee', { range: 'weekly' });
+    const monthly = getDashboardSnapshot('store_golden_coffee', { range: 'monthly' });
+    const custom = getDashboardSnapshot('store_golden_coffee', {
+      range: 'custom',
+      customStart: '2026-03-01',
+      customEnd: '2026-03-12',
+    });
+
+    expect(daily.trend).toHaveLength(7);
+    expect(weekly.trend).toHaveLength(7);
+    expect(monthly.trend).toHaveLength(10);
+    expect(custom.trend.length).toBeLessThanOrEqual(10);
+  });
+
   it('reorders dashboard highlight metrics based on saved weights', async () => {
     const before = getDashboardSnapshot('store_golden_coffee', { range: 'weekly' });
     expect(before.highlightMetrics[0]?.key).toBe('revenue');
@@ -26,6 +42,7 @@ describe('dashboard priority settings', () => {
     expect(after.highlightMetrics[0]?.value).toContain('점');
     expect(after.aiInsights.length).toBeGreaterThan(0);
     expect(after.recommendedActions.length).toBeGreaterThan(0);
+    expect(after.aiInsights.join(' ')).toMatch(/매출|재방문|예약|상담|리뷰|운영|노쇼율|주문|점심|재구매/);
   });
 
   it('persists valid priority settings and rejects invalid totals', async () => {
