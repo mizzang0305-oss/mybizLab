@@ -15,11 +15,11 @@ export function StoreSwitcher({
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:min-w-72">
+    <div className="flex min-w-0 flex-col gap-2 sm:min-w-72">
       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">현재 스토어</label>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <select
-          className="input-base"
+          className="input-base min-w-0 flex-1"
           value={currentStore?.id || stores[0].id}
           onChange={(event) => onChange(event.target.value)}
         >
@@ -31,7 +31,7 @@ export function StoreSwitcher({
         </select>
         {currentStore ? (
           <a
-            className="btn-secondary whitespace-nowrap"
+            className="btn-secondary"
             href={buildStoreUrl(currentStore.slug)}
             rel="noreferrer"
             target="_blank"

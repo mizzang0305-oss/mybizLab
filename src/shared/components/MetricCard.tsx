@@ -27,14 +27,14 @@ export function MetricCard({
           : 'bg-orange-100 text-orange-700';
 
   return (
-    <div className={cn('section-card p-5', className)}>
+    <div className={cn('section-card min-w-0 overflow-hidden p-5', className)}>
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <div className="font-display text-3xl font-extrabold text-slate-900">{value}</div>
-          {hint ? <div className="text-sm text-slate-500">{hint}</div> : null}
+        <div className="min-w-0 space-y-2">
+          <p className="break-words text-sm font-medium leading-6 text-slate-500">{label}</p>
+          <div className="break-words font-display text-[clamp(1.65rem,3vw,2.15rem)] font-extrabold leading-tight text-slate-900">{value}</div>
+          {hint ? <div className="break-words text-sm leading-6 text-slate-500">{hint}</div> : null}
         </div>
-        {icon ? <div className={cn('rounded-2xl p-3', accentClass)}>{icon}</div> : null}
+        {icon ? <div className={cn('shrink-0 rounded-2xl p-3', accentClass)}>{icon}</div> : null}
       </div>
     </div>
   );

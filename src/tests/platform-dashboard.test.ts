@@ -118,8 +118,8 @@ describe('platform dashboard routes', () => {
     const html = await renderDashboardRoute('/dashboard', undefined, createElement(DashboardPage), async (queryClient) => {
       await Promise.all([
         queryClient.prefetchQuery({
-          queryKey: queryKeys.dashboard('store_golden_coffee'),
-          queryFn: () => Promise.resolve(getDashboardSnapshot('store_golden_coffee')),
+          queryKey: [...queryKeys.dashboard('store_golden_coffee'), 'weekly', '', ''],
+          queryFn: () => Promise.resolve(getDashboardSnapshot('store_golden_coffee', { range: 'weekly' })),
         }),
         queryClient.prefetchQuery({
           queryKey: queryKeys.aiReports('store_golden_coffee'),
@@ -128,17 +128,17 @@ describe('platform dashboard routes', () => {
       ]);
     });
 
-    expect(html).toContain('스토어 현황');
+    expect(html).toContain('데이터 중심 운영 현황');
     expect(html).toContain('Golden Coffee');
-    expect(html).toContain('href="/dashboard/ai-manager"');
     expect(html).toContain('href="/dashboard/orders"');
-    expect(html).toContain('href="/dashboard/waiting"');
-    expect(html).toContain('href="/dashboard/table-order"');
+    expect(html).toContain('href="/dashboard/reservations"');
+    expect(html).toContain('href="/dashboard/customers"');
     expect(html).toContain('href="/dashboard/brand"');
-    expect(html).toContain('메뉴 및 QR 관리');
-    expect(html).toContain('상담/문의 대응 허브');
-    expect(html).toContain('AI 운영 리포트');
-    expect(html).toContain('고객 관리');
+    expect(html).toContain('조회 기간');
+    expect(html).toContain('고객 구성 분석');
+    expect(html).toContain('AI 인사이트');
+    expect(html).toContain('추천 액션 우선순위');
+    expect(html).toContain('운영 바로가기');
   });
 
   it('renders the core dashboard tabs for store operations', async () => {
