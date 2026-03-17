@@ -15,7 +15,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select exists (
     select 1
@@ -24,6 +24,234 @@ as $$
       and sm.profile_id = auth.uid()
   );
 $$;
+
+create or replace function public.slugify_store_value(input text)
+returns text
+language plpgsql
+immutable
+set search_path = public, pg_temp
+as $$
+declare
+  normalized text;
+begin
+  normalized := lower(coalesce(input, ''));
+  normalized := regexp_replace(normalized, '[^a-z0-9]+', '-', 'g');
+  normalized := regexp_replace(normalized, '(^-+|-+$)', '', 'g');
+  normalized := regexp_replace(normalized, '-{2,}', '-', 'g');
+  return normalized;
+end;
+$$;
+
+create or replace function public.create_store_with_owner(
+  p_store_name text,
+  p_owner_name text,
+  p_business_number text,
+  p_phone text,
+  p_email text,
+  p_address text,
+  p_business_type text,
+  p_requested_slug text default null
+)
+returns public.stores
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_actor_id uuid;
+  v_profile_email text;
+  v_profile_name text;
+  v_region text;
+  v_customer_focus text;
+  v_analytics_preset text;
+  v_base_slug text;
+  v_slug text;
+  v_suffix integer := 1;
+  v_created_store public.stores;
+begin
+  v_actor_id := auth.uid();
+
+  if v_actor_id is null then
+    raise exception 'AUTHENTICATION_REQUIRED'
+      using errcode = '42501', hint = 'create_store_with_owner requires an authenticated user.';
+  end if;
+
+  if nullif(trim(coalesce(p_store_name, '')), '') is null then
+    raise exception 'STORE_NAME_REQUIRED' using errcode = '22023';
+  end if;
+
+  if nullif(trim(coalesce(p_owner_name, '')), '') is null then
+    raise exception 'OWNER_NAME_REQUIRED' using errcode = '22023';
+  end if;
+
+  if nullif(trim(coalesce(p_business_number, '')), '') is null then
+    raise exception 'BUSINESS_NUMBER_REQUIRED' using errcode = '22023';
+  end if;
+
+  if nullif(trim(coalesce(p_phone, '')), '') is null then
+    raise exception 'PHONE_REQUIRED' using errcode = '22023';
+  end if;
+
+  if nullif(trim(coalesce(p_email, '')), '') is null then
+    raise exception 'EMAIL_REQUIRED' using errcode = '22023';
+  end if;
+
+  if nullif(trim(coalesce(p_address, '')), '') is null then
+    raise exception 'ADDRESS_REQUIRED' using errcode = '22023';
+  end if;
+
+  if nullif(trim(coalesce(p_business_type, '')), '') is null then
+    raise exception 'BUSINESS_TYPE_REQUIRED' using errcode = '22023';
+  end if;
+
+  v_profile_email := lower(trim(coalesce(nullif(auth.jwt() ->> 'email', ''), p_email)));
+  v_profile_name := trim(coalesce(nullif(p_owner_name, ''), split_part(v_profile_email, '@', 1)));
+
+  insert into public.profiles (id, full_name, email, phone)
+  values (v_actor_id, v_profile_name, v_profile_email, nullif(trim(p_phone), ''))
+  on conflict (id) do update
+  set
+    full_name = coalesce(nullif(public.profiles.full_name, ''), excluded.full_name),
+    email = coalesce(nullif(public.profiles.email, ''), excluded.email),
+    phone = coalesce(public.profiles.phone, excluded.phone),
+    updated_at = timezone('utc', now());
+
+  v_base_slug := public.slugify_store_value(coalesce(nullif(trim(p_requested_slug), ''), p_store_name));
+  if v_base_slug = '' then
+    v_base_slug := 'store-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8);
+  end if;
+
+  v_slug := v_base_slug;
+  while exists (
+    select 1
+    from public.stores s
+    where s.slug = v_slug
+  ) loop
+    v_slug := v_base_slug || '-' || v_suffix::text;
+    v_suffix := v_suffix + 1;
+  end loop;
+
+  v_region := split_part(trim(coalesce(p_address, '')), ' ', 1);
+  if v_region = '' then
+    v_region := '미설정';
+  end if;
+
+  if p_business_type ilike '%카페%' or p_business_type ilike '%브런치%' or p_business_type ilike '%coffee%' then
+    v_analytics_preset := 'seongsu_brunch_cafe';
+    v_customer_focus := '직장인 점심·주말 방문';
+  elsif p_business_type ilike '%고기%' or p_business_type ilike '%식당%' or p_business_type ilike '%외식%' or p_business_type ilike '%bbq%' then
+    v_analytics_preset := 'mapo_evening_restaurant';
+    v_customer_focus := '저녁 회식·예약 고객';
+  else
+    v_analytics_preset := 'consultation_service';
+    v_customer_focus := '상담 전환 중심 고객';
+  end if;
+
+  insert into public.stores (
+    name,
+    slug,
+    owner_name,
+    business_number,
+    phone,
+    email,
+    address,
+    business_type
+  )
+  values (
+    trim(p_store_name),
+    v_slug,
+    trim(p_owner_name),
+    trim(p_business_number),
+    trim(p_phone),
+    trim(lower(p_email)),
+    trim(p_address),
+    trim(p_business_type)
+  )
+  returning * into v_created_store;
+
+  insert into public.store_members (store_id, profile_id, role)
+  values (v_created_store.id, v_actor_id, 'owner')
+  on conflict (store_id, profile_id) do update
+  set role = 'owner';
+
+  insert into public.store_analytics_profiles (
+    store_id,
+    industry,
+    region,
+    customer_focus,
+    analytics_preset,
+    version
+  )
+  values (
+    v_created_store.id,
+    trim(p_business_type),
+    v_region,
+    v_customer_focus,
+    v_analytics_preset,
+    1
+  )
+  on conflict (store_id) do nothing;
+
+  insert into public.store_priority_settings (
+    store_id,
+    weights,
+    version
+  )
+  values (
+    v_created_store.id,
+    jsonb_build_object(
+      'revenue', 28,
+      'repeatCustomers', 18,
+      'reservations', 16,
+      'consultationConversion', 14,
+      'branding', 12,
+      'orderEfficiency', 12
+    ),
+    1
+  )
+  on conflict (store_id) do nothing;
+
+  insert into public.store_home_content (
+    store_id,
+    hero_title,
+    hero_subtitle,
+    hero_description,
+    cta_config,
+    content_blocks,
+    seo_metadata,
+    version
+  )
+  values (
+    v_created_store.id,
+    trim(p_store_name),
+    trim(p_business_type) || ' 운영을 한눈에 보여주는 스토어',
+    '주문, 예약, 고객 데이터를 기반으로 운영 현황과 브랜드 정보를 함께 제공합니다.',
+    jsonb_build_object(
+      'primary', jsonb_build_object('label', '예약하기', 'enabled', true),
+      'secondary', jsonb_build_object('label', '상담 요청', 'enabled', true)
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'type', 'hero-summary',
+        'title', '운영 시작 준비 완료',
+        'body', '기본 홈 콘텐츠와 운영 분석 설정이 자동으로 준비되었습니다.'
+      )
+    ),
+    jsonb_build_object(
+      'title', trim(p_store_name),
+      'description', trim(p_store_name) || '의 공식 스토어 페이지입니다.'
+    ),
+    1
+  )
+  on conflict (store_id) do nothing;
+
+  return v_created_store;
+end;
+$$;
+
+revoke all on function public.create_store_with_owner(text, text, text, text, text, text, text, text) from public;
+grant execute on function public.create_store_with_owner(text, text, text, text, text, text, text, text) to authenticated;
+grant execute on function public.create_store_with_owner(text, text, text, text, text, text, text, text) to service_role;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -420,10 +648,12 @@ on public.stores
 for select
 using (public.is_store_member(id));
 
-create policy "stores_insert_authenticated"
+drop policy if exists "stores_insert_authenticated" on public.stores;
+drop policy if exists "stores_insert_via_rpc_only" on public.stores;
+create policy "stores_insert_via_rpc_only"
 on public.stores
 for insert
-with check (auth.uid() is not null);
+with check (false);
 
 create policy "stores_update_member"
 on public.stores
@@ -436,10 +666,12 @@ on public.store_members
 for select
 using (public.is_store_member(store_id));
 
-create policy "store_members_insert_member"
+drop policy if exists "store_members_insert_member" on public.store_members;
+drop policy if exists "store_members_insert_existing_member" on public.store_members;
+create policy "store_members_insert_existing_member"
 on public.store_members
 for insert
-with check (public.is_store_member(store_id) or auth.uid() = profile_id);
+with check (public.is_store_member(store_id));
 
 create policy "store_members_update_member"
 on public.store_members
