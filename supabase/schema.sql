@@ -300,6 +300,20 @@ create table if not exists public.store_daily_metrics (
   unique (store_id, metric_date)
 );
 
+create table if not exists public.store_home_content (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null unique references public.stores(id) on delete cascade,
+  hero_title text not null default '',
+  hero_subtitle text not null default '',
+  hero_description text not null default '',
+  cta_config jsonb not null default '{}'::jsonb,
+  content_blocks jsonb not null default '[]'::jsonb,
+  seo_metadata jsonb not null default '{}'::jsonb,
+  version integer not null default 1,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -354,6 +368,11 @@ create trigger trg_store_priority_settings_set_updated_at
 before update on public.store_priority_settings
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists trg_store_home_content_set_updated_at on public.store_home_content;
+create trigger trg_store_home_content_set_updated_at
+before update on public.store_home_content
+for each row execute procedure public.set_updated_at();
+
 alter table public.profiles enable row level security;
 alter table public.store_setup_requests enable row level security;
 alter table public.stores enable row level security;
@@ -377,6 +396,7 @@ alter table public.sales_daily enable row level security;
 alter table public.store_analytics_profiles enable row level security;
 alter table public.store_priority_settings enable row level security;
 alter table public.store_daily_metrics enable row level security;
+alter table public.store_home_content enable row level security;
 
 create policy "profiles_select_own"
 on public.profiles
@@ -541,6 +561,12 @@ for all
 using (public.is_store_member(store_id))
 with check (public.is_store_member(store_id));
 
+create policy "store_home_content_member_access"
+on public.store_home_content
+for all
+using (public.is_store_member(store_id))
+with check (public.is_store_member(store_id));
+
 create index if not exists store_setup_requests_created_by_idx on public.store_setup_requests (created_by);
 create index if not exists store_members_profile_store_idx on public.store_members (profile_id, store_id);
 create index if not exists store_features_store_idx on public.store_features (store_id);
@@ -560,6 +586,7 @@ create index if not exists sales_daily_store_date_idx on public.sales_daily (sto
 create index if not exists store_analytics_profiles_store_idx on public.store_analytics_profiles (store_id);
 create index if not exists store_priority_settings_store_idx on public.store_priority_settings (store_id);
 create index if not exists store_daily_metrics_store_date_idx on public.store_daily_metrics (store_id, metric_date desc);
+create index if not exists store_home_content_updated_idx on public.store_home_content (updated_at desc);
 
 create table if not exists public.billing_webhook_events (
   webhook_id text primary key,
