@@ -2,12 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
+import { DEFAULT_PRIORITY_WEIGHTS } from '@/shared/lib/analyticsProfiles';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { useAccessibleStores, useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { getStoreSettings, updateStoreSettings, type UpdateStoreSettingsInput } from '@/shared/lib/services/mvpService';
+import {
+  getStoreSettings,
+  updateStorePrioritySettings,
+  updateStoreSettings,
+  type UpdateStoreSettingsInput,
+} from '@/shared/lib/services/mvpService';
 import { buildStorePath, buildStoreUrl, ensureUniqueStoreSlug, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
+import type { StorePriorityWeights } from '@/shared/types/models';
 
 function createInitialForm(): UpdateStoreSettingsInput {
   return {
@@ -38,12 +45,55 @@ function createInitialForm(): UpdateStoreSettingsInput {
   };
 }
 
+const priorityFieldDefinitions: Array<{
+  description: string;
+  key: keyof StorePriorityWeights;
+  label: string;
+}> = [
+  {
+    description: '총매출, 객단가, 주문 매출 흐름에 더 큰 가중치를 둡니다.',
+    key: 'revenue',
+    label: '매출',
+  },
+  {
+    description: '신규 고객보다 재방문 전환과 단골 관리 액션을 우선합니다.',
+    key: 'repeatCustomers',
+    label: '재방문',
+  },
+  {
+    description: '예약 흐름과 노쇼 관리, 예약 리마인드 운영을 강조합니다.',
+    key: 'reservations',
+    label: '예약',
+  },
+  {
+    description: '상담 인입 이후 예약·결제 전환 동선을 더 강하게 봅니다.',
+    key: 'consultationConversion',
+    label: '상담전환',
+  },
+  {
+    description: '리뷰량, 응답률, 브랜드 체감 지표를 더 강하게 반영합니다.',
+    key: 'branding',
+    label: '브랜딩',
+  },
+  {
+    description: '피크타임 안정성과 운영 점수, 처리 효율을 더 크게 봅니다.',
+    key: 'orderEfficiency',
+    label: '주문효율',
+  },
+];
+
+function sumPriorityWeights(weights: StorePriorityWeights) {
+  return Object.values(weights).reduce((total, value) => total + value, 0);
+}
+
 export function BrandPage() {
   const { currentStore } = useCurrentStore();
   const accessibleStoresQuery = useAccessibleStores();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<UpdateStoreSettingsInput>(() => createInitialForm());
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
+  const [priorityWeights, setPriorityWeights] = useState<StorePriorityWeights>(() => ({ ...DEFAULT_PRIORITY_WEIGHTS }));
+  const [priorityMessage, setPriorityMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.brand(currentStore?.id || ''),
@@ -94,6 +144,7 @@ export function BrandPage() {
       noticeTitle: pinnedNotice?.title || '',
       noticeContent: pinnedNotice?.content || '',
     });
+    setPriorityWeights(settingsQuery.data.prioritySettings?.weights || DEFAULT_PRIORITY_WEIGHTS);
   }, [settingsQuery.data]);
 
   const existingSlugs = useMemo(
@@ -172,6 +223,26 @@ export function BrandPage() {
     },
   });
 
+  const priorityTotal = useMemo(() => sumPriorityWeights(priorityWeights), [priorityWeights]);
+  const isPriorityValid = priorityTotal === 100;
+
+  const priorityMutation = useMutation({
+    mutationFn: () => updateStorePrioritySettings(currentStore!.id, priorityWeights),
+    onSuccess: async () => {
+      setPriorityMessage({ tone: 'success', text: '운영 우선순위를 저장했습니다. 대시보드 강조 순서가 바로 반영됩니다.' });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.brand(currentStore!.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(currentStore!.id) }),
+      ]);
+    },
+    onError: (error) => {
+      setPriorityMessage({
+        tone: 'error',
+        text: error instanceof Error ? error.message : '운영 우선순위를 저장하지 못했습니다.',
+      });
+    },
+  });
+
   if (!currentStore) {
     return null;
   }
@@ -180,13 +251,14 @@ export function BrandPage() {
     Boolean(form.storeName.trim() && form.phone.trim() && form.email.trim() && form.address.trim() && form.businessType.trim()) &&
     slugState.available;
   const publicStorePath = buildStorePath(slugState.preview || currentStore.slug);
+  const analyticsProfile = settingsQuery.data?.analyticsProfile;
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Store settings"
         title="스토어 설정"
-        description="기본 정보, 공개 스토어 주소, 공지, 비주얼, 상담/문의/예약 버튼까지 한 화면에서 정리합니다."
+        description="기본 정보, 공개 스토어 주소, 브랜딩, CTA, 운영 우선순위를 한 화면에서 관리합니다."
         actions={
           <>
             <Link className="btn-secondary" to={publicStorePath}>
@@ -325,16 +397,102 @@ export function BrandPage() {
                 <label className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4" key={field}>
                   <input
                     checked={Boolean(form[field as keyof UpdateStoreSettingsInput])}
-                    className="mt-1 h-4 w-4 accent-orange-600"
+                    className="mt-1 h-4 w-4 shrink-0 accent-orange-600"
                     onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.checked }))}
                     type="checkbox"
                   />
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-semibold text-slate-900">{label}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+                    <p className="mt-1 break-words text-sm leading-6 text-slate-500">{description}</p>
                   </div>
                 </label>
               ))}
+            </div>
+          </Panel>
+
+          <Panel
+            action={
+              <button
+                className="btn-primary"
+                disabled={!isPriorityValid || priorityMutation.isPending}
+                onClick={() => priorityMutation.mutate()}
+                type="button"
+              >
+                우선순위 저장
+              </button>
+            }
+            subtitle="대시보드 KPI 카드, 주요 차트, AI 액션 추천 순서를 이 설정으로 조정합니다."
+            title="운영 우선순위"
+          >
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="space-y-3">
+                {priorityFieldDefinitions.map((field) => (
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4" key={field.key}>
+                    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[120px_minmax(0,1fr)_88px] lg:items-center">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900">{field.label}</p>
+                        <p className="mt-1 break-words text-sm leading-6 text-slate-500">{field.description}</p>
+                      </div>
+                      <input
+                        className="w-full accent-orange-600"
+                        max={100}
+                        min={0}
+                        onChange={(event) =>
+                          setPriorityWeights((current) => ({
+                            ...current,
+                            [field.key]: Number(event.target.value),
+                          }))
+                        }
+                        step={5}
+                        type="range"
+                        value={priorityWeights[field.key]}
+                      />
+                      <input
+                        className="input-base text-center"
+                        max={100}
+                        min={0}
+                        onChange={(event) =>
+                          setPriorityWeights((current) => ({
+                            ...current,
+                            [field.key]: Number(event.target.value || 0),
+                          }))
+                        }
+                        step={5}
+                        type="number"
+                        value={priorityWeights[field.key]}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">가중치 합계</p>
+                  <p className={`mt-2 text-3xl font-black ${isPriorityValid ? 'text-slate-950' : 'text-rose-600'}`}>{priorityTotal}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">합계는 반드시 100이어야 저장됩니다.</p>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-500">현재 분석 프로필</p>
+                  <p className="mt-2 text-lg font-black text-slate-950">{analyticsProfile?.industry || form.businessType || '-'}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    {analyticsProfile?.region || '지역 미설정'} · {analyticsProfile?.customer_focus || '고객 포커스 미설정'}
+                  </p>
+                </div>
+
+                {priorityMessage ? (
+                  <div
+                    className={`rounded-3xl border px-4 py-3 text-sm font-medium ${
+                      priorityMessage.tone === 'error'
+                        ? 'border-rose-200 bg-rose-50 text-rose-700'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    }`}
+                  >
+                    {priorityMessage.text}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </Panel>
 
@@ -389,23 +547,23 @@ export function BrandPage() {
               <div className="relative min-h-[250px] overflow-hidden bg-slate-950 p-8 text-white">
                 {form.heroImageUrl ? <img alt="Store hero" className="absolute inset-0 h-full w-full object-cover opacity-45" src={form.heroImageUrl} /> : null}
                 <div className="relative space-y-4">
-                  <span className="inline-flex rounded-full bg-white/12 px-3 py-1 text-xs font-bold tracking-[0.18em] text-orange-200">
-                    {slugState.preview}
+                  <span className="inline-flex max-w-full rounded-full bg-white/12 px-3 py-1 text-xs font-bold tracking-[0.18em] text-orange-200">
+                    <span className="truncate">{slugState.preview}</span>
                   </span>
                   <div className="flex items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-3xl text-white" style={{ backgroundColor: form.brandColor }}>
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl text-white" style={{ backgroundColor: form.brandColor }}>
                       {form.logoUrl ? (
                         <img alt="Store logo" className="h-16 w-16 rounded-3xl object-cover" src={form.logoUrl} />
                       ) : (
                         <span className="font-display text-2xl font-black">{form.storeName.slice(0, 1) || 'S'}</span>
                       )}
                     </div>
-                    <div>
-                      <p className="font-display text-3xl font-black">{form.storeName || '스토어명'}</p>
-                      <p className="mt-1 text-sm text-slate-200">{form.tagline || '한 줄 소개를 입력하면 공개 스토어 상단에 노출됩니다.'}</p>
+                    <div className="min-w-0">
+                      <p className="break-words font-display text-3xl font-black">{form.storeName || '스토어명'}</p>
+                      <p className="mt-1 break-words text-sm text-slate-200">{form.tagline || '한 줄 소개를 입력하면 공개 스토어 상단에 노출됩니다.'}</p>
                     </div>
                   </div>
-                  <p className="max-w-xl text-sm leading-7 text-slate-200">{form.description || '스토어 설명이 이 영역에 노출됩니다.'}</p>
+                  <p className="max-w-xl break-words text-sm leading-7 text-slate-200">{form.description || '스토어 설명이 이 영역에 노출됩니다.'}</p>
                   <div className="flex flex-wrap gap-2">
                     {form.consultationEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">상담</span> : null}
                     {form.inquiryEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">문의</span> : null}
@@ -421,8 +579,8 @@ export function BrandPage() {
                 </div>
                 <div className="rounded-3xl bg-white p-5">
                   <p className="text-sm font-semibold text-slate-500">대표 공지</p>
-                  <p className="mt-2 font-semibold text-slate-900">{form.noticeTitle || '공지 제목을 입력해 주세요.'}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{form.noticeContent || '공지 내용이 공개 스토어 상단에 노출됩니다.'}</p>
+                  <p className="mt-2 break-words font-semibold text-slate-900">{form.noticeTitle || '공지 제목을 입력해 주세요.'}</p>
+                  <p className="mt-2 break-words text-sm leading-6 text-slate-600">{form.noticeContent || '공지 내용이 공개 스토어 상단에 노출됩니다.'}</p>
                 </div>
               </div>
             </div>
@@ -431,14 +589,14 @@ export function BrandPage() {
           <Panel title="바로 연결되는 화면" subtitle="설정 저장 후 운영팀이 바로 이어서 확인하는 화면들입니다.">
             <div className="grid gap-3">
               {[
-                { title: '공개 스토어 홈', to: publicStorePath, label: '홈' },
-                { title: '공개 메뉴', to: buildStorePath(slugState.preview, 'menu'), label: '메뉴' },
-                { title: '공개 주문', to: buildStorePath(slugState.preview, 'order'), label: '주문' },
-                { title: '테이블오더 관리', to: '/dashboard/table-order', label: '운영' },
+                { label: '홈', title: '공개 스토어 홈', to: publicStorePath },
+                { label: '메뉴', title: '공개 메뉴', to: buildStorePath(slugState.preview, 'menu') },
+                { label: '주문', title: '공개 주문', to: buildStorePath(slugState.preview, 'order') },
+                { label: '운영', title: '테이블오더 관리', to: '/dashboard/table-order' },
               ].map((item) => (
                 <Link className="rounded-3xl border border-slate-200 bg-slate-50 p-4 transition hover:border-orange-200 hover:bg-orange-50" key={item.to} to={item.to}>
                   <p className="text-sm font-semibold text-slate-500">{item.label}</p>
-                  <p className="mt-1 font-bold text-slate-900">{item.title}</p>
+                  <p className="mt-1 break-words font-bold text-slate-900">{item.title}</p>
                 </Link>
               ))}
             </div>

@@ -44,11 +44,11 @@
 
 @layer components {
   .page-shell {
-    @apply mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8;
+    @apply mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8;
   }
 
   .section-card {
-    @apply rounded-[28px] border border-slate-200/70 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)];
+    @apply overflow-hidden rounded-[28px] border border-slate-200/70 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)];
   }
 
   .glass-card {
@@ -60,15 +60,15 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-[#ec5b13] px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition duration-200 hover:bg-[#d94f0b] disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-[#ec5b13] px-4 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition duration-200 hover:bg-[#d94f0b] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition duration-200 hover:border-orange-200 hover:text-[#ec5b13] disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition duration-200 hover:border-orange-200 hover:text-[#ec5b13] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-100/80 px-4 py-2.5 text-sm font-bold text-slate-700 transition duration-200 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-100/80 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition duration-200 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .field-label {
@@ -76,7 +76,7 @@
   }
 
   .input-base {
-    @apply w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-4 focus:ring-orange-100;
+    @apply min-w-0 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-4 focus:ring-orange-100;
   }
 
   .status-badge {

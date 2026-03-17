@@ -1,4 +1,5 @@
 import { generateGeminiSummary } from '@/integrations/gemini/gemini';
+import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
 import { matchOrCreateCustomer } from '@/shared/lib/domain/customers';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
@@ -29,10 +30,15 @@ import type {
   SetupRequestInput,
   StoreRequestStatus,
   Store,
+  StoreAnalyticsProfile,
+  StoreDailyMetric,
   StoreFeature,
   StoreLocation,
   StoreMedia,
   StoreNotice,
+  StorePriorityKey,
+  StorePrioritySettings,
+  StorePriorityWeights,
   StoreSchedule,
   StoreVisibility,
   SubscriptionPlan,
@@ -78,9 +84,11 @@ interface CreateStoreFromSetupRequestOptions {
 
 export interface StoreSettingsSnapshot {
   store: Store;
+  analyticsProfile: StoreAnalyticsProfile;
   location: StoreLocation | null;
   notices: StoreNotice[];
   media: StoreMedia[];
+  prioritySettings: StorePrioritySettings;
 }
 
 export interface UpdateStoreSettingsInput {
@@ -142,6 +150,69 @@ export interface AiReportDashboardSnapshot {
   topBottlenecks: string[];
   improvementChecklist: string[];
   latestReport: AIReport | null;
+}
+
+export interface DashboardSnapshotInput extends AiReportDashboardInput {}
+
+export interface DashboardSnapshot {
+  store: Store;
+  analyticsProfile: StoreAnalyticsProfile;
+  prioritySettings: StorePrioritySettings;
+  range: AiReportRange;
+  periodLabel: string;
+  customStart?: string;
+  customEnd?: string;
+  totals: {
+    sales: number;
+    orders: number;
+    averageOrderValue: number;
+    reservations: number;
+    consultations: number;
+    consultationConversionRate: number;
+    reviews: number;
+    repeatCustomerRate: number;
+    noShowRate: number;
+    reviewResponseRate: number;
+    operationsScore: number;
+  };
+  highlightMetrics: Array<{
+    accent: 'orange' | 'blue' | 'emerald' | 'slate';
+    hint: string;
+    key: StorePriorityKey;
+    label: string;
+    value: string;
+    weight: number;
+  }>;
+  trend: Array<{
+    label: string;
+    revenueTotal: number;
+    ordersCount: number;
+    reservationCount: number;
+    consultationCount: number;
+    reviewCount: number;
+    repeatCustomerRate: number;
+    operationsScore: number;
+  }>;
+  customerComposition: {
+    customerFocus: string;
+    newCustomers: number;
+    repeatCustomers: number;
+    repeatCustomerRate: number;
+  };
+  aiInsights: string[];
+  recommendedActions: string[];
+  latestReport: AIReport | null;
+  recentOrders: Array<
+    Order & {
+      items: OrderItem[];
+    }
+  >;
+  enabledFeatures: number;
+  activeWaiting: number;
+  upcomingReservations: number;
+  popularMenu: string;
+  todayOrders: number;
+  todaySales: number;
 }
 
 function nowIso() {
@@ -222,6 +293,71 @@ function compareStoresByDashboardReady(database: MvpDatabase, left: Store, right
   }
 
   return right.created_at.localeCompare(left.created_at);
+}
+
+const PRIORITY_KEYS: StorePriorityKey[] = [
+  'revenue',
+  'repeatCustomers',
+  'reservations',
+  'consultationConversion',
+  'branding',
+  'orderEfficiency',
+];
+
+const PRIORITY_LABELS: Record<StorePriorityKey, string> = {
+  revenue: '매출',
+  repeatCustomers: '재방문',
+  reservations: '예약',
+  consultationConversion: '상담전환',
+  branding: '브랜딩',
+  orderEfficiency: '주문효율',
+};
+
+const PRIORITY_ACCENTS: Record<StorePriorityKey, 'orange' | 'blue' | 'emerald' | 'slate'> = {
+  revenue: 'emerald',
+  repeatCustomers: 'blue',
+  reservations: 'orange',
+  consultationConversion: 'slate',
+  branding: 'orange',
+  orderEfficiency: 'blue',
+};
+
+function getPriorityWeightTotal(weights: StorePriorityWeights) {
+  return PRIORITY_KEYS.reduce((total, key) => total + weights[key], 0);
+}
+
+function sortPriorityWeights(weights: StorePriorityWeights) {
+  return [...PRIORITY_KEYS].sort((left, right) => {
+    const diff = weights[right] - weights[left];
+    if (diff !== 0) {
+      return diff;
+    }
+
+    return PRIORITY_LABELS[left].localeCompare(PRIORITY_LABELS[right], 'ko');
+  });
+}
+
+function ensureStoreAnalyticsFoundation(database: MvpDatabase, store: Store) {
+  let changed = false;
+  const nextProfile =
+    database.store_analytics_profiles.find((item) => item.store_id === store.id) || buildStoreAnalyticsProfile(store);
+
+  if (!database.store_analytics_profiles.some((item) => item.store_id === store.id)) {
+    database.store_analytics_profiles.push(nextProfile);
+    changed = true;
+  }
+
+  if (!database.store_priority_settings.some((item) => item.store_id === store.id)) {
+    database.store_priority_settings.push(buildStorePrioritySettings(store.id, nextProfile.analytics_preset));
+    changed = true;
+  }
+
+  if (!database.store_daily_metrics.some((item) => item.store_id === store.id)) {
+    database.store_daily_metrics.push(...buildStoreDailyMetrics(store));
+    changed = true;
+  }
+
+  return changed;
 }
 
 function createDemoOperationalDataset(store: Store, menuItems: MenuItem[]) {
@@ -446,6 +582,8 @@ function ensureDemoAdminBootstrapData() {
   changed = mergeMissingById(database.stores, seededDatabase.stores) || changed;
   changed = mergeMissingById(database.store_members, seededDatabase.store_members) || changed;
   changed = mergeMissingById(database.store_features, seededDatabase.store_features) || changed;
+  changed = mergeMissingById(database.store_analytics_profiles, seededDatabase.store_analytics_profiles) || changed;
+  changed = mergeMissingById(database.store_priority_settings, seededDatabase.store_priority_settings) || changed;
   changed = mergeMissingById(database.store_tables, seededDatabase.store_tables) || changed;
   changed = mergeMissingById(database.menu_categories, seededDatabase.menu_categories) || changed;
   changed = mergeMissingById(database.menu_items, seededDatabase.menu_items) || changed;
@@ -460,8 +598,10 @@ function ensureDemoAdminBootstrapData() {
   changed = mergeMissingById(database.waiting_entries, seededDatabase.waiting_entries) || changed;
   changed = mergeMissingById(database.ai_reports, seededDatabase.ai_reports) || changed;
   changed = mergeMissingById(database.sales_daily, seededDatabase.sales_daily) || changed;
+  changed = mergeMissingById(database.store_daily_metrics, seededDatabase.store_daily_metrics) || changed;
 
   database.stores.forEach((store) => {
+    changed = ensureStoreAnalyticsFoundation(database, store) || changed;
     const operationalScore = getStoreOperationalScore(database, store.id);
     if (operationalScore >= 4) {
       return;
@@ -525,14 +665,22 @@ function ensureDemoAdminBootstrapData() {
 }
 
 function getStoreScopedData(storeId: string) {
-  const database = getDatabase();
+  let database = ensureDemoAdminBootstrapData();
+  const store = database.stores.find((item) => item.id === storeId);
+
+  if (store && ensureStoreAnalyticsFoundation(database, store)) {
+    database = saveDatabase(database);
+  }
+
   return {
     database,
-    store: database.stores.find((item) => item.id === storeId),
+    store,
+    analyticsProfile: database.store_analytics_profiles.find((item) => item.store_id === storeId) || null,
     media: database.store_media.filter((item) => item.store_id === storeId),
     locations: database.store_locations.filter((item) => item.store_id === storeId),
     notices: database.store_notices.filter((item) => item.store_id === storeId),
     features: database.store_features.filter((item) => item.store_id === storeId),
+    prioritySettings: database.store_priority_settings.find((item) => item.store_id === storeId) || null,
     tables: database.store_tables.filter((item) => item.store_id === storeId),
     menuCategories: database.menu_categories.filter((item) => item.store_id === storeId),
     menuItems: database.menu_items.filter((item) => item.store_id === storeId),
@@ -548,6 +696,7 @@ function getStoreScopedData(storeId: string) {
     contracts: database.contracts.filter((item) => item.store_id === storeId),
     reports: database.ai_reports.filter((item) => item.store_id === storeId),
     sales: database.sales_daily.filter((item) => item.store_id === storeId),
+    dailyMetrics: database.store_daily_metrics.filter((item) => item.store_id === storeId),
   };
 }
 
@@ -730,6 +879,219 @@ function buildAiReportDashboardSummary(input: {
     topBottlenecks: topBottlenecks.slice(0, 3),
     recommendationSummary: recommendationSummary.slice(0, 3),
     improvementChecklist: improvementChecklist.slice(0, 3),
+  };
+}
+
+function averageMetricValue(metrics: StoreDailyMetric[], selector: (metric: StoreDailyMetric) => number) {
+  if (!metrics.length) {
+    return 0;
+  }
+
+  return Math.round(sumBy(metrics, selector) / metrics.length);
+}
+
+function getDashboardMetricsTotals(metrics: StoreDailyMetric[]) {
+  const revenue = sumBy(metrics, (metric) => metric.revenue_total);
+  const orders = sumBy(metrics, (metric) => metric.orders_count);
+  const repeatCustomers = sumBy(metrics, (metric) => metric.repeat_customers);
+  const newCustomers = sumBy(metrics, (metric) => metric.new_customers);
+  const totalCustomers = repeatCustomers + newCustomers;
+
+  return {
+    averageOrderValue: orders ? Math.round(revenue / orders) : 0,
+    consultationConversionRate: averageMetricValue(metrics, (metric) => metric.consultation_conversion_rate),
+    consultations: sumBy(metrics, (metric) => metric.consultation_count),
+    newCustomers,
+    noShowRate: averageMetricValue(metrics, (metric) => metric.no_show_rate),
+    operationsScore: averageMetricValue(metrics, (metric) => metric.operations_score),
+    orders,
+    repeatCustomerRate: totalCustomers ? Math.round((repeatCustomers / totalCustomers) * 100) : 0,
+    repeatCustomers,
+    reservationCount: sumBy(metrics, (metric) => metric.reservation_count),
+    reviewCount: sumBy(metrics, (metric) => metric.review_count),
+    reviewResponseRate: averageMetricValue(metrics, (metric) => metric.review_response_rate),
+    revenue,
+  };
+}
+
+function buildDashboardTrend(metrics: StoreDailyMetric[], resolved: ReturnType<typeof resolveAiReportWindow>) {
+  const rangeDays = Math.max(1, Math.ceil((resolved.end.getTime() - resolved.start.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+  const bucketCount = resolved.trendDays;
+  const bucketSpan = Math.max(1, Math.ceil(rangeDays / bucketCount));
+  const trendStart = startOfDay(resolved.end);
+  trendStart.setDate(trendStart.getDate() - bucketSpan * (bucketCount - 1));
+
+  return Array.from({ length: bucketCount }).map((_, index) => {
+    const bucketStart = startOfDay(trendStart);
+    bucketStart.setDate(trendStart.getDate() + index * bucketSpan);
+    const bucketEnd = endOfDay(bucketStart);
+    bucketEnd.setDate(bucketStart.getDate() + bucketSpan - 1);
+    const bucketMetrics = metrics.filter((metric) => isWithinDateRange(metric.metric_date, bucketStart, bucketEnd));
+    const label =
+      bucketSpan === 1
+        ? formatBucketLabel(bucketStart)
+        : `${bucketStart.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}`;
+
+    return {
+      label,
+      revenueTotal: sumBy(bucketMetrics, (metric) => metric.revenue_total),
+      ordersCount: sumBy(bucketMetrics, (metric) => metric.orders_count),
+      reservationCount: sumBy(bucketMetrics, (metric) => metric.reservation_count),
+      consultationCount: sumBy(bucketMetrics, (metric) => metric.consultation_count),
+      reviewCount: sumBy(bucketMetrics, (metric) => metric.review_count),
+      repeatCustomerRate: averageMetricValue(bucketMetrics, (metric) => metric.repeat_customer_rate),
+      operationsScore: averageMetricValue(bucketMetrics, (metric) => metric.operations_score),
+    };
+  });
+}
+
+function buildDashboardHighlightMetrics(input: {
+  totals: ReturnType<typeof getDashboardMetricsTotals>;
+  prioritySettings: StorePrioritySettings;
+}) {
+  const { totals, prioritySettings } = input;
+
+  return sortPriorityWeights(prioritySettings.weights).map((key) => {
+    if (key === 'revenue') {
+      return {
+        accent: PRIORITY_ACCENTS[key],
+        hint: `주문 ${totals.orders}건 · 객단가 ${formatCurrency(totals.averageOrderValue)}`,
+        key,
+        label: PRIORITY_LABELS[key],
+        value: formatCurrency(totals.revenue),
+        weight: prioritySettings.weights[key],
+      };
+    }
+
+    if (key === 'repeatCustomers') {
+      return {
+        accent: PRIORITY_ACCENTS[key],
+        hint: `재방문 ${totals.repeatCustomers}명 · 신규 ${totals.newCustomers}명`,
+        key,
+        label: PRIORITY_LABELS[key],
+        value: `${totals.repeatCustomerRate}%`,
+        weight: prioritySettings.weights[key],
+      };
+    }
+
+    if (key === 'reservations') {
+      return {
+        accent: PRIORITY_ACCENTS[key],
+        hint: `노쇼율 ${totals.noShowRate}%`,
+        key,
+        label: PRIORITY_LABELS[key],
+        value: `${totals.reservationCount}건`,
+        weight: prioritySettings.weights[key],
+      };
+    }
+
+    if (key === 'consultationConversion') {
+      return {
+        accent: PRIORITY_ACCENTS[key],
+        hint: `상담 ${totals.consultations}건`,
+        key,
+        label: PRIORITY_LABELS[key],
+        value: `${totals.consultationConversionRate}%`,
+        weight: prioritySettings.weights[key],
+      };
+    }
+
+    if (key === 'branding') {
+      return {
+        accent: PRIORITY_ACCENTS[key],
+        hint: `리뷰 ${totals.reviewCount}건 · 응답률 ${totals.reviewResponseRate}%`,
+        key,
+        label: PRIORITY_LABELS[key],
+        value: `${totals.reviewCount}건`,
+        weight: prioritySettings.weights[key],
+      };
+    }
+
+    return {
+      accent: PRIORITY_ACCENTS[key],
+      hint: '운영 응답 속도와 피크타임 안정성 종합',
+      key,
+      label: PRIORITY_LABELS[key],
+      value: `${totals.operationsScore}점`,
+      weight: prioritySettings.weights[key],
+    };
+  });
+}
+
+function buildDashboardInsights(input: {
+  analyticsProfile: StoreAnalyticsProfile;
+  latestReport: AIReport | null;
+  previousTotals: ReturnType<typeof getDashboardMetricsTotals>;
+  prioritySettings: StorePrioritySettings;
+  topSignals: string[];
+  totals: ReturnType<typeof getDashboardMetricsTotals>;
+}) {
+  const priorityOrder = sortPriorityWeights(input.prioritySettings.weights);
+  const insights: string[] = [];
+  const actions: string[] = [];
+  const revenueDelta =
+    input.previousTotals.revenue > 0
+      ? Math.round(((input.totals.revenue - input.previousTotals.revenue) / input.previousTotals.revenue) * 100)
+      : 0;
+  const repeatDelta = input.totals.repeatCustomerRate - input.previousTotals.repeatCustomerRate;
+
+  if (priorityOrder[0] === 'revenue') {
+    insights.push(
+      `매출 우선순위가 가장 높고 ${input.analyticsProfile.industry} 기준 ${input.totals.revenue.toLocaleString('ko-KR')}원 흐름입니다. 전기간 대비 ${revenueDelta >= 0 ? '+' : ''}${revenueDelta}% 변동을 보였습니다.`,
+    );
+    actions.push('상위 메뉴 묶음 제안과 피크타임 객단가 보강 문구를 먼저 점검하세요.');
+  }
+
+  if (input.totals.repeatCustomerRate < 30 || repeatDelta < -3) {
+    insights.push(
+      `재방문율이 ${input.totals.repeatCustomerRate}%로 ${input.previousTotals.repeatCustomerRate}% 대비 ${repeatDelta}p 변동해 단골 전환 액션 우선도가 높습니다.`,
+    );
+    actions.push('최근 방문 고객을 재방문 가능 고객과 휴면 고객으로 나눠 후속 메시지를 설계하세요.');
+  }
+
+  if (input.totals.reservationCount > 0 && input.totals.noShowRate >= 8) {
+    insights.push(
+      `예약 수는 ${input.totals.reservationCount}건으로 유지되지만 노쇼율이 ${input.totals.noShowRate}%라 리마인드 메시지 자동화가 필요합니다.`,
+    );
+    actions.push('예약 하루 전과 방문 2시간 전 리마인드 메시지를 기본 운영 루틴으로 고정하세요.');
+  }
+
+  if (input.totals.consultations > 0 && input.totals.consultationConversionRate < 35) {
+    insights.push(
+      `상담은 ${input.totals.consultations}건 확보됐지만 전환율이 ${input.totals.consultationConversionRate}%라 응답 후속 동선 정리가 필요합니다.`,
+    );
+    actions.push('상담 접수 후 24시간 내 후속 연락 기준과 예약 유도 문구를 템플릿화하세요.');
+  }
+
+  if (input.totals.reviewCount > 0 && input.totals.reviewResponseRate < 80) {
+    insights.push(
+      `리뷰 응답률이 ${input.totals.reviewResponseRate}% 수준이라 브랜드 응답 품질을 높일 여지가 있습니다.`,
+    );
+    actions.push('최근 리뷰 10건만 먼저 분류해 답변 SLA를 주 3회 루틴으로 만드세요.');
+  }
+
+  if (input.totals.operationsScore < 74) {
+    insights.push(`운영 점수가 ${input.totals.operationsScore}점으로 피크타임 운영 안정성 보강이 필요합니다.`);
+    actions.push('오픈 전 준비 체크리스트와 피크타임 인력 배치를 다시 맞춰 운영 편차를 줄이세요.');
+  }
+
+  if (!insights.length) {
+    insights.push(
+      `${input.analyticsProfile.customer_focus} 중심 운영 흐름이 안정적입니다. 현재는 ${input.topSignals[0] || '핵심 신호 유지'}를 기준으로 성과를 유지하는 단계입니다.`,
+    );
+  }
+
+  if (!actions.length) {
+    actions.push('상위 3개 KPI를 같은 시간에 점검하는 운영 루틴을 먼저 고정하세요.');
+  }
+
+  if (input.latestReport?.summary) {
+    insights.unshift(input.latestReport.summary);
+  }
+
+  return {
+    actions: actions.slice(0, 3),
+    insights: insights.slice(0, 4),
   };
 }
 
@@ -1168,22 +1530,75 @@ export async function getStoreBySlug(storeSlug: string) {
   return database.stores.find((store) => store.slug === normalized) || null;
 }
 
-export function getDashboardSnapshot(storeId: string) {
+export function getDashboardSnapshot(storeId: string, input: DashboardSnapshotInput = { range: 'weekly' }): DashboardSnapshot {
   const data = getStoreScopedData(storeId);
+  const resolved = resolveAiReportWindow(input);
+  const analyticsProfile = data.analyticsProfile || buildStoreAnalyticsProfile(data.store!);
+  const prioritySettings = data.prioritySettings || buildStorePrioritySettings(storeId, analyticsProfile.analytics_preset);
   const todayOrders = getTodayOrders(data.orders);
   const completedToday = getTodayCompletedOrders(data.orders);
-  const totalSales = sumBy(completedToday, (order) => order.total_amount);
+  const todaySales = sumBy(completedToday, (order) => order.total_amount);
   const performance = buildMenuPerformance(data.menuItems, data.orderItems);
   const waitingActive = data.waitingEntries.filter((entry) => entry.status === 'waiting' || entry.status === 'called');
   const reservationsToday = data.reservations.filter((reservation) => startOfDayKey(reservation.reserved_at) === startOfDayKey(new Date()));
+  const latestReport = data.reports
+    .slice()
+    .sort((left, right) => right.generated_at.localeCompare(left.generated_at))[0] || null;
+
+  const rangeMetrics = data.dailyMetrics.filter((metric) => isWithinDateRange(metric.metric_date, resolved.start, resolved.end));
+  const windowDays = Math.max(1, Math.ceil((resolved.end.getTime() - resolved.start.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+  const previousEnd = endOfDay(resolved.start);
+  previousEnd.setDate(previousEnd.getDate() - 1);
+  const previousStart = startOfDay(previousEnd);
+  previousStart.setDate(previousStart.getDate() - (windowDays - 1));
+  const previousMetrics = data.dailyMetrics.filter((metric) => isWithinDateRange(metric.metric_date, previousStart, previousEnd));
+  const totals = getDashboardMetricsTotals(rangeMetrics);
+  const previousTotals = getDashboardMetricsTotals(previousMetrics);
+  const topSignals = Array.from(new Set(rangeMetrics.flatMap((metric) => metric.top_signals || []))).slice(0, 4);
+  const insightSummary = buildDashboardInsights({
+    analyticsProfile,
+    latestReport,
+    previousTotals,
+    prioritySettings,
+    topSignals,
+    totals,
+  });
 
   return {
     store: data.store!,
-    todayOrders: todayOrders.length,
-    todaySales: totalSales,
-    activeWaiting: waitingActive.length,
-    upcomingReservations: reservationsToday.length,
-    popularMenu: performance.popular?.menuItem.name || '-',
+    analyticsProfile,
+    prioritySettings,
+    range: resolved.range,
+    periodLabel: resolved.label,
+    customStart: input.customStart,
+    customEnd: input.customEnd,
+    totals: {
+      sales: totals.revenue,
+      orders: totals.orders,
+      averageOrderValue: totals.averageOrderValue,
+      reservations: totals.reservationCount,
+      consultations: totals.consultations,
+      consultationConversionRate: totals.consultationConversionRate,
+      reviews: totals.reviewCount,
+      repeatCustomerRate: totals.repeatCustomerRate,
+      noShowRate: totals.noShowRate,
+      reviewResponseRate: totals.reviewResponseRate,
+      operationsScore: totals.operationsScore,
+    },
+    highlightMetrics: buildDashboardHighlightMetrics({
+      totals,
+      prioritySettings,
+    }),
+    trend: buildDashboardTrend(rangeMetrics, resolved),
+    customerComposition: {
+      customerFocus: analyticsProfile.customer_focus,
+      newCustomers: totals.newCustomers,
+      repeatCustomers: totals.repeatCustomers,
+      repeatCustomerRate: totals.repeatCustomerRate,
+    },
+    aiInsights: insightSummary.insights,
+    recommendedActions: insightSummary.actions,
+    latestReport,
     recentOrders: data.orders
       .slice()
       .sort((left, right) => right.placed_at.localeCompare(left.placed_at))
@@ -1193,6 +1608,11 @@ export function getDashboardSnapshot(storeId: string) {
         items: orderItemsForOrder(order.id, data.orderItems),
       })),
     enabledFeatures: data.features.filter((feature) => feature.enabled).length,
+    activeWaiting: waitingActive.length,
+    upcomingReservations: reservationsToday.length,
+    popularMenu: performance.popular?.menuItem.name || '-',
+    todayOrders: todayOrders.length,
+    todaySales,
   };
 }
 
@@ -1494,6 +1914,62 @@ export async function updateBrandProfile(
   return nextStore;
 }
 
+function assertValidPriorityWeights(weights: StorePriorityWeights) {
+  const total = getPriorityWeightTotal(weights);
+
+  if (total !== 100) {
+    throw new Error(`운영 우선순위 가중치 합계는 100이어야 합니다. 현재 합계: ${total}`);
+  }
+
+  const hasInvalidValue = PRIORITY_KEYS.some((key) => weights[key] < 0 || weights[key] > 100);
+  if (hasInvalidValue) {
+    throw new Error('운영 우선순위 가중치는 0 이상 100 이하만 허용됩니다.');
+  }
+}
+
+export async function getStorePrioritySettings(storeId: string) {
+  const data = getStoreScopedData(storeId);
+  if (!data.store) {
+    return null;
+  }
+
+  return data.prioritySettings || buildStorePrioritySettings(storeId, data.analyticsProfile?.analytics_preset || 'seongsu_brunch_cafe');
+}
+
+export async function updateStorePrioritySettings(storeId: string, weights: StorePriorityWeights) {
+  assertValidPriorityWeights(weights);
+  const timestamp = nowIso();
+  let nextSettings: StorePrioritySettings | null = null;
+
+  updateDatabase((database) => {
+    const existingIndex = database.store_priority_settings.findIndex((item) => item.store_id === storeId);
+    if (existingIndex >= 0) {
+      nextSettings = {
+        ...database.store_priority_settings[existingIndex],
+        weights,
+        updated_at: timestamp,
+        version: database.store_priority_settings[existingIndex].version + 1,
+      };
+      database.store_priority_settings[existingIndex] = nextSettings!;
+      return;
+    }
+
+    const store = database.stores.find((item) => item.id === storeId);
+    if (!store) {
+      return;
+    }
+
+    nextSettings = {
+      ...buildStorePrioritySettings(storeId, buildStoreAnalyticsProfile(store).analytics_preset),
+      weights,
+      updated_at: timestamp,
+    };
+    database.store_priority_settings.unshift(nextSettings);
+  });
+
+  return nextSettings;
+}
+
 export async function getStoreSettings(storeId: string): Promise<StoreSettingsSnapshot | null> {
   const data = getStoreScopedData(storeId);
   if (!data.store) {
@@ -1502,9 +1978,12 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
 
   return {
     store: data.store,
+    analyticsProfile: data.analyticsProfile || buildStoreAnalyticsProfile(data.store),
     location: getPrimaryStoreLocation(data.locations),
     notices: getPublishedStoreNotices(data.notices),
     media: getSortedStoreMedia(data.media),
+    prioritySettings:
+      data.prioritySettings || buildStorePrioritySettings(storeId, data.analyticsProfile?.analytics_preset || 'seongsu_brunch_cafe'),
   };
 }
 
@@ -1542,6 +2021,22 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
     };
 
     database.stores[storeIndex] = nextStore;
+
+    const nextAnalyticsProfile = buildStoreAnalyticsProfile(nextStore);
+    const analyticsProfileIndex = database.store_analytics_profiles.findIndex((profile) => profile.store_id === storeId);
+    if (analyticsProfileIndex >= 0) {
+      database.store_analytics_profiles[analyticsProfileIndex] = {
+        ...database.store_analytics_profiles[analyticsProfileIndex],
+        ...nextAnalyticsProfile,
+        updated_at: timestamp,
+        version: database.store_analytics_profiles[analyticsProfileIndex].version + 1,
+      };
+    } else {
+      database.store_analytics_profiles.unshift({
+        ...nextAnalyticsProfile,
+        updated_at: timestamp,
+      });
+    }
 
     const brandProfileIndex = database.store_brand_profiles.findIndex((profile) => profile.store_id === storeId);
     if (brandProfileIndex >= 0) {
@@ -1689,9 +2184,14 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
 
     snapshot = {
       store: nextStore,
+      analyticsProfile:
+        database.store_analytics_profiles.find((profile) => profile.store_id === storeId) || buildStoreAnalyticsProfile(nextStore),
       location: nextLocation,
       notices: getPublishedStoreNotices(database.store_notices.filter((notice) => notice.store_id === storeId)),
       media: getSortedStoreMedia(database.store_media.filter((media) => media.store_id === storeId)),
+      prioritySettings:
+        database.store_priority_settings.find((settings) => settings.store_id === storeId) ||
+        buildStorePrioritySettings(storeId, buildStoreAnalyticsProfile(nextStore).analytics_preset),
     };
   });
 

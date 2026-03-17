@@ -420,16 +420,76 @@ export interface SalesDaily {
   channel_mix: Partial<Record<OrderChannel, number>>;
 }
 
+export type AnalyticsPreset = 'seongsu_brunch_cafe' | 'mapo_evening_restaurant' | 'consultation_service';
+export type StorePriorityKey =
+  | 'revenue'
+  | 'repeatCustomers'
+  | 'reservations'
+  | 'consultationConversion'
+  | 'branding'
+  | 'orderEfficiency';
+
+export interface StoreAnalyticsProfile {
+  id: string;
+  store_id: string;
+  industry: string;
+  region: string;
+  customer_focus: string;
+  analytics_preset: AnalyticsPreset;
+  updated_at: string;
+  version: number;
+}
+
+export interface StorePriorityWeights {
+  revenue: number;
+  repeatCustomers: number;
+  reservations: number;
+  consultationConversion: number;
+  branding: number;
+  orderEfficiency: number;
+}
+
+export interface StorePrioritySettings {
+  id: string;
+  store_id: string;
+  weights: StorePriorityWeights;
+  updated_at: string;
+  version: number;
+}
+
+export interface StoreDailyMetric {
+  id: string;
+  store_id: string;
+  metric_date: string;
+  revenue_total: number;
+  orders_count: number;
+  avg_order_value: number;
+  new_customers: number;
+  repeat_customers: number;
+  repeat_customer_rate: number;
+  reservation_count: number;
+  no_show_rate: number;
+  consultation_count: number;
+  consultation_conversion_rate: number;
+  review_count: number;
+  review_response_rate: number;
+  operations_score: number;
+  top_signals?: string[];
+  version: number;
+}
+
 export interface MvpDatabase {
   profiles: Profile[];
   store_requests: StoreRequest[];
   stores: Store[];
+  store_analytics_profiles: StoreAnalyticsProfile[];
   store_brand_profiles: StoreBrandProfile[];
   store_media: StoreMedia[];
   store_locations: StoreLocation[];
   store_notices: StoreNotice[];
   store_members: StoreMember[];
   store_features: StoreFeature[];
+  store_priority_settings: StorePrioritySettings[];
   store_tables: StoreTable[];
   menu_categories: MenuCategory[];
   menu_items: MenuItem[];
@@ -445,6 +505,7 @@ export interface MvpDatabase {
   contracts: Contract[];
   ai_reports: AIReport[];
   sales_daily: SalesDaily[];
+  store_daily_metrics: StoreDailyMetric[];
   billing_records: BillingRecord[];
   admin_users: AdminUser[];
   system_status: SystemStatusItem[];

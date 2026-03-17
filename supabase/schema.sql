@@ -259,6 +259,47 @@ create table if not exists public.sales_daily (
   unique (store_id, sale_date)
 );
 
+create table if not exists public.store_analytics_profiles (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null unique references public.stores(id) on delete cascade,
+  industry text not null,
+  region text not null,
+  customer_focus text not null,
+  analytics_preset text not null,
+  version integer not null default 1,
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.store_priority_settings (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null unique references public.stores(id) on delete cascade,
+  weights jsonb not null default '{"revenue":28,"repeatCustomers":18,"reservations":16,"consultationConversion":12,"branding":12,"orderEfficiency":14}'::jsonb,
+  version integer not null default 1,
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.store_daily_metrics (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  metric_date date not null,
+  revenue_total numeric(12, 2) not null default 0,
+  orders_count integer not null default 0,
+  avg_order_value numeric(12, 2) not null default 0,
+  new_customers integer not null default 0,
+  repeat_customers integer not null default 0,
+  repeat_customer_rate numeric(5, 2) not null default 0,
+  reservation_count integer not null default 0,
+  no_show_rate numeric(5, 2) not null default 0,
+  consultation_count integer not null default 0,
+  consultation_conversion_rate numeric(5, 2) not null default 0,
+  review_count integer not null default 0,
+  review_response_rate numeric(5, 2) not null default 0,
+  operations_score numeric(5, 2) not null default 0,
+  top_signals jsonb not null default '[]'::jsonb,
+  version integer not null default 1,
+  unique (store_id, metric_date)
+);
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -303,6 +344,16 @@ create trigger trg_kitchen_tickets_set_updated_at
 before update on public.kitchen_tickets
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists trg_store_analytics_profiles_set_updated_at on public.store_analytics_profiles;
+create trigger trg_store_analytics_profiles_set_updated_at
+before update on public.store_analytics_profiles
+for each row execute procedure public.set_updated_at();
+
+drop trigger if exists trg_store_priority_settings_set_updated_at on public.store_priority_settings;
+create trigger trg_store_priority_settings_set_updated_at
+before update on public.store_priority_settings
+for each row execute procedure public.set_updated_at();
+
 alter table public.profiles enable row level security;
 alter table public.store_setup_requests enable row level security;
 alter table public.stores enable row level security;
@@ -323,6 +374,9 @@ alter table public.store_schedules enable row level security;
 alter table public.contracts enable row level security;
 alter table public.ai_reports enable row level security;
 alter table public.sales_daily enable row level security;
+alter table public.store_analytics_profiles enable row level security;
+alter table public.store_priority_settings enable row level security;
+alter table public.store_daily_metrics enable row level security;
 
 create policy "profiles_select_own"
 on public.profiles
@@ -469,6 +523,24 @@ for all
 using (public.is_store_member(store_id))
 with check (public.is_store_member(store_id));
 
+create policy "store_analytics_profiles_member_access"
+on public.store_analytics_profiles
+for all
+using (public.is_store_member(store_id))
+with check (public.is_store_member(store_id));
+
+create policy "store_priority_settings_member_access"
+on public.store_priority_settings
+for all
+using (public.is_store_member(store_id))
+with check (public.is_store_member(store_id));
+
+create policy "store_daily_metrics_member_access"
+on public.store_daily_metrics
+for all
+using (public.is_store_member(store_id))
+with check (public.is_store_member(store_id));
+
 create index if not exists store_setup_requests_created_by_idx on public.store_setup_requests (created_by);
 create index if not exists store_members_profile_store_idx on public.store_members (profile_id, store_id);
 create index if not exists store_features_store_idx on public.store_features (store_id);
@@ -485,6 +557,9 @@ create index if not exists schedules_store_starts_at_idx on public.store_schedul
 create index if not exists contracts_store_idx on public.contracts (store_id);
 create index if not exists ai_reports_store_generated_idx on public.ai_reports (store_id, generated_at desc);
 create index if not exists sales_daily_store_date_idx on public.sales_daily (store_id, sale_date desc);
+create index if not exists store_analytics_profiles_store_idx on public.store_analytics_profiles (store_id);
+create index if not exists store_priority_settings_store_idx on public.store_priority_settings (store_id);
+create index if not exists store_daily_metrics_store_date_idx on public.store_daily_metrics (store_id, metric_date desc);
 
 create table if not exists public.billing_webhook_events (
   webhook_id text primary key,

@@ -1,4 +1,5 @@
 import { buildStoreUrl } from '@/shared/lib/storeSlug';
+import { buildAnalyticsSeedForStores } from '@/shared/lib/analyticsSeed';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import type { MvpDatabase } from '@/shared/types/models';
 
@@ -36,6 +37,18 @@ export function createSeedDatabase(): MvpDatabase {
   const orderPreparing = 'order_preparing_1';
   const orderReady = 'order_ready_1';
   const surveyId = 'survey_experience';
+  const analyticsSeed = buildAnalyticsSeedForStores([
+    {
+      id: storeA,
+      slug: 'golden-coffee',
+      business_type: '브런치 카페',
+    },
+    {
+      id: storeB,
+      slug: 'mint-bbq',
+      business_type: '고깃집',
+    },
+  ]);
 
   return {
     profiles: [
@@ -293,6 +306,7 @@ export function createSeedDatabase(): MvpDatabase {
         updated_at: isoDaysAgo(1),
       },
     ],
+    store_analytics_profiles: analyticsSeed.profiles,
     store_brand_profiles: [
       {
         id: 'brand_profile_golden',
@@ -448,6 +462,7 @@ export function createSeedDatabase(): MvpDatabase {
         'table_order',
       ]),
     ],
+    store_priority_settings: analyticsSeed.prioritySettings,
     store_tables: [
       {
         id: storeATableA1,
@@ -983,6 +998,7 @@ export function createSeedDatabase(): MvpDatabase {
         channel_mix: { table: 4, delivery: 1 },
       },
     ],
+    store_daily_metrics: analyticsSeed.dailyMetrics,
     billing_records: [
       {
         id: 'billing_golden',
