@@ -56,8 +56,8 @@ describe('dashboard priority settings', () => {
     });
 
     const saved = await getStorePrioritySettings('store_mint_bbq');
-    expect(saved?.weights.revenue).toBe(24);
-    expect(saved?.weights.orderEfficiency).toBe(20);
+    expect(saved?.revenue_weight).toBe(24);
+    expect(saved?.order_efficiency_weight).toBe(20);
 
     await expect(
       updateStorePrioritySettings('store_mint_bbq', {

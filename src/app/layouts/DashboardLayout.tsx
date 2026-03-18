@@ -6,6 +6,7 @@ import { StoreSwitcher } from '@/shared/components/StoreSwitcher';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { useAdminSessionStore } from '@/shared/lib/adminSession';
 import { adminNavigation, resolveAdminNavigation } from '@/shared/lib/moduleCatalog';
+import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { buildStorePath } from '@/shared/lib/storeSlug';
 import { useUiStore } from '@/shared/lib/uiStore';
 
@@ -20,14 +21,13 @@ export function DashboardLayout() {
   const closeSidebar = useUiStore((state) => state.closeSidebar);
   const adminDisplayName = session?.fullName === 'Platform Owner' ? '운영 관리자' : session?.fullName || '운영 관리자';
   const adminDisplayEmail = session?.email || 'admin@mybiz.ai.kr';
+  const currentStoreConfig = currentStore ? getStoreBrandConfig(currentStore) : null;
 
   useEffect(() => {
     closeSidebar();
   }, [closeSidebar, location.pathname]);
 
-  const currentNav = useMemo(() => {
-    return resolveAdminNavigation(location.pathname);
-  }, [location.pathname]);
+  const currentNav = useMemo(() => resolveAdminNavigation(location.pathname), [location.pathname]);
 
   function handleSignOut() {
     signOut();
@@ -80,7 +80,7 @@ export function DashboardLayout() {
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">현재 스토어</p>
           <p className="mt-2 break-words font-semibold text-white">{currentStore.name}</p>
           <p className="mt-1 break-words text-xs leading-6 text-slate-400">
-            {currentStore.business_type} · {currentStore.address}
+            {currentStoreConfig?.business_type || '-'} · {currentStoreConfig?.address || '-'}
           </p>
           <Link className="mt-3 inline-flex text-xs font-bold text-orange-300" to={buildStorePath(currentStore.slug)}>
             스토어 홈 보기
@@ -159,7 +159,7 @@ export function DashboardLayout() {
             </div>
           </header>
 
-          <main className="page-shell flex-1 py-8">
+          <main className="page-shell min-w-0 flex-1 py-8">
             <Outlet />
           </main>
         </div>

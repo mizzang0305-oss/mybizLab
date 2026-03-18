@@ -1,6 +1,8 @@
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
+import { DATA_PROVIDER, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
 import { createId } from '@/shared/lib/ids';
 import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
+import { createStoreBrandConfig } from '@/shared/lib/storeData';
 import { ensureUniqueStoreSlug } from '@/shared/lib/storeSlug';
 import type {
   AdminUser,
@@ -206,23 +208,33 @@ function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest,
   const timestamp = nowIso();
   const uniqueSlug = ensureUniqueStoreSlug(request.requested_slug || request.business_name, database.stores.map((store) => store.slug));
   const storeId = createId('store');
-  const store: Store = {
-    id: storeId,
-    name: request.business_name,
-    slug: uniqueSlug,
+  const brandConfig = createStoreBrandConfig({
     owner_name: request.owner_name,
     business_number: request.business_number,
     phone: request.phone,
     email: request.email,
     address: request.address,
     business_type: request.business_type,
+  });
+  const store: Store = {
+    id: storeId,
+    name: request.business_name,
+    slug: uniqueSlug,
+    brand_config: brandConfig,
+    owner_name: brandConfig.owner_name,
+    business_number: brandConfig.business_number,
+    phone: brandConfig.phone,
+    email: brandConfig.email,
+    address: brandConfig.address,
+    business_type: brandConfig.business_type,
     logo_url: '',
     brand_color: request.brand_color,
     tagline: request.tagline,
     description: request.description,
     public_status: 'private',
     subscription_plan: request.requested_plan,
-    admin_email: request.email,
+    plan: request.requested_plan,
+    admin_email: brandConfig.email,
     created_from_request_id: request.id,
     created_at: timestamp,
     updated_at: timestamp,
@@ -525,6 +537,10 @@ export async function rejectStoreRequest(requestId: string, reviewNotes: string,
 }
 
 export async function approveStoreRequest(requestId: string, reviewNotes?: string, reviewerEmail = 'ops@mybiz.ai.kr') {
+  if (DATA_PROVIDER === 'supabase' || IS_PRODUCTION_RUNTIME) {
+    throw new Error('Supabase 모드에서는 로컬 승인 생성 경로를 사용할 수 없습니다. 스토어 생성은 create_store_with_owner RPC만 사용해야 합니다.');
+  }
+
   let result: { store: Store; request: StoreRequest; created: boolean } | null = null;
 
   updateDatabase((database) => {
@@ -684,4 +700,3 @@ export async function getPlatformAdminUser() {
 }
 
 export const PLATFORM_ADMIN_ROLES: AdminUserRole[] = ['platform_owner', 'platform_admin', 'store_owner', 'store_manager'];
-

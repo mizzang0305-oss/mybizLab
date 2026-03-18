@@ -9,6 +9,8 @@ import type {
   StorePriorityWeights,
 } from '@/shared/types/models';
 
+type AnalyticsStoreInput = Pick<Store, 'id' | 'slug' | 'business_type'> & Partial<Pick<Store, 'brand_config'>>;
+
 function isoDateDaysAgo(daysAgo: number) {
   const value = new Date();
   value.setDate(value.getDate() - daysAgo);
@@ -90,7 +92,7 @@ function buildSignals(input: {
   return signals;
 }
 
-export function buildStoreAnalyticsProfile(store: Pick<Store, 'id' | 'slug' | 'business_type'>): StoreAnalyticsProfile {
+export function buildStoreAnalyticsProfile(store: AnalyticsStoreInput): StoreAnalyticsProfile {
   const preset = resolveAnalyticsPresetForStore(store);
   const definition = ANALYTICS_PROFILE_DEFINITIONS[preset];
 
@@ -107,16 +109,24 @@ export function buildStoreAnalyticsProfile(store: Pick<Store, 'id' | 'slug' | 'b
 }
 
 export function buildStorePrioritySettings(storeId: string, preset: AnalyticsPreset): StorePrioritySettings {
+  const weights = createPriorityWeightsForPreset(preset);
+
   return {
     id: `priority_settings_${storeId}`,
     store_id: storeId,
-    weights: createPriorityWeightsForPreset(preset),
+    revenue_weight: weights.revenue,
+    repeat_customer_weight: weights.repeatCustomers,
+    reservation_weight: weights.reservations,
+    consultation_weight: weights.consultationConversion,
+    branding_weight: weights.branding,
+    order_efficiency_weight: weights.orderEfficiency,
+    created_at: isoDateDaysAgo(0).toISOString(),
     updated_at: isoDateDaysAgo(0).toISOString(),
     version: 1,
   };
 }
 
-export function buildStoreDailyMetrics(store: Pick<Store, 'id' | 'slug' | 'business_type'>, days = 120): StoreDailyMetric[] {
+export function buildStoreDailyMetrics(store: AnalyticsStoreInput, days = 120): StoreDailyMetric[] {
   const preset = resolveAnalyticsPresetForStore(store);
   const definition = ANALYTICS_PROFILE_DEFINITIONS[preset];
   const storeFactor = createStoreFactor(store.id);
@@ -195,7 +205,7 @@ export function buildStoreDailyMetrics(store: Pick<Store, 'id' | 'slug' | 'busin
   });
 }
 
-export function buildAnalyticsSeedForStores(stores: Array<Pick<Store, 'id' | 'slug' | 'business_type'>>) {
+export function buildAnalyticsSeedForStores(stores: AnalyticsStoreInput[]) {
   const profiles = stores.map((store) => buildStoreAnalyticsProfile(store));
   const prioritySettings = stores.map((store) => buildStorePrioritySettings(store.id, resolveAnalyticsPresetForStore(store)));
   const dailyMetrics = stores.flatMap((store) => buildStoreDailyMetrics(store));

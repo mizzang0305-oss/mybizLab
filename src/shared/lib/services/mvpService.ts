@@ -1,4 +1,6 @@
 import { generateGeminiSummary } from '@/integrations/gemini/gemini';
+import { supabase } from '@/integrations/supabase/client';
+import { DATA_PROVIDER, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
 import { matchOrCreateCustomer } from '@/shared/lib/domain/customers';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
@@ -7,6 +9,15 @@ import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
 import { createId } from '@/shared/lib/ids';
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
+import {
+  createStoreBrandConfig,
+  getStoreBrandConfig,
+  getStorePriorityWeights,
+  mapLiveStoreToAppStore,
+  normalizeStoreRecord,
+  withStoreBrandConfig,
+  withStorePriorityWeights,
+} from '@/shared/lib/storeData';
 import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
 import type {
   AIReport,
@@ -82,6 +93,52 @@ interface CreateStoreFromSetupRequestOptions {
   subscriptionStatus?: SubscriptionStatus;
 }
 
+interface CreateStoreWithOwnerRpcRow {
+  store_id: string;
+  slug: string;
+}
+
+interface LiveStoreRow {
+  store_id: string;
+  name: string;
+  timezone: string | null;
+  created_at: string;
+  brand_config: Store['brand_config'] | null;
+  slug: string | null;
+  trial_ends_at: string | null;
+  plan: SubscriptionPlan | null;
+}
+
+interface LiveStoreMemberRow {
+  store_id: string;
+  profile_id: string;
+  role: 'owner' | 'manager' | 'staff';
+}
+
+interface LivePrioritySettingsRow {
+  id: string;
+  store_id: string;
+  revenue_weight: number;
+  repeat_customer_weight: number;
+  reservation_weight: number;
+  consultation_weight: number;
+  branding_weight: number;
+  order_efficiency_weight: number;
+  created_at?: string;
+  updated_at: string;
+  version: number;
+}
+
+interface LiveAnalyticsProfileRow {
+  id: string;
+  store_id: string;
+}
+
+interface LiveHomeContentRow {
+  id: string;
+  store_id: string;
+}
+
 export interface StoreSettingsSnapshot {
   store: Store;
   analyticsProfile: StoreAnalyticsProfile;
@@ -116,6 +173,245 @@ export interface UpdateStoreSettingsInput {
   interiorImageUrl: string;
   noticeTitle: string;
   noticeContent: string;
+}
+
+function shouldUseSupabaseStoreProvisioning() {
+  return DATA_PROVIDER === 'supabase' && Boolean(supabase);
+}
+
+function assertLocalStoreProvisioningAllowed() {
+  if (IS_PRODUCTION_RUNTIME) {
+    throw new Error('프로덕션에서는 로컬 스토어 생성 경로를 사용할 수 없습니다. create_store_with_owner RPC만 사용해야 합니다.');
+  }
+}
+
+async function getAuthenticatedSupabaseUserId() {
+  if (!supabase) {
+    throw new Error('Supabase client is not configured.');
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    throw new Error(`Supabase auth lookup failed: ${authError.message}`);
+  }
+
+  if (!authData.user) {
+    throw new Error('스토어 생성 및 조회에는 로그인된 Supabase 세션이 필요합니다.');
+  }
+
+  return authData.user.id;
+}
+
+function syncStoresToLocalCache(stores: Store[], priorityRows?: LivePrioritySettingsRow[], analyticsProfiles?: StoreAnalyticsProfile[]) {
+  if (!stores.length && !priorityRows?.length && !analyticsProfiles?.length) {
+    return;
+  }
+
+  updateDatabase((database) => {
+    stores.forEach((incomingStore) => {
+      const existingStore = database.stores.find((store) => store.id === incomingStore.id) || null;
+      const nextStore = normalizeStoreRecord({
+        ...(existingStore || incomingStore),
+        ...incomingStore,
+        brand_config: incomingStore.brand_config,
+        public_status: existingStore?.public_status ?? incomingStore.public_status ?? 'public',
+        subscription_plan: incomingStore.subscription_plan ?? existingStore?.subscription_plan ?? 'starter',
+        plan: incomingStore.plan ?? existingStore?.plan ?? incomingStore.subscription_plan ?? 'starter',
+        admin_email: incomingStore.admin_email || existingStore?.admin_email || getStoreBrandConfig(incomingStore).email,
+      });
+      const storeIndex = database.stores.findIndex((store) => store.id === nextStore.id);
+
+      if (storeIndex >= 0) {
+        database.stores[storeIndex] = nextStore;
+      } else {
+        database.stores.unshift(nextStore);
+      }
+    });
+
+    if (priorityRows?.length) {
+      priorityRows.forEach((row) => {
+        const existingIndex = database.store_priority_settings.findIndex((item) => item.store_id === row.store_id);
+        if (existingIndex >= 0) {
+          database.store_priority_settings[existingIndex] = row;
+        } else {
+          database.store_priority_settings.unshift(row);
+        }
+      });
+    }
+
+    if (analyticsProfiles?.length) {
+      analyticsProfiles.forEach((profile) => {
+        const existingIndex = database.store_analytics_profiles.findIndex((item) => item.store_id === profile.store_id);
+        if (existingIndex >= 0) {
+          database.store_analytics_profiles[existingIndex] = profile;
+        } else {
+          database.store_analytics_profiles.unshift(profile);
+        }
+      });
+    }
+  });
+}
+
+async function fetchLiveStoreById(storeId: string) {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('stores')
+    .select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan')
+    .eq('store_id', storeId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load store ${storeId}: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const existingStore = getDatabase().stores.find((store) => store.id === storeId) || null;
+  return mapLiveStoreToAppStore(data as LiveStoreRow, existingStore);
+}
+
+async function fetchPrioritySettingsRows(storeIds: string[]) {
+  if (!supabase || !storeIds.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('store_priority_settings')
+    .select(
+      'id,store_id,revenue_weight,repeat_customer_weight,reservation_weight,consultation_weight,branding_weight,order_efficiency_weight,created_at,updated_at,version',
+    )
+    .in('store_id', storeIds);
+
+  if (error) {
+    throw new Error(`Failed to load store priority settings: ${error.message}`);
+  }
+
+  return (data || []) as LivePrioritySettingsRow[];
+}
+
+async function fetchAnalyticsProfiles(storeIds: string[]) {
+  if (!supabase || !storeIds.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('store_analytics_profiles')
+    .select('id,store_id,industry,region,customer_focus,analytics_preset,updated_at,version')
+    .in('store_id', storeIds);
+
+  if (error) {
+    throw new Error(`Failed to load store analytics profiles: ${error.message}`);
+  }
+
+  return (data || []) as StoreAnalyticsProfile[];
+}
+
+async function verifyProvisionedStore(storeId: string, profileId: string) {
+  if (!supabase) {
+    throw new Error('Supabase client is not configured.');
+  }
+
+  const [storeResult, membershipResult, analyticsResult, priorityResult, homeContentResult] = await Promise.all([
+    supabase.from('stores').select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan').eq('store_id', storeId).maybeSingle(),
+    supabase
+      .from('store_members')
+      .select('store_id,profile_id,role')
+      .eq('store_id', storeId)
+      .eq('profile_id', profileId)
+      .eq('role', 'owner')
+      .maybeSingle(),
+    supabase.from('store_analytics_profiles').select('id,store_id').eq('store_id', storeId).maybeSingle(),
+    supabase
+      .from('store_priority_settings')
+      .select('id,store_id,revenue_weight,repeat_customer_weight,reservation_weight,consultation_weight,branding_weight,order_efficiency_weight,created_at,updated_at,version')
+      .eq('store_id', storeId)
+      .maybeSingle(),
+    supabase.from('store_home_content').select('id,store_id').eq('store_id', storeId).maybeSingle(),
+  ]);
+
+  if (storeResult.error) {
+    throw new Error(`Failed to verify store row: ${storeResult.error.message}`);
+  }
+  if (membershipResult.error) {
+    throw new Error(`Failed to verify owner membership: ${membershipResult.error.message}`);
+  }
+  if (analyticsResult.error) {
+    throw new Error(`Failed to verify analytics profile: ${analyticsResult.error.message}`);
+  }
+  if (priorityResult.error) {
+    throw new Error(`Failed to verify priority settings: ${priorityResult.error.message}`);
+  }
+  if (homeContentResult.error) {
+    throw new Error(`Failed to verify store home content: ${homeContentResult.error.message}`);
+  }
+
+  if (!storeResult.data) {
+    throw new Error('스토어 생성 후 stores row를 찾지 못했습니다.');
+  }
+  if (!membershipResult.data) {
+    throw new Error('스토어 생성 후 owner membership이 생성되지 않았습니다.');
+  }
+  if (!analyticsResult.data) {
+    throw new Error('스토어 생성 후 analytics profile이 생성되지 않았습니다.');
+  }
+  if (!priorityResult.data) {
+    throw new Error('스토어 생성 후 priority settings가 생성되지 않았습니다.');
+  }
+  if (!homeContentResult.data) {
+    throw new Error('스토어 생성 후 home content가 생성되지 않았습니다.');
+  }
+
+  const store = mapLiveStoreToAppStore(
+    storeResult.data as LiveStoreRow,
+    getDatabase().stores.find((item) => item.id === storeId) || null,
+  );
+
+  return {
+    store,
+    prioritySettings: priorityResult.data as LivePrioritySettingsRow,
+  };
+}
+
+async function createStoreViaSupabaseRpc(
+  input: SetupRequestInput,
+  plan: SubscriptionPlan,
+): Promise<CreateStoreWithOwnerRpcRow> {
+  if (!supabase) {
+    throw new Error('Supabase client is not configured.');
+  }
+
+  await getAuthenticatedSupabaseUserId();
+
+  const { data, error } = await supabase.rpc('create_store_with_owner', {
+    p_store_name: input.business_name,
+    p_owner_name: input.owner_name,
+    p_business_number: input.business_number,
+    p_phone: input.phone,
+    p_email: input.email,
+    p_address: input.address,
+    p_business_type: input.business_type,
+    p_requested_slug: input.requested_slug || input.business_name,
+    p_plan: plan,
+  });
+
+  if (error) {
+    throw new Error(`create_store_with_owner RPC failed: ${error.message}`);
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as CreateStoreWithOwnerRpcRow | null;
+
+  const resolvedStoreId = row?.store_id ?? row?.id;
+
+  if (!resolvedStoreId || !row.slug) {
+    throw new Error('create_store_with_owner RPC did not return store_id/id and slug.');
+  }
+
+  return row;
 }
 
 export type AiReportRange = 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -950,8 +1246,9 @@ function buildDashboardHighlightMetrics(input: {
   prioritySettings: StorePrioritySettings;
 }) {
   const { totals, prioritySettings } = input;
+  const weights = getStorePriorityWeights(prioritySettings);
 
-  return sortPriorityWeights(prioritySettings.weights).map((key) => {
+  return sortPriorityWeights(weights).map((key) => {
     if (key === 'revenue') {
       return {
         accent: PRIORITY_ACCENTS[key],
@@ -959,7 +1256,7 @@ function buildDashboardHighlightMetrics(input: {
         key,
         label: PRIORITY_LABELS[key],
         value: formatCurrency(totals.revenue),
-        weight: prioritySettings.weights[key],
+        weight: weights[key],
       };
     }
 
@@ -970,7 +1267,7 @@ function buildDashboardHighlightMetrics(input: {
         key,
         label: PRIORITY_LABELS[key],
         value: `${totals.repeatCustomerRate}%`,
-        weight: prioritySettings.weights[key],
+        weight: weights[key],
       };
     }
 
@@ -981,7 +1278,7 @@ function buildDashboardHighlightMetrics(input: {
         key,
         label: PRIORITY_LABELS[key],
         value: `${totals.reservationCount}건`,
-        weight: prioritySettings.weights[key],
+        weight: weights[key],
       };
     }
 
@@ -992,7 +1289,7 @@ function buildDashboardHighlightMetrics(input: {
         key,
         label: PRIORITY_LABELS[key],
         value: `${totals.consultationConversionRate}%`,
-        weight: prioritySettings.weights[key],
+        weight: weights[key],
       };
     }
 
@@ -1003,7 +1300,7 @@ function buildDashboardHighlightMetrics(input: {
         key,
         label: PRIORITY_LABELS[key],
         value: `${totals.reviewCount}건`,
-        weight: prioritySettings.weights[key],
+        weight: weights[key],
       };
     }
 
@@ -1013,7 +1310,7 @@ function buildDashboardHighlightMetrics(input: {
       key,
       label: PRIORITY_LABELS[key],
       value: `${totals.operationsScore}점`,
-      weight: prioritySettings.weights[key],
+      weight: weights[key],
     };
   });
 }
@@ -1026,7 +1323,7 @@ function buildDashboardInsights(input: {
   topSignals: string[];
   totals: ReturnType<typeof getDashboardMetricsTotals>;
 }) {
-  const priorityOrder = sortPriorityWeights(input.prioritySettings.weights);
+  const priorityOrder = sortPriorityWeights(getStorePriorityWeights(input.prioritySettings));
   const insights: string[] = [];
   const actions: string[] = [];
   const revenueDelta =
@@ -1158,6 +1455,48 @@ export async function getCurrentProfile() {
 }
 
 export async function listAccessibleStores() {
+  if (shouldUseSupabaseStoreProvisioning()) {
+    const profileId = await getAuthenticatedSupabaseUserId();
+    if (!supabase) {
+      return [];
+    }
+
+    const { data: membershipRows, error: membershipError } = await supabase
+      .from('store_members')
+      .select('store_id')
+      .eq('profile_id', profileId);
+
+    if (membershipError) {
+      throw new Error(`Failed to load accessible stores: ${membershipError.message}`);
+    }
+
+    const storeIds = Array.from(new Set((membershipRows || []).map((row) => String(row.store_id)).filter(Boolean)));
+    if (!storeIds.length) {
+      return [];
+    }
+
+    const { data: storeRows, error: storeError } = await supabase
+      .from('stores')
+      .select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan')
+      .in('store_id', storeIds);
+
+    if (storeError) {
+      throw new Error(`Failed to load accessible store rows: ${storeError.message}`);
+    }
+
+    const database = getDatabase();
+    const stores = ((storeRows || []) as LiveStoreRow[]).map((row) =>
+      mapLiveStoreToAppStore(row, database.stores.find((store) => store.id === row.store_id) || null),
+    );
+    const [priorityRows, analyticsProfiles] = await Promise.all([
+      fetchPrioritySettingsRows(storeIds.map((storeId) => storeId)),
+      fetchAnalyticsProfiles(storeIds.map((storeId) => storeId)),
+    ]);
+    syncStoresToLocalCache(stores, priorityRows, analyticsProfiles);
+
+    return stores.slice().sort((left, right) => compareStoresByDashboardReady(getDatabase(), left, right));
+  }
+
   const database = ensureDemoAdminBootstrapData();
   const accessibleStores = getStoreMembersStores(database);
   const stores = accessibleStores.length ? accessibleStores : database.stores;
@@ -1217,10 +1556,23 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 }
 
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
+  const subscriptionPlan = options?.plan ?? 'starter';
+  if (shouldUseSupabaseStoreProvisioning()) {
+    const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan);
+    const profileId = await getAuthenticatedSupabaseUserId();
+    const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
+
+    return {
+      store: verified.store,
+      publicUrl: buildStoreUrl(provisionedStore.slug),
+    };
+  }
+
+  assertLocalStoreProvisioningAllowed();
+
   const uniqueSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
   const timestamp = nowIso();
   const storeId = createId('store');
-  const subscriptionPlan = options?.plan ?? 'starter';
   const requestStatus = options?.requestStatus ?? 'approved';
   const reviewNotes = options?.reviewNotes;
   const reviewerEmail = options?.reviewerEmail;
@@ -1230,16 +1582,25 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
   const setupEventStatus = options?.setupEventStatus ?? (setupStatus === 'setup_paid' ? 'paid' : 'pending');
   const subscriptionEventStatus =
     options?.subscriptionEventStatus ?? (subscriptionStatus === 'subscription_active' ? 'paid' : 'pending');
-  const store: Store = {
-    id: storeId,
-    name: input.business_name,
-    slug: uniqueSlug,
+  const brandConfig = createStoreBrandConfig({
     owner_name: input.owner_name,
     business_number: input.business_number,
     phone: input.phone,
     email: input.email,
     address: input.address,
     business_type: input.business_type,
+  });
+  const store: Store = {
+    id: storeId,
+    name: input.business_name,
+    slug: uniqueSlug,
+    brand_config: brandConfig,
+    owner_name: brandConfig.owner_name,
+    business_number: brandConfig.business_number,
+    phone: brandConfig.phone,
+    email: brandConfig.email,
+    address: brandConfig.address,
+    business_type: brandConfig.business_type,
     brand_color: '#ec5b13',
     logo_url: '',
     tagline: `${input.business_name} 운영을 더 매끄럽게 만드는 AI 스토어`,
@@ -1252,7 +1613,8 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     order_entry_enabled:
       input.selected_features.includes('table_order') || input.selected_features.includes('order_management'),
     subscription_plan: subscriptionPlan,
-    admin_email: input.email,
+    plan: subscriptionPlan,
+    admin_email: brandConfig.email,
     created_at: timestamp,
     updated_at: timestamp,
   };
@@ -1517,11 +1879,49 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
 }
 
 export async function getStoreById(storeId: string) {
+  if (shouldUseSupabaseStoreProvisioning()) {
+    const liveStore = await fetchLiveStoreById(storeId);
+    if (liveStore) {
+      syncStoresToLocalCache([liveStore]);
+      return liveStore;
+    }
+  }
+
   const database = getDatabase();
   return database.stores.find((store) => store.id === storeId) || null;
 }
 
 export async function getStoreBySlug(storeSlug: string) {
+  if (shouldUseSupabaseStoreProvisioning()) {
+    const normalized = normalizeStoreSlug(storeSlug);
+    if (isReservedSlug(normalized)) {
+      return null;
+    }
+
+    if (!supabase) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('stores')
+      .select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan')
+      .eq('slug', normalized)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load store by slug: ${error.message}`);
+    }
+
+    if (data) {
+      const liveStore = mapLiveStoreToAppStore(
+        data as LiveStoreRow,
+        getDatabase().stores.find((store) => store.id === String((data as LiveStoreRow).store_id)) || null,
+      );
+      syncStoresToLocalCache([liveStore]);
+      return liveStore;
+    }
+  }
+
   const database = getDatabase();
   const normalized = normalizeStoreSlug(storeSlug);
   if (isReservedSlug(normalized)) {
@@ -1928,6 +2328,14 @@ function assertValidPriorityWeights(weights: StorePriorityWeights) {
 }
 
 export async function getStorePrioritySettings(storeId: string) {
+  if (shouldUseSupabaseStoreProvisioning() && supabase) {
+    const rows = await fetchPrioritySettingsRows([storeId]);
+    if (rows[0]) {
+      syncStoresToLocalCache([], [rows[0]]);
+      return rows[0];
+    }
+  }
+
   const data = getStoreScopedData(storeId);
   if (!data.store) {
     return null;
@@ -1939,17 +2347,52 @@ export async function getStorePrioritySettings(storeId: string) {
 export async function updateStorePrioritySettings(storeId: string, weights: StorePriorityWeights) {
   assertValidPriorityWeights(weights);
   const timestamp = nowIso();
+
+  if (shouldUseSupabaseStoreProvisioning() && supabase) {
+    const current = (await fetchPrioritySettingsRows([storeId]))[0] || null;
+    const payload = {
+      store_id: storeId,
+      revenue_weight: weights.revenue,
+      repeat_customer_weight: weights.repeatCustomers,
+      reservation_weight: weights.reservations,
+      consultation_weight: weights.consultationConversion,
+      branding_weight: weights.branding,
+      order_efficiency_weight: weights.orderEfficiency,
+      created_at: current?.created_at || timestamp,
+      updated_at: timestamp,
+      version: (current?.version || 0) + 1,
+    };
+
+    const { data, error } = await supabase
+      .from('store_priority_settings')
+      .upsert(payload, { onConflict: 'store_id' })
+      .select(
+        'id,store_id,revenue_weight,repeat_customer_weight,reservation_weight,consultation_weight,branding_weight,order_efficiency_weight,created_at,updated_at,version',
+      )
+      .single();
+
+    if (error) {
+      throw new Error(`운영 우선순위를 저장하지 못했습니다: ${error.message}`);
+    }
+
+    const nextSettings = data as StorePrioritySettings;
+    syncStoresToLocalCache([], [nextSettings]);
+    return nextSettings;
+  }
+
   let nextSettings: StorePrioritySettings | null = null;
 
   updateDatabase((database) => {
     const existingIndex = database.store_priority_settings.findIndex((item) => item.store_id === storeId);
     if (existingIndex >= 0) {
-      nextSettings = {
-        ...database.store_priority_settings[existingIndex],
+      nextSettings = withStorePriorityWeights(
+        {
+          ...database.store_priority_settings[existingIndex],
+          version: database.store_priority_settings[existingIndex].version + 1,
+        },
         weights,
-        updated_at: timestamp,
-        version: database.store_priority_settings[existingIndex].version + 1,
-      };
+        timestamp,
+      );
       database.store_priority_settings[existingIndex] = nextSettings!;
       return;
     }
@@ -1961,9 +2404,9 @@ export async function updateStorePrioritySettings(storeId: string, weights: Stor
 
     nextSettings = {
       ...buildStorePrioritySettings(storeId, buildStoreAnalyticsProfile(store).analytics_preset),
-      weights,
       updated_at: timestamp,
     };
+    nextSettings = withStorePriorityWeights(nextSettings, weights, timestamp);
     database.store_priority_settings.unshift(nextSettings);
   });
 
@@ -1971,6 +2414,18 @@ export async function updateStorePrioritySettings(storeId: string, weights: Stor
 }
 
 export async function getStoreSettings(storeId: string): Promise<StoreSettingsSnapshot | null> {
+  if (shouldUseSupabaseStoreProvisioning()) {
+    const [store, priorityRows, analyticsProfiles] = await Promise.all([
+      getStoreById(storeId),
+      fetchPrioritySettingsRows([storeId]),
+      fetchAnalyticsProfiles([storeId]),
+    ]);
+
+    if (store) {
+      syncStoresToLocalCache([store], priorityRows, analyticsProfiles);
+    }
+  }
+
   const data = getStoreScopedData(storeId);
   if (!data.store) {
     return null;
@@ -1999,14 +2454,18 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
     }
 
     const currentStore = database.stores[storeIndex];
+    const nextBrandConfig = createStoreBrandConfig({
+      owner_name: getStoreBrandConfig(currentStore).owner_name,
+      business_number: getStoreBrandConfig(currentStore).business_number,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      business_type: input.businessType,
+    });
     const nextStore: Store = {
-      ...currentStore,
+      ...withStoreBrandConfig(currentStore, nextBrandConfig),
       name: input.storeName.trim(),
       slug: normalizedSlug,
-      business_type: input.businessType.trim(),
-      phone: input.phone.trim(),
-      email: input.email.trim(),
-      address: input.address.trim(),
       public_status: input.publicStatus,
       homepage_visible: input.homepageVisible,
       consultation_enabled: input.consultationEnabled,
@@ -2155,10 +2614,10 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
         ? {
             ...request,
             business_name: nextStore.name,
-            phone: nextStore.phone,
-            email: nextStore.email,
-            address: nextStore.address,
-            business_type: nextStore.business_type,
+            phone: nextBrandConfig.phone,
+            email: nextBrandConfig.email,
+            address: nextBrandConfig.address,
+            business_type: nextBrandConfig.business_type,
             requested_slug: normalizedSlug,
             brand_name: nextStore.name,
             brand_color: nextStore.brand_color,

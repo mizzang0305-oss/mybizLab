@@ -1,4 +1,7 @@
-import type { AnalyticsPreset, StorePriorityWeights } from '@/shared/types/models';
+import { DEFAULT_STORE_PRIORITY_WEIGHTS, getStoreBrandConfig } from '@/shared/lib/storeData';
+import type { AnalyticsPreset, Store, StorePriorityWeights } from '@/shared/types/models';
+
+type AnalyticsStoreInput = Pick<Store, 'id' | 'slug' | 'business_type'> & Partial<Pick<Store, 'brand_config'>>;
 
 export interface AnalyticsProfileDefinition {
   preset: AnalyticsPreset;
@@ -21,14 +24,7 @@ export interface AnalyticsProfileDefinition {
   topSignalTemplates: [string, string, string];
 }
 
-export const DEFAULT_PRIORITY_WEIGHTS: StorePriorityWeights = {
-  revenue: 28,
-  repeatCustomers: 18,
-  reservations: 16,
-  consultationConversion: 12,
-  branding: 12,
-  orderEfficiency: 14,
-};
+export const DEFAULT_PRIORITY_WEIGHTS: StorePriorityWeights = DEFAULT_STORE_PRIORITY_WEIGHTS;
 
 export const ANALYTICS_PROFILE_DEFINITIONS: Record<AnalyticsPreset, AnalyticsProfileDefinition> = {
   seongsu_brunch_cafe: {
@@ -102,12 +98,13 @@ export function getAnalyticsProfileDefinition(preset: AnalyticsPreset) {
   return ANALYTICS_PROFILE_DEFINITIONS[preset];
 }
 
-export function resolveAnalyticsPresetForStore(input: { id: string; business_type?: string; slug?: string }) {
+export function resolveAnalyticsPresetForStore(input: AnalyticsStoreInput) {
   if (STORE_PRESET_BY_ID[input.id]) {
     return STORE_PRESET_BY_ID[input.id];
   }
 
-  const normalized = `${input.business_type || ''} ${input.slug || ''}`.toLowerCase();
+  const config = getStoreBrandConfig(input);
+  const normalized = `${config.business_type} ${input.slug || ''}`.toLowerCase();
 
   if (normalized.includes('bbq') || normalized.includes('고깃집')) {
     return 'mapo_evening_restaurant';

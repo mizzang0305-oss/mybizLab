@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
 import { Panel } from '@/shared/components/Panel';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
+import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { buildStorePath, buildStoreUrl } from '@/shared/lib/storeSlug';
 
 export function StoreHomePage() {
@@ -10,9 +11,10 @@ export function StoreHomePage() {
   const featureLabelMap = new Map(featureDefinitions.map((feature) => [feature.key, feature.label]));
   const heroMedia = publicStore.media.find((media) => media.type === 'hero') || publicStore.media[0];
   const galleryMedia = publicStore.media.filter((media) => media.type !== 'hero');
-  const consultationLink = `tel:${publicStore.store.phone.replace(/[^0-9+]/g, '')}`;
-  const inquiryLink = `mailto:${publicStore.store.email}?subject=${encodeURIComponent(`[${publicStore.store.name}] 문의`)}`;
-  const reservationLink = `mailto:${publicStore.store.email}?subject=${encodeURIComponent(`[${publicStore.store.name}] 예약 문의`)}`;
+  const config = getStoreBrandConfig(publicStore.store);
+  const consultationLink = `tel:${config.phone.replace(/[^0-9+]/g, '')}`;
+  const inquiryLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStore.store.name}] 문의`)}`;
+  const reservationLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStore.store.name}] 예약 문의`)}`;
 
   return (
     <div className="space-y-8">
@@ -63,21 +65,21 @@ export function StoreHomePage() {
           </div>
         </div>
 
-        <Panel title="스토어 정보" subtitle="공개 스토어에서 바로 확인해야 할 위치, 운영 시간, 연락처를 정리했습니다.">
+        <Panel title="스토어 정보" subtitle="공개 스토어에서 바로 확인할 수 있어야 하는 위치, 연락처, 운영 정보를 정리했습니다.">
           <div className="space-y-3 text-sm leading-7 text-slate-600">
-            <p>업종: {publicStore.store.business_type}</p>
-            <p>연락처: {publicStore.store.phone}</p>
-            <p>이메일: {publicStore.store.email}</p>
-            <p>주소: {publicStore.location?.address || publicStore.store.address}</p>
+            <p>업종: {config.business_type || '-'}</p>
+            <p>연락처: {config.phone || '-'}</p>
+            <p>이메일: {config.email || '-'}</p>
+            <p>주소: {publicStore.location?.address || config.address || '-'}</p>
             <p>운영 시간: {publicStore.location?.opening_hours || '운영 시간을 준비 중입니다.'}</p>
-            <p>오시는 길: {publicStore.location?.directions || '매장 안내를 준비 중입니다.'}</p>
+            <p>찾아오는 길: {publicStore.location?.directions || '매장 안내를 준비 중입니다.'}</p>
             {publicStore.location?.parking_note ? <p>주차 안내: {publicStore.location.parking_note}</p> : null}
             <p className="break-all">공개 주소: {buildStoreUrl(publicStore.store.slug)}</p>
           </div>
         </Panel>
       </section>
 
-      <Panel title="공지 및 방문 안내" subtitle="고객이 방문 전에 꼭 알아야 할 운영 공지를 먼저 보여줍니다.">
+      <Panel title="공지 및 방문 안내" subtitle="고객이 방문 전에 확인해야 할 공지를 먼저 보여줍니다.">
         <div className="grid gap-4 lg:grid-cols-2">
           {publicStore.notices.length ? (
             publicStore.notices.map((notice) => (
@@ -124,7 +126,7 @@ export function StoreHomePage() {
           </div>
         </Panel>
 
-        <Panel title="빠른 진입" subtitle="상담, 문의, 예약, 메뉴, 주문 등 실제 전환 행동으로 이어지는 버튼을 모았습니다.">
+        <Panel title="빠른 진입" subtitle="상담, 문의, 예약, 메뉴, 주문으로 이어지는 버튼을 모아둡니다.">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-[30px] border border-slate-200 bg-white p-5">
               <p className="text-sm font-semibold text-slate-500">방문 전 문의</p>

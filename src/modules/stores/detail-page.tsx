@@ -17,6 +17,7 @@ import {
   SUBSCRIPTION_STATUS_LABELS,
 } from '@/shared/lib/platformConsole';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { getPlatformStoreDetail, updateStoreFeatureAccess, updateStoreVisibility } from '@/shared/lib/services/platformConsoleService';
 import { buildStorePath, buildStoreUrl } from '@/shared/lib/storeSlug';
 import { useUiStore } from '@/shared/lib/uiStore';
@@ -88,6 +89,7 @@ export function StoreDetailPage() {
   const totalRecentSales = storeDetail.recentSales.reduce((sum, item) => sum + item.total_sales, 0);
   const totalRecentOrders = storeDetail.recentSales.reduce((sum, item) => sum + item.order_count, 0);
   const storeUrl = buildStoreUrl(store.slug);
+  const config = getStoreBrandConfig(store);
 
   return (
     <div className="space-y-8">
@@ -136,7 +138,7 @@ export function StoreDetailPage() {
             </div>
             <div className="rounded-3xl bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">업종</p>
-              <p className="mt-2 font-semibold text-slate-900">{store.business_type}</p>
+              <p className="mt-2 font-semibold text-slate-900">{config.business_type || '-'}</p>
             </div>
             <div className="rounded-3xl bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">공개 상태</p>
@@ -157,7 +159,7 @@ export function StoreDetailPage() {
             </div>
             <div className="rounded-3xl bg-slate-50 p-4 sm:col-span-2">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">주소 / 오시는 길</p>
-              <p className="mt-2 font-semibold text-slate-900">{storeDetail.location?.address || store.address}</p>
+              <p className="mt-2 font-semibold text-slate-900">{storeDetail.location?.address || config.address || '-'}</p>
               <p className="mt-2 text-sm leading-6 text-slate-500">{storeDetail.location?.directions || '상세 길안내가 아직 없습니다.'}</p>
             </div>
           </div>
