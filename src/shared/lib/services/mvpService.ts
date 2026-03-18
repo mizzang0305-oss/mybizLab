@@ -404,8 +404,11 @@ async function createStoreViaSupabaseRpc(
   }
 
   const row = (Array.isArray(data) ? data[0] : data) as CreateStoreWithOwnerRpcRow | null;
-  if (!row?.store_id || !row.slug) {
-    throw new Error('create_store_with_owner RPC did not return store_id and slug.');
+
+  const resolvedStoreId = row?.store_id ?? row?.id;
+
+  if (!resolvedStoreId || !row.slug) {
+    throw new Error('create_store_with_owner RPC did not return store_id/id and slug.');
   }
 
   return row;
