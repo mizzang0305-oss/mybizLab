@@ -106,16 +106,29 @@ export interface StoreRequest {
 
 export type StoreSetupRequest = StoreRequest;
 
-export interface Store {
-  id: string;
-  name: string;
-  slug: string;
+export interface StoreBrandConfig {
   owner_name: string;
   business_number: string;
   phone: string;
   email: string;
   address: string;
   business_type: string;
+}
+
+export interface Store {
+  id: string;
+  store_id?: string;
+  name: string;
+  slug: string;
+  brand_config: StoreBrandConfig;
+  owner_name?: string;
+  business_number?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  business_type?: string;
+  timezone?: string;
+  trial_ends_at?: string;
   logo_url?: string;
   brand_color: string;
   tagline: string;
@@ -127,6 +140,7 @@ export interface Store {
   reservation_enabled?: boolean;
   order_entry_enabled?: boolean;
   subscription_plan: SubscriptionPlan;
+  plan?: SubscriptionPlan;
   admin_email: string;
   created_from_request_id?: string;
   created_at: string;
@@ -452,7 +466,13 @@ export interface StorePriorityWeights {
 export interface StorePrioritySettings {
   id: string;
   store_id: string;
-  weights: StorePriorityWeights;
+  revenue_weight: number;
+  repeat_customer_weight: number;
+  reservation_weight: number;
+  consultation_weight: number;
+  branding_weight: number;
+  order_efficiency_weight: number;
+  created_at?: string;
   updated_at: string;
   version: number;
 }

@@ -5,6 +5,7 @@ import { AppFooter } from '@/shared/components/AppFooter';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { getPublicStore } from '@/shared/lib/services/mvpService';
 import { buildStorePath } from '@/shared/lib/storeSlug';
 
@@ -60,9 +61,10 @@ export function StorePublicLayout() {
     );
   }
 
-  const consultationLink = `tel:${publicStoreQuery.data.store.phone.replace(/[^0-9+]/g, '')}`;
-  const inquiryLink = `mailto:${publicStoreQuery.data.store.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 문의`)}`;
-  const reservationLink = `mailto:${publicStoreQuery.data.store.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 예약 문의`)}`;
+  const config = getStoreBrandConfig(publicStoreQuery.data.store);
+  const consultationLink = `tel:${config.phone.replace(/[^0-9+]/g, '')}`;
+  const inquiryLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 문의`)}`;
+  const reservationLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 예약 문의`)}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#fffaf3]">
@@ -73,7 +75,7 @@ export function StorePublicLayout() {
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-600">{publicStoreQuery.data.store.slug}</p>
                 {publicStoreQuery.data.store.public_status !== 'public' ? (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">미공개 프리뷰</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">비공개 프리뷰</span>
                 ) : null}
               </div>
               <h1 className="font-display text-3xl font-black text-slate-900">{publicStoreQuery.data.store.name}</h1>

@@ -15,6 +15,7 @@ import {
   SUBSCRIPTION_STATUS_LABELS,
 } from '@/shared/lib/platformConsole';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { listPlatformStores } from '@/shared/lib/services/platformConsoleService';
 
 const filters = [
@@ -135,7 +136,7 @@ export function StoresPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top text-slate-600">/{item.store.slug}</td>
-                    <td className="px-4 py-4 align-top text-slate-600">{item.store.business_type}</td>
+                    <td className="px-4 py-4 align-top text-slate-600">{getStoreBrandConfig(item.store).business_type || '-'}</td>
                     <td className="px-4 py-4 align-top">
                       <div className="space-y-2">
                         <StatusBadge status={item.store.public_status} />

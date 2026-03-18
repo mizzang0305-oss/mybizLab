@@ -7,6 +7,7 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { useAccessibleStores, useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { getStoreBrandConfig, getStorePriorityWeights } from '@/shared/lib/storeData';
 import {
   getStoreSettings,
   updateStorePrioritySettings,
@@ -106,6 +107,7 @@ export function BrandPage() {
       return;
     }
 
+    const config = getStoreBrandConfig(settingsQuery.data.store);
     const heroMedia = settingsQuery.data.media.find((media) => media.type === 'hero');
     const storefrontMedia = settingsQuery.data.media.find((media) => media.type === 'storefront');
     const interiorMedia = settingsQuery.data.media.find((media) => media.type === 'interior');
@@ -121,10 +123,10 @@ export function BrandPage() {
     setForm({
       storeName: settingsQuery.data.store.name,
       slug: settingsQuery.data.store.slug,
-      businessType: settingsQuery.data.store.business_type,
-      phone: settingsQuery.data.store.phone,
-      email: settingsQuery.data.store.email,
-      address: settingsQuery.data.store.address,
+      businessType: config.business_type,
+      phone: config.phone,
+      email: config.email,
+      address: config.address,
       publicStatus: settingsQuery.data.store.public_status,
       homepageVisible: capabilities.homepageVisible,
       consultationEnabled: capabilities.consultationEnabled,
@@ -144,7 +146,7 @@ export function BrandPage() {
       noticeTitle: pinnedNotice?.title || '',
       noticeContent: pinnedNotice?.content || '',
     });
-    setPriorityWeights(settingsQuery.data.prioritySettings?.weights || DEFAULT_PRIORITY_WEIGHTS);
+    setPriorityWeights(getStorePriorityWeights(settingsQuery.data.prioritySettings) || DEFAULT_PRIORITY_WEIGHTS);
   }, [settingsQuery.data]);
 
   const existingSlugs = useMemo(

@@ -9,7 +9,7 @@ describe('store settings service', () => {
   it('updates store settings and propagates slug, media, location, and notices', async () => {
     const before = await getStoreSettings('store_golden_coffee');
     expect(before?.store.slug).toBe('golden-coffee');
-    expect(before?.prioritySettings.weights.revenue).toBeGreaterThan(0);
+    expect(before?.prioritySettings.revenue_weight).toBeGreaterThan(0);
 
     const next = await updateStoreSettings('store_golden_coffee', {
       storeName: '성수 브런치 하우스',
@@ -55,6 +55,6 @@ describe('store settings service', () => {
     expect(publicStore?.location?.directions).toContain('성수역');
 
     const after = await getStoreSettings('store_golden_coffee');
-    expect(after?.prioritySettings.weights.revenue).toBeGreaterThan(0);
+    expect(after?.prioritySettings.revenue_weight).toBeGreaterThan(0);
   });
 });
