@@ -1,4 +1,6 @@
 import { generateGeminiSummary } from '@/integrations/gemini/gemini';
+import { supabase } from '@/integrations/supabase/client';
+import { DATA_PROVIDER } from '@/shared/lib/appConfig';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
 import { matchOrCreateCustomer } from '@/shared/lib/domain/customers';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
@@ -82,6 +84,11 @@ interface CreateStoreFromSetupRequestOptions {
   subscriptionStatus?: SubscriptionStatus;
 }
 
+interface CreateStoreWithOwnerRpcRow {
+  store_id: string;
+  slug: string;
+}
+
 export interface StoreSettingsSnapshot {
   store: Store;
   analyticsProfile: StoreAnalyticsProfile;
@@ -116,6 +123,51 @@ export interface UpdateStoreSettingsInput {
   interiorImageUrl: string;
   noticeTitle: string;
   noticeContent: string;
+}
+
+function shouldUseSupabaseStoreProvisioning() {
+  return DATA_PROVIDER === 'supabase' && Boolean(supabase);
+}
+
+async function createStoreViaSupabaseRpc(
+  input: SetupRequestInput,
+  plan: SubscriptionPlan,
+): Promise<CreateStoreWithOwnerRpcRow> {
+  if (!supabase) {
+    throw new Error('Supabase client is not configured.');
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    throw new Error(`Supabase auth lookup failed: ${authError.message}`);
+  }
+
+  if (!authData.user) {
+    throw new Error('스토어 생성에는 로그인된 Supabase 세션이 필요합니다.');
+  }
+
+  const { data, error } = await supabase.rpc('create_store_with_owner', {
+    p_store_name: input.business_name,
+    p_owner_name: input.owner_name,
+    p_business_number: input.business_number,
+    p_phone: input.phone,
+    p_email: input.email,
+    p_address: input.address,
+    p_business_type: input.business_type,
+    p_requested_slug: input.requested_slug || input.business_name,
+    p_plan: plan,
+  });
+
+  if (error) {
+    throw new Error(`create_store_with_owner RPC failed: ${error.message}`);
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as CreateStoreWithOwnerRpcRow | null;
+  if (!row?.store_id || !row.slug) {
+    throw new Error('create_store_with_owner RPC did not return store_id and slug.');
+  }
+
+  return row;
 }
 
 export type AiReportRange = 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -1217,10 +1269,13 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 }
 
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
-  const uniqueSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
-  const timestamp = nowIso();
-  const storeId = createId('store');
   const subscriptionPlan = options?.plan ?? 'starter';
+  const provisionedStore = shouldUseSupabaseStoreProvisioning()
+    ? await createStoreViaSupabaseRpc(input, subscriptionPlan)
+    : null;
+  const uniqueSlug = provisionedStore?.slug ?? assertAvailableStoreSlug(input.requested_slug || input.business_name);
+  const timestamp = nowIso();
+  const storeId = provisionedStore?.store_id ?? createId('store');
   const requestStatus = options?.requestStatus ?? 'approved';
   const reviewNotes = options?.reviewNotes;
   const reviewerEmail = options?.reviewerEmail;
