@@ -448,7 +448,7 @@ export interface AiReportDashboardSnapshot {
   latestReport: AIReport | null;
 }
 
-export interface DashboardSnapshotInput extends AiReportDashboardInput {}
+export interface DashboardSnapshotInput extends AiReportDashboardInput { }
 
 export interface DashboardSnapshot {
   store: Store;
@@ -1730,23 +1730,23 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     const storeNotices: StoreNotice[] =
       existingRequest?.notices?.length
         ? existingRequest.notices.map((notice, index) => ({
+          id: createId('store_notice'),
+          store_id: storeId,
+          title: notice.title,
+          content: notice.content,
+          is_pinned: index === 0,
+          published_at: timestamp,
+        }))
+        : [
+          {
             id: createId('store_notice'),
             store_id: storeId,
-            title: notice.title,
-            content: notice.content,
-            is_pinned: index === 0,
+            title: '운영 공지 초안',
+            content: '오픈 전 운영 공지를 먼저 검토하고 공개 스토어에서 노출해 보세요.',
+            is_pinned: true,
             published_at: timestamp,
-          }))
-        : [
-            {
-              id: createId('store_notice'),
-              store_id: storeId,
-              title: '운영 공지 초안',
-              content: '오픈 전 운영 공지를 먼저 검토하고 공개 스토어에서 노출해 보세요.',
-              is_pinned: true,
-              published_at: timestamp,
-            },
-          ];
+          },
+        ];
 
     database.stores.unshift(store);
     database.store_brand_profiles.unshift({
@@ -2060,11 +2060,9 @@ export async function listAiReports(storeId: string) {
 
 export async function generateAiReport(storeId: string, reportType: ReportType) {
   const snapshot = getAiManagerSnapshot(storeId);
-  const fallback = `${reportType === 'daily' ? '일간' : '주간'} 리포트: ${snapshot.store.name}은 ${
-    snapshot.todayOrders
-  }건 주문과 ${formatCurrency(snapshot.todaySales)} 매출을 기록했습니다. 인기 메뉴 ${snapshot.popularMenu}, 부진 메뉴 ${
-    snapshot.weakMenu
-  }, 현재 예약 ${snapshot.reservationCount}건, 웨이팅 ${snapshot.waitingCount}건을 기준으로 피크 타임 대비와 메뉴 개선 액션이 필요합니다.`;
+  const fallback = `${reportType === 'daily' ? '일간' : '주간'} 리포트: ${snapshot.store.name}은 ${snapshot.todayOrders
+    }건 주문과 ${formatCurrency(snapshot.todaySales)} 매출을 기록했습니다. 인기 메뉴 ${snapshot.popularMenu}, 부진 메뉴 ${snapshot.weakMenu
+    }, 현재 예약 ${snapshot.reservationCount}건, 웨이팅 ${snapshot.waitingCount}건을 기준으로 피크 타임 대비와 메뉴 개선 액션이 필요합니다.`;
 
   const prompt = [
     'Create a Korean store operations report for an SMB SaaS dashboard.',
@@ -2443,6 +2441,40 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
 }
 
 export async function updateStoreSettings(storeId: string, input: UpdateStoreSettingsInput) {
+  if (shouldUseSupabaseStoreProvisioning() && supabase) {
+    const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
+    const timestamp = nowIso();
+
+    const currentStore = await getStoreById(storeId);
+    if (!currentStore) {
+      throw new Error('스토어를 찾을 수 없습니다.');
+    }
+
+    const currentConfig = getStoreBrandConfig(currentStore);
+    const nextBrandConfig = createStoreBrandConfig({
+      owner_name: currentConfig.owner_name,
+      business_number: currentConfig.business_number,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      business_type: input.businessType,
+    });
+
+    const { error: storeError } = await supabase
+      .from('stores')
+      .update({
+        name: input.storeName.trim(),
+        slug: normalizedSlug,
+        brand_config: nextBrandConfig,
+      })
+      .eq('store_id', storeId);
+
+    if (storeError) {
+      throw new Error(`스토어 설정을 저장하지 못했습니다: ${storeError.message}`);
+    }
+
+    return getStoreSettings(storeId);
+  }
   const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
   const timestamp = nowIso();
   let snapshot: StoreSettingsSnapshot | null = null;
@@ -2581,12 +2613,12 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
       database.store_notices = database.store_notices.map((notice) =>
         notice.id === pinnedNotice.id
           ? {
-              ...notice,
-              title: input.noticeTitle.trim(),
-              content: input.noticeContent.trim(),
-              is_pinned: true,
-              published_at: timestamp,
-            }
+            ...notice,
+            title: input.noticeTitle.trim(),
+            content: input.noticeContent.trim(),
+            is_pinned: true,
+            published_at: timestamp,
+          }
           : notice,
       );
     } else {
@@ -2603,41 +2635,41 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
     database.store_tables = database.store_tables.map((table) =>
       table.store_id === storeId
         ? {
-            ...table,
-            qr_value: `${buildStoreUrl(normalizedSlug)}/order?table=${encodeURIComponent(table.table_no)}`,
-          }
+          ...table,
+          qr_value: `${buildStoreUrl(normalizedSlug)}/order?table=${encodeURIComponent(table.table_no)}`,
+        }
         : table,
     );
 
     database.store_requests = database.store_requests.map((request) =>
       request.linked_store_id === storeId
         ? {
-            ...request,
-            business_name: nextStore.name,
-            phone: nextBrandConfig.phone,
-            email: nextBrandConfig.email,
-            address: nextBrandConfig.address,
-            business_type: nextBrandConfig.business_type,
-            requested_slug: normalizedSlug,
-            brand_name: nextStore.name,
-            brand_color: nextStore.brand_color,
-            tagline: nextStore.tagline,
-            description: nextStore.description,
-            hero_image_url: input.heroImageUrl.trim(),
-            storefront_image_url: input.storefrontImageUrl.trim(),
-            interior_image_url: input.interiorImageUrl.trim(),
-            directions: nextLocation.directions,
-            notices: input.noticeTitle.trim() || input.noticeContent.trim()
-              ? [
-                  {
-                    id: createId('request_notice'),
-                    title: input.noticeTitle.trim(),
-                    content: input.noticeContent.trim(),
-                  },
-                ]
-              : [],
-            updated_at: timestamp,
-          }
+          ...request,
+          business_name: nextStore.name,
+          phone: nextBrandConfig.phone,
+          email: nextBrandConfig.email,
+          address: nextBrandConfig.address,
+          business_type: nextBrandConfig.business_type,
+          requested_slug: normalizedSlug,
+          brand_name: nextStore.name,
+          brand_color: nextStore.brand_color,
+          tagline: nextStore.tagline,
+          description: nextStore.description,
+          hero_image_url: input.heroImageUrl.trim(),
+          storefront_image_url: input.storefrontImageUrl.trim(),
+          interior_image_url: input.interiorImageUrl.trim(),
+          directions: nextLocation.directions,
+          notices: input.noticeTitle.trim() || input.noticeContent.trim()
+            ? [
+              {
+                id: createId('request_notice'),
+                title: input.noticeTitle.trim(),
+                content: input.noticeContent.trim(),
+              },
+            ]
+            : [],
+          updated_at: timestamp,
+        }
         : request,
     );
 
@@ -2817,9 +2849,9 @@ export async function updateOrderStatus(storeId: string, orderId: string, status
         status === 'completed'
           ? completeOrder(database, order)
           : {
-              ...order,
-              status,
-            };
+            ...order,
+            status,
+          };
 
       return updatedOrder!;
     });
