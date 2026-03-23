@@ -1,10 +1,15 @@
+import { ZodError } from 'zod';
+
+import { DIAGNOSIS_AVAILABLE_DATA_OPTIONS, DIAGNOSIS_CONCERN_OPTIONS, DIAGNOSIS_DESIRED_OUTCOME_OPTIONS, DIAGNOSIS_INDUSTRY_OPTIONS } from '@/shared/lib/diagnosisBlueprint';
+import { diagnosisInputSchema } from '@/shared/lib/diagnosisSchema';
 import {
   buildDiagnosisPrompt,
   buildDiagnosisResult,
   normalizeDiagnosisResult,
   type DiagnosisInput,
   type DiagnosisModelDraft,
-} from '../shared/lib/onboardingFlow';
+} from '@/shared/lib/onboardingFlow';
+import { ALL_FEATURES } from '@/shared/types/models';
 
 const AI_DIAGNOSIS_ENDPOINT = '/api/ai/diagnosis';
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
@@ -31,10 +36,6 @@ class DiagnosisApiError extends Error {
   }
 }
 
-function normalizeString(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 function responseJson(body: unknown, status = 200, extraHeaders?: Record<string, string>) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
@@ -45,31 +46,27 @@ function responseJson(body: unknown, status = 200, extraHeaders?: Record<string,
   });
 }
 
-function parseDiagnosisRequest(body: Record<string, unknown>): DiagnosisInput {
-  const input: DiagnosisInput = {
-    businessType: normalizeString(body.businessType),
-    customerType: normalizeString(body.customerType),
-    operatingConcerns: normalizeString(body.operatingConcerns),
-    region: normalizeString(body.region),
-  };
+function parseDiagnosisRequest(body: unknown): DiagnosisInput {
+  try {
+    return diagnosisInputSchema.parse(body);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new DiagnosisApiError({
+        code: 'INVALID_DIAGNOSIS_INPUT',
+        details: {
+          issues: error.issues.map((issue) => ({
+            message: issue.message,
+            path: issue.path.join('.'),
+          })),
+        },
+        message: 'Diagnosis input requires industryType, storeModeSelection, currentConcern, availableData, desiredOutcome, and region.',
+        stage: 'request-body',
+        status: 400,
+      });
+    }
 
-  const missing = Object.entries(input)
-    .filter(([, value]) => !value)
-    .map(([key]) => key);
-
-  if (missing.length > 0) {
-    throw new DiagnosisApiError({
-      code: 'INVALID_DIAGNOSIS_INPUT',
-      details: {
-        missingFields: missing,
-      },
-      message: 'Diagnosis input requires businessType, region, customerType, and operatingConcerns.',
-      stage: 'request-body',
-      status: 400,
-    });
+    throw error;
   }
-
-  return input;
 }
 
 function readResponseOutputText(payload: Record<string, unknown>) {
@@ -130,8 +127,31 @@ function createDiagnosisSchema() {
         minItems: 3,
         type: 'array',
       },
+      recommendedDataMode: {
+        enum: ['order_only', 'survey_only', 'manual_only', 'order_survey', 'survey_manual', 'order_survey_manual'],
+        type: 'string',
+      },
+      recommendedModules: {
+        items: {
+          enum: ALL_FEATURES,
+          type: 'string',
+        },
+        maxItems: 6,
+        minItems: 3,
+        type: 'array',
+      },
       recommendedPlan: {
         enum: ['starter', 'pro', 'business'],
+        type: 'string',
+      },
+      recommendedQuestions: {
+        items: { type: 'string' },
+        maxItems: 4,
+        minItems: 4,
+        type: 'array',
+      },
+      recommendedStoreMode: {
+        enum: ['order_first', 'survey_first', 'hybrid', 'brand_inquiry_first'],
         type: 'string',
       },
       recommendedStrategies: {
@@ -156,20 +176,7 @@ function createDiagnosisSchema() {
       },
       suggestedFeatures: {
         items: {
-          enum: [
-            'ai_manager',
-            'ai_business_report',
-            'customer_management',
-            'reservation_management',
-            'schedule_management',
-            'surveys',
-            'brand_management',
-            'sales_analysis',
-            'order_management',
-            'waiting_board',
-            'contracts',
-            'table_order',
-          ],
+          enum: ALL_FEATURES,
           type: 'string',
         },
         maxItems: 6,
@@ -191,6 +198,10 @@ function createDiagnosisSchema() {
       'expansionFeatures',
       'reportSummary',
       'suggestedFeatures',
+      'recommendedModules',
+      'recommendedQuestions',
+      'recommendedStoreMode',
+      'recommendedDataMode',
     ],
     type: 'object',
   };
@@ -376,3 +387,10 @@ export function createDiagnosisErrorResponse(error: unknown) {
     500,
   );
 }
+
+export const diagnosisPromptMetadata = {
+  availableData: DIAGNOSIS_AVAILABLE_DATA_OPTIONS.map((option) => option.value),
+  concerns: DIAGNOSIS_CONCERN_OPTIONS.map((option) => option.value),
+  desiredOutcomes: DIAGNOSIS_DESIRED_OUTCOME_OPTIONS.map((option) => option.value),
+  industries: DIAGNOSIS_INDUSTRY_OPTIONS.map((option) => option.value),
+};

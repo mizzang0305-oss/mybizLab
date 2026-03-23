@@ -92,6 +92,7 @@ export const ANALYTICS_PROFILE_DEFINITIONS: Record<AnalyticsPreset, AnalyticsPro
 const STORE_PRESET_BY_ID: Record<string, AnalyticsPreset> = {
   store_golden_coffee: 'seongsu_brunch_cafe',
   store_mint_bbq: 'mapo_evening_restaurant',
+  store_seoul_buffet: 'mapo_evening_restaurant',
 };
 
 export function getAnalyticsProfileDefinition(preset: AnalyticsPreset) {
@@ -106,11 +107,11 @@ export function resolveAnalyticsPresetForStore(input: AnalyticsStoreInput) {
   const config = getStoreBrandConfig(input);
   const normalized = `${config.business_type} ${input.slug || ''}`.toLowerCase();
 
-  if (normalized.includes('bbq') || normalized.includes('고깃집')) {
+  if (normalized.includes('bbq') || normalized.includes('izakaya') || normalized.includes('buffet') || normalized.includes('korean_buffet')) {
     return 'mapo_evening_restaurant';
   }
 
-  if (normalized.includes('상담') || normalized.includes('clinic') || normalized.includes('service')) {
+  if (normalized.includes('consult') || normalized.includes('clinic') || normalized.includes('service')) {
     return 'consultation_service';
   }
 

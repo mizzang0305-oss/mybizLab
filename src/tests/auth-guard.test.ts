@@ -3,7 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockUseLocation = vi.fn();
-const mockUseAdminSessionStore = vi.fn();
+const mockSessionState = {
+  session: null as unknown,
+};
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -17,7 +19,9 @@ vi.mock('react-router-dom', async () => {
 });
 
 vi.mock('@/shared/lib/adminSession', () => ({
-  useAdminSessionStore: (selector: (state: { session: unknown }) => unknown) => mockUseAdminSessionStore(selector),
+  hasDashboardAccess: (session: { role?: string } | null | undefined) =>
+    Boolean(session && ['platform_owner', 'platform_admin', 'store_owner', 'store_manager'].includes(session.role || '')),
+  useAdminSessionStore: (selector: (state: { session: unknown }) => unknown) => selector(mockSessionState),
 }));
 
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
@@ -29,9 +33,7 @@ describe('RequireAdminAuth', () => {
       search: '?tab=overview',
       hash: '#summary',
     });
-    mockUseAdminSessionStore.mockImplementation((selector: (state: { session: unknown }) => unknown) =>
-      selector({ session: null }),
-    );
+    mockSessionState.session = null;
   });
 
   it('redirects unauthenticated dashboard requests to /login with the next path', () => {
@@ -41,13 +43,19 @@ describe('RequireAdminAuth', () => {
   });
 
   it('allows authenticated requests to continue to the dashboard outlet', () => {
-    mockUseAdminSessionStore.mockImplementation((selector: (state: { session: unknown }) => unknown) =>
-      selector({ session: { email: 'admin@mybiz.ai.kr' } }),
-    );
+    mockSessionState.session = { email: 'admin@mybiz.ai.kr', role: 'platform_owner' };
 
     const html = renderToStaticMarkup(createElement(RequireAdminAuth));
 
     expect(html).toContain('protected-content');
     expect(html).not.toContain('/login');
+  });
+
+  it('redirects to login when the session exists without dashboard permission', () => {
+    mockSessionState.session = { email: 'blocked@mybiz.ai.kr', role: 'viewer' };
+
+    const html = renderToStaticMarkup(createElement(RequireAdminAuth));
+
+    expect(html).toContain('/login?reason=forbidden');
   });
 });

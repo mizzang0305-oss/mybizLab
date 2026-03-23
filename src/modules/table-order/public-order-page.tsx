@@ -5,11 +5,10 @@ import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
 import { Modal } from '@/shared/components/Modal';
 import { Panel } from '@/shared/components/Panel';
 import { formatCurrency } from '@/shared/lib/format';
-import { queryKeys } from '@/shared/lib/queryKeys';
 import { attachCustomerToOrder, submitPublicOrder } from '@/shared/lib/services/mvpService';
 
 export function StoreOrderPage() {
-  const { publicStore, tableNo } = useStorePublicContext();
+  const { publicStore, publicStoreQueryKey, tableNo } = useStorePublicContext();
   const queryClient = useQueryClient();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [note, setNote] = useState('');
@@ -51,7 +50,7 @@ export function StoreOrderPage() {
       setCart({});
       setNote('');
       setModalOpen(true);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.publicStore(publicStore.store.slug) });
+      await queryClient.invalidateQueries({ queryKey: publicStoreQueryKey });
     },
   });
 

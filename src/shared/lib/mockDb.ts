@@ -65,19 +65,27 @@ function normalizeDatabase(database: Record<string, unknown>) {
   nextDatabase.store_requests = (database.store_requests as MvpDatabase['store_requests']) ?? nextDatabase.store_setup_requests ?? seeded.store_requests;
   nextDatabase.store_features = normalizeStoreFeatures((database.store_features as MvpDatabase['store_features']) ?? seeded.store_features);
   nextDatabase.stores = ((database.stores as MvpDatabase['stores']) ?? seeded.stores).map((store) => {
-    const brandConfig = getStoreBrandConfig(store);
+    const seededStore = seeded.stores.find((seededRecord) => seededRecord.id === store.id);
+    const normalizedSeedStore =
+      seededStore && (seededStore.id === 'store_mint_bbq' || seededStore.id === 'store_seoul_buffet')
+        ? {
+            ...store,
+            ...seededStore,
+          }
+        : store;
+    const brandConfig = getStoreBrandConfig(normalizedSeedStore);
 
     return normalizeStoreRecord({
-      ...store,
+      ...normalizedSeedStore,
       brand_config: brandConfig,
-      public_status: store.public_status ?? 'public',
-      homepage_visible: store.homepage_visible ?? store.public_status !== 'private',
-      consultation_enabled: store.consultation_enabled ?? true,
-      inquiry_enabled: store.inquiry_enabled ?? true,
-      reservation_enabled: store.reservation_enabled ?? true,
-      order_entry_enabled: store.order_entry_enabled ?? true,
-      subscription_plan: store.subscription_plan ?? store.plan ?? 'starter',
-      admin_email: store.admin_email ?? brandConfig.email,
+      public_status: normalizedSeedStore.public_status ?? 'public',
+      homepage_visible: normalizedSeedStore.homepage_visible ?? normalizedSeedStore.public_status !== 'private',
+      consultation_enabled: normalizedSeedStore.consultation_enabled ?? true,
+      inquiry_enabled: normalizedSeedStore.inquiry_enabled ?? true,
+      reservation_enabled: normalizedSeedStore.reservation_enabled ?? true,
+      order_entry_enabled: normalizedSeedStore.order_entry_enabled ?? true,
+      subscription_plan: normalizedSeedStore.subscription_plan ?? normalizedSeedStore.plan ?? 'starter',
+      admin_email: normalizedSeedStore.admin_email ?? brandConfig.email,
     });
   });
   nextDatabase.store_brand_profiles =
@@ -108,9 +116,11 @@ function normalizeDatabase(database: Record<string, unknown>) {
     opening_hours: location.opening_hours ?? '매일 10:00 - 21:00',
   }));
   nextDatabase.store_notices = (database.store_notices as MvpDatabase['store_notices']) ?? seeded.store_notices;
+  nextDatabase.inquiries = (database.inquiries as MvpDatabase['inquiries']) ?? seeded.inquiries;
   nextDatabase.billing_records = (database.billing_records as MvpDatabase['billing_records']) ?? seeded.billing_records;
   nextDatabase.admin_users = (database.admin_users as MvpDatabase['admin_users']) ?? seeded.admin_users;
   nextDatabase.system_status = (database.system_status as MvpDatabase['system_status']) ?? seeded.system_status;
+  nextDatabase.diagnosis_sessions = (database.diagnosis_sessions as MvpDatabase['diagnosis_sessions']) ?? seeded.diagnosis_sessions;
   nextDatabase.store_provisioning_logs =
     (database.store_provisioning_logs as MvpDatabase['store_provisioning_logs']) ?? seeded.store_provisioning_logs;
 

@@ -24,10 +24,12 @@ describe('onboarding flow helpers', () => {
 
   it('builds a diagnosis result with score, strategies, and a recommended plan', () => {
     const result = buildDiagnosisResult({
-      businessType: '브런치',
+      availableData: ['order_data', 'manual_notes'],
+      currentConcern: 'service_quality',
+      desiredOutcome: 'service_improvement',
+      industryType: 'restaurant',
       region: '서울 성수동',
-      customerType: '직장인 점심 고객과 재방문 고객',
-      operatingConcerns: '예약은 들어오는데 대기 관리가 어렵고 재방문 고객 관리를 더 잘하고 싶습니다.',
+      storeModeSelection: 'hybrid',
     });
 
     expect(result.score).toBeGreaterThan(60);
@@ -36,6 +38,10 @@ describe('onboarding flow helpers', () => {
     expect(result.revenueOpportunities).toHaveLength(3);
     expect(result.immediateActions).toHaveLength(3);
     expect(result.expansionFeatures).toHaveLength(3);
+    expect(result.recommendedQuestions).toHaveLength(4);
+    expect(result.recommendedModules.length).toBeGreaterThanOrEqual(3);
+    expect(result.recommendedStoreMode).toBe('hybrid');
+    expect(result.recommendedDataMode).toBe('order_survey_manual');
     expect(result.reportSummary).toContain('서울 성수동');
     expect(result.analysisSource).toBe('fallback');
     expect(result.limitationsNote).toContain('실시간 POS');
