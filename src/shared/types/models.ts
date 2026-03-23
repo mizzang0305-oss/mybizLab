@@ -24,6 +24,8 @@ export type OrderChannel = 'table' | 'walk_in' | 'delivery' | 'reservation';
 export type ReportType = 'daily' | 'weekly';
 export type StoreRequestStatus = 'draft' | 'submitted' | 'reviewing' | 'approved' | 'rejected';
 export type StoreVisibility = 'public' | 'private';
+export type InquiryStatus = 'new' | 'in_progress' | 'completed' | 'on_hold';
+export type InquiryCategory = 'general' | 'reservation' | 'group_booking' | 'event' | 'brand';
 export type SubscriptionPlan = 'starter' | 'pro' | 'business' | 'enterprise';
 export type SetupPaymentStatus = 'setup_pending' | 'setup_paid';
 export type SubscriptionStatus =
@@ -85,10 +87,18 @@ export interface StoreRequest {
   requested_slug: string;
   requested_plan: SubscriptionPlan;
   selected_features: FeatureKey[];
+  store_mode?: 'order_first' | 'survey_first' | 'hybrid' | 'brand_inquiry_first';
+  data_mode?: 'order_only' | 'survey_only' | 'manual_only' | 'order_survey' | 'survey_manual' | 'order_survey_manual';
   brand_name: string;
   brand_color: string;
   tagline: string;
   description: string;
+  opening_hours?: string;
+  public_status?: StoreVisibility;
+  theme_preset?: 'light' | 'warm' | 'modern';
+  primary_cta_label?: string;
+  mobile_cta_label?: string;
+  preview_target?: 'survey' | 'order' | 'inquiry';
   hero_image_url: string;
   storefront_image_url: string;
   interior_image_url: string;
@@ -133,6 +143,12 @@ export interface Store {
   brand_color: string;
   tagline: string;
   description: string;
+  store_mode?: 'order_first' | 'survey_first' | 'hybrid' | 'brand_inquiry_first';
+  data_mode?: 'order_only' | 'survey_only' | 'manual_only' | 'order_survey' | 'survey_manual' | 'order_survey_manual';
+  theme_preset?: 'light' | 'warm' | 'modern';
+  primary_cta_label?: string;
+  mobile_cta_label?: string;
+  preview_target?: 'survey' | 'order' | 'inquiry';
   public_status: StoreVisibility;
   homepage_visible?: boolean;
   consultation_enabled?: boolean;
@@ -242,6 +258,25 @@ export interface Customer {
   created_at: string;
 }
 
+export interface Inquiry {
+  id: string;
+  store_id: string;
+  customer_id?: string;
+  customer_name: string;
+  phone: string;
+  email?: string;
+  category: InquiryCategory;
+  status: InquiryStatus;
+  message: string;
+  tags: string[];
+  memo?: string;
+  marketing_opt_in: boolean;
+  requested_visit_date?: string;
+  source: 'public_form' | 'owner_manual';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Order {
   id: string;
   store_id: string;
@@ -301,10 +336,17 @@ export interface WaitingEntry {
   created_at: string;
 }
 
+export type SurveyQuestionType = 'single_choice' | 'multiple_choice' | 'rating' | 'revisit_intent' | 'text';
+
 export interface SurveyQuestion {
   id: string;
   label: string;
-  type: 'rating' | 'text';
+  type: SurveyQuestionType;
+  description?: string;
+  required?: boolean;
+  options?: string[];
+  sort_order?: number;
+  placeholder?: string;
 }
 
 export interface Survey {
@@ -315,11 +357,12 @@ export interface Survey {
   questions: SurveyQuestion[];
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface SurveyAnswer {
   question_id: string;
-  value: string | number;
+  value: string | number | string[];
 }
 
 export interface SurveyResponse {
@@ -327,7 +370,9 @@ export interface SurveyResponse {
   store_id: string;
   survey_id: string;
   customer_name: string;
+  table_code?: string;
   rating: number;
+  revisit_intent?: number;
   comment: string;
   answers: SurveyAnswer[];
   created_at: string;
@@ -364,6 +409,31 @@ export interface AIReport {
   metrics: Record<string, number | string>;
   generated_at: string;
   source: 'gemini' | 'fallback';
+}
+
+export interface DiagnosisSession {
+  id: string;
+  visitor_key?: string;
+  industry_type: 'korean_buffet' | 'restaurant' | 'pub' | 'cafe' | 'service' | 'other';
+  store_mode_selection: 'order_first' | 'survey_first' | 'hybrid' | 'brand_inquiry_first' | 'not_sure';
+  current_concern:
+    | 'unknown_customer_reaction'
+    | 'service_quality'
+    | 'busy_peak_ops'
+    | 'menu_response'
+    | 'slow_inquiries'
+    | 'brand_identity';
+  available_data: Array<'order_data' | 'pos_sales' | 'no_feedback' | 'reservation_inquiry' | 'manual_notes'>;
+  desired_outcome: 'customer_sentiment' | 'service_improvement' | 'menu_analysis' | 'operations_analysis' | 'brand_growth';
+  region: string;
+  recommended_store_mode: 'order_first' | 'survey_first' | 'hybrid' | 'brand_inquiry_first';
+  recommended_data_mode: 'order_only' | 'survey_only' | 'manual_only' | 'order_survey' | 'survey_manual' | 'order_survey_manual';
+  recommended_modules: FeatureKey[];
+  recommended_questions: string[];
+  analysis_source: 'gpt' | 'fallback';
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BillingEvent {
@@ -482,6 +552,13 @@ export interface StoreDailyMetric {
   store_id: string;
   metric_date: string;
   revenue_total: number;
+  visitor_count?: number;
+  lunch_guest_count?: number;
+  dinner_guest_count?: number;
+  takeout_count?: number;
+  average_wait_minutes?: number;
+  stockout_flag?: boolean;
+  note?: string;
   orders_count: number;
   avg_order_value: number;
   new_customers: number;
@@ -514,6 +591,7 @@ export interface MvpDatabase {
   menu_categories: MenuCategory[];
   menu_items: MenuItem[];
   customers: Customer[];
+  inquiries: Inquiry[];
   orders: Order[];
   order_items: OrderItem[];
   kitchen_tickets: KitchenTicket[];
@@ -524,6 +602,7 @@ export interface MvpDatabase {
   store_schedules: StoreSchedule[];
   contracts: Contract[];
   ai_reports: AIReport[];
+  diagnosis_sessions: DiagnosisSession[];
   sales_daily: SalesDaily[];
   store_daily_metrics: StoreDailyMetric[];
   billing_records: BillingRecord[];
@@ -547,4 +626,15 @@ export interface SetupRequestInput {
   business_type: string;
   requested_slug: string;
   selected_features: FeatureKey[];
+  brand_name?: string;
+  store_mode?: 'order_first' | 'survey_first' | 'hybrid' | 'brand_inquiry_first';
+  data_mode?: 'order_only' | 'survey_only' | 'manual_only' | 'order_survey' | 'survey_manual' | 'order_survey_manual';
+  tagline?: string;
+  description?: string;
+  opening_hours?: string;
+  public_status?: StoreVisibility;
+  theme_preset?: 'light' | 'warm' | 'modern';
+  primary_cta_label?: string;
+  mobile_cta_label?: string;
+  preview_target?: 'survey' | 'order' | 'inquiry';
 }

@@ -8,10 +8,22 @@
 
 @layer base {
   :root {
+    --surface-base: #f6f2ea;
+    --surface-card: #ffffff;
+    --surface-muted: #f8fafc;
     --brand-50: #fff7ed;
     --brand-100: #ffedd5;
     --brand-500: #ec5b13;
     --brand-600: #d94f0b;
+    --brand-700: #c2410c;
+    --tone-navy: #0f172a;
+    --tone-navy-soft: #e2e8f0;
+    --tone-deep-green: #14532d;
+    --tone-deep-green-soft: #dcfce7;
+    --tone-warning: #b45309;
+    --tone-warning-soft: #fef3c7;
+    --tone-danger: #b91c1c;
+    --tone-danger-soft: #fee2e2;
   }
 
   * {
@@ -19,7 +31,8 @@
   }
 
   body {
-    @apply m-0 min-h-screen bg-[#f6f2ea] font-sans text-slate-900 antialiased;
+    @apply m-0 min-h-screen font-sans text-slate-900 antialiased;
+    background: var(--surface-base);
   }
 
   button,

@@ -15,10 +15,7 @@ import type {
   Store,
   StoreFeature,
   StoreRequest,
-  StoreRequestStatus,
   StoreVisibility,
-  SubscriptionPlan,
-  SystemStatusItem,
 } from '@/shared/types/models';
 
 function nowIso() {
@@ -188,6 +185,12 @@ function buildBillingRecord(storeId: string, request: StoreRequest, timestamp: s
   };
 }
 
+export interface ApproveStoreRequestResult {
+  created: boolean;
+  request: StoreRequest;
+  store: Store;
+}
+
 function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest, reviewerEmail: string, reviewNotes?: string) {
   if (request.linked_store_id) {
     const existingStore = database.stores.find((store) => store.id === request.linked_store_id);
@@ -231,7 +234,14 @@ function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest,
     brand_color: request.brand_color,
     tagline: request.tagline,
     description: request.description,
-    public_status: 'private',
+    store_mode: request.store_mode,
+    data_mode: request.data_mode,
+    theme_preset: request.theme_preset,
+    primary_cta_label: request.primary_cta_label,
+    mobile_cta_label: request.mobile_cta_label,
+    preview_target: request.preview_target,
+    public_status: request.public_status || 'private',
+    homepage_visible: (request.public_status || 'private') === 'public',
     subscription_plan: request.requested_plan,
     plan: request.requested_plan,
     admin_email: brandConfig.email,
@@ -323,7 +333,8 @@ function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest,
     store_id: storeId,
     address: request.address,
     directions: request.directions,
-    published: true,
+    opening_hours: request.opening_hours,
+    published: (request.public_status || 'public') === 'public',
   });
   database.store_notices.push(
     ...request.notices.map((notice, index) => ({
@@ -536,12 +547,16 @@ export async function rejectStoreRequest(requestId: string, reviewNotes: string,
   return updatedRequest;
 }
 
-export async function approveStoreRequest(requestId: string, reviewNotes?: string, reviewerEmail = 'ops@mybiz.ai.kr') {
+export async function approveStoreRequest(
+  requestId: string,
+  reviewNotes?: string,
+  reviewerEmail = 'ops@mybiz.ai.kr',
+): Promise<ApproveStoreRequestResult | null> {
   if (DATA_PROVIDER === 'supabase' || IS_PRODUCTION_RUNTIME) {
     throw new Error('Supabase 모드에서는 로컬 승인 생성 경로를 사용할 수 없습니다. 스토어 생성은 create_store_with_owner RPC만 사용해야 합니다.');
   }
 
-  let result: { store: Store; request: StoreRequest; created: boolean } | null = null;
+  let result: ApproveStoreRequestResult | null = null;
 
   updateDatabase((database) => {
     const request = database.store_requests.find((item) => item.id === requestId);

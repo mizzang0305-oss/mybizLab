@@ -1,0 +1,70 @@
+{
+  "baseUrl": "http://127.0.0.1:4174",
+  "passed": 12,
+  "failed": 0,
+  "results": [
+    {
+      "name": "auth:redirect-and-dashboard-access",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "public:/golden-coffee",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "public:/mint-izakaya",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "public:/seoul-buffet-house",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "onboarding:diagnosis-to-wizard",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "dashboard:store_golden_coffee",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "dashboard:store_mint_bbq",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "dashboard:store_seoul_buffet",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "survey-builder-response-ai",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "inquiry-and-crm",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "sales-metric-entry",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "mobile:public-and-dashboard",
+      "ok": true,
+      "detail": "ok"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "requestFailures": []
+}

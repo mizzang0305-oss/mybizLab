@@ -49,6 +49,7 @@ export function StoreRequestsPage() {
 
     return {
       all: requests.length,
+      draft: requests.filter((request) => request.status === 'draft').length,
       submitted: requests.filter((request) => request.status === 'submitted').length,
       reviewing: requests.filter((request) => request.status === 'reviewing').length,
       approved: requests.filter((request) => request.status === 'approved').length,

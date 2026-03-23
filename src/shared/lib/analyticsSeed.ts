@@ -165,6 +165,19 @@ export function buildStoreDailyMetrics(store: AnalyticsStoreInput, days = 120): 
       0.45,
       0.98,
     );
+    const visitorCount = Math.max(customerCount, round(ordersCount * (preset === 'consultation_service' ? 1.08 : 1.18)));
+    const lunchGuestCount = Math.max(0, round(visitorCount * (weekday >= 1 && weekday <= 5 ? 0.58 : 0.44)));
+    const dinnerGuestCount = Math.max(0, visitorCount - lunchGuestCount);
+    const takeoutCount = Math.max(0, round(ordersCount * (preset === 'mapo_evening_restaurant' ? 0.14 : 0.22)));
+    const averageWaitMinutes = clamp(round(9 + (weekday === 5 ? 5 : weekday === 6 ? 3 : 1) + (ordersCount - definition.baseDailyOrders) * 0.12), 4, 28);
+    const stockoutFlag = weekday === 5 && index % 5 === 0;
+    const note = stockoutFlag
+      ? '대표 메뉴 재고가 빠르게 소진되어 리필 동선을 먼저 챙겨야 했습니다.'
+      : averageWaitMinutes >= 16
+        ? '점심 피크 대기가 길어져 안내 문구 보강이 필요했습니다.'
+        : takeoutCount >= 10
+          ? '포장 주문 비중이 높아 전용 픽업 동선 안내가 있으면 더 좋았습니다.'
+          : '';
     const operationsScore = clamp(
       definition.operationsScoreBase +
         (weekday === 5 ? -2 : 1) +
@@ -180,6 +193,13 @@ export function buildStoreDailyMetrics(store: AnalyticsStoreInput, days = 120): 
       store_id: store.id,
       metric_date: startOfDayKey(targetDate),
       revenue_total: revenueTotal,
+      visitor_count: visitorCount,
+      lunch_guest_count: lunchGuestCount,
+      dinner_guest_count: dinnerGuestCount,
+      takeout_count: takeoutCount,
+      average_wait_minutes: averageWaitMinutes,
+      stockout_flag: stockoutFlag,
+      note,
       orders_count: ordersCount,
       avg_order_value: avgOrderValue,
       new_customers: newCustomers,

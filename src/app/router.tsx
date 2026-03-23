@@ -22,6 +22,8 @@ import { StoreRequestDetailPage } from '@/modules/store-requests/detail-page';
 import { StoreRequestsPage } from '@/modules/store-requests/page';
 import { StoreDetailPage } from '@/modules/stores/detail-page';
 import { StoresPage } from '@/modules/stores/page';
+import { PublicInquiryPage } from '@/modules/inquiries/public-page';
+import { PublicSurveyResponsePage } from '@/modules/surveys/public-response-page';
 import { SurveysPage } from '@/modules/surveys/page';
 import { SystemPage } from '@/modules/system/page';
 import { TableOrderAdminPage } from '@/modules/table-order/admin-page';
@@ -36,6 +38,7 @@ import { PricingPage } from '@/pages/PricingPage';
 import { PrivacyPage } from '@/pages/PrivacyPage';
 import { RefundPage } from '@/pages/RefundPage';
 import { TermsPage } from '@/pages/TermsPage';
+import { UiPreviewPage } from '@/pages/UiPreviewPage';
 
 export const appRoutes: RouteObject[] = [
   {
@@ -56,6 +59,10 @@ export const appRoutes: RouteObject[] = [
       {
         path: '/pricing',
         element: <PricingPage />,
+      },
+      {
+        path: '/dev/ui',
+        element: <UiPreviewPage />,
       },
       {
         path: '/terms',
@@ -167,7 +174,33 @@ export const appRoutes: RouteObject[] = [
     ],
   },
   {
+    path: '/s/:storeId/survey/:formId',
+    element: <PublicSurveyResponsePage />,
+  },
+  {
+    path: '/s/:storeId/inquiry',
+    element: <PublicInquiryPage />,
+  },
+  {
     path: '/:storeSlug',
+    element: <StorePublicLayout />,
+    children: [
+      {
+        index: true,
+        element: <StoreHomePage />,
+      },
+      {
+        path: 'menu',
+        element: <StoreMenuPage />,
+      },
+      {
+        path: 'order',
+        element: <StoreOrderPage />,
+      },
+    ],
+  },
+  {
+    path: '/store/:storeId',
     element: <StorePublicLayout />,
     children: [
       {

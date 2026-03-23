@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { EmptyState } from '@/shared/components/EmptyState';
-import { Icons } from '@/shared/components/Icons';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
@@ -83,10 +82,12 @@ export function StoreRequestDetailPage() {
   const approveMutation = useMutation({
     mutationFn: () => approveStoreRequest(requestId, reviewNotes || undefined),
     onSuccess: async (result) => {
-      await invalidateConsoleQueries(requestId, result?.store.id);
+      const nextStoreId = result?.store?.id;
 
-      if (result?.store.id) {
-        navigate(`/dashboard/stores/${result.store.id}`, { replace: true });
+      await invalidateConsoleQueries(requestId, nextStoreId);
+
+      if (nextStoreId) {
+        navigate(`/dashboard/stores/${nextStoreId}`, { replace: true });
       }
     },
   });

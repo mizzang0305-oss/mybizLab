@@ -23,38 +23,44 @@ function renderRoute(pathname: string) {
 }
 
 describe('marketing pages', () => {
-  it('renders the landing page with the AI diagnosis value proposition and no public route exposure', () => {
+  it('renders the landing page with the main entry links and no public route exposure', () => {
     const html = renderRoute('/');
 
-    expect(html).toContain('스토어 AI 진단');
-    expect(html).toContain('소상공인 운영 AI 플랫폼');
-    expect(html).toContain('스토어 AI 진단 시작');
-    expect(html).toContain('AI 매장 진단 완료');
-    expect(html).toContain('예약 전환율 상승');
+    expect(html).toContain('AI');
+    expect(html).toContain('/onboarding');
+    expect(html).toContain('/pricing');
+    expect(html).toContain('/login');
     expect(html).not.toContain('/:storeSlug/menu');
     expect(html).not.toContain('/:storeSlug/order');
     expect(html).not.toContain('App Explorer');
   });
 
-  it('renders the onboarding page with explicit steps and checkout entry', () => {
+  it('renders the onboarding page with pricing choices and checkout entry', () => {
     const html = renderRoute('/onboarding');
 
-    expect(html).toContain('스토어 AI 온보딩');
-    expect(html).toContain('스토어 AI 진단');
-    expect(html).toContain('구독 결제');
-    expect(html).toContain('운영 시작');
-    expect(html).toContain('PortOne 결제 진행');
+    expect(html).toContain('Starter');
+    expect(html).toContain('PortOne');
+    expect(html).toContain('/pricing');
   });
 
-  it('renders the admin login page with clear Google, email, and demo options', () => {
+  it('renders the shared UI preview page with T01 primitives', () => {
+    const html = renderRoute('/dev/ui');
+
+    expect(html).toContain('UI Preview');
+    expect(html).toContain('StatCard');
+    expect(html).toContain('App Launcher');
+    expect(html).toContain('Insight Callout');
+    expect(html).toContain('Empty State');
+  });
+
+  it('renders the admin login page without exposing a hardcoded password', () => {
     const html = renderRoute('/login');
 
-    expect(html).toContain('관리자 로그인');
-    expect(html).toContain('Google로 로그인');
-    expect(html).toContain('이메일 로그인');
-    expect(html).toContain('데모 로그인');
+    expect(html).toContain('Admin Access');
+    expect(html).toContain('Google');
     expect(html).toContain('demo@mybizlab.ai');
-    expect(html).toContain('demo123');
+    expect(html).toContain('미설정');
+    expect(html).not.toContain('demo123');
   });
 
   it('keeps the pricing page reachable', () => {

@@ -1,4 +1,14 @@
-import { buildStorePath, ensureUniqueStoreSlug, isReservedSlug, normalizeStoreSlug, slugifyStoreName } from '@/shared/lib/storeSlug';
+import {
+  buildStoreIdPath,
+  buildStorePath,
+  ensureUniqueStoreSlug,
+  isReservedSlug,
+  normalizeStoreSlug,
+  slugifyStoreName,
+} from '@/shared/lib/storeSlug';
+
+const seongsuHouse = '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4';
+const yeosuNoodle = '\uC5EC\uC218 noodle!!';
 
 describe('store slug utilities', () => {
   it('normalizes latin store names into lowercase hyphenated slugs', () => {
@@ -7,8 +17,8 @@ describe('store slug utilities', () => {
   });
 
   it('preserves meaningful Korean words instead of collapsing to store', () => {
-    expect(normalizeStoreSlug('성수 브런치 하우스')).toBe('성수-브런치-하우스');
-    expect(normalizeStoreSlug('연수 noodle!!')).toBe('연수-noodle');
+    expect(normalizeStoreSlug(seongsuHouse)).toBe('\uC131\uC218-\uBE0C\uB7F0\uCE58-\uD558\uC6B0\uC2A4');
+    expect(normalizeStoreSlug(yeosuNoodle)).toBe('\uC5EC\uC218-noodle');
     expect(normalizeStoreSlug('###')).toBe('store');
   });
 
@@ -19,11 +29,17 @@ describe('store slug utilities', () => {
     expect(isReservedSlug('privacy')).toBe(true);
     expect(isReservedSlug('refund')).toBe(true);
     expect(ensureUniqueStoreSlug('dashboard', [])).toBe('dashboard-store');
-    expect(ensureUniqueStoreSlug('성수 브런치 하우스', ['성수-브런치-하우스'])).toBe('성수-브런치-하우스-2');
+    expect(ensureUniqueStoreSlug(seongsuHouse, ['\uC131\uC218-\uBE0C\uB7F0\uCE58-\uD558\uC6B0\uC2A4'])).toBe(
+      '\uC131\uC218-\uBE0C\uB7F0\uCE58-\uD558\uC6B0\uC2A4-2',
+    );
   });
 
-  it('builds the development route path', () => {
+  it('builds the public route paths', () => {
     expect(buildStorePath('golden-coffee', 'order')).toBe('/golden-coffee/order');
-    expect(buildStorePath('성수-브런치-하우스', 'menu')).toBe('/성수-브런치-하우스/menu');
+    expect(buildStorePath('\uC131\uC218-\uBE0C\uB7F0\uCE58-\uD558\uC6B0\uC2A4', 'menu')).toBe(
+      '/\uC131\uC218-\uBE0C\uB7F0\uCE58-\uD558\uC6B0\uC2A4/menu',
+    );
+    expect(buildStoreIdPath('store_golden_coffee')).toBe('/store/store_golden_coffee');
+    expect(buildStoreIdPath('store_golden_coffee', 'order')).toBe('/store/store_golden_coffee/order');
   });
 });

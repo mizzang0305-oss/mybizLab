@@ -69,3 +69,14 @@ export function buildStorePath(slug: string, section?: 'menu' | 'order' | 'home'
 
   return `${basePath}/${section}`;
 }
+
+export function buildStoreIdPath(storeId: string, section?: 'menu' | 'order' | 'home') {
+  const normalizedStoreId = encodeURIComponent(storeId.trim());
+  const basePath = `/store/${normalizedStoreId}`;
+
+  if (!section || section === 'home') {
+    return basePath;
+  }
+
+  return `${basePath}/${section}`;
+}

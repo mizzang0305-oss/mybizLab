@@ -7,8 +7,16 @@ import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
 import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
 import { createId } from '@/shared/lib/ids';
+import {
+  customerContactSchema,
+  inquiryOwnerUpdateSchema,
+  normalizeInquiryTags,
+  publicInquirySchema,
+} from '@/shared/lib/inquirySchema';
+import { manualMetricFormSchema, type ManualMetricFormInput } from '@/shared/lib/manualMetricSchema';
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
+import { normalizeSurveyQuestions, surveyFormSchema, surveyResponseSchema } from '@/shared/lib/surveySchema';
 import {
   createStoreBrandConfig,
   getStoreBrandConfig,
@@ -26,6 +34,7 @@ import type {
   CartItemInput,
   Contract,
   Customer,
+  Inquiry,
   KitchenTicket,
   MenuCategory,
   MenuItem,
@@ -68,6 +77,7 @@ const SETUP_FEE_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
   business: 590000,
   enterprise: 990000,
 };
+const DEMO_STORE_ORDER = ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'] as const;
 const SUBSCRIPTION_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
   starter: 29000,
   pro: 79000,
@@ -95,6 +105,7 @@ interface CreateStoreFromSetupRequestOptions {
 
 interface CreateStoreWithOwnerRpcRow {
   store_id: string;
+  id?: string;
   slug: string;
 }
 
@@ -109,12 +120,6 @@ interface LiveStoreRow {
   plan: SubscriptionPlan | null;
 }
 
-interface LiveStoreMemberRow {
-  store_id: string;
-  profile_id: string;
-  role: 'owner' | 'manager' | 'staff';
-}
-
 interface LivePrioritySettingsRow {
   id: string;
   store_id: string;
@@ -127,16 +132,6 @@ interface LivePrioritySettingsRow {
   created_at?: string;
   updated_at: string;
   version: number;
-}
-
-interface LiveAnalyticsProfileRow {
-  id: string;
-  store_id: string;
-}
-
-interface LiveHomeContentRow {
-  id: string;
-  store_id: string;
 }
 
 export interface StoreSettingsSnapshot {
@@ -405,13 +400,20 @@ async function createStoreViaSupabaseRpc(
 
   const row = (Array.isArray(data) ? data[0] : data) as CreateStoreWithOwnerRpcRow | null;
 
-  const resolvedStoreId = row?.store_id ?? row?.id;
+  if (!row) {
+    throw new Error('create_store_with_owner RPC did not return a store row.');
+  }
+
+  const resolvedStoreId = row.store_id ?? row.id;
 
   if (!resolvedStoreId || !row.slug) {
     throw new Error('create_store_with_owner RPC did not return store_id/id and slug.');
   }
 
-  return row;
+  return {
+    ...row,
+    store_id: resolvedStoreId,
+  };
 }
 
 export type AiReportRange = 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -446,9 +448,45 @@ export interface AiReportDashboardSnapshot {
   topBottlenecks: string[];
   improvementChecklist: string[];
   latestReport: AIReport | null;
+  scoreCards: Array<{
+    key: 'health' | 'sentiment' | 'revisit' | 'operations';
+    label: string;
+    value: string;
+    delta: string;
+    hint: string;
+    tone: 'orange' | 'blue' | 'emerald' | 'slate';
+  }>;
+  problemTop3: Array<{
+    title: string;
+    detail: string;
+    metric: string;
+  }>;
+  strengthTop3: Array<{
+    title: string;
+    detail: string;
+    metric: string;
+  }>;
+  sentimentBreakdown: Array<{
+    label: string;
+    issueCount: number;
+    strengthCount: number;
+  }>;
+  weeklyChange: Array<{
+    label: string;
+    current: number;
+    previous: number;
+    unit: string;
+  }>;
+  oneLineSummary: string;
+  actionCards: Array<{
+    title: string;
+    description: string;
+    ownerTip: string;
+    tone: 'orange' | 'blue' | 'emerald';
+  }>;
 }
 
-export interface DashboardSnapshotInput extends AiReportDashboardInput { }
+export type DashboardSnapshotInput = AiReportDashboardInput;
 
 export interface DashboardSnapshot {
   store: Store;
@@ -559,6 +597,10 @@ function getStoreOperationalScore(database: MvpDatabase, storeId: string) {
     score += 1;
   }
 
+  if (database.inquiries.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
   if (database.orders.some((item) => item.store_id === storeId)) {
     score += 1;
   }
@@ -579,6 +621,13 @@ function getStoreOperationalScore(database: MvpDatabase, storeId: string) {
 }
 
 function compareStoresByDashboardReady(database: MvpDatabase, left: Store, right: Store) {
+  const leftDemoIndex = DEMO_STORE_ORDER.indexOf(left.id as (typeof DEMO_STORE_ORDER)[number]);
+  const rightDemoIndex = DEMO_STORE_ORDER.indexOf(right.id as (typeof DEMO_STORE_ORDER)[number]);
+
+  if (leftDemoIndex >= 0 && rightDemoIndex >= 0 && leftDemoIndex !== rightDemoIndex) {
+    return leftDemoIndex - rightDemoIndex;
+  }
+
   const scoreDelta = getStoreOperationalScore(database, right.id) - getStoreOperationalScore(database, left.id);
   if (scoreDelta !== 0) {
     return scoreDelta;
@@ -887,6 +936,7 @@ function ensureDemoAdminBootstrapData() {
   changed = mergeMissingById(database.admin_users, seededDatabase.admin_users) || changed;
 
   changed = mergeMissingById(database.customers, seededDatabase.customers) || changed;
+  changed = mergeMissingById(database.inquiries, seededDatabase.inquiries) || changed;
   changed = mergeMissingById(database.orders, seededDatabase.orders) || changed;
   changed = mergeMissingById(database.order_items, seededDatabase.order_items) || changed;
   changed = mergeMissingById(database.kitchen_tickets, seededDatabase.kitchen_tickets) || changed;
@@ -981,6 +1031,7 @@ function getStoreScopedData(storeId: string) {
     menuCategories: database.menu_categories.filter((item) => item.store_id === storeId),
     menuItems: database.menu_items.filter((item) => item.store_id === storeId),
     customers: database.customers.filter((item) => item.store_id === storeId),
+    inquiries: database.inquiries.filter((item) => item.store_id === storeId),
     orders: database.orders.filter((item) => item.store_id === storeId),
     orderItems: database.order_items.filter((item) => item.store_id === storeId),
     kitchenTickets: database.kitchen_tickets.filter((item) => item.store_id === storeId),
@@ -1176,6 +1227,388 @@ function buildAiReportDashboardSummary(input: {
     recommendationSummary: recommendationSummary.slice(0, 3),
     improvementChecklist: improvementChecklist.slice(0, 3),
   };
+}
+
+const AI_SENTIMENT_BUCKETS = [
+  {
+    key: 'menu',
+    label: '메뉴 반응',
+    keywords: ['menu', 'coffee', 'drink', 'dessert', 'bakery', 'food', 'taste', 'latte', 'meat', 'side', 'dish', '메뉴', '커피', '음료', '디저트', '빵', '맛', '고기', '반찬', '안주'],
+  },
+  {
+    key: 'service',
+    label: '서비스',
+    keywords: ['staff', 'service', 'response', 'seat', 'friendly', '응대', '직원', '서비스', '친절', '자리', '좌석'],
+  },
+  {
+    key: 'operations',
+    label: '대기·운영',
+    keywords: ['queue', 'waiting', 'delay', 'flow', 'refill', 'reservation', 'mobile', 'clean', '대기', '혼잡', '보충', '예약', '운영', '동선', '리필', '포장'],
+  },
+  {
+    key: 'revisit',
+    label: '재방문',
+    keywords: ['again', 'revisit', 'return', 'next visit', 'book another', '재방문', '다시', '다음 방문'],
+  },
+] as const;
+
+type AiSentimentBucketKey = (typeof AI_SENTIMENT_BUCKETS)[number]['key'];
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function deriveOperationsScore(waitingCount: number, reservationCount: number, consultationCount: number) {
+  return clampScore(78 - waitingCount * 4 + Math.min(reservationCount, 3) * 2 + Math.min(consultationCount, 2) * 3);
+}
+
+function formatNumericDelta(current: number, previous: number, unit: string, digits = 0) {
+  if (previous === 0 && current > 0) {
+    return '비교 데이터 없음';
+  }
+
+  const factor = 10 ** digits;
+  const delta = Math.round((current - previous) * factor) / factor;
+  const sign = delta > 0 ? '+' : '';
+  const fixed = digits > 0 ? delta.toFixed(digits) : `${delta}`;
+  return `${sign}${fixed}${unit}`;
+}
+
+function getRangeLengthDays(start: Date, end: Date) {
+  return Math.max(1, Math.ceil((endOfDay(end).getTime() - startOfDay(start).getTime()) / (24 * 60 * 60 * 1000)) + 1);
+}
+
+function buildPreviousRange(start: Date, end: Date) {
+  const days = getRangeLengthDays(start, end);
+  const previousEnd = new Date(startOfDay(start).getTime() - 1);
+  const previousStart = startOfDay(previousEnd);
+  previousStart.setDate(previousStart.getDate() - (days - 1));
+
+  return {
+    start: previousStart,
+    end: previousEnd,
+  };
+}
+
+function getAverageSurveyRating(responses: SurveyResponse[]) {
+  if (!responses.length) {
+    return 0;
+  }
+
+  return Number((responses.reduce((total, response) => total + response.rating, 0) / responses.length).toFixed(1));
+}
+
+function getAverageRevisitScore(responses: SurveyResponse[], fallbackRepeatRate: number) {
+  const revisitValues = responses
+    .map((response) => response.revisit_intent)
+    .filter((value): value is number => typeof value === 'number');
+
+  if (!revisitValues.length) {
+    return fallbackRepeatRate;
+  }
+
+  return Math.round(revisitValues.reduce((total, value) => total + value, 0) / revisitValues.length);
+}
+
+function normalizeSurveyAnswerText(value: SurveyResponse['answers'][number]['value']) {
+  if (typeof value === 'number') {
+    return `${value}`;
+  }
+
+  if (Array.isArray(value)) {
+    return value.join(' ');
+  }
+
+  return value || '';
+}
+
+function detectSentimentBuckets(text: string) {
+  const source = text.toLowerCase();
+  return AI_SENTIMENT_BUCKETS.filter((bucket) => bucket.keywords.some((keyword) => source.includes(keyword))).map((bucket) => bucket.key);
+}
+
+function buildSentimentBreakdown(input: {
+  responses: SurveyResponse[];
+  waitingCount: number;
+  operationsScore: number;
+  repeatCustomerRate: number;
+  popularMenu: string;
+  weakMenu: string;
+}) {
+  const counts: Record<AiSentimentBucketKey, { issueCount: number; strengthCount: number }> = {
+    menu: { issueCount: 0, strengthCount: 0 },
+    service: { issueCount: 0, strengthCount: 0 },
+    operations: { issueCount: 0, strengthCount: 0 },
+    revisit: { issueCount: 0, strengthCount: 0 },
+  };
+
+  input.responses.forEach((response) => {
+    const fragments = [
+      response.comment,
+      ...response.answers.map((answer) => normalizeSurveyAnswerText(answer.value)),
+      typeof response.revisit_intent === 'number' ? `revisit ${response.revisit_intent}` : '',
+    ].filter(Boolean);
+
+    const matchedBuckets = new Set<AiSentimentBucketKey>();
+    fragments.forEach((fragment) => {
+      detectSentimentBuckets(fragment).forEach((bucket) => matchedBuckets.add(bucket));
+    });
+
+    if (!matchedBuckets.size) {
+      matchedBuckets.add('service');
+    }
+
+    matchedBuckets.forEach((bucket) => {
+      if (response.rating >= 4) {
+        counts[bucket].strengthCount += 1;
+      } else if (response.rating > 0) {
+        counts[bucket].issueCount += 1;
+      }
+    });
+
+    if (typeof response.revisit_intent === 'number') {
+      if (response.revisit_intent >= 80) {
+        counts.revisit.strengthCount += 1;
+      } else if (response.revisit_intent <= 60) {
+        counts.revisit.issueCount += 1;
+      }
+    }
+  });
+
+  if (input.popularMenu !== '-') {
+    counts.menu.strengthCount += 1;
+  }
+  if (input.weakMenu !== '-' && input.weakMenu !== input.popularMenu) {
+    counts.menu.issueCount += 1;
+  }
+  if (input.operationsScore >= 80) {
+    counts.operations.strengthCount += 2;
+  } else if (input.operationsScore > 0 && input.operationsScore < 75) {
+    counts.operations.issueCount += 2;
+  }
+  counts.operations.issueCount += Math.min(input.waitingCount, 3);
+
+  if (input.repeatCustomerRate >= 45) {
+    counts.revisit.strengthCount += 1;
+  } else if (input.repeatCustomerRate > 0 && input.repeatCustomerRate < 35) {
+    counts.revisit.issueCount += 1;
+  }
+
+  return AI_SENTIMENT_BUCKETS.map((bucket) => ({
+    label: bucket.label,
+    issueCount: counts[bucket.key].issueCount,
+    strengthCount: counts[bucket.key].strengthCount,
+  }));
+}
+
+function buildAiProblemTop3(input: {
+  store: Store;
+  waitingCount: number;
+  reservationCount: number;
+  averageRating: number;
+  revisitScore: number;
+  operationsScore: number;
+  repeatCustomerRate: number;
+  weakMenu: string;
+  consultationCount: number;
+}) {
+  const items: Array<{ title: string; detail: string; metric: string }> = [];
+
+  if (input.waitingCount > 0 || input.operationsScore < 78) {
+    items.push({
+      title: '피크타임 운영 흔들림',
+      detail: `대기 ${input.waitingCount}건과 운영 점수 ${input.operationsScore}점을 보면 현장 동선과 안내 문구를 다시 맞출 필요가 있습니다.`,
+      metric: input.waitingCount > 0 ? `웨이팅 ${input.waitingCount}건` : `운영 ${input.operationsScore}점`,
+    });
+  }
+
+  if (input.averageRating > 0 && input.averageRating < 4.3) {
+    items.push({
+      title: '고객 만족도 편차',
+      detail: `평점 ${input.averageRating}/5 수준으로 강점은 보이지만 방문 경험을 흔드는 작은 불편이 남아 있습니다.`,
+      metric: `평점 ${input.averageRating}/5`,
+    });
+  }
+
+  if (input.revisitScore > 0 && input.revisitScore < 75) {
+    items.push({
+      title: '재방문 전환 약함',
+      detail: `재방문 의향 ${input.revisitScore}점으로 첫 방문 만족을 다시 오게 만드는 후속 액션이 부족합니다.`,
+      metric: `재방문 ${input.revisitScore}점`,
+    });
+  }
+
+  if (input.repeatCustomerRate > 0 && input.repeatCustomerRate < 35) {
+    items.push({
+      title: '단골 전환 루틴 부족',
+      detail: `단골 비중 ${input.repeatCustomerRate}%라 자주 오는 고객을 묶어 관리하는 리마인드 흐름이 약합니다.`,
+      metric: `단골 ${input.repeatCustomerRate}%`,
+    });
+  }
+
+  if (input.weakMenu !== '-') {
+    items.push({
+      title: '부진 메뉴 노출 약함',
+      detail: `${input.weakMenu} 반응이 약해 추천 위치, 문구, 세트 구성을 다시 실험할 필요가 있습니다.`,
+      metric: input.weakMenu,
+    });
+  }
+
+  if (input.store.store_mode === 'brand_inquiry_first' || input.consultationCount > 0) {
+    items.push({
+      title: '문의 후속 관리 분산',
+      detail: `문의 ${input.consultationCount}건이 쌓일수록 신규·진행중·완료 구분과 메모 루틴이 더 중요해집니다.`,
+      metric: `문의 ${input.consultationCount}건`,
+    });
+  }
+
+  if (input.reservationCount > 0) {
+    items.push({
+      title: '예약 동선 정리 필요',
+      detail: `예약 ${input.reservationCount}건이 있는 매장은 현장 안내와 좌석 준비 타이밍이 매출 경험을 크게 좌우합니다.`,
+      metric: `예약 ${input.reservationCount}건`,
+    });
+  }
+
+  if (!items.length) {
+    items.push({
+      title: '점검 리듬 고정 필요',
+      detail: '큰 문제는 없지만 같은 시간에 같은 지표를 보는 운영 습관을 고정해야 변화가 더 선명하게 보입니다.',
+      metric: '운영 루틴',
+    });
+  }
+
+  return items.slice(0, 3);
+}
+
+function buildAiStrengthTop3(input: {
+  store: Store;
+  averageRating: number;
+  revisitScore: number;
+  operationsScore: number;
+  repeatCustomerRate: number;
+  popularMenu: string;
+  reviewResponseRate: number;
+  consultationConversionRate: number;
+}) {
+  const items: Array<{ title: string; detail: string; metric: string }> = [];
+
+  if (input.popularMenu !== '-') {
+    items.push({
+      title: '대표 메뉴 반응 확실',
+      detail: `${input.popularMenu}가 고객 기억에 남는 대표 상품 역할을 하고 있어 첫 클릭과 추가 주문을 이끌기 좋습니다.`,
+      metric: input.popularMenu,
+    });
+  }
+
+  if (input.averageRating >= 4.3) {
+    items.push({
+      title: '만족 경험이 안정적',
+      detail: `평점 ${input.averageRating}/5로 기본 경험에 대한 신뢰가 쌓이고 있어 강점 메시지를 더 전면에 둘 수 있습니다.`,
+      metric: `평점 ${input.averageRating}/5`,
+    });
+  }
+
+  if (input.revisitScore >= 75 || input.repeatCustomerRate >= 40) {
+    items.push({
+      title: '재방문 기반이 살아 있음',
+      detail: `재방문 의향 ${input.revisitScore}점, 단골 비중 ${input.repeatCustomerRate}% 수준으로 후속 제안만 정리해도 재방문 전환을 더 키울 수 있습니다.`,
+      metric: `재방문 ${Math.max(input.revisitScore, input.repeatCustomerRate)}점`,
+    });
+  }
+
+  if (input.operationsScore >= 80) {
+    items.push({
+      title: '현장 운영이 안정적',
+      detail: `운영 점수 ${input.operationsScore}점이라 혼잡 시간에도 기본 응대 품질을 유지할 기반이 있습니다.`,
+      metric: `운영 ${input.operationsScore}점`,
+    });
+  }
+
+  if (input.reviewResponseRate >= 70) {
+    items.push({
+      title: '고객 반응 회수가 빠름',
+      detail: `리뷰 응답률 ${input.reviewResponseRate}%로 고객 의견을 방치하지 않는 신뢰 루틴이 보입니다.`,
+      metric: `응답률 ${input.reviewResponseRate}%`,
+    });
+  }
+
+  if (input.store.store_mode === 'brand_inquiry_first' || input.consultationConversionRate >= 20) {
+    items.push({
+      title: '문의 전환 흐름 보유',
+      detail: `상담 전환율 ${input.consultationConversionRate}%로 브랜드 소개형 스토어에서도 리드 수집 자산이 살아 있습니다.`,
+      metric: `전환 ${input.consultationConversionRate}%`,
+    });
+  }
+
+  if (!items.length) {
+    items.push({
+      title: '기본 운영 체력이 있음',
+      detail: `${input.store.name}는 큰 흔들림 없이 운영되고 있어 강점 카피와 후속 액션만 정리하면 데모 설득력이 충분합니다.`,
+      metric: '운영 안정',
+    });
+  }
+
+  return items.slice(0, 3);
+}
+
+function buildAiOneLineSummary(input: {
+  dataMode: Store['data_mode'];
+  problemTop3: Array<{ title: string }>;
+  strengthTop3: Array<{ title: string }>;
+}) {
+  const prefix =
+    input.dataMode === 'survey_only'
+      ? '고객 설문 기준으로 보면'
+      : input.dataMode === 'survey_manual'
+        ? '설문과 수기 운영지표 기준으로 보면'
+        : input.dataMode === 'order_survey'
+          ? '주문 흐름과 설문 반응을 함께 보면'
+          : input.dataMode === 'order_survey_manual'
+            ? '주문, 설문, 수기 운영지표를 함께 보면'
+            : input.dataMode === 'manual_only'
+              ? '수기 운영지표 기준으로 보면'
+              : '현재 운영 데이터를 기준으로 보면';
+
+  return `${prefix} ${input.problemTop3[0]?.title || '운영 점검'}가 가장 먼저 손볼 문제이고, ${input.strengthTop3[0]?.title || '기본 운영 체력'}는 계속 밀어야 할 강점입니다.`;
+}
+
+function buildAiActionCards(input: {
+  dataMode: Store['data_mode'];
+  recommendationSummary: string[];
+  improvementChecklist: string[];
+  problemTop3: Array<{ title: string; detail: string }>;
+  strengthTop3: Array<{ title: string; detail: string }>;
+}) {
+  const experimentTip =
+    input.dataMode === 'survey_only'
+      ? '설문 CTA 문구 한 줄만 바꿔 응답수 변화를 확인하세요.'
+      : input.dataMode === 'survey_manual'
+        ? '수기 지표 입력 시간을 영업 종료 직후로 고정해 다음 주 비교 정확도를 높이세요.'
+        : input.dataMode === 'order_survey_manual'
+          ? '주문·설문·수기 지표를 같은 날짜 기준으로 비교해 액션 우선순위를 정하세요.'
+          : '주문과 고객 반응을 같은 화면에서 보며 다음 실험 1개만 정하세요.';
+
+  return [
+    {
+      title: '이번 주 먼저 손볼 문제',
+      description: input.problemTop3[0]?.detail || input.recommendationSummary[0] || '가장 큰 병목 하나만 먼저 줄이는 것이 효과적입니다.',
+      ownerTip: input.improvementChecklist[0] || '운영 시작 전 체크리스트에 이번 주 핵심 문제를 먼저 넣어 두세요.',
+      tone: 'orange' as const,
+    },
+    {
+      title: '계속 밀어야 할 강점',
+      description: input.strengthTop3[0]?.detail || input.recommendationSummary[1] || '이미 반응이 좋은 요소를 전면에 두면 설득력이 더 커집니다.',
+      ownerTip: input.recommendationSummary[1] || '강점 카드와 대표 메뉴 카피를 공개 대문과 대시보드에서 같은 메시지로 맞추세요.',
+      tone: 'blue' as const,
+    },
+    {
+      title: '다음 실험 1개',
+      description: input.recommendationSummary[2] || input.problemTop3[1]?.detail || experimentTip,
+      ownerTip: experimentTip,
+      tone: 'emerald' as const,
+    },
+  ];
 }
 
 function averageMetricValue(metrics: StoreDailyMetric[], selector: (metric: StoreDailyMetric) => number) {
@@ -1513,15 +1946,24 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
   const timestamp = nowIso();
   const requestedPlan = options?.requestedPlan ?? 'starter';
   const requestedSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
+  const brandName = input.brand_name?.trim() || input.business_name;
+  const tagline = input.tagline?.trim() || `${brandName} 오픈 준비 중`;
+  const description = input.description?.trim() || `${brandName} 스토어 오픈을 위한 기본 요청서입니다.`;
   const request = {
     id: createId('setup_request'),
     ...input,
     requested_slug: requestedSlug,
     requested_plan: requestedPlan,
-    brand_name: input.business_name,
+    brand_name: brandName,
     brand_color: '#ec5b13',
-    tagline: `${input.business_name} 오픈 준비 중`,
-    description: `${input.business_name} 스토어 오픈을 위한 기본 요청서입니다.`,
+    tagline,
+    description,
+    opening_hours: input.opening_hours?.trim() || '매일 10:00 - 21:00',
+    public_status: input.public_status ?? 'public',
+    theme_preset: input.theme_preset ?? 'light',
+    primary_cta_label: input.primary_cta_label?.trim() || '지금 확인하기',
+    mobile_cta_label: input.mobile_cta_label?.trim() || '바로 보기',
+    preview_target: input.preview_target ?? 'survey',
     hero_image_url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80',
     storefront_image_url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1200&q=80',
     interior_image_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
@@ -1582,6 +2024,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
   const setupEventStatus = options?.setupEventStatus ?? (setupStatus === 'setup_paid' ? 'paid' : 'pending');
   const subscriptionEventStatus =
     options?.subscriptionEventStatus ?? (subscriptionStatus === 'subscription_active' ? 'paid' : 'pending');
+  const requestedPublicStatus = input.public_status ?? 'public';
   const brandConfig = createStoreBrandConfig({
     owner_name: input.owner_name,
     business_number: input.business_number,
@@ -1605,8 +2048,14 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     logo_url: '',
     tagline: `${input.business_name} 운영을 더 매끄럽게 만드는 AI 스토어`,
     description: `${input.business_name}의 예약, 주문, 고객, 매출 흐름을 한 곳에서 운영할 수 있는 스토어입니다.`,
-    public_status: 'private',
-    homepage_visible: false,
+    store_mode: input.store_mode,
+    data_mode: input.data_mode,
+    theme_preset: input.theme_preset,
+    primary_cta_label: input.primary_cta_label?.trim(),
+    mobile_cta_label: input.mobile_cta_label?.trim(),
+    preview_target: input.preview_target,
+    public_status: requestedPublicStatus,
+    homepage_visible: requestedPublicStatus === 'public',
     consultation_enabled: true,
     inquiry_enabled: true,
     reservation_enabled: input.selected_features.includes('reservation_management'),
@@ -1687,10 +2136,19 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       });
     }
 
-    const requestTagline = existingRequest?.tagline || `${input.business_name} 운영을 더 매끄럽게 만드는 AI 스토어`;
+    const requestBrandName = existingRequest?.brand_name || input.brand_name?.trim() || input.business_name;
+    const requestTagline = existingRequest?.tagline || input.tagline?.trim() || `${input.business_name} 운영을 더 매끄럽게 만드는 AI 스토어`;
     const requestDescription =
-      existingRequest?.description || `${input.business_name}의 예약, 주문, 고객, 매출 흐름을 한 곳에서 운영할 수 있는 스토어입니다.`;
+      existingRequest?.description || input.description?.trim() || `${input.business_name}의 예약, 주문, 고객, 매출 흐름을 한 곳에서 운영할 수 있는 스토어입니다.`;
     const requestDirections = existingRequest?.directions || `${input.address} 기준 방문 동선을 안내해 주세요.`;
+    const requestOpeningHours = existingRequest?.opening_hours || input.opening_hours?.trim() || '매일 10:00 - 21:00';
+    const requestPublicStatus = existingRequest?.public_status || input.public_status || 'public';
+    const requestThemePreset = existingRequest?.theme_preset || input.theme_preset || 'light';
+    const requestPrimaryCta = existingRequest?.primary_cta_label || input.primary_cta_label?.trim() || '지금 확인하기';
+    const requestMobileCta = existingRequest?.mobile_cta_label || input.mobile_cta_label?.trim() || '바로 보기';
+    const requestPreviewTarget = existingRequest?.preview_target || input.preview_target || 'survey';
+    const requestStoreMode = existingRequest?.store_mode || input.store_mode;
+    const requestDataMode = existingRequest?.data_mode || input.data_mode;
     const requestHeroImage =
       existingRequest?.hero_image_url || 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80';
     const requestStorefrontImage =
@@ -1752,7 +2210,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     database.store_brand_profiles.unshift({
       id: createId('store_brand_profile'),
       store_id: storeId,
-      brand_name: input.business_name,
+      brand_name: requestBrandName,
       logo_url: '',
       primary_color: '#ec5b13',
       tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
@@ -1764,7 +2222,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       store_id: storeId,
       address: input.address,
       directions: `${input.address} 기준 기본 길안내`,
-      published: false,
+      published: requestedPublicStatus === 'public',
     });
     if (database.store_brand_profiles[0]?.store_id === storeId) {
       database.store_brand_profiles[0] = {
@@ -1777,7 +2235,22 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       database.store_locations[0] = {
         ...database.store_locations[0],
         directions: requestDirections,
-        opening_hours: '매일 10:00 - 21:00',
+        opening_hours: requestOpeningHours,
+      };
+    }
+    if (database.stores[0]?.id === storeId) {
+      database.stores[0] = {
+        ...database.stores[0],
+        data_mode: requestDataMode,
+        description: requestDescription,
+        homepage_visible: requestPublicStatus === 'public',
+        mobile_cta_label: requestMobileCta,
+        preview_target: requestPreviewTarget,
+        primary_cta_label: requestPrimaryCta,
+        public_status: requestPublicStatus,
+        store_mode: requestStoreMode,
+        tagline: requestTagline,
+        theme_preset: requestThemePreset,
       };
     }
     database.store_media.push(...storeMedia);
@@ -1798,10 +2271,18 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       ...input,
       requested_slug: uniqueSlug,
       requested_plan: subscriptionPlan,
-      brand_name: input.business_name,
+      brand_name: requestBrandName,
       brand_color: '#ec5b13',
       tagline: `${input.business_name}의 운영 효율을 높이는 스토어`,
       description: `${input.business_name} SaaS MVP 스토어`,
+      opening_hours: requestOpeningHours,
+      public_status: requestPublicStatus,
+      theme_preset: requestThemePreset,
+      primary_cta_label: requestPrimaryCta,
+      mobile_cta_label: requestMobileCta,
+      preview_target: requestPreviewTarget,
+      store_mode: requestStoreMode,
+      data_mode: requestDataMode,
       hero_image_url: '',
       storefront_image_url: '',
       interior_image_url: '',
@@ -2107,23 +2588,55 @@ export async function listCustomers(storeId: string) {
     .sort((left, right) => (right.last_visit_at || '').localeCompare(left.last_visit_at || ''));
 }
 
+function normalizePhoneKey(value?: string) {
+  return (value || '').replace(/\D/g, '');
+}
+
+function findCustomerByContact(
+  customers: Customer[],
+  input: { id?: string; phone?: string; email?: string },
+) {
+  const email = input.email?.trim().toLowerCase();
+  const phone = normalizePhoneKey(input.phone);
+
+  return (
+    customers.find((customer) => customer.id === input.id) ||
+    customers.find((customer) => {
+      const samePhone = phone ? normalizePhoneKey(customer.phone) === phone : false;
+      const sameEmail = email ? customer.email?.trim().toLowerCase() === email : false;
+      return samePhone || sameEmail;
+    }) ||
+    null
+  );
+}
+
+function sortInquiriesByRecent(inquiries: Inquiry[]) {
+  return inquiries
+    .slice()
+    .sort((left, right) => (right.updated_at || right.created_at).localeCompare(left.updated_at || left.created_at));
+}
+
 export async function upsertCustomer(
   storeId: string,
   customerInput: Pick<Customer, 'name' | 'phone' | 'email' | 'marketing_opt_in'> & { id?: string },
 ) {
   const timestamp = nowIso();
   let nextCustomer: Customer | null = null;
+  const parsed = customerContactSchema.parse(customerInput);
 
   updateDatabase((database) => {
-    if (customerInput.id) {
+    if (parsed.id) {
       database.customers = database.customers.map((customer) => {
-        if (customer.id !== customerInput.id) {
+        if (customer.id !== parsed.id) {
           return customer;
         }
 
         nextCustomer = {
           ...customer,
-          ...customerInput,
+          name: parsed.name,
+          phone: parsed.phone,
+          email: parsed.email || undefined,
+          marketing_opt_in: parsed.marketing_opt_in,
         };
 
         return nextCustomer!;
@@ -2134,10 +2647,10 @@ export async function upsertCustomer(
     nextCustomer = {
       id: createId('customer'),
       store_id: storeId,
-      name: customerInput.name,
-      phone: customerInput.phone,
-      email: customerInput.email,
-      marketing_opt_in: customerInput.marketing_opt_in,
+      name: parsed.name,
+      phone: parsed.phone,
+      email: parsed.email || undefined,
+      marketing_opt_in: parsed.marketing_opt_in,
       visit_count: 0,
       is_regular: false,
       created_at: timestamp,
@@ -2149,11 +2662,159 @@ export async function upsertCustomer(
   return nextCustomer;
 }
 
+function upsertInquiryCustomer(
+  database: MvpDatabase,
+  input: {
+    storeId: string;
+    customerName: string;
+    phone: string;
+    email?: string;
+    marketingOptIn: boolean;
+  },
+) {
+  const matchedCustomer = findCustomerByContact(
+    database.customers.filter((customer) => customer.store_id === input.storeId),
+    {
+      phone: input.phone,
+      email: input.email,
+    },
+  );
+
+  const nextCustomer: Customer = matchedCustomer
+    ? {
+        ...matchedCustomer,
+        name: input.customerName || matchedCustomer.name,
+        phone: input.phone,
+        email: input.email || matchedCustomer.email,
+        marketing_opt_in: matchedCustomer.marketing_opt_in || input.marketingOptIn,
+      }
+    : {
+        id: createId('customer'),
+        store_id: input.storeId,
+        name: input.customerName,
+        phone: input.phone,
+        email: input.email,
+        visit_count: 0,
+        last_visit_at: undefined,
+        is_regular: false,
+        marketing_opt_in: input.marketingOptIn,
+        created_at: nowIso(),
+      };
+
+  const existingIndex = database.customers.findIndex((customer) => customer.id === nextCustomer.id);
+  if (existingIndex >= 0) {
+    database.customers[existingIndex] = nextCustomer;
+  } else {
+    database.customers.unshift(nextCustomer);
+  }
+
+  return nextCustomer;
+}
+
+function incrementConsultationMetric(database: MvpDatabase, storeId: string, createdAt: string) {
+  const metricDate = startOfDayKey(createdAt);
+  const metricIndex = database.store_daily_metrics.findIndex((metric) => metric.store_id === storeId && metric.metric_date === metricDate);
+
+  if (metricIndex >= 0) {
+    const currentMetric = database.store_daily_metrics[metricIndex];
+    database.store_daily_metrics[metricIndex] = {
+      ...currentMetric,
+      consultation_count: currentMetric.consultation_count + 1,
+      top_signals: normalizeInquiryTags([...(currentMetric.top_signals || []), 'New inquiry captured']),
+      version: currentMetric.version + 1,
+    };
+    return;
+  }
+
+  const fallbackMetric =
+    database.store_daily_metrics
+      .filter((metric) => metric.store_id === storeId)
+      .slice()
+      .sort((left, right) => right.metric_date.localeCompare(left.metric_date))[0] || null;
+
+  database.store_daily_metrics.unshift({
+    id: createId('daily_metric'),
+    store_id: storeId,
+    metric_date: metricDate,
+    revenue_total: 0,
+    visitor_count: 0,
+    lunch_guest_count: 0,
+    dinner_guest_count: 0,
+    takeout_count: 0,
+    average_wait_minutes: fallbackMetric?.average_wait_minutes || 0,
+    stockout_flag: false,
+    note: '',
+    orders_count: 0,
+    avg_order_value: 0,
+    new_customers: 0,
+    repeat_customers: 0,
+    repeat_customer_rate: 0,
+    reservation_count: 0,
+    no_show_rate: 0,
+    consultation_count: 1,
+    consultation_conversion_rate: 0,
+    review_count: 0,
+    review_response_rate: 0,
+    operations_score: fallbackMetric?.operations_score || 70,
+    top_signals: ['New inquiry captured'],
+    version: 1,
+  });
+}
+
+export async function listInquiries(storeId: string) {
+  const data = getStoreScopedData(storeId);
+  return sortInquiriesByRecent(data.inquiries).map((inquiry) => ({
+    ...inquiry,
+    customer: data.customers.find((customer) => customer.id === inquiry.customer_id) || null,
+  }));
+}
+
+export async function updateInquiryRecord(
+  storeId: string,
+  inquiryId: string,
+  input: {
+    status: Inquiry['status'];
+    tags: string[];
+    memo: string;
+  },
+): Promise<Inquiry> {
+  const parsed = inquiryOwnerUpdateSchema.parse({
+    ...input,
+    tags: normalizeInquiryTags(input.tags),
+    memo: input.memo.trim(),
+  });
+  let nextInquiry: Inquiry | null = null;
+
+  updateDatabase((database) => {
+    database.inquiries = database.inquiries.map((inquiry) => {
+      if (inquiry.id !== inquiryId || inquiry.store_id !== storeId) {
+        return inquiry;
+      }
+
+      nextInquiry = {
+        ...inquiry,
+        status: parsed.status,
+        tags: parsed.tags,
+        memo: parsed.memo,
+        updated_at: nowIso(),
+      };
+
+      return nextInquiry!;
+    });
+  });
+
+  if (!nextInquiry) {
+    throw new Error('Inquiry could not be found for this store.');
+  }
+
+  return nextInquiry;
+}
+
 export async function attachCustomerToOrder(
   storeId: string,
   orderId: string,
   input: { phone: string; name?: string; email?: string; marketingOptIn?: boolean },
-) {
+): Promise<Customer | null> {
   let matchedCustomer: Customer | null = null;
 
   updateDatabase((database) => {
@@ -2236,24 +2897,52 @@ export async function saveSchedule(storeId: string, input: Omit<StoreSchedule, '
 
 export async function listSurveys(storeId: string) {
   const data = getStoreScopedData(storeId);
-  return data.surveys.map((survey) => ({
-    ...survey,
-    responses: data.surveyResponses.filter((response) => response.survey_id === survey.id),
-  }));
+  return data.surveys
+    .slice()
+    .sort(
+      (left, right) =>
+        Number(right.is_active) - Number(left.is_active) ||
+        (right.updated_at || right.created_at).localeCompare(left.updated_at || left.created_at),
+    )
+    .map((survey) => ({
+      ...survey,
+      questions: normalizeSurveyQuestions(survey.questions),
+      responses: data.surveyResponses
+        .filter((response) => response.survey_id === survey.id)
+        .slice()
+        .sort((left, right) => right.created_at.localeCompare(left.created_at)),
+    }));
 }
 
 export async function saveSurvey(
   storeId: string,
   input: { id?: string; title: string; description: string; questions: SurveyQuestion[]; is_active: boolean },
 ) {
-  const survey: Survey = {
+  const parsed = surveyFormSchema.parse({
     ...input,
-    id: input.id || createId('survey'),
+    questions: normalizeSurveyQuestions(input.questions),
+  });
+  const createdAt = input.id ? getStoreScopedData(storeId).surveys.find((item) => item.id === input.id)?.created_at || nowIso() : nowIso();
+  const survey: Survey = {
+    ...parsed,
+    id: parsed.id || createId('survey'),
     store_id: storeId,
-    created_at: input.id ? getStoreScopedData(storeId).surveys.find((item) => item.id === input.id)?.created_at || nowIso() : nowIso(),
+    created_at: createdAt,
+    updated_at: nowIso(),
   };
 
   updateDatabase((database) => {
+    if (survey.is_active) {
+      database.surveys = database.surveys.map((item) =>
+        item.store_id === storeId
+          ? {
+              ...item,
+              is_active: item.id === survey.id,
+            }
+          : item,
+      );
+    }
+
     const existingIndex = database.surveys.findIndex((item) => item.id === survey.id);
     if (existingIndex >= 0) {
       database.surveys[existingIndex] = survey;
@@ -2269,8 +2958,9 @@ export async function saveSurveyResponse(
   storeId: string,
   input: Omit<SurveyResponse, 'id' | 'store_id' | 'created_at'>,
 ) {
+  const parsed = surveyResponseSchema.parse(input);
   const response: SurveyResponse = {
-    ...input,
+    ...parsed,
     id: createId('survey_response'),
     store_id: storeId,
     created_at: nowIso(),
@@ -2281,6 +2971,205 @@ export async function saveSurveyResponse(
   });
 
   return response;
+}
+
+function normalizeSurveyAnswerValue(question: SurveyQuestion, rawValue: string | number | string[] | undefined) {
+  if (question.type === 'rating' || question.type === 'revisit_intent') {
+    if (typeof rawValue === 'number') {
+      return rawValue;
+    }
+
+    if (typeof rawValue === 'string' && rawValue.trim()) {
+      const numericValue = Number(rawValue);
+      return Number.isFinite(numericValue) ? numericValue : undefined;
+    }
+
+    return undefined;
+  }
+
+  if (question.type === 'multiple_choice') {
+    if (Array.isArray(rawValue)) {
+      return rawValue.map((value) => value.trim()).filter(Boolean);
+    }
+
+    if (typeof rawValue === 'string' && rawValue.trim()) {
+      return [rawValue.trim()];
+    }
+
+    return undefined;
+  }
+
+  if (typeof rawValue === 'string') {
+    return rawValue.trim() || undefined;
+  }
+
+  return undefined;
+}
+
+export async function getPublicSurveyForm(storeId: string, formId: string) {
+  const store = await getStoreById(storeId);
+  if (!store) {
+    return null;
+  }
+
+  const surveys = await listSurveys(storeId);
+  const survey = surveys.find((item) => item.id === formId);
+  if (!survey) {
+    return null;
+  }
+
+  return {
+    store,
+    survey,
+    summary: buildPublicSurveySummary(survey, getStoreScopedData(storeId).surveyResponses),
+  };
+}
+
+export async function submitPublicSurveyResponse(input: {
+  storeId: string;
+  formId: string;
+  customerName?: string;
+  tableCode?: string;
+  answers: Array<{ questionId: string; value: string | number | string[] | undefined }>;
+}) {
+  const surveySnapshot = await getPublicSurveyForm(input.storeId, input.formId);
+  if (!surveySnapshot) {
+    throw new Error('Survey form could not be found for this store.');
+  }
+
+  const answerMap = new Map(input.answers.map((answer) => [answer.questionId, answer.value]));
+  const questions = normalizeSurveyQuestions(surveySnapshot.survey.questions);
+  const normalizedAnswers = questions.flatMap((question) => {
+    const value = normalizeSurveyAnswerValue(question, answerMap.get(question.id));
+
+    if (
+      question.required &&
+      (value === undefined || value === '' || (Array.isArray(value) && value.length === 0))
+    ) {
+      throw new Error(`Answer required for "${question.label}".`);
+    }
+
+    if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
+      return [];
+    }
+
+    return [
+      {
+        question_id: question.id,
+        value,
+      },
+    ];
+  });
+
+  const ratingAnswer = normalizedAnswers.find((answer) => questions.find((question) => question.id === answer.question_id)?.type === 'rating');
+  const revisitAnswer = normalizedAnswers.find(
+    (answer) => questions.find((question) => question.id === answer.question_id)?.type === 'revisit_intent',
+  );
+  const commentAnswer = normalizedAnswers.find((answer) => questions.find((question) => question.id === answer.question_id)?.type === 'text');
+
+  const response = await saveSurveyResponse(input.storeId, {
+    survey_id: surveySnapshot.survey.id,
+    customer_name: input.customerName?.trim() || 'Guest',
+    table_code: input.tableCode?.trim() || undefined,
+    rating: typeof ratingAnswer?.value === 'number' ? ratingAnswer.value : 0,
+    revisit_intent: typeof revisitAnswer?.value === 'number' ? revisitAnswer.value : undefined,
+    comment: typeof commentAnswer?.value === 'string' ? commentAnswer.value : '',
+    answers: normalizedAnswers,
+  });
+
+  return {
+    response,
+    summary: buildPublicSurveySummary(surveySnapshot.survey, [...getStoreScopedData(input.storeId).surveyResponses]),
+  };
+}
+
+export async function getPublicInquiryForm(storeId: string) {
+  const store = await getStoreById(storeId);
+  if (!store) {
+    return null;
+  }
+
+  const inquiries = getStoreScopedData(storeId).inquiries;
+
+  return {
+    store,
+    summary: buildPublicInquirySummary(inquiries),
+  };
+}
+
+export async function submitPublicInquiry(input: {
+  storeId: string;
+  customerName: string;
+  phone: string;
+  email?: string;
+  category: Inquiry['category'];
+  requestedVisitDate?: string;
+  message: string;
+  marketingOptIn: boolean;
+}): Promise<{
+  inquiry: Inquiry;
+  customer: Customer;
+  summary: {
+    totalCount: number;
+    openCount: number;
+    recentTags: string[];
+    lastInquiryAt?: string;
+  };
+}> {
+  const parsed = publicInquirySchema.parse(input);
+  const inquiryForm = await getPublicInquiryForm(input.storeId);
+  if (!inquiryForm) {
+    throw new Error('Inquiry form could not be found for this store.');
+  }
+  if (inquiryForm.store.inquiry_enabled === false) {
+    throw new Error('Inquiry is not enabled for this store.');
+  }
+
+  let inquiry: Inquiry | null = null;
+  let customer: Customer | null = null;
+
+  updateDatabase((database) => {
+    customer = upsertInquiryCustomer(database, {
+      storeId: input.storeId,
+      customerName: parsed.customerName,
+      phone: parsed.phone,
+      email: parsed.email,
+      marketingOptIn: parsed.marketingOptIn,
+    });
+
+    const timestamp = nowIso();
+    inquiry = {
+      id: createId('inquiry'),
+      store_id: input.storeId,
+      customer_id: customer?.id,
+      customer_name: parsed.customerName,
+      phone: parsed.phone,
+      email: parsed.email,
+      category: parsed.category,
+      status: 'new',
+      message: parsed.message,
+      tags: normalizeInquiryTags([parsed.category.replace(/_/g, ' ')]),
+      memo: '',
+      marketing_opt_in: parsed.marketingOptIn,
+      requested_visit_date: parsed.requestedVisitDate,
+      source: 'public_form',
+      created_at: timestamp,
+      updated_at: timestamp,
+    };
+
+    database.inquiries.unshift(inquiry);
+    incrementConsultationMetric(database, input.storeId, timestamp);
+  });
+
+  if (!inquiry || !customer) {
+    throw new Error('Inquiry could not be created.');
+  }
+
+  return {
+    inquiry,
+    customer,
+    summary: buildPublicInquirySummary(getStoreScopedData(input.storeId).inquiries),
+  };
 }
 
 export async function getBrandProfile(storeId: string) {
@@ -2443,7 +3332,6 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
 export async function updateStoreSettings(storeId: string, input: UpdateStoreSettingsInput) {
   if (shouldUseSupabaseStoreProvisioning() && supabase) {
     const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
-    const timestamp = nowIso();
 
     const currentStore = await getStoreById(storeId);
     if (!currentStore) {
@@ -2692,18 +3580,33 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
 export async function getAiReportDashboard(storeId: string, input: AiReportDashboardInput): Promise<AiReportDashboardSnapshot> {
   const data = getStoreScopedData(storeId);
   const resolved = resolveAiReportWindow(input);
+  const previousRange = buildPreviousRange(resolved.start, resolved.end);
   const latestReport = data.reports.slice().sort((left, right) => right.generated_at.localeCompare(left.generated_at))[0] || null;
   const customersById = new Map(data.customers.map((customer) => [customer.id, customer]));
+  const currentMetrics = data.dailyMetrics.filter((metric) => isWithinDateRange(metric.metric_date, resolved.start, resolved.end));
+  const previousMetrics = data.dailyMetrics.filter((metric) => isWithinDateRange(metric.metric_date, previousRange.start, previousRange.end));
+  const currentResponses = data.surveyResponses.filter((response) => isWithinDateRange(response.created_at, resolved.start, resolved.end));
+  const previousResponses = data.surveyResponses.filter((response) => isWithinDateRange(response.created_at, previousRange.start, previousRange.end));
   const completedOrders = data.orders.filter(
     (order) => order.status === 'completed' && isWithinDateRange(order.completed_at || order.placed_at, resolved.start, resolved.end),
   );
   const activeOrders = data.orders.filter(
     (order) => order.status !== 'cancelled' && isWithinDateRange(order.placed_at, resolved.start, resolved.end),
   );
+  const previousCompletedOrders = data.orders.filter(
+    (order) => order.status === 'completed' && isWithinDateRange(order.completed_at || order.placed_at, previousRange.start, previousRange.end),
+  );
+  const previousActiveOrders = data.orders.filter(
+    (order) => order.status !== 'cancelled' && isWithinDateRange(order.placed_at, previousRange.start, previousRange.end),
+  );
   const periodReservations = data.reservations.filter((reservation) =>
     isWithinDateRange(reservation.reserved_at, resolved.start, resolved.end),
   );
+  const previousReservations = data.reservations.filter((reservation) =>
+    isWithinDateRange(reservation.reserved_at, previousRange.start, previousRange.end),
+  );
   const periodWaiting = data.waitingEntries.filter((entry) => isWithinDateRange(entry.created_at, resolved.start, resolved.end));
+  const previousWaiting = data.waitingEntries.filter((entry) => isWithinDateRange(entry.created_at, previousRange.start, previousRange.end));
   const performance = buildMenuPerformance(data.menuItems, data.orderItems);
   const repeatOrders = completedOrders.filter((order) => {
     if (!order.customer_id) {
@@ -2713,6 +3616,16 @@ export async function getAiReportDashboard(storeId: string, input: AiReportDashb
     return Boolean(customersById.get(order.customer_id)?.is_regular);
   }).length;
   const repeatCustomerRate = completedOrders.length ? Math.round((repeatOrders / completedOrders.length) * 100) : 0;
+  const previousRepeatOrders = previousCompletedOrders.filter((order) => {
+    if (!order.customer_id) {
+      return false;
+    }
+
+    return Boolean(customersById.get(order.customer_id)?.is_regular);
+  }).length;
+  const previousRepeatCustomerRate = previousCompletedOrders.length
+    ? Math.round((previousRepeatOrders / previousCompletedOrders.length) * 100)
+    : 0;
 
   const trendStart = startOfDay(resolved.end);
   trendStart.setDate(trendStart.getDate() - (resolved.trendDays - 1));
@@ -2745,26 +3658,308 @@ export async function getAiReportDashboard(storeId: string, input: AiReportDashb
     popularMenu: performance.popular?.menuItem.name || '-',
     weakMenu: performance.weak?.menuItem.name || '-',
   });
+  const currentMetricTotals = getDashboardMetricsTotals(currentMetrics);
+  const previousMetricTotals = getDashboardMetricsTotals(previousMetrics);
+  const effectiveRepeatCustomerRate = repeatCustomerRate || currentMetricTotals.repeatCustomerRate;
+  const previousEffectiveRepeatCustomerRate = previousRepeatCustomerRate || previousMetricTotals.repeatCustomerRate;
+  const averageRating = getAverageSurveyRating(currentResponses);
+  const previousAverageRating = getAverageSurveyRating(previousResponses);
+  const revisitScore = getAverageRevisitScore(currentResponses, effectiveRepeatCustomerRate);
+  const previousRevisitScore = getAverageRevisitScore(previousResponses, previousEffectiveRepeatCustomerRate);
+  const operationsScore =
+    currentMetricTotals.operationsScore || deriveOperationsScore(periodWaiting.length, periodReservations.length, currentMetricTotals.consultations);
+  const previousOperationsScore =
+    previousMetricTotals.operationsScore ||
+    deriveOperationsScore(previousWaiting.length, previousReservations.length, previousMetricTotals.consultations);
+  const sentimentIndex = averageRating ? Math.round(averageRating * 20) : clampScore(operationsScore - 10);
+  const previousSentimentIndex = previousAverageRating ? Math.round(previousAverageRating * 20) : clampScore(previousOperationsScore - 10);
+  const healthScore = clampScore((operationsScore + sentimentIndex + revisitScore + effectiveRepeatCustomerRate) / 4);
+  const previousHealthScore = clampScore(
+    (previousOperationsScore + previousSentimentIndex + previousRevisitScore + previousEffectiveRepeatCustomerRate) / 4,
+  );
+  const store = data.store!;
+  const dataMode = store.data_mode || 'order_survey';
+  const popularMenu = performance.popular?.menuItem.name || '-';
+  const weakMenu = performance.weak?.menuItem.name || '-';
+  const hasOrderData = dataMode.includes('order');
+  const hasSurveyData = dataMode.includes('survey');
+  const hasManualData = dataMode.includes('manual');
+  const problemTop3 = buildAiProblemTop3({
+    store,
+    waitingCount: periodWaiting.length,
+    reservationCount: periodReservations.length,
+    averageRating,
+    revisitScore,
+    operationsScore,
+    repeatCustomerRate: effectiveRepeatCustomerRate,
+    weakMenu,
+    consultationCount: currentMetricTotals.consultations,
+  });
+  const strengthTop3 = buildAiStrengthTop3({
+    store,
+    averageRating,
+    revisitScore,
+    operationsScore,
+    repeatCustomerRate: effectiveRepeatCustomerRate,
+    popularMenu,
+    reviewResponseRate: currentMetricTotals.reviewResponseRate,
+    consultationConversionRate: currentMetricTotals.consultationConversionRate,
+  });
+  const oneLineSummary = buildAiOneLineSummary({
+    dataMode,
+    problemTop3,
+    strengthTop3,
+  });
+  const weeklyChange = [
+    hasOrderData
+      ? {
+          label: '매출',
+          current: currentMetricTotals.revenue || sumBy(completedOrders, (order) => order.total_amount),
+          previous: previousMetricTotals.revenue || sumBy(previousCompletedOrders, (order) => order.total_amount),
+          unit: '원',
+        }
+      : {
+          label: '응답수',
+          current: currentResponses.length,
+          previous: previousResponses.length,
+          unit: '건',
+        },
+    hasOrderData
+      ? {
+          label: '주문수',
+          current: currentMetricTotals.orders || activeOrders.length,
+          previous: previousMetricTotals.orders || previousActiveOrders.length,
+          unit: '건',
+        }
+      : {
+          label: '만족도',
+          current: averageRating,
+          previous: previousAverageRating,
+          unit: '점',
+        },
+    hasSurveyData
+      ? {
+          label: '재방문 의사',
+          current: revisitScore,
+          previous: previousRevisitScore,
+          unit: '점',
+        }
+      : {
+          label: '단골 비중',
+          current: effectiveRepeatCustomerRate,
+          previous: previousEffectiveRepeatCustomerRate,
+          unit: '%',
+        },
+    {
+      label: hasManualData ? '운영점수' : '운영 안정도',
+      current: operationsScore,
+      previous: previousOperationsScore,
+      unit: '점',
+    },
+  ];
+  const scoreCards = [
+    {
+      key: 'health' as const,
+      label: '매장 건강도',
+      value: `${healthScore}점`,
+      delta: formatNumericDelta(healthScore, previousHealthScore, 'p'),
+      hint: `${resolved.range === 'custom' ? '선택 기간' : '현재 구간'} 핵심 지표를 한 장으로 묶은 종합 점수`,
+      tone: 'orange' as const,
+    },
+    {
+      key: 'sentiment' as const,
+      label: hasSurveyData ? '고객 반응' : '경험 신호',
+      value: averageRating ? `${averageRating}/5` : currentResponses.length ? `${currentResponses.length}건` : '응답 대기',
+      delta: averageRating
+        ? formatNumericDelta(averageRating, previousAverageRating, 'p', 1)
+        : formatNumericDelta(currentResponses.length, previousResponses.length, '건'),
+      hint: hasSurveyData ? `설문 ${currentResponses.length}건 기준으로 계산한 반응 지표` : '주문·운영 신호로 보정한 경험 지표',
+      tone: 'blue' as const,
+    },
+    {
+      key: 'revisit' as const,
+      label: '재방문 의사',
+      value: `${revisitScore}점`,
+      delta: formatNumericDelta(revisitScore, previousRevisitScore, 'p'),
+      hint: `단골 비중 ${effectiveRepeatCustomerRate}%와 함께 보는 재방문 점수`,
+      tone: 'emerald' as const,
+    },
+    {
+      key: 'operations' as const,
+      label: '운영 안정도',
+      value: `${operationsScore}점`,
+      delta: formatNumericDelta(operationsScore, previousOperationsScore, 'p'),
+      hint: `웨이팅 ${periodWaiting.length}건, 예약 ${periodReservations.length}건을 반영한 현장 점수`,
+      tone: 'slate' as const,
+    },
+  ];
+  const sentimentBreakdown = buildSentimentBreakdown({
+    responses: currentResponses,
+    waitingCount: periodWaiting.length,
+    operationsScore,
+    repeatCustomerRate: effectiveRepeatCustomerRate,
+    popularMenu,
+    weakMenu,
+  });
+  const actionCards = buildAiActionCards({
+    dataMode,
+    recommendationSummary: summary.recommendationSummary,
+    improvementChecklist: summary.improvementChecklist,
+    problemTop3,
+    strengthTop3,
+  });
 
   return {
-    store: data.store!,
+    store,
     range: resolved.range,
     periodLabel: resolved.label,
     customStart: input.customStart,
     customEnd: input.customEnd,
     totals: {
-      sales: sumBy(completedOrders, (order) => order.total_amount),
-      orders: activeOrders.length,
-      reservations: periodReservations.length,
+      sales: currentMetricTotals.revenue || sumBy(completedOrders, (order) => order.total_amount),
+      orders: currentMetricTotals.orders || activeOrders.length,
+      reservations: currentMetricTotals.reservationCount || periodReservations.length,
       waiting: periodWaiting.length,
-      repeatCustomerRate,
+      repeatCustomerRate: effectiveRepeatCustomerRate,
     },
     trend,
     latestReport,
     recommendationSummary: summary.recommendationSummary,
     topBottlenecks: summary.topBottlenecks,
     improvementChecklist: summary.improvementChecklist,
+    scoreCards,
+    problemTop3,
+    strengthTop3,
+    sentimentBreakdown,
+    weeklyChange,
+    oneLineSummary,
+    actionCards,
   };
+}
+
+function sortMetricsByDateDesc(metrics: StoreDailyMetric[]) {
+  return metrics.slice().sort((left, right) => right.metric_date.localeCompare(left.metric_date));
+}
+
+function buildManualMetricSignals(input: ManualMetricFormInput) {
+  const signals: string[] = [];
+
+  if (input.stockoutFlag) {
+    signals.push('대표 메뉴 재고 부족 대응 필요');
+  }
+  if (input.averageWaitMinutes >= 15) {
+    signals.push('대기 안내 문구 보강 필요');
+  }
+  if (input.takeoutCount >= 8) {
+    signals.push('포장 수요 대응 강화');
+  }
+  if (input.note.trim()) {
+    signals.push(input.note.trim());
+  }
+  if (!signals.length) {
+    signals.push('기본 운영 흐름 안정');
+  }
+
+  return signals.slice(0, 4);
+}
+
+function deriveManualMetricOperationScore(input: ManualMetricFormInput) {
+  const waitPenalty = Math.round(input.averageWaitMinutes * 1.8);
+  const stockoutPenalty = input.stockoutFlag ? 16 : 0;
+  const guestBalancePenalty = input.visitorCount > 0 && input.lunchGuestCount + input.dinnerGuestCount < Math.round(input.visitorCount * 0.7) ? 5 : 0;
+  const takeoutBonus = input.takeoutCount >= 8 ? 4 : input.takeoutCount >= 4 ? 2 : 0;
+
+  return clampScore(90 - waitPenalty - stockoutPenalty - guestBalancePenalty + takeoutBonus);
+}
+
+function buildManualMetricRecord(input: {
+  storeId: string;
+  current?: StoreDailyMetric;
+  fallback: StoreDailyMetric | null;
+  values: ManualMetricFormInput;
+}) {
+  const base = input.current || input.fallback;
+  const ordersCount = Math.max(0, input.values.takeoutCount + Math.round(input.values.visitorCount * 0.58));
+  const avgOrderValue = ordersCount ? Math.round(input.values.revenueTotal / ordersCount) : base?.avg_order_value || 0;
+  const repeatCustomers = Math.min(base?.repeat_customers || Math.round(input.values.visitorCount * 0.28), input.values.visitorCount);
+  const newCustomers = Math.max(0, input.values.visitorCount - repeatCustomers);
+  const repeatCustomerRate = input.values.visitorCount ? Math.round((repeatCustomers / input.values.visitorCount) * 100) : base?.repeat_customer_rate || 0;
+  const operationsScore = deriveManualMetricOperationScore(input.values);
+
+  return {
+    id: input.current?.id || `daily_metric_${input.storeId}_${input.values.metricDate}`,
+    store_id: input.storeId,
+    metric_date: input.values.metricDate,
+    revenue_total: input.values.revenueTotal,
+    visitor_count: input.values.visitorCount,
+    lunch_guest_count: input.values.lunchGuestCount,
+    dinner_guest_count: input.values.dinnerGuestCount,
+    takeout_count: input.values.takeoutCount,
+    average_wait_minutes: input.values.averageWaitMinutes,
+    stockout_flag: input.values.stockoutFlag,
+    note: input.values.note.trim(),
+    orders_count: ordersCount,
+    avg_order_value: avgOrderValue,
+    new_customers: newCustomers,
+    repeat_customers: repeatCustomers,
+    repeat_customer_rate: repeatCustomerRate,
+    reservation_count: base?.reservation_count || 0,
+    no_show_rate: base?.no_show_rate || 0,
+    consultation_count: base?.consultation_count || 0,
+    consultation_conversion_rate: base?.consultation_conversion_rate || 0,
+    review_count: base?.review_count || 0,
+    review_response_rate: base?.review_response_rate || 0,
+    operations_score: operationsScore,
+    top_signals: buildManualMetricSignals(input.values),
+    version: (input.current?.version || base?.version || 0) + 1,
+  } satisfies StoreDailyMetric;
+}
+
+export async function getOperationsMetricsDashboard(storeId: string) {
+  const data = getStoreScopedData(storeId);
+  const metrics = sortMetricsByDateDesc(data.dailyMetrics);
+  const recentMetrics = metrics.slice(0, 7);
+  const latestMetric = recentMetrics[0] || metrics[0] || null;
+
+  return {
+    metrics,
+    recentMetrics,
+    latestMetric,
+    summary: {
+      weeklyRevenue: sumBy(recentMetrics, (metric) => metric.revenue_total),
+      weeklyVisitors: sumBy(recentMetrics, (metric) => metric.visitor_count || 0),
+      weeklyTakeout: sumBy(recentMetrics, (metric) => metric.takeout_count || 0),
+      averageWaitMinutes: recentMetrics.length
+        ? Math.round(sumBy(recentMetrics, (metric) => metric.average_wait_minutes || 0) / recentMetrics.length)
+        : 0,
+      stockoutDays: recentMetrics.filter((metric) => metric.stockout_flag).length,
+    },
+  };
+}
+
+export async function saveManualDailyMetric(storeId: string, input: ManualMetricFormInput) {
+  const parsed = manualMetricFormSchema.parse(input);
+  const scoped = getStoreScopedData(storeId);
+  const currentMetric = scoped.dailyMetrics.find((metric) => metric.metric_date === parsed.metricDate);
+  const fallbackMetric = sortMetricsByDateDesc(scoped.dailyMetrics)[0] || null;
+  const nextMetric = buildManualMetricRecord({
+    storeId,
+    current: currentMetric,
+    fallback: fallbackMetric,
+    values: parsed,
+  });
+
+  updateDatabase((database) => {
+    const currentIndex = database.store_daily_metrics.findIndex((metric) => metric.store_id === storeId && metric.metric_date === parsed.metricDate);
+    if (currentIndex >= 0) {
+      database.store_daily_metrics[currentIndex] = nextMetric;
+      return;
+    }
+
+    database.store_daily_metrics.unshift(nextMetric);
+  });
+
+  return nextMetric;
 }
 
 export async function listSales(storeId: string) {
@@ -2828,7 +4023,7 @@ function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {
 
   database.sales_daily = upsertSalesDailyForCompletedOrder(database.sales_daily, {
     store_id: completedOrder.store_id,
-    placed_at: completedOrder.completed_at,
+    placed_at: completedOrder.completed_at ?? completedOrder.placed_at,
     total_amount: completedOrder.total_amount,
     channel: completedOrder.channel,
   });
@@ -3039,16 +4234,178 @@ export async function createMenuItem(
   return item;
 }
 
+function buildPublicMenuHighlights(
+  menuItems: MenuItem[],
+  orderItems: OrderItem[],
+  orders: Order[],
+) {
+  const now = new Date();
+  const todayKey = startOfDayKey(now);
+  const weeklyStart = startOfDay(new Date(now));
+  weeklyStart.setDate(weeklyStart.getDate() - 6);
+
+  const todayOrderIds = new Set(
+    orders
+      .filter((order) => startOfDayKey(order.completed_at || order.placed_at) === todayKey)
+      .map((order) => order.id),
+  );
+  const weeklyOrderIds = new Set(
+    orders
+      .filter((order) => isWithinDateRange(order.completed_at || order.placed_at, weeklyStart, now))
+      .map((order) => order.id),
+  );
+
+  const selectHighlights = (targetOrderIds: Set<string>, fallbackFilter: (item: MenuItem) => boolean) => {
+    const scoreByMenuId = orderItems.reduce<Record<string, number>>((accumulator, item) => {
+      if (!targetOrderIds.has(item.order_id)) {
+        return accumulator;
+      }
+
+      accumulator[item.menu_item_id] = (accumulator[item.menu_item_id] || 0) + item.quantity;
+      return accumulator;
+    }, {});
+
+    const ranked = Object.entries(scoreByMenuId)
+      .sort((left, right) => right[1] - left[1])
+      .map(([menuItemId]) => menuItems.find((item) => item.id === menuItemId))
+      .filter((item): item is MenuItem => Boolean(item));
+
+    if (ranked.length >= 3) {
+      return ranked.slice(0, 3);
+    }
+
+    const fallbackItems = menuItems.filter(fallbackFilter);
+    const uniqueItems = [...ranked];
+
+    fallbackItems.forEach((item) => {
+      if (uniqueItems.some((entry) => entry.id === item.id)) {
+        return;
+      }
+
+      uniqueItems.push(item);
+    });
+
+    return uniqueItems.slice(0, 3);
+  };
+
+  return {
+    today: selectHighlights(todayOrderIds, (item) => item.is_popular || menuItems.indexOf(item) < 3),
+    weekly: selectHighlights(weeklyOrderIds, (item) => item.is_popular || menuItems.indexOf(item) < 4),
+  };
+}
+
+function buildPublicSurveySummary(activeSurvey: Survey | null, responses: SurveyResponse[]) {
+  if (!activeSurvey) {
+    return null;
+  }
+
+  const surveyResponses = responses.filter((response) => response.survey_id === activeSurvey.id);
+  const averageRating = surveyResponses.length
+    ? Number((surveyResponses.reduce((total, response) => total + response.rating, 0) / surveyResponses.length).toFixed(1))
+    : 0;
+
+  return {
+    survey: activeSurvey,
+    responseCount: surveyResponses.length,
+    averageRating,
+  };
+}
+
+function buildPublicInquirySummary(inquiries: Inquiry[]) {
+  const recentTags = [...new Set(inquiries.flatMap((inquiry) => inquiry.tags).filter(Boolean))].slice(0, 4);
+
+  return {
+    totalCount: inquiries.length,
+    openCount: inquiries.filter((inquiry) => inquiry.status !== 'completed').length,
+    recentTags,
+    lastInquiryAt: sortInquiriesByRecent(inquiries)[0]?.created_at,
+  };
+}
+
+function buildPublicExperience(store: Store, notices: StoreNotice[]) {
+  const source = `${store.slug} ${store.name} ${store.business_type || ''}`.toLowerCase();
+  const latestNotice = notices[0];
+
+  if (source.includes('bbq') || source.includes('izakaya') || source.includes('pub') || source.includes('bar')) {
+    return {
+      eyebrow: '저녁 피크 대응형 공개 스토어',
+      todayLabel: '오늘 추천 세트',
+      weeklyLabel: '이번 주 반응 메뉴',
+      surveyLabel: '한줄 만족도 체크',
+      inquiryLabel: '단체 예약/문의',
+      eventTitle: latestNotice?.title || '오늘 저녁 타임 운영 안내',
+      eventDescription:
+        latestNotice?.content || '피크 타임 전에 대표 메뉴와 좌석 운영 방식을 먼저 보여주고 문의까지 바로 받습니다.',
+    };
+  }
+
+  if (source.includes('buffet') || source.includes('뷔페')) {
+    return {
+      eyebrow: '방문 경험 중심 공개 스토어',
+      todayLabel: '오늘 리필 인기 메뉴',
+      weeklyLabel: '이번 주 만족 메뉴',
+      surveyLabel: '방문 만족도 남기기',
+      inquiryLabel: '단체 방문 문의',
+      eventTitle: latestNotice?.title || '오늘 운영 공지',
+      eventDescription:
+        latestNotice?.content || '대기와 리필, 인기 코너를 한눈에 보여줘 처음 온 손님도 빠르게 이해할 수 있게 구성했습니다.',
+    };
+  }
+
+  if (source.includes('coffee') || source.includes('cafe') || source.includes('카페')) {
+    return {
+      eyebrow: '메뉴 반응형 공개 스토어',
+      todayLabel: '오늘 많이 찾는 메뉴',
+      weeklyLabel: '이번 주 시그니처',
+      surveyLabel: '방문 후기 남기기',
+      inquiryLabel: '매장/브랜드 문의',
+      eventTitle: latestNotice?.title || '이번 주 스토어 포인트',
+      eventDescription:
+        latestNotice?.content || '대표 음료와 베이커리, 스토어 분위기를 같이 보여줘 첫 방문 고객의 선택을 빠르게 돕습니다.',
+    };
+  }
+
+  return {
+    eyebrow: '점주 이해 우선형 공개 스토어',
+    todayLabel: '오늘 추천 메뉴',
+    weeklyLabel: '이번 주 인기 메뉴',
+    surveyLabel: '고객 의견 남기기',
+    inquiryLabel: '문의 남기기',
+    eventTitle: latestNotice?.title || '이번 주 안내',
+    eventDescription: latestNotice?.content || '스토어 소개, 공지, 문의 동선을 한 번에 보여주는 기본형 공개 스토어입니다.',
+  };
+}
+
 export async function getPublicStore(storeSlug: string) {
   const store = await getStoreBySlug(storeSlug);
   if (!store) {
     return null;
   }
 
+  return getPublicStoreSnapshot(store);
+}
+
+export async function getPublicStoreById(storeId: string) {
+  const store = await getStoreById(storeId);
+  if (!store) {
+    return null;
+  }
+
+  return getPublicStoreSnapshot(store);
+}
+
+async function getPublicStoreSnapshot(store: Store) {
+  const surveys = await listSurveys(store.id);
+
   const scoped = getStoreScopedData(store.id);
   const menu = await listMenu(store.id);
   const tables = await listStoreTables(store.id);
   const capabilities = buildStoreCapabilityFlags(store, scoped.features);
+  const notices = getPublishedStoreNotices(scoped.notices);
+  const surveySummary = buildPublicSurveySummary(surveys.find((survey) => survey.is_active) || surveys[0] || null, scoped.surveyResponses);
+  const inquirySummary = buildPublicInquirySummary(scoped.inquiries);
+  const menuHighlights = buildPublicMenuHighlights(menu.items, scoped.orderItems, scoped.orders);
+  const experience = buildPublicExperience(store, notices);
 
   return {
     store,
@@ -3056,9 +4413,13 @@ export async function getPublicStore(storeSlug: string) {
     tables,
     location: getPrimaryStoreLocation(scoped.locations),
     media: getSortedStoreMedia(scoped.media),
-    notices: getPublishedStoreNotices(scoped.notices),
+    notices,
     capabilities,
     features: scoped.features.filter((feature) => feature.enabled),
+    menuHighlights,
+    surveySummary,
+    inquirySummary,
+    experience,
   };
 }
 
