@@ -1,15 +1,20 @@
 import { ZodError } from 'zod';
 
-import { DIAGNOSIS_AVAILABLE_DATA_OPTIONS, DIAGNOSIS_CONCERN_OPTIONS, DIAGNOSIS_DESIRED_OUTCOME_OPTIONS, DIAGNOSIS_INDUSTRY_OPTIONS } from '@/shared/lib/diagnosisBlueprint';
-import { diagnosisInputSchema } from '@/shared/lib/diagnosisSchema';
+import {
+  DIAGNOSIS_AVAILABLE_DATA_OPTIONS,
+  DIAGNOSIS_CONCERN_OPTIONS,
+  DIAGNOSIS_DESIRED_OUTCOME_OPTIONS,
+  DIAGNOSIS_INDUSTRY_OPTIONS,
+} from '../shared/lib/diagnosisBlueprint';
+import { diagnosisInputSchema } from '../shared/lib/diagnosisSchema';
 import {
   buildDiagnosisPrompt,
   buildDiagnosisResult,
   normalizeDiagnosisResult,
   type DiagnosisInput,
   type DiagnosisModelDraft,
-} from '@/shared/lib/onboardingFlow';
-import { ALL_FEATURES } from '@/shared/types/models';
+} from '../shared/lib/onboardingFlow';
+import { ALL_FEATURES } from '../shared/types/models';
 
 const AI_DIAGNOSIS_ENDPOINT = '/api/ai/diagnosis';
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';

@@ -1,14 +1,8 @@
-export const runtime = "nodejs";
-
 import {
   createDiagnosisErrorResponse,
   createDiagnosisMethodNotAllowedResponse,
   handleDiagnosisRequest,
 } from '../../src/server/aiDiagnosis';
-
-export const config = {
-  runtime: 'edge',
-};
 
 export default async function handler(request: Request) {
   try {
