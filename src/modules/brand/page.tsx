@@ -166,7 +166,7 @@ export function BrandPage() {
     if (!form.slug.trim()) {
       return {
         available: true,
-        message: '스토어명을 기준으로 주소를 자동 정리하고 있습니다.',
+        message: '매장명을 기준으로 주소를 자동 정리하고 있습니다.',
         preview: suggested,
         suggested,
         tone: 'info' as const,
@@ -195,7 +195,7 @@ export function BrandPage() {
 
     return {
       available: true,
-      message: '사용 가능한 공개 스토어 주소입니다.',
+      message: '사용 가능한 공개 매장 주소입니다.',
       preview: normalized,
       suggested,
       tone: 'success' as const,
@@ -209,7 +209,7 @@ export function BrandPage() {
         slug: slugState.preview,
       }),
     onSuccess: async (nextSettings) => {
-      setMessage({ tone: 'success', text: '스토어 설정을 저장했습니다. 공개 스토어와 운영 화면에 바로 반영됩니다.' });
+      setMessage({ tone: 'success', text: '매장 설정을 저장했습니다. 공개 매장과 운영 화면에 바로 반영됩니다.' });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.brand(currentStore!.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.stores }),
@@ -220,7 +220,7 @@ export function BrandPage() {
     onError: (error) => {
       setMessage({
         tone: 'error',
-        text: error instanceof Error ? error.message : '스토어 설정을 저장하지 못했습니다. 입력값을 다시 확인해 주세요.',
+        text: error instanceof Error ? error.message : '매장 설정을 저장하지 못했습니다. 입력값을 다시 확인해 주세요.',
       });
     },
   });
@@ -258,13 +258,13 @@ export function BrandPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Store settings"
-        title="스토어 설정"
-        description="기본 정보, 공개 스토어 주소, 브랜딩, CTA, 운영 우선순위를 한 화면에서 관리합니다."
+        eyebrow="매장 설정"
+        title="매장 설정"
+        description="기본 정보, 공개 매장 주소, 브랜딩, CTA, 운영 우선순위를 한 화면에서 관리합니다."
         actions={
           <>
             <Link className="btn-secondary" to={publicStorePath}>
-              공개 스토어 보기
+              공개 매장 보기
             </Link>
             <button className="btn-primary" disabled={!canSave || saveMutation.isPending} onClick={() => saveMutation.mutate()} type="button">
               설정 저장
@@ -287,10 +287,10 @@ export function BrandPage() {
 
       <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-8">
-          <Panel title="기본 정보" subtitle="스토어명, 주소, 업종, 연락처처럼 공개 스토어와 결제 이후 운영 화면에 함께 쓰이는 값을 관리합니다.">
+          <Panel title="기본 정보" subtitle="매장명, 주소, 업종, 연락처처럼 공개 매장과 결제 이후 운영 화면에 함께 쓰이는 값을 관리합니다.">
             <div className="grid gap-4 md:grid-cols-2">
               {[
-                ['storeName', '스토어명', '예: 성수 브런치 하우스'],
+                ['storeName', '매장명', '예: 성수 브런치 하우스'],
                 ['businessType', '업종', '예: 브런치 카페'],
                 ['phone', '연락처', '예: 02-1234-5678'],
                 ['email', '대표 이메일', '예: hello@store.kr'],
@@ -310,14 +310,14 @@ export function BrandPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
               <label>
-                <span className="field-label">스토어 주소</span>
+                <span className="field-label">매장 주소</span>
                 <input
                   className="input-base"
                   onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
                   placeholder="예: seongsu-brunch-house"
                   value={form.slug}
                 />
-                <p className="mt-2 text-sm leading-6 text-slate-500">공개 스토어 URL과 QR 주문 링크에 그대로 사용됩니다.</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">공개 매장 URL과 QR 주문 링크에 그대로 사용됩니다.</p>
               </label>
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">공개 주소 미리보기</p>
@@ -346,7 +346,7 @@ export function BrandPage() {
             </div>
           </Panel>
 
-          <Panel title="운영 및 공개 설정" subtitle="스토어 노출 상태와 고객이 바로 누를 CTA를 이곳에서 정리합니다.">
+          <Panel title="운영 및 공개 설정" subtitle="매장 노출 상태와 고객이 바로 누를 CTA를 이곳에서 정리합니다.">
             <div className="grid gap-4 md:grid-cols-2">
               <label>
                 <span className="field-label">공개 상태</span>
@@ -390,11 +390,11 @@ export function BrandPage() {
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
-                ['homepageVisible', '홈페이지 노출', '공개 스토어 홈을 외부 방문자가 바로 볼 수 있게 합니다.'],
-                ['consultationEnabled', '상담 버튼', '전화 상담 CTA를 공개 스토어 상단에 노출합니다.'],
+                ['homepageVisible', '홈페이지 노출', '공개 매장 홈을 외부 방문자가 바로 볼 수 있게 합니다.'],
+                ['consultationEnabled', '상담 버튼', '전화 상담 CTA를 공개 매장 상단에 노출합니다.'],
                 ['inquiryEnabled', '문의 버튼', '이메일 문의 CTA를 함께 노출합니다.'],
-                ['reservationEnabled', '예약 버튼', '예약 문의 CTA를 공개 스토어에 표시합니다.'],
-                ['orderEntryEnabled', '주문 진입', '메뉴/주문 진입 버튼을 공개 스토어에 노출합니다.'],
+                ['reservationEnabled', '예약 버튼', '예약 문의 CTA를 공개 매장에 표시합니다.'],
+                ['orderEntryEnabled', '주문 진입', '메뉴/주문 진입 버튼을 공개 매장에 노출합니다.'],
               ].map(([field, label, description]) => (
                 <label className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4" key={field}>
                   <input
@@ -498,7 +498,7 @@ export function BrandPage() {
             </div>
           </Panel>
 
-          <Panel title="브랜딩, 공지, 비주얼" subtitle="공개 스토어의 첫인상에 직접 보이는 요소를 이곳에서 다듬습니다.">
+          <Panel title="브랜딩, 공지, 비주얼" subtitle="공개 매장의 첫인상에 직접 보이는 요소를 이곳에서 다듬습니다.">
             <div className="grid gap-4 md:grid-cols-2">
               <label>
                 <span className="field-label">로고 URL</span>
@@ -516,7 +516,7 @@ export function BrandPage() {
                 <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, tagline: event.target.value }))} value={form.tagline} />
               </label>
               <label className="md:col-span-2">
-                <span className="field-label">스토어 설명</span>
+                <span className="field-label">매장 설명</span>
                 <textarea className="input-base min-h-28" onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} value={form.description} />
               </label>
               <label>
@@ -544,10 +544,10 @@ export function BrandPage() {
         </div>
 
         <div className="space-y-8">
-          <Panel title="공개 스토어 미리보기" subtitle="저장 전에도 지금 구성된 톤과 주소, CTA 구성을 바로 확인할 수 있습니다.">
+          <Panel title="공개 매장 미리보기" subtitle="저장 전에도 지금 구성된 톤과 주소, CTA 구성을 바로 확인할 수 있습니다.">
             <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-[#fffaf3]">
               <div className="relative min-h-[250px] overflow-hidden bg-slate-950 p-8 text-white">
-                {form.heroImageUrl ? <img alt="Store hero" className="absolute inset-0 h-full w-full object-cover opacity-45" src={form.heroImageUrl} /> : null}
+                {form.heroImageUrl ? <img alt="매장 대표 이미지" className="absolute inset-0 h-full w-full object-cover opacity-45" src={form.heroImageUrl} /> : null}
                 <div className="relative space-y-4">
                   <span className="inline-flex max-w-full rounded-full bg-white/12 px-3 py-1 text-xs font-bold tracking-[0.18em] text-orange-200">
                     <span className="truncate">{slugState.preview}</span>
@@ -555,17 +555,17 @@ export function BrandPage() {
                   <div className="flex items-center gap-4">
                     <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl text-white" style={{ backgroundColor: form.brandColor }}>
                       {form.logoUrl ? (
-                        <img alt="Store logo" className="h-16 w-16 rounded-3xl object-cover" src={form.logoUrl} />
+                        <img alt="매장 로고" className="h-16 w-16 rounded-3xl object-cover" src={form.logoUrl} />
                       ) : (
                         <span className="font-display text-2xl font-black">{form.storeName.slice(0, 1) || 'S'}</span>
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="break-words font-display text-3xl font-black">{form.storeName || '스토어명'}</p>
-                      <p className="mt-1 break-words text-sm text-slate-200">{form.tagline || '한 줄 소개를 입력하면 공개 스토어 상단에 노출됩니다.'}</p>
+                      <p className="break-words font-display text-3xl font-black">{form.storeName || '매장명'}</p>
+                      <p className="mt-1 break-words text-sm text-slate-200">{form.tagline || '한 줄 소개를 입력하면 공개 매장 상단에 노출됩니다.'}</p>
                     </div>
                   </div>
-                  <p className="max-w-xl break-words text-sm leading-7 text-slate-200">{form.description || '스토어 설명이 이 영역에 노출됩니다.'}</p>
+                  <p className="max-w-xl break-words text-sm leading-7 text-slate-200">{form.description || '매장 설명이 이 영역에 노출됩니다.'}</p>
                   <div className="flex flex-wrap gap-2">
                     {form.consultationEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">상담</span> : null}
                     {form.inquiryEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">문의</span> : null}
@@ -582,7 +582,7 @@ export function BrandPage() {
                 <div className="rounded-3xl bg-white p-5">
                   <p className="text-sm font-semibold text-slate-500">대표 공지</p>
                   <p className="mt-2 break-words font-semibold text-slate-900">{form.noticeTitle || '공지 제목을 입력해 주세요.'}</p>
-                  <p className="mt-2 break-words text-sm leading-6 text-slate-600">{form.noticeContent || '공지 내용이 공개 스토어 상단에 노출됩니다.'}</p>
+                  <p className="mt-2 break-words text-sm leading-6 text-slate-600">{form.noticeContent || '공지 내용이 공개 매장 상단에 노출됩니다.'}</p>
                 </div>
               </div>
             </div>
@@ -591,7 +591,7 @@ export function BrandPage() {
           <Panel title="바로 연결되는 화면" subtitle="설정 저장 후 운영팀이 바로 이어서 확인하는 화면들입니다.">
             <div className="grid gap-3">
               {[
-                { label: '홈', title: '공개 스토어 홈', to: publicStorePath },
+                { label: '홈', title: '공개 매장 홈', to: publicStorePath },
                 { label: '메뉴', title: '공개 메뉴', to: buildStorePath(slugState.preview, 'menu') },
                 { label: '주문', title: '공개 주문', to: buildStorePath(slugState.preview, 'order') },
                 { label: '운영', title: '테이블오더 관리', to: '/dashboard/table-order' },

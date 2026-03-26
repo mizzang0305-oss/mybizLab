@@ -18,19 +18,21 @@ export function InsightCallout({
   footer,
   tone = 'brand',
   className,
+  eyebrow = 'Insight Callout',
 }: {
   title: string;
   body: ReactNode;
   footer?: ReactNode;
   tone?: InsightCalloutTone;
   className?: string;
+  eyebrow?: string;
 }) {
   return (
-    <section className={cn('rounded-[28px] border p-5', toneClassMap[tone], className)}>
-      <p className="text-xs font-bold uppercase tracking-[0.2em]">Insight Callout</p>
-      <h3 className="mt-3 font-display text-xl font-black tracking-tight">{title}</h3>
-      <div className="mt-3 text-sm leading-6">{body}</div>
-      {footer ? <div className="mt-4 text-sm font-semibold">{footer}</div> : null}
+    <section className={cn('rounded-[28px] border p-5 sm:p-6', toneClassMap[tone], className)}>
+      <p className="text-xs font-semibold leading-5 [word-break:keep-all]">{eyebrow}</p>
+      <h3 className="mt-3 font-display text-xl font-black leading-[1.35] tracking-tight [word-break:keep-all] sm:text-[1.45rem]">{title}</h3>
+      <div className="mt-3 text-sm leading-7 [word-break:keep-all]">{body}</div>
+      {footer ? <div className="mt-4 text-sm font-semibold leading-7 [word-break:keep-all]">{footer}</div> : null}
     </section>
   );
 }

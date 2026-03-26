@@ -11,6 +11,13 @@ import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import type { KitchenTicket } from '@/shared/types/models';
 
 const columns: KitchenTicket['status'][] = ['pending', 'accepted', 'preparing', 'ready', 'completed'];
+const kitchenStatusLabelMap: Record<KitchenTicket['status'], string> = {
+  pending: '접수 대기',
+  accepted: '접수 완료',
+  preparing: '조리 중',
+  ready: '준비 완료',
+  completed: '전달 완료',
+};
 
 export function KitchenPage() {
   const { currentStore } = useCurrentStore();
@@ -50,19 +57,19 @@ export function KitchenPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Kitchen board"
+        eyebrow="주방 운영"
         title="주방 보드"
-        description="pending / accepted / preparing / ready / completed 상태를 실시간 또는 polling으로 확인합니다."
+        description="접수 대기부터 전달 완료까지 주문 상태를 실시간 또는 자동 새로고침으로 확인합니다."
       />
 
       <div className="grid gap-6 xl:grid-cols-5">
         {columns.map((column) => (
-          <Panel key={column} className="p-4" title={column.toUpperCase()}>
+          <Panel key={column} className="p-4" title={kitchenStatusLabelMap[column]}>
             <div className="space-y-3">
               {(grouped.get(column) || []).map((ticket) => (
                 <div key={ticket.id} className="rounded-3xl border border-slate-200 p-4">
                   <div className="flex items-center justify-between">
-                    <p className="font-bold text-slate-900">{ticket.table_no ? `Table ${ticket.table_no}` : 'Walk-in'}</p>
+                    <p className="font-bold text-slate-900">{ticket.table_no ? `테이블 ${ticket.table_no}` : '매장 주문'}</p>
                     <StatusBadge status={ticket.status} />
                   </div>
                   <p className="mt-2 text-sm text-slate-500">{ticket.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
@@ -77,7 +84,7 @@ export function KitchenPage() {
                           onClick={() => statusMutation.mutate({ ticketId: ticket.id, status })}
                           type="button"
                         >
-                          {status}
+                          {kitchenStatusLabelMap[status]}
                         </button>
                       ))}
                   </div>

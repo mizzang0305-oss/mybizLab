@@ -17,6 +17,13 @@ const initialForm = {
   status: 'waiting' as WaitingStatus,
 };
 
+const waitingStatusLabelMap: Record<WaitingStatus, string> = {
+  waiting: '대기중',
+  called: '호출 완료',
+  seated: '입장 완료',
+  cancelled: '취소',
+};
+
 export function WaitingPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
@@ -51,9 +58,9 @@ export function WaitingPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Waiting board"
+        eyebrow="웨이팅 현황"
         title="웨이팅보드"
-        description="대기 등록, 호출 상태 변경, 착석 처리를 store_id 기준으로 관리합니다."
+        description="대기 등록부터 호출, 입장 처리까지 현장 웨이팅 흐름을 한 화면에서 관리합니다."
       />
 
       <div className="grid gap-8 xl:grid-cols-[0.75fr_1.25fr]">
@@ -103,7 +110,7 @@ export function WaitingPage() {
                       onClick={() => updateStatusMutation.mutate({ waitingId: entry.id, status })}
                       type="button"
                     >
-                      {status}
+                      {waitingStatusLabelMap[status]}
                     </button>
                   ))}
                 </div>

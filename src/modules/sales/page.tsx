@@ -120,7 +120,7 @@ export function SalesPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Manual operations data"
+        eyebrow="수기 운영 데이터"
         title="운영지표 입력"
         description="주문 연동이 없어도 점주는 오늘 운영 상태를 직접 기록할 수 있어야 합니다. 입력한 값은 최근 7일 테이블과 AI 인사이트 흐름으로 바로 이어집니다."
       />

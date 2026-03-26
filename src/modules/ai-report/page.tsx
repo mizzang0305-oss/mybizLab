@@ -18,6 +18,22 @@ const rangeTabs: Array<{ value: AiReportRange; label: string }> = [
   { value: 'custom', label: '직접 선택' },
 ];
 
+const storeModeLabelMap: Record<string, string> = {
+  order_first: '주문 중심',
+  survey_first: '설문 중심',
+  hybrid: '혼합형',
+  brand_inquiry_first: '브랜드/문의 중심',
+};
+
+const dataModeLabelMap: Record<string, string> = {
+  order_only: '주문 데이터',
+  survey_only: '설문 데이터',
+  manual_only: '수기 입력',
+  order_survey: '주문 + 설문',
+  survey_manual: '설문 + 수기',
+  order_survey_manual: '주문 + 설문 + 수기',
+};
+
 function buildDisplayPeriodLabel(range: AiReportRange, customStart: string, customEnd: string) {
   if (range === 'daily') {
     return '오늘 기준';
@@ -131,7 +147,7 @@ export function AiReportsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Owner-ready insight"
+        eyebrow="사장님용 AI 요약"
         title="AI 인사이트"
         description="데이터는 우리가 해석하고, 사장님은 결정만 하시면 됩니다. 이번 주 가장 중요한 문제와 바로 실행할 액션을 한 화면에서 확인하세요."
         actions={
@@ -186,10 +202,10 @@ export function AiReportsPage() {
             )}
             <div className="flex flex-wrap gap-2 text-sm">
               <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">
-                storeMode {dashboard?.store.store_mode || currentStore.store_mode}
+                운영 방식 {storeModeLabelMap[dashboard?.store.store_mode || currentStore.store_mode || 'hybrid'] || dashboard?.store.store_mode || currentStore.store_mode}
               </span>
               <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">
-                dataMode {dashboard?.store.data_mode || currentStore.data_mode}
+                데이터 수집 {dataModeLabelMap[dashboard?.store.data_mode || currentStore.data_mode || 'order_survey_manual'] || dashboard?.store.data_mode || currentStore.data_mode}
               </span>
             </div>
           </div>

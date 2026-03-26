@@ -121,19 +121,19 @@ describe('platform dashboard routes', () => {
       });
     });
 
-    expect(html).toContain('Simple operating snapshot');
+    expect(html).toContain('오늘 운영 한눈에 보기');
     expect(html).toContain('Golden Coffee');
     expect(html).toContain('href="/dashboard/orders"');
     expect(html).toContain('href="/dashboard/surveys"');
     expect(html).toContain('href="/dashboard/customers"');
     expect(html).toContain('href="/dashboard/brand"');
-    expect(html).toContain('Range controls');
-    expect(html).toContain('Open the next module without guessing');
-    expect(html).toContain('Seven-day trend view');
-    expect(html).toContain('Start here');
-    expect(html).toContain('Recent alerts');
-    expect(html).toContain('Customer mix');
-    expect(html).toContain('Today operating board');
+    expect(html).toContain('조회 기간');
+    expect(html).toContain('다음으로 열면 좋은 화면');
+    expect(html).toContain('최근 7일 흐름');
+    expect(html).toContain('우선 확인');
+    expect(html).toContain('오늘 확인할 알림');
+    expect(html).toContain('고객 구성');
+    expect(html).toContain('오늘 운영판');
   });
 
   it('renders the store requests list and detail routes', async () => {

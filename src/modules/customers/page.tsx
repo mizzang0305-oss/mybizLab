@@ -22,25 +22,25 @@ const initialCustomerForm = {
 };
 
 const inquiryStatusOptions: Array<{ label: string; value: (typeof inquiryStatusValues)[number] }> = [
-  { label: 'New', value: 'new' },
-  { label: 'In progress', value: 'in_progress' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'On hold', value: 'on_hold' },
+  { label: '신규 문의', value: 'new' },
+  { label: '응대중', value: 'in_progress' },
+  { label: '처리 완료', value: 'completed' },
+  { label: '보류', value: 'on_hold' },
 ];
 
 const inquiryCategoryLabelMap: Record<string, string> = {
-  general: 'General',
-  reservation: 'Reservation',
-  group_booking: 'Group booking',
-  event: 'Event',
-  brand: 'Brand',
+  general: '일반 문의',
+  reservation: '예약 문의',
+  group_booking: '단체 예약',
+  event: '행사 문의',
+  brand: '브랜드 문의',
 };
 
 const orderChannelLabelMap: Record<string, string> = {
-  delivery: 'Delivery',
-  reservation: 'Reservation order',
-  table: 'Table order',
-  walk_in: 'Walk-in',
+  delivery: '배달',
+  reservation: '예약 주문',
+  table: '테이블 주문',
+  walk_in: '매장 방문',
 };
 
 export function CustomersPage() {
@@ -56,7 +56,7 @@ export function CustomersPage() {
   const [inquiryStatus, setInquiryStatus] = useState<(typeof inquiryStatusValues)[number]>('new');
   const [inquiryMessage, setInquiryMessage] = useState<string | null>(null);
 
-  usePageMeta('CRM and inquiries', 'A simple owner CRM screen with inquiry inbox, follow-up state, customer records, and order context.');
+  usePageMeta('고객 관리', '문의함, 응대 상태, 고객 정보, 최근 주문 흐름을 한 화면에서 보는 점주용 고객 관리 화면입니다.');
 
   const customersQuery = useQuery({
     queryKey: queryKeys.customers(currentStore?.id || ''),
@@ -79,12 +79,12 @@ export function CustomersPage() {
   const customerMutation = useMutation({
     mutationFn: () => upsertCustomer(currentStore!.id, customerForm),
     onSuccess: async () => {
-      setCustomerMessage('Customer record saved.');
+      setCustomerMessage('고객 정보를 저장했습니다.');
       setCustomerErrors({});
       await queryClient.invalidateQueries({ queryKey: queryKeys.customers(currentStore!.id) });
     },
     onError: (error) => {
-      setCustomerMessage(error instanceof Error ? error.message : 'Customer record could not be saved.');
+      setCustomerMessage(error instanceof Error ? error.message : '고객 정보를 저장하지 못했습니다.');
     },
   });
 
@@ -96,7 +96,7 @@ export function CustomersPage() {
         memo: inquiryMemo,
       }),
     onSuccess: async () => {
-      setInquiryMessage('Inquiry follow-up updated.');
+      setInquiryMessage('문의 응대 상태를 저장했습니다.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.inquiries(currentStore!.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.publicInquiry(currentStore!.id) }),
@@ -106,7 +106,7 @@ export function CustomersPage() {
       ]);
     },
     onError: (error) => {
-      setInquiryMessage(error instanceof Error ? error.message : 'Inquiry update failed.');
+      setInquiryMessage(error instanceof Error ? error.message : '문의 응대 저장에 실패했습니다.');
     },
   });
 
@@ -163,8 +163,8 @@ export function CustomersPage() {
   if (!currentStore) {
     return (
       <EmptyState
-        title="CRM is preparing"
-        description="Store selection is still loading. Open this screen again once a store is active."
+        title="고객 관리 화면을 준비하는 중입니다"
+        description="매장 선택 정보를 불러오는 중입니다. 매장이 준비되면 고객 관리 화면을 바로 사용할 수 있습니다."
       />
     );
   }
@@ -172,20 +172,20 @@ export function CustomersPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Owner CRM"
-        title="CRM and inquiry inbox"
-        description="Keep leads, repeat guests, follow-up memo, and recent order context in one simple owner screen."
+        eyebrow="고객 관리"
+        title="고객/문의 관리"
+        description="문의 고객, 단골 손님, 후속 연락 메모, 최근 주문 흐름을 한 화면에서 바로 확인하세요."
       />
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard accent="blue" label="Customers" value={customers.length} />
-        <MetricCard accent="emerald" label="Regulars" value={regularCustomerCount} />
-        <MetricCard accent="orange" label="Open inquiries" value={openInquiryCount} />
-        <MetricCard accent="slate" label="Recent leads" value={inquiries.length} />
+        <MetricCard accent="blue" label="전체 고객" value={customers.length} />
+        <MetricCard accent="emerald" label="단골 고객" value={regularCustomerCount} />
+        <MetricCard accent="orange" label="미처리 문의" value={openInquiryCount} />
+        <MetricCard accent="slate" label="전체 문의" value={inquiries.length} />
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[1.02fr_0.98fr]">
-        <Panel title="Inquiry inbox" subtitle="A simple list the owner can scan from top to bottom.">
+        <Panel title="문의함" subtitle="사장님이 위에서 아래로 바로 훑어볼 수 있게 단순하게 정리한 목록입니다.">
           {inquiries.length ? (
             <div className="space-y-3">
               {inquiries.map((inquiry) => (
@@ -221,11 +221,11 @@ export function CustomersPage() {
               ))}
             </div>
           ) : (
-            <EmptyState title="No inquiries yet" description="Public inquiry submissions will appear here as soon as the first lead is captured." />
+            <EmptyState title="아직 문의가 없습니다" description="공개 매장이나 문의 폼으로 첫 문의가 들어오면 이곳에 바로 표시됩니다." />
           )}
         </Panel>
 
-        <Panel title="Inquiry follow-up" subtitle="Status, tags, and memo stay short so the owner can update them quickly on mobile too.">
+        <Panel title="문의 응대" subtitle="상태, 태그, 메모를 짧게 정리해 모바일에서도 빠르게 업데이트할 수 있게 했습니다.">
           {selectedInquiry ? (
             <div className="space-y-5">
               <div className="rounded-[28px] border border-slate-200 bg-white p-5">
@@ -236,24 +236,24 @@ export function CustomersPage() {
                 <p className="mt-3 text-sm leading-7 text-slate-600">{selectedInquiry.message}</p>
                 <div className="mt-4 grid gap-3 text-sm text-slate-500 sm:grid-cols-2">
                   <p>
-                    <span className="font-semibold text-slate-900">Phone</span>
+                    <span className="font-semibold text-slate-900">전화번호</span>
                     <br />
                     {selectedInquiry.phone}
                   </p>
                   <p>
-                    <span className="font-semibold text-slate-900">Email</span>
+                    <span className="font-semibold text-slate-900">이메일</span>
                     <br />
                     {selectedInquiry.email || '-'}
                   </p>
                   <p>
-                    <span className="font-semibold text-slate-900">Requested date</span>
+                    <span className="font-semibold text-slate-900">방문 희망일</span>
                     <br />
                     {selectedInquiry.requested_visit_date || '-'}
                   </p>
                   <p>
-                    <span className="font-semibold text-slate-900">Source</span>
+                    <span className="font-semibold text-slate-900">접수 경로</span>
                     <br />
-                    {selectedInquiry.source === 'public_form' ? 'Public store form' : 'Owner manual'}
+                    {selectedInquiry.source === 'public_form' ? '공개 매장 문의 폼' : '관리자 수기 등록'}
                   </p>
                 </div>
               </div>
@@ -277,27 +277,27 @@ export function CustomersPage() {
               </div>
 
               <label>
-                <span className="field-label">Tags</span>
+                <span className="field-label">태그</span>
                 <input
                   className="input-base"
                   onChange={(event) => {
                     setInquiryTagsText(event.target.value);
                     setInquiryMessage(null);
                   }}
-                  placeholder="VIP, dinner, callback"
+                  placeholder="예: 단골, 저녁예약, 재연락"
                   value={inquiryTagsText}
                 />
               </label>
 
               <label>
-                <span className="field-label">Owner memo</span>
+                <span className="field-label">응대 메모</span>
                 <textarea
                   className="input-base min-h-28"
                   onChange={(event) => {
                     setInquiryMemo(event.target.value);
                     setInquiryMessage(null);
                   }}
-                  placeholder="Keep a short next-step note for the owner team."
+                  placeholder="다음에 어떻게 응대할지 짧게 적어 두세요."
                   value={inquiryMemo}
                 />
               </label>
@@ -309,19 +309,19 @@ export function CustomersPage() {
                   onClick={() => inquiryMutation.mutate()}
                   type="button"
                 >
-                  Save follow-up
+                  응대 저장
                 </button>
                 {inquiryMessage ? <p className="text-sm font-semibold text-slate-600">{inquiryMessage}</p> : null}
               </div>
             </div>
           ) : (
-            <EmptyState title="Select an inquiry" description="Choose an inquiry from the inbox to manage status, tags, and memo." />
+            <EmptyState title="문의 한 건을 선택해 주세요" description="문의함에서 항목을 선택하면 상태, 태그, 메모를 바로 관리할 수 있습니다." />
           )}
         </Panel>
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[0.96fr_1.04fr]">
-        <Panel title="Customer list" subtitle="Repeat guests and lead contacts stay searchable in the same screen.">
+        <Panel title="고객 목록" subtitle="단골 고객과 문의 리드를 한 화면에서 함께 찾을 수 있게 정리했습니다.">
           {customers.length ? (
             <div className="space-y-3">
               {customers.map((customer) => (
@@ -352,7 +352,7 @@ export function CustomersPage() {
                     <div className="text-right">
                       {customer.is_regular ? <StatusBadge status="ready" /> : null}
                       <p className={`mt-2 text-sm font-semibold ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>
-                        {customer.visit_count} visits
+                        {customer.visit_count}회 방문
                       </p>
                     </div>
                   </div>
@@ -360,15 +360,15 @@ export function CustomersPage() {
               ))}
             </div>
           ) : (
-            <EmptyState title="No customers yet" description="Customer records will appear from orders, inquiry leads, or manual owner entry." />
+            <EmptyState title="아직 고객 정보가 없습니다" description="주문, 문의, 수기 등록으로 고객 정보가 생기면 이곳에서 바로 관리할 수 있습니다." />
           )}
         </Panel>
 
         <div className="space-y-8">
-          <Panel title={customerForm.id ? 'Edit customer' : 'Create customer'} subtitle="Keep the manual customer editor available so existing flows stay intact.">
+          <Panel title={customerForm.id ? '고객 정보 수정' : '고객 정보 등록'} subtitle="기존 흐름을 유지하면서도 점주가 수기로 고객 정보를 바로 정리할 수 있게 했습니다.">
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
-                <span className="field-label">Name</span>
+                <span className="field-label">이름</span>
                 <input
                   className="input-base"
                   onChange={(event) => {
@@ -381,7 +381,7 @@ export function CustomersPage() {
                 {customerErrors.name ? <p className="mt-2 text-sm text-rose-600">{customerErrors.name}</p> : null}
               </label>
               <label>
-                <span className="field-label">Phone</span>
+                <span className="field-label">전화번호</span>
                 <input
                   className="input-base"
                   onChange={(event) => {
@@ -394,7 +394,7 @@ export function CustomersPage() {
                 {customerErrors.phone ? <p className="mt-2 text-sm text-rose-600">{customerErrors.phone}</p> : null}
               </label>
               <label className="sm:col-span-2">
-                <span className="field-label">Email</span>
+                <span className="field-label">이메일</span>
                 <input
                   className="input-base"
                   onChange={(event) => {
@@ -415,7 +415,7 @@ export function CustomersPage() {
                 onChange={(event) => setCustomerForm((current) => ({ ...current, marketing_opt_in: event.target.checked }))}
                 type="checkbox"
               />
-              Allow follow-up message
+              추후 안내 메시지 발송 허용
             </label>
 
             <div className="mt-4 flex flex-wrap gap-3">
@@ -433,7 +433,7 @@ export function CustomersPage() {
                       email: flattened.email?.[0],
                       marketing_opt_in: flattened.marketing_opt_in?.[0],
                     });
-                    setCustomerMessage('Please complete the required customer fields.');
+                    setCustomerMessage('필수 고객 정보를 먼저 입력해 주세요.');
                     return;
                   }
 
@@ -443,7 +443,7 @@ export function CustomersPage() {
                 }}
                 type="button"
               >
-                Save customer
+                고객 저장
               </button>
               <button
                 className="btn-secondary"
@@ -455,19 +455,19 @@ export function CustomersPage() {
                 }}
                 type="button"
               >
-                New record
+                새 고객 등록
               </button>
               {customerMessage ? <p className="text-sm font-semibold text-slate-600">{customerMessage}</p> : null}
             </div>
           </Panel>
 
-          <Panel title="Recent order context" subtitle="Show what this customer actually bought so the owner can answer on the spot.">
+          <Panel title="최근 주문 맥락" subtitle="이 고객이 실제로 무엇을 주문했는지 바로 보여줘서 현장에서 곧바로 응대할 수 있게 합니다.">
             {selectedCustomer ? (
               <div className="space-y-3">
                 <div className="rounded-[28px] border border-slate-200 bg-white p-5">
                   <p className="text-xl font-black text-slate-900">{selectedCustomer.name}</p>
                   <p className="mt-2 text-sm text-slate-500">{selectedCustomer.phone}</p>
-                  <p className="mt-2 text-sm text-slate-500">{selectedCustomer.email || 'No email saved yet.'}</p>
+                  <p className="mt-2 text-sm text-slate-500">{selectedCustomer.email || '이메일이 아직 없습니다.'}</p>
                 </div>
 
                 {relatedOrders.length ? (
@@ -476,7 +476,7 @@ export function CustomersPage() {
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="font-bold text-slate-900">
-                            {order.table_no ? `Table ${order.table_no}` : orderChannelLabelMap[order.channel] || order.channel}
+                            {order.table_no ? `테이블 ${order.table_no}` : orderChannelLabelMap[order.channel] || order.channel}
                           </p>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
                           <p className="mt-2 text-xs text-slate-400">{formatDateTime(order.placed_at)}</p>
@@ -490,12 +490,12 @@ export function CustomersPage() {
                   ))
                 ) : (
                   <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-                    No linked order yet. Inquiry-led customers can still be managed before their first visit.
+                    아직 연결된 주문이 없습니다. 첫 방문 전 문의 고객도 여기서 먼저 관리할 수 있습니다.
                   </div>
                 )}
               </div>
             ) : (
-              <EmptyState title="Select a customer" description="Choose a customer or inquiry-linked lead to see recent orders and contact context." />
+              <EmptyState title="고객을 선택해 주세요" description="고객이나 문의 리드를 선택하면 최근 주문과 연락 맥락을 바로 확인할 수 있습니다." />
             )}
           </Panel>
         </div>
