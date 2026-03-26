@@ -72,7 +72,7 @@ export function TableOrderAdminPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="테이블 주문"
-        title="테이블 오더"
+        title="테이블 주문"
         description="테이블 목록, 메뉴, QR 주문 링크를 관리하고 고객용 주문 화면으로 바로 연결합니다."
         actions={
           <Link className="btn-primary" to={buildStorePath(currentStore.slug, 'order')}>

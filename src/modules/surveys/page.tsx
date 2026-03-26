@@ -24,17 +24,17 @@ interface SurveyBuilderDraft {
 }
 
 const questionTypeCatalog: Array<{ description: string; label: string; type: SurveyQuestionType }> = [
-  { type: 'single_choice', label: 'Single choice', description: 'Best when the owner wants one clear reason.' },
-  { type: 'multiple_choice', label: 'Multiple choice', description: 'Useful for service, seating, and menu mixes.' },
-  { type: 'rating', label: 'Rating', description: 'Fast satisfaction score for dashboards and AI insight cards.' },
-  { type: 'revisit_intent', label: 'Revisit intent', description: 'Tracks whether the guest would come back soon.' },
-  { type: 'text', label: 'Text note', description: 'Collects one short comment from the guest.' },
+  { type: 'single_choice', label: '단일 선택', description: '하나의 핵심 이유를 바로 확인할 때 좋습니다.' },
+  { type: 'multiple_choice', label: '복수 선택', description: '서비스, 좌석, 메뉴처럼 여러 이유를 함께 받을 때 적합합니다.' },
+  { type: 'rating', label: '만족도 점수', description: '대시보드와 AI 화면에 바로 쓰이는 기본 만족도 점수입니다.' },
+  { type: 'revisit_intent', label: '재방문 의향', description: '손님이 다시 방문하고 싶은지 빠르게 확인합니다.' },
+  { type: 'text', label: '서술형 의견', description: '손님 의견을 짧게 자유 입력으로 받습니다.' },
 ];
 
 function createBlankSurveyDraft(storeName: string): SurveyBuilderDraft {
   return {
-    title: `${storeName} guest pulse`,
-    description: 'A simple form the owner can understand at a glance.',
+    title: `${storeName} 고객 의견 설문`,
+    description: '점주가 한눈에 이해할 수 있는 짧고 쉬운 설문입니다.',
     is_active: true,
     questions: normalizeSurveyQuestions([createSurveyQuestionDraft('rating', 1), createSurveyQuestionDraft('text', 2)]),
   };
@@ -70,9 +70,9 @@ function renderPreviewControl(question: SurveyQuestion) {
     return (
       <div className="grid gap-2 sm:grid-cols-3">
         {[
-          { label: 'Yes', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { label: 'Maybe', tone: 'bg-amber-50 text-amber-700 border-amber-200' },
-          { label: 'Not now', tone: 'bg-slate-50 text-slate-600 border-slate-200' },
+          { label: '다시 올게요', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+          { label: '고민 중이에요', tone: 'bg-amber-50 text-amber-700 border-amber-200' },
+          { label: '이번엔 아니에요', tone: 'bg-slate-50 text-slate-600 border-slate-200' },
         ].map((item) => (
           <div className={`rounded-2xl border px-3 py-2 text-center text-sm font-semibold ${item.tone}`} key={item.label}>
             {item.label}
@@ -98,7 +98,7 @@ function renderPreviewControl(question: SurveyQuestion) {
   return (
     <textarea
       className="input-base min-h-24 resize-none"
-      placeholder={question.placeholder || 'Leave a short note'}
+      placeholder={question.placeholder || '짧게 의견을 남겨 주세요.'}
       readOnly
       value=""
     />
@@ -126,7 +126,7 @@ export function SurveysPage() {
   const [draft, setDraft] = useState<SurveyBuilderDraft | null>(null);
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
 
-  usePageMeta('Survey builder', 'Build owner-friendly survey forms, preview them, and prepare public response flow.');
+  usePageMeta('고객 의견 설문 관리', '설문을 만들고 응답을 확인하며 공개 설문 흐름까지 한 화면에서 관리하는 화면입니다.');
 
   const surveysQuery = useQuery({
     queryKey: queryKeys.surveys(currentStore?.id || ''),
@@ -188,7 +188,7 @@ export function SurveysPage() {
 
       if (!parsed.success) {
         const issue = parsed.error.issues[0];
-        throw new Error(issue?.message || 'Survey form validation failed.');
+        throw new Error(issue?.message || '설문 내용을 다시 확인해 주세요.');
       }
 
       return saveSurvey(currentStore.id, parsed.data);
@@ -198,14 +198,14 @@ export function SurveysPage() {
         return;
       }
 
-      setMessage({ tone: 'success', text: 'Survey form saved. The builder, dashboard, and public flow now share the same structure.' });
+      setMessage({ tone: 'success', text: '설문을 저장했습니다. 운영 화면과 공개 응답 흐름에도 바로 반영됩니다.' });
       setSelectedSurveyId(savedSurvey.id);
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys(currentStore.id) });
     },
     onError: (error) => {
       setMessage({
         tone: 'error',
-        text: error instanceof Error ? error.message : 'Survey form could not be saved.',
+        text: error instanceof Error ? error.message : '설문을 저장하지 못했습니다.',
       });
     },
   });
@@ -213,8 +213,8 @@ export function SurveysPage() {
   if (!currentStore) {
     return (
       <EmptyState
-        title="Survey builder is loading"
-        description="Select a store first and the survey builder will open with demo data."
+        title="설문 관리 화면을 준비하는 중입니다"
+        description="매장을 선택하면 고객 의견 설문 화면이 바로 열립니다."
       />
     );
   }
@@ -222,8 +222,8 @@ export function SurveysPage() {
   if (!draft) {
     return (
       <EmptyState
-        title="Survey builder is preparing"
-        description="The store survey list is loading. Refresh if the builder does not appear."
+        title="설문 목록을 불러오는 중입니다"
+        description="설문이 바로 보이지 않으면 잠시 후 다시 확인해 주세요."
       />
     );
   }
@@ -340,16 +340,16 @@ export function SurveysPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Survey builder"
-        title="Owner-friendly feedback forms"
-        description="Build survey forms, insert AI starter questions, reorder items, and preview the mobile response flow without leaving this page."
+        eyebrow="설문 관리"
+        title="고객 의견 설문 관리"
+        description="설문을 만들고, 질문 순서를 정리하고, 모바일 응답 화면까지 한 번에 확인할 수 있습니다."
         actions={
           <>
             <button className="btn-secondary" onClick={handleNewSurvey} type="button">
-              New survey
+              새 설문
             </button>
             <button className="btn-primary" disabled={!canSave || saveMutation.isPending} onClick={() => saveMutation.mutate()} type="button">
-              Save survey
+              설문 저장
             </button>
           </>
         }
@@ -368,20 +368,20 @@ export function SurveysPage() {
       ) : null}
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Forms" value={(surveysQuery.data || []).length} />
-        <MetricCard accent="emerald" label="Active forms" value={activeForms} />
-        <MetricCard accent="blue" label="Responses" value={totalResponses} />
-        <MetricCard accent="orange" label="Selected avg rating" value={responseSummary.responseCount ? responseSummary.averageRating.toFixed(1) : '-'} />
+        <MetricCard label="설문 수" value={(surveysQuery.data || []).length} />
+        <MetricCard accent="emerald" label="진행 중 설문" value={activeForms} />
+        <MetricCard accent="blue" label="응답 수" value={totalResponses} />
+        <MetricCard accent="orange" label="평균 만족도" value={responseSummary.responseCount ? responseSummary.averageRating.toFixed(1) : '-'} />
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-8">
           <Panel
-            title="Survey forms"
-            subtitle="Keep one active demo form per store, and keep drafts for follow-up campaigns."
+            title="설문 목록"
+            subtitle="매장별로 진행 중 설문을 정리하고, 다음 캠페인용 초안도 함께 보관할 수 있습니다."
             action={
               <button className="text-sm font-semibold text-orange-700" onClick={handleNewSurvey} type="button">
-                Create draft
+                초안 만들기
               </button>
             }
           >
@@ -412,13 +412,13 @@ export function SurveysPage() {
                           survey.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                         }`}
                       >
-                        {survey.is_active ? 'Active' : 'Draft'}
+                        {survey.is_active ? '진행 중' : '초안'}
                       </span>
                     </div>
                     <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-500">
-                      <div className="rounded-2xl bg-slate-50 px-3 py-2 text-center">{survey.questions.length} questions</div>
-                      <div className="rounded-2xl bg-slate-50 px-3 py-2 text-center">{summary.responseCount} responses</div>
-                      <div className="rounded-2xl bg-slate-50 px-3 py-2 text-center">{summary.responseCount ? `${summary.averageRating}/5` : 'No score'}</div>
+                      <div className="rounded-2xl bg-slate-50 px-3 py-2 text-center">문항 {survey.questions.length}</div>
+                      <div className="rounded-2xl bg-slate-50 px-3 py-2 text-center">응답 {summary.responseCount}</div>
+                      <div className="rounded-2xl bg-slate-50 px-3 py-2 text-center">{summary.responseCount ? `${summary.averageRating}/5` : '점수 없음'}</div>
                     </div>
                   </button>
                 );
@@ -426,41 +426,41 @@ export function SurveysPage() {
             </div>
           </Panel>
 
-          <Panel title="AI and presets" subtitle="Use rule-based AI starter questions and industry presets to avoid blank-screen setup.">
+          <Panel title="AI 추천 질문과 업종 프리셋" subtitle="빈 화면에서 시작하지 않도록 추천 질문과 업종별 기본 설문을 바로 넣을 수 있습니다.">
             <div className="grid gap-3">
               <button
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-left"
                 onClick={() =>
                   mergeQuestionSet(
                     buildAiStarterQuestions(currentStore, [
-                      'What should the owner fix before the next busy shift?',
-                      'Which message on the public store felt most helpful?',
-                      'What almost stopped you from ordering or asking a question?',
+                      '다음 피크 시간 전에 가장 먼저 보완되면 좋을 점은 무엇인가요?',
+                      '공개 스토어에서 가장 이해하기 쉬웠던 안내는 무엇이었나요?',
+                      '주문이나 문의를 망설이게 만든 부분이 있었다면 무엇인가요?',
                     ]),
                   )
                 }
                 type="button"
               >
-                <p className="font-semibold text-slate-900">Insert AI starter set</p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">Adds owner-readable prompts built from store mode, data mode, and industry context.</p>
+                <p className="font-semibold text-slate-900">AI 추천 질문 넣기</p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">매장 운영 방식과 업종에 맞춘 질문을 바로 추가합니다.</p>
               </button>
               <button
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-left"
                 onClick={() => mergeQuestionSet(buildIndustrySurveyPreset(currentStore))}
                 type="button"
               >
-                <p className="font-semibold text-slate-900">Insert industry preset</p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">Pulls a ready-made question set for cafe, restaurant, buffet, BBQ, or service-style stores.</p>
+                <p className="font-semibold text-slate-900">업종별 기본 설문 넣기</p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">카페, 음식점, 뷔페, 문의형 매장에 맞는 질문 구성을 바로 불러옵니다.</p>
               </button>
             </div>
           </Panel>
         </div>
 
         <div className="space-y-8">
-          <Panel title="Builder" subtitle="Edit form copy, switch question types, change order, and control required fields.">
+          <Panel title="설문 편집" subtitle="설문 제목과 설명을 바꾸고, 질문 유형과 순서를 손쉽게 정리할 수 있습니다.">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="md:col-span-2">
-                <span className="field-label">Survey title</span>
+                <span className="field-label">설문 제목</span>
                 <input
                   className="input-base"
                   onChange={(event) => setDraft((current) => (current ? { ...current, title: event.target.value } : current))}
@@ -468,7 +468,7 @@ export function SurveysPage() {
                 />
               </label>
               <label className="md:col-span-2">
-                <span className="field-label">Owner summary</span>
+                <span className="field-label">설문 설명</span>
                 <textarea
                   className="input-base min-h-24"
                   onChange={(event) => setDraft((current) => (current ? { ...current, description: event.target.value } : current))}
@@ -482,10 +482,10 @@ export function SurveysPage() {
                   onChange={(event) => setDraft((current) => (current ? { ...current, is_active: event.target.checked } : current))}
                   type="checkbox"
                 />
-                Keep this form active on the public flow
+                이 설문을 공개 화면에 바로 노출
               </label>
               <div className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-500">
-                Public route preview:
+                공개 응답 주소
                 <div className="mt-1 font-semibold text-slate-900">/s/{currentStore.id}/survey/{draft.id || 'new-form-id'}</div>
               </div>
             </div>
@@ -523,7 +523,7 @@ export function SurveysPage() {
                     <div className="space-y-4 xl:min-w-0 xl:flex-1">
                       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
                         <label>
-                          <span className="field-label">Question copy</span>
+                          <span className="field-label">질문 문구</span>
                           <input
                             className="input-base"
                             onChange={(event) => handleQuestionUpdate(question.id, { label: event.target.value })}
@@ -531,7 +531,7 @@ export function SurveysPage() {
                           />
                         </label>
                         <label>
-                          <span className="field-label">Type</span>
+                          <span className="field-label">질문 유형</span>
                           <select
                             className="input-base"
                             onChange={(event) => handleQuestionTypeChange(question.id, event.target.value as SurveyQuestionType)}
@@ -547,7 +547,7 @@ export function SurveysPage() {
                       </div>
 
                       <label>
-                        <span className="field-label">Helper copy</span>
+                        <span className="field-label">보조 설명</span>
                         <input
                           className="input-base"
                           onChange={(event) => handleQuestionUpdate(question.id, { description: event.target.value })}
@@ -557,7 +557,7 @@ export function SurveysPage() {
 
                       {question.type === 'single_choice' || question.type === 'multiple_choice' ? (
                         <label>
-                          <span className="field-label">Options</span>
+                          <span className="field-label">선택지</span>
                           <textarea
                             className="input-base min-h-28"
                             onChange={(event) =>
@@ -570,13 +570,13 @@ export function SurveysPage() {
                             }
                             value={getOptionLines(question)}
                           />
-                          <p className="mt-2 text-xs text-slate-500">Use one option per line.</p>
+                          <p className="mt-2 text-xs text-slate-500">한 줄에 하나씩 입력해 주세요.</p>
                         </label>
                       ) : null}
 
                       {question.type === 'text' ? (
                         <label>
-                          <span className="field-label">Placeholder</span>
+                          <span className="field-label">입력 안내 문구</span>
                           <input
                             className="input-base"
                             onChange={(event) => handleQuestionUpdate(question.id, { placeholder: event.target.value })}
@@ -598,10 +598,10 @@ export function SurveysPage() {
                           onChange={(event) => handleQuestionUpdate(question.id, { required: event.target.checked })}
                           type="checkbox"
                         />
-                        Required
+                        필수 문항
                       </label>
                       <button className="btn-secondary" disabled={index === 0} onClick={() => moveQuestion(question.id, 'up')} type="button">
-                        Move up
+                        위로 이동
                       </button>
                       <button
                         className="btn-secondary"
@@ -609,10 +609,10 @@ export function SurveysPage() {
                         onClick={() => moveQuestion(question.id, 'down')}
                         type="button"
                       >
-                        Move down
+                        아래로 이동
                       </button>
                       <button className="rounded-2xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600" onClick={() => removeQuestion(question.id)} type="button">
-                        Remove
+                        질문 삭제
                       </button>
                     </div>
                   </div>
@@ -622,7 +622,7 @@ export function SurveysPage() {
           </Panel>
 
           <div className="grid gap-8 xl:grid-cols-[1fr_320px]">
-            <Panel title="Recent response snapshot" subtitle="Keep the builder connected to live mock responses so the owner can see what changes matter.">
+            <Panel title="최근 응답 미리보기" subtitle="실제 응답이 어떻게 쌓이는지 바로 보면서 질문 구성을 다듬을 수 있습니다.">
               {selectedSurvey?.responses.length ? (
                 <div className="space-y-3">
                   {selectedSurvey.responses.slice(0, 4).map((response) => (
@@ -632,20 +632,20 @@ export function SurveysPage() {
                         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                           <span className="rounded-full bg-slate-100 px-3 py-1">{response.rating}/5</span>
                           <span className="rounded-full bg-slate-100 px-3 py-1">
-                            {response.revisit_intent !== undefined ? `Revisit ${response.revisit_intent}` : 'No revisit score'}
+                            {response.revisit_intent !== undefined ? `재방문 의향 ${response.revisit_intent}` : '재방문 점수 없음'}
                           </span>
                         </div>
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-slate-600">{response.comment || 'No free-text comment left.'}</p>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{response.comment || '자유 의견이 아직 없습니다.'}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm leading-6 text-slate-500">No responses yet. The public survey route will populate this panel once guests submit answers.</p>
+                <p className="text-sm leading-6 text-slate-500">아직 응답이 없습니다. 공개 설문으로 응답이 들어오면 이 영역에 바로 표시됩니다.</p>
               )}
             </Panel>
 
-            <Panel title="Mobile preview" subtitle="Preview the public response layout before sending it to QR or storefront.">
+            <Panel title="모바일 미리보기" subtitle="QR이나 공개 스토어에 연결되기 전에 실제 응답 화면을 미리 확인합니다.">
               <div className="rounded-[32px] border border-slate-200 bg-slate-950 p-4 text-white shadow-sm">
                 <div className="mx-auto max-w-xs space-y-4 rounded-[28px] bg-white p-4 text-slate-900">
                   <div>
@@ -662,7 +662,7 @@ export function SurveysPage() {
                           </p>
                           {question.description ? <p className="mt-1 text-xs leading-5 text-slate-500">{question.description}</p> : null}
                         </div>
-                        {question.required ? <span className="rounded-full bg-orange-100 px-2 py-1 text-[10px] font-bold text-orange-700">Required</span> : null}
+                        {question.required ? <span className="rounded-full bg-orange-100 px-2 py-1 text-[10px] font-bold text-orange-700">필수</span> : null}
                       </div>
                       {renderPreviewControl(question)}
                     </div>
@@ -674,18 +674,18 @@ export function SurveysPage() {
         </div>
       </div>
 
-      <Panel title="Selected form summary" subtitle="These three numbers help the owner understand whether the survey is useful before opening any deeper analytics.">
+      <Panel title="선택 설문 요약" subtitle="복잡한 분석 화면을 열기 전에 설문이 잘 작동하는지 핵심 숫자만 먼저 확인합니다.">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-3xl bg-slate-50 p-5">
-            <p className="text-sm font-semibold text-slate-500">Responses</p>
+            <p className="text-sm font-semibold text-slate-500">응답 수</p>
             <p className="mt-2 text-3xl font-semibold text-slate-900">{responseSummary.responseCount}</p>
           </div>
           <div className="rounded-3xl bg-slate-50 p-5">
-            <p className="text-sm font-semibold text-slate-500">Average rating</p>
+            <p className="text-sm font-semibold text-slate-500">평균 만족도</p>
             <p className="mt-2 text-3xl font-semibold text-slate-900">{responseSummary.responseCount ? responseSummary.averageRating.toFixed(1) : '-'}</p>
           </div>
           <div className="rounded-3xl bg-slate-50 p-5">
-            <p className="text-sm font-semibold text-slate-500">Positive revisit rate</p>
+            <p className="text-sm font-semibold text-slate-500">재방문 의향률</p>
             <p className="mt-2 text-3xl font-semibold text-slate-900">{responseSummary.responseCount ? `${responseSummary.positiveRevisitRate}%` : '-'}</p>
           </div>
         </div>

@@ -36,7 +36,7 @@ export const featureDefinitions: FeatureDefinition[] = [
   },
   {
     key: 'ai_business_report',
-    label: 'AI 비즈니스 리포트',
+    label: 'AI 운영 리포트',
     description: '일간·주간 운영 리포트를 생성하고 누적 리포트 이력을 확인합니다.',
     route: '/dashboard/ai-reports',
     icon: Icons.Chart,
@@ -137,7 +137,7 @@ export const featureDefinitions: FeatureDefinition[] = [
   },
   {
     key: 'table_order',
-    label: 'QR 테이블오더',
+    label: 'QR 테이블 주문',
     description: '스토어 slug 기반 공개 주문 진입과 메뉴 보기, 주문 생성 흐름을 운영합니다.',
     route: '/dashboard/table-order',
     icon: Icons.Table,
@@ -158,7 +158,7 @@ export const adminNavigation: AdminNavigationItem[] = [
   { label: '웨이팅보드', route: '/dashboard/waiting', icon: Icons.Waiting },
   { label: '매출 분석', route: '/dashboard/sales', icon: Icons.Chart },
   { label: 'AI 운영 리포트', route: '/dashboard/ai-reports', icon: Icons.AI },
-  { label: '테이블오더', route: '/dashboard/table-order', icon: Icons.Table },
+  { label: '테이블 주문', route: '/dashboard/table-order', icon: Icons.Table },
   { label: '브랜드 설정', route: '/dashboard/brand', icon: Icons.Brand },
 ];
 

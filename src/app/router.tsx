@@ -15,7 +15,7 @@ function RouteLoadingFallback() {
   return (
     <div className="page-shell py-14 sm:py-16">
       <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-10 text-center text-sm font-medium text-slate-500 shadow-[0_24px_60px_-48px_rgba(15,23,42,0.45)]">
-        Loading page...
+        페이지를 불러오는 중입니다...
       </div>
     </div>
   );

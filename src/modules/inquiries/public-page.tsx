@@ -10,11 +10,11 @@ import { getPublicInquiryForm, submitPublicInquiry } from '@/shared/lib/services
 import { buildStoreIdPath } from '@/shared/lib/storeSlug';
 
 const categoryOptions: Array<{ label: string; value: PublicInquiryFormInput['category']; hint: string }> = [
-  { label: 'General', value: 'general', hint: 'Simple question or contact request' },
-  { label: 'Reservation', value: 'reservation', hint: 'Seat, time, or booking question' },
-  { label: 'Group', value: 'group_booking', hint: 'Team dinner or larger party' },
-  { label: 'Event', value: 'event', hint: 'Private event or special day' },
-  { label: 'Brand', value: 'brand', hint: 'Partnership, catering, or brand request' },
+  { label: '일반 문의', value: 'general', hint: '간단한 질문이나 방문 전 문의' },
+  { label: '예약 문의', value: 'reservation', hint: '좌석, 시간, 예약 관련 문의' },
+  { label: '단체 문의', value: 'group_booking', hint: '회식이나 여러 명이 함께 방문하는 문의' },
+  { label: '행사 문의', value: 'event', hint: '대관, 특별한 날, 이벤트 관련 문의' },
+  { label: '브랜드 문의', value: 'brand', hint: '제휴, 케이터링, 브랜드 관련 문의' },
 ];
 
 const initialForm: PublicInquiryFormInput = {
@@ -40,8 +40,8 @@ export function PublicInquiryPage() {
     enabled: Boolean(storeId),
   });
 
-  const storeName = inquiryQuery.data?.store.name || 'Store inquiry';
-  usePageMeta(`${storeName} inquiry`, 'A mobile-friendly inquiry route for consultation, reservation, and branded lead capture.');
+  const storeName = inquiryQuery.data?.store.name || '매장 문의';
+  usePageMeta(`${storeName} 문의`, '예약, 상담, 단체 방문 문의를 남길 수 있는 고객용 문의 화면입니다.');
 
   const submitMutation = useMutation({
     mutationFn: (input: PublicInquiryFormInput) =>
@@ -51,7 +51,7 @@ export function PublicInquiryPage() {
         marketingOptIn: input.marketingOptIn ?? false,
       }),
     onSuccess: async () => {
-      setSubmitMessage('The inquiry was saved and is now visible in CRM, dashboard follow-up, and public store summary.');
+      setSubmitMessage('문의가 정상적으로 접수되었습니다. 운영 화면과 후속 응대 목록에도 함께 반영됩니다.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.publicInquiry(storeId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.publicStoreById(storeId) }),
@@ -64,14 +64,14 @@ export function PublicInquiryPage() {
       ]);
     },
     onError: (error) => {
-      setSubmitMessage(error instanceof Error ? error.message : 'The inquiry could not be submitted.');
+      setSubmitMessage(error instanceof Error ? error.message : '문의를 제출하지 못했습니다.');
     },
   });
 
   if (inquiryQuery.isLoading) {
     return (
       <div className="page-shell py-16">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading inquiry form...</div>
+        <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">문의 화면을 불러오는 중입니다.</div>
       </div>
     );
   }
@@ -82,11 +82,11 @@ export function PublicInquiryPage() {
         <EmptyState
           action={
             <Link className="btn-primary" to="/">
-              Go home
+              홈으로 돌아가기
             </Link>
           }
-          description="The inquiry route could not be found for this store."
-          title="Inquiry form not found"
+          description="이 매장에서 사용할 수 있는 문의 화면을 찾지 못했습니다."
+          title="문의 화면을 찾을 수 없습니다"
         />
       </div>
     );
@@ -103,21 +103,21 @@ export function PublicInquiryPage() {
         <div className="mx-auto max-w-xl space-y-6">
           <div className="rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_35px_90px_-45px_rgba(15,23,42,0.85)]">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">{store.name}</p>
-            <h1 className="mt-3 text-3xl font-black">Inquiry received</h1>
+            <h1 className="mt-3 text-3xl font-black">문의가 접수되었습니다</h1>
             <p className="mt-3 text-sm leading-7 text-slate-200">{submitMessage}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-500">Total leads</p>
+              <p className="text-sm font-semibold text-slate-500">누적 문의</p>
               <p className="mt-2 text-3xl font-black text-slate-900">{updatedSummary.totalCount}</p>
             </div>
             <div className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-500">Open follow-up</p>
+              <p className="text-sm font-semibold text-slate-500">답변 대기</p>
               <p className="mt-2 text-3xl font-black text-slate-900">{updatedSummary.openCount}</p>
             </div>
             <div className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-500">Category</p>
+              <p className="text-sm font-semibold text-slate-500">문의 유형</p>
               <p className="mt-2 text-lg font-semibold text-slate-900">
                 {categoryOptions.find((option) => option.value === form.category)?.label || form.category}
               </p>
@@ -126,7 +126,7 @@ export function PublicInquiryPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Link className="btn-primary justify-center" to={homePath}>
-              Back to store
+              매장으로 돌아가기
             </Link>
             <button
               className="btn-secondary justify-center"
@@ -138,7 +138,7 @@ export function PublicInquiryPage() {
               }}
               type="button"
             >
-              Submit another inquiry
+              다시 문의하기
             </button>
           </div>
         </div>
@@ -151,17 +151,17 @@ export function PublicInquiryPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_35px_90px_-45px_rgba(15,23,42,0.85)]">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">{store.name}</p>
-          <h1 className="mt-3 text-3xl font-black">Simple inquiry form</h1>
+          <h1 className="mt-3 text-3xl font-black">문의 남기기</h1>
           <p className="mt-3 max-w-xl text-sm leading-7 text-slate-200">
-            Capture reservation, event, brand, and general leads in a way the owner can understand immediately.
+            예약, 상담, 단체 방문, 브랜드 문의를 간단하게 남겨 주세요. 접수된 내용은 운영 화면에서 바로 확인할 수 있습니다.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <div className="rounded-[24px] bg-white/10 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Current leads</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">현재 문의 수</p>
               <p className="mt-2 text-3xl font-black">{summary.totalCount}</p>
             </div>
             <div className="rounded-[24px] bg-white/10 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Open follow-up</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">답변 대기</p>
               <p className="mt-2 text-3xl font-black">{summary.openCount}</p>
             </div>
           </div>
@@ -170,20 +170,20 @@ export function PublicInquiryPage() {
         <div className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-[0_25px_60px_-45px_rgba(15,23,42,0.55)]">
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
-              <span className="field-label">Name</span>
+              <span className="field-label">이름</span>
               <input
                 className="input-base"
                 onChange={(event) => {
                   setForm((current) => ({ ...current, customerName: event.target.value }));
                   setFieldErrors((current) => ({ ...current, customerName: undefined }));
                 }}
-                placeholder="Your name"
+                placeholder="성함을 적어 주세요."
                 value={form.customerName}
               />
               {fieldErrors.customerName ? <p className="mt-2 text-sm text-rose-600">{fieldErrors.customerName}</p> : null}
             </label>
             <label>
-              <span className="field-label">Phone</span>
+              <span className="field-label">연락처</span>
               <input
                 className="input-base"
                 onChange={(event) => {
@@ -196,20 +196,20 @@ export function PublicInquiryPage() {
               {fieldErrors.phone ? <p className="mt-2 text-sm text-rose-600">{fieldErrors.phone}</p> : null}
             </label>
             <label>
-              <span className="field-label">Email</span>
+              <span className="field-label">이메일</span>
               <input
                 className="input-base"
                 onChange={(event) => {
                   setForm((current) => ({ ...current, email: event.target.value }));
                   setFieldErrors((current) => ({ ...current, email: undefined }));
                 }}
-                placeholder="Optional"
+                placeholder="선택 입력"
                 value={form.email}
               />
               {fieldErrors.email ? <p className="mt-2 text-sm text-rose-600">{fieldErrors.email}</p> : null}
             </label>
             <label>
-              <span className="field-label">Preferred visit date</span>
+              <span className="field-label">방문 희망일</span>
               <input
                 className="input-base"
                 onChange={(event) => {
@@ -224,7 +224,7 @@ export function PublicInquiryPage() {
           </div>
 
           <div className="mt-5">
-            <p className="field-label">Inquiry type</p>
+            <p className="field-label">문의 유형</p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {categoryOptions.map((option) => {
                 const active = form.category === option.value;
@@ -250,14 +250,14 @@ export function PublicInquiryPage() {
           </div>
 
           <label className="mt-5 block">
-            <span className="field-label">Message</span>
+            <span className="field-label">문의 내용</span>
             <textarea
               className="input-base min-h-32"
               onChange={(event) => {
                 setForm((current) => ({ ...current, message: event.target.value }));
                 setFieldErrors((current) => ({ ...current, message: undefined }));
               }}
-              placeholder="Tell the owner what you need, when, and for how many guests."
+              placeholder="원하시는 내용, 날짜, 인원, 필요한 안내를 자세히 적어 주세요."
               value={form.message}
             />
             {fieldErrors.message ? <p className="mt-2 text-sm text-rose-600">{fieldErrors.message}</p> : null}
@@ -271,8 +271,8 @@ export function PublicInquiryPage() {
               type="checkbox"
             />
             <div>
-              <p className="font-semibold text-slate-900">Allow follow-up message</p>
-              <p className="text-sm leading-6 text-slate-500">The owner can keep one clear contact record in CRM for follow-up.</p>
+              <p className="font-semibold text-slate-900">추가 안내 연락 받기</p>
+              <p className="text-sm leading-6 text-slate-500">문의 이후 필요한 안내를 받을 수 있도록 연락 정보를 함께 보관합니다.</p>
             </div>
           </label>
 
@@ -282,7 +282,7 @@ export function PublicInquiryPage() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Link className="btn-secondary justify-center" to={homePath}>
-              Back to store
+              매장으로 돌아가기
             </Link>
             <button
               className="btn-primary justify-center"
@@ -300,7 +300,7 @@ export function PublicInquiryPage() {
                     message: flattened.message?.[0],
                     marketingOptIn: flattened.marketingOptIn?.[0],
                   });
-                  setSubmitMessage('Please complete the required fields before submitting.');
+                  setSubmitMessage('필수 항목을 먼저 입력해 주세요.');
                   return;
                 }
 
@@ -310,7 +310,7 @@ export function PublicInquiryPage() {
               }}
               type="button"
             >
-              Submit inquiry
+              문의 제출
             </button>
           </div>
         </div>

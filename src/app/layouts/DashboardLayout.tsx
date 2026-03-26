@@ -7,6 +7,7 @@ import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { useAdminSessionStore } from '@/shared/lib/adminSession';
 import { adminNavigation, resolveAdminNavigation } from '@/shared/lib/moduleCatalog';
 import { getStoreBrandConfig } from '@/shared/lib/storeData';
+import { getBusinessTypeLabel } from '@/shared/lib/storeLabels';
 import { buildStorePath } from '@/shared/lib/storeSlug';
 import { useUiStore } from '@/shared/lib/uiStore';
 
@@ -28,8 +29,30 @@ const dashboardNavigationLabelMap: Record<string, string> = {
   '/dashboard/system': '시스템 현황',
 };
 
+const dashboardNavigationDescriptionMap: Record<string, string> = {
+  '/dashboard': '오늘 운영 흐름과 핵심 숫자를 가장 먼저 확인하는 화면입니다.',
+  '/dashboard/ai-manager': '오늘 주문, 매출, 인기 메뉴를 AI 운영 요약으로 빠르게 읽어보세요.',
+  '/dashboard/customers': '고객 정보와 문의 응대 흐름을 한 줄 동선으로 관리합니다.',
+  '/dashboard/reservations': '예약 현황과 좌석 운영 흐름을 빠르게 정리할 수 있습니다.',
+  '/dashboard/orders': '주문 상태와 채널별 흐름을 바로 확인하고 대응하는 화면입니다.',
+  '/dashboard/waiting': '현장 대기 팀과 호출 흐름을 한 번에 파악할 수 있습니다.',
+  '/dashboard/sales': '수기 운영지표와 최근 흐름을 함께 보며 운영 메모를 남깁니다.',
+  '/dashboard/ai-reports': '문제 TOP3와 실행 액션을 AI 운영 리포트로 바로 확인합니다.',
+  '/dashboard/table-order': 'QR 주문 진입과 테이블 설정, 메뉴 동선을 한눈에 관리합니다.',
+  '/dashboard/brand': '공개 스토어 문구와 버튼, 브랜드 톤을 점주 시점에서 정리합니다.',
+  '/dashboard/store-requests': '새 스토어 요청 상태와 검토 흐름을 빠르게 확인합니다.',
+  '/dashboard/stores': '전체 스토어 운영 현황과 공개 상태를 살펴보는 화면입니다.',
+  '/dashboard/billing': '결제 상태와 구독 흐름을 운영 화면에서 점검합니다.',
+  '/dashboard/admin-users': '운영 계정과 접근 권한 상태를 한 곳에서 관리합니다.',
+  '/dashboard/system': '주요 시스템 상태와 운영 경고를 빠르게 확인합니다.',
+};
+
 function getDashboardNavigationLabel(route: string, fallback: string) {
   return dashboardNavigationLabelMap[route] || fallback;
+}
+
+function getDashboardNavigationDescription(route: string) {
+  return dashboardNavigationDescriptionMap[route] || '현재 운영 화면에서 필요한 내용을 바로 확인할 수 있습니다.';
 }
 
 export function DashboardLayout() {
@@ -49,6 +72,7 @@ export function DashboardLayout() {
 
   const currentNav = useMemo(() => resolveAdminNavigation(location.pathname), [location.pathname]);
   const currentNavLabel = currentNav ? getDashboardNavigationLabel(currentNav.route, currentNav.label) : '운영 대시보드';
+  const currentNavDescription = currentNav ? getDashboardNavigationDescription(currentNav.route) : '현재 운영 화면에서 필요한 내용을 바로 확인할 수 있습니다.';
   const adminDisplayName = session?.fullName === 'Platform Owner' ? '운영 관리자' : session?.fullName || '운영 관리자';
   const adminDisplayEmail = session?.email || 'admin@mybiz.ai.kr';
 
@@ -58,7 +82,7 @@ export function DashboardLayout() {
   }
 
   const sidebar = (
-    <aside className="flex h-full min-w-0 flex-col gap-5 border-r border-slate-800 bg-slate-950 px-4 py-5 text-white">
+    <aside className="flex h-full min-w-0 flex-col gap-5 overflow-y-auto border-r border-slate-800 bg-slate-950 px-4 py-5 text-white lg:h-screen">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="font-display text-xl font-black">MyBizLab</p>
@@ -104,7 +128,7 @@ export function DashboardLayout() {
           <p className="text-xs font-semibold tracking-[0.16em] text-slate-500">현재 보고 있는 매장</p>
           <p className="mt-2 break-words font-semibold text-white">{currentStore.name}</p>
           <p className="mt-1 break-words text-sm leading-6 text-slate-400 [word-break:keep-all]">
-            {currentStoreConfig?.business_type || '-'} · {currentStoreConfig?.address || '-'}
+            {getBusinessTypeLabel(currentStoreConfig?.business_type)} · {currentStoreConfig?.address || '-'}
           </p>
           <Link className="mt-3 inline-flex min-h-9 items-center text-sm font-bold text-orange-300" to={buildStorePath(currentStore.slug)}>
             공개 매장 보기
@@ -115,9 +139,9 @@ export function DashboardLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#eff3f8]">
-      <div className="grid min-h-screen lg:grid-cols-[280px_1fr]">
-        <div className="hidden lg:block">{sidebar}</div>
+    <div className="min-h-screen bg-[#eff3f8] lg:h-screen lg:overflow-hidden">
+      <div className="grid min-h-screen lg:h-screen lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="hidden lg:sticky lg:top-0 lg:block lg:h-screen">{sidebar}</div>
 
         {sidebarOpen ? (
           <div className="fixed inset-0 z-50 bg-slate-950/60 lg:hidden">
@@ -125,27 +149,21 @@ export function DashboardLayout() {
           </div>
         ) : null}
 
-        <div className="flex min-h-screen min-w-0 flex-col">
+        <div className="flex min-h-screen min-w-0 flex-col lg:h-screen lg:overflow-y-auto">
           <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#eff3f8]/95 backdrop-blur">
-            <div className="page-shell flex flex-col gap-2 py-2.5 sm:gap-3 sm:py-3.5">
-              <div className="flex flex-col gap-2.5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
+            <div className="page-shell flex flex-col gap-2 py-2.5 sm:py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
                   <button className="btn-ghost lg:hidden" onClick={toggleSidebar} type="button">
                     <Icons.Menu size={18} />
                     메뉴
                   </button>
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-semibold leading-6 text-slate-500">{currentStore?.name || '데모 매장 준비 중'}</p>
-                    <p className="break-words font-display text-[1.7rem] font-black leading-[1.15] text-slate-950 [word-break:keep-all] sm:text-[1.95rem]">
-                      {currentNavLabel}
-                    </p>
-                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
-                    <p className="break-words text-sm font-semibold leading-6 text-slate-900">{adminDisplayName}</p>
-                    <p className="break-all text-xs leading-5 text-slate-500">로그인 계정 · {adminDisplayEmail}</p>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="hidden min-w-0 text-right sm:block">
+                    <p className="text-sm font-semibold leading-6 text-slate-900 [word-break:keep-all]">{adminDisplayName}</p>
+                    <p className="text-xs leading-5 text-slate-500">{adminDisplayEmail}</p>
                   </div>
                   <button className="btn-secondary" onClick={handleSignOut} type="button">
                     로그아웃
@@ -153,40 +171,42 @@ export function DashboardLayout() {
                 </div>
               </div>
 
-              <div className="grid gap-3 xl:grid-cols-[minmax(19rem,24rem)_minmax(0,1fr)]">
-                <div className="rounded-[24px] border border-slate-200 bg-white p-3 sm:p-3.5">
-                  <StoreSwitcher currentStore={currentStore} onChange={setSelectedStoreId} stores={stores} />
+              <StoreSwitcher
+                currentStore={currentStore}
+                onChange={setSelectedStoreId}
+                pageDescription={currentNavDescription}
+                pageTitle={currentNavLabel}
+                stores={stores}
+              />
+
+              <nav className="min-w-0 rounded-[22px] border border-slate-200 bg-white p-2 lg:hidden">
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {adminNavigation.map((item) => {
+                    const Icon = item.icon;
+                    const label = getDashboardNavigationLabel(item.route, item.label);
+
+                    return (
+                      <NavLink
+                        key={item.route}
+                        className={({ isActive }) =>
+                          [
+                            'flex min-h-[2.75rem] shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-left text-[14px] font-semibold leading-5 [word-break:keep-all] transition',
+                            isActive ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-orange-700',
+                          ].join(' ')
+                        }
+                        to={item.route}
+                      >
+                        <Icon size={16} />
+                        <span className="min-w-0">{label}</span>
+                      </NavLink>
+                    );
+                  })}
                 </div>
-
-                <nav className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-2 lg:hidden">
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {adminNavigation.map((item) => {
-                      const Icon = item.icon;
-                      const label = getDashboardNavigationLabel(item.route, item.label);
-
-                      return (
-                        <NavLink
-                          key={item.route}
-                          className={({ isActive }) =>
-                            [
-                              'flex min-h-[2.75rem] shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-left text-[14px] font-semibold leading-5 [word-break:keep-all] transition',
-                              isActive ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-600 hover:bg-orange-50 hover:text-orange-700',
-                            ].join(' ')
-                          }
-                          to={item.route}
-                        >
-                          <Icon size={16} />
-                          <span className="min-w-0">{label}</span>
-                        </NavLink>
-                      );
-                    })}
-                  </div>
-                </nav>
-              </div>
+              </nav>
             </div>
           </header>
 
-          <main className="page-shell min-w-0 flex-1 pt-4 pb-5 sm:pt-5 sm:pb-6">
+          <main className="page-shell min-w-0 flex-1 pt-3 pb-5 sm:pt-4 sm:pb-6">
             <Outlet />
           </main>
         </div>

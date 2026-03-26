@@ -40,17 +40,17 @@ export function StorePublicLayout() {
   const publicBasePath =
     isStoreIdRoute && publicStoreQuery.data ? buildStoreIdPath(publicStoreQuery.data.store.id) : buildStorePath(storeSlug);
 
-  const pageTitle = publicStoreQuery.data ? `${publicStoreQuery.data.store.name} Store` : 'Public Store';
+  const pageTitle = publicStoreQuery.data ? `${publicStoreQuery.data.store.name} 공개 스토어` : '공개 스토어';
   const pageDescription = publicStoreQuery.data
-    ? `${publicStoreQuery.data.store.name} public storefront with menu, notices, survey CTA, and inquiry flow.`
-    : 'MyBizLab public store page.';
+    ? `${publicStoreQuery.data.store.name}의 메뉴, 공지, 주문, 문의 흐름을 한눈에 보여주는 공개 스토어 화면입니다.`
+    : 'MyBizLab 공개 스토어 화면입니다.';
 
   usePageMeta(pageTitle, pageDescription);
 
   if (publicStoreQuery.isLoading) {
     return (
       <div className="page-shell py-20">
-        <div className="section-card p-10 text-center text-sm text-slate-500">Loading store information...</div>
+        <div className="section-card p-10 text-center text-sm text-slate-500">매장 정보를 불러오는 중입니다.</div>
       </div>
     );
   }
@@ -61,11 +61,11 @@ export function StorePublicLayout() {
         <EmptyState
           action={
             <Link className="btn-primary" to="/">
-              Go Home
+              홈으로 돌아가기
             </Link>
           }
-          description="The store does not exist or is not available yet."
-          title="Store not found"
+          description="아직 공개되지 않았거나 확인할 수 없는 매장입니다."
+          title="매장을 찾을 수 없습니다"
         />
       </div>
     );
@@ -73,8 +73,8 @@ export function StorePublicLayout() {
 
   const config = getStoreBrandConfig(publicStoreQuery.data.store);
   const consultationLink = `tel:${config.phone.replace(/[^0-9+]/g, '')}`;
-  const inquiryLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] Inquiry`)}`;
-  const reservationLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] Reservation`)}`;
+  const inquiryLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 문의`)}`;
+  const reservationLink = `mailto:${config.email}?subject=${encodeURIComponent(`[${publicStoreQuery.data.store.name}] 예약`)}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#fffaf3]">
@@ -87,33 +87,33 @@ export function StorePublicLayout() {
                   {isStoreIdRoute ? publicStoreQuery.data.store.id : publicStoreQuery.data.store.slug}
                 </p>
                 {publicStoreQuery.data.store.public_status !== 'public' ? (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">Preview</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">미리보기</span>
                 ) : null}
               </div>
-              <h1 className="font-display text-3xl font-black text-slate-900">{publicStoreQuery.data.store.name}</h1>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{publicStoreQuery.data.store.tagline}</p>
+              <h1 className="font-display text-3xl font-black text-slate-900 [word-break:keep-all]">{publicStoreQuery.data.store.name}</h1>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500 [word-break:keep-all]">{publicStoreQuery.data.store.tagline}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              {tableNo ? <span className="rounded-full bg-orange-100 px-4 py-2 text-sm font-bold text-orange-700">Table {tableNo}</span> : null}
+              {tableNo ? <span className="rounded-full bg-orange-100 px-4 py-2 text-sm font-bold text-orange-700">테이블 {tableNo}</span> : null}
               {publicStoreQuery.data.capabilities.consultationEnabled ? (
                 <a className="btn-secondary" href={consultationLink}>
-                  Call
+                  전화하기
                 </a>
               ) : null}
               {publicStoreQuery.data.capabilities.inquiryEnabled ? (
                 <a className="btn-secondary" href={inquiryLink}>
-                  Inquiry
+                  문의하기
                 </a>
               ) : null}
               {publicStoreQuery.data.capabilities.reservationEnabled ? (
                 <a className="btn-secondary" href={reservationLink}>
-                  Reserve
+                  예약하기
                 </a>
               ) : null}
               {publicStoreQuery.data.capabilities.orderEntryEnabled ? (
                 <NavLink className="btn-primary" to={`${publicBasePath}/order${tableNo ? `?table=${tableNo}` : ''}`}>
-                  Order
+                  주문하기
                 </NavLink>
               ) : null}
             </div>
@@ -121,14 +121,14 @@ export function StorePublicLayout() {
 
           <div className="flex flex-wrap items-center gap-3">
             <NavLink className="btn-secondary" to={publicBasePath}>
-              Home
+              홈
             </NavLink>
             <NavLink className="btn-secondary" to={`${publicBasePath}/menu`}>
-              Menu
+              메뉴
             </NavLink>
             {publicStoreQuery.data.capabilities.orderEntryEnabled ? (
               <NavLink className="btn-secondary" to={`${publicBasePath}/order${tableNo ? `?table=${tableNo}` : ''}`}>
-                Order
+                주문
               </NavLink>
             ) : null}
           </div>
