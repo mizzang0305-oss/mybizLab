@@ -20,8 +20,8 @@ export function Panel({
       {title || subtitle || action ? (
         <div className="mb-6 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
-            {title ? <h2 className="text-lg font-bold leading-7 text-slate-900 sm:text-[1.35rem] sm:leading-8">{title}</h2> : null}
-            {subtitle ? <p className="max-w-2xl text-[15px] leading-7 text-slate-500">{subtitle}</p> : null}
+            {title ? <h2 className="text-lg font-bold leading-7 text-slate-900 [word-break:keep-all] sm:text-[1.35rem] sm:leading-8">{title}</h2> : null}
+            {subtitle ? <p className="max-w-2xl text-[15px] leading-7 text-slate-500 [word-break:keep-all]">{subtitle}</p> : null}
           </div>
           {action ? <div className="flex items-center gap-2">{action}</div> : null}
         </div>

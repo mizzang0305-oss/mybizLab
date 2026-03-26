@@ -33,7 +33,7 @@ function QuestionCard({
           <p className="text-base font-semibold text-slate-900">{question.label}</p>
           {question.description ? <p className="mt-2 text-sm leading-6 text-slate-500">{question.description}</p> : null}
         </div>
-        {question.required ? <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">Required</span> : null}
+        {question.required ? <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">필수</span> : null}
       </div>
 
       <div className="mt-4">
@@ -60,9 +60,9 @@ function QuestionCard({
         {question.type === 'revisit_intent' ? (
           <div className="grid gap-2 sm:grid-cols-3">
             {[
-              { label: 'Yes', value: 100, tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-              { label: 'Maybe', value: 70, tone: 'bg-amber-50 text-amber-700 border-amber-200' },
-              { label: 'Not now', value: 30, tone: 'bg-slate-50 text-slate-600 border-slate-200' },
+              { label: '다시 올게요', value: 100, tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+              { label: '고민 중이에요', value: 70, tone: 'bg-amber-50 text-amber-700 border-amber-200' },
+              { label: '이번엔 아니에요', value: 30, tone: 'bg-slate-50 text-slate-600 border-slate-200' },
             ].map((option) => {
               const active = value === option.value;
               return (
@@ -130,7 +130,7 @@ function QuestionCard({
           <textarea
             className="input-base min-h-28"
             onChange={(event) => onChange(event.target.value)}
-            placeholder={question.placeholder || 'Leave a short answer'}
+            placeholder={question.placeholder || '의견을 짧게 적어 주세요.'}
             value={typeof value === 'string' ? value : ''}
           />
         ) : null}
@@ -157,8 +157,8 @@ export function PublicSurveyResponsePage() {
     enabled: Boolean(storeId && formId),
   });
 
-  const surveyTitle = surveyQuery.data ? `${surveyQuery.data.store.name} survey` : 'Public survey';
-  usePageMeta(surveyTitle, 'A mobile-friendly public survey route for demo QR and storefront flows.');
+  const surveyTitle = surveyQuery.data ? `${surveyQuery.data.store.name} 고객 설문` : '고객 설문';
+  usePageMeta(surveyTitle, 'QR과 공개 스토어에서 바로 참여할 수 있는 고객 설문 화면입니다.');
 
   const submitMutation = useMutation({
     mutationFn: () =>
@@ -173,7 +173,7 @@ export function PublicSurveyResponsePage() {
         })),
       }),
     onSuccess: async () => {
-      setSubmitMessage('Thank you. Your response is now reflected in the dashboard, survey module, and AI insight summary.');
+      setSubmitMessage('응답이 정상적으로 접수되었습니다. 매장 운영 화면과 설문 관리, AI 운영 분석에도 함께 반영됩니다.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.publicSurvey(storeId, formId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.publicStoreById(storeId) }),
@@ -181,7 +181,7 @@ export function PublicSurveyResponsePage() {
       ]);
     },
     onError: (error) => {
-      setSubmitMessage(error instanceof Error ? error.message : 'The response could not be submitted.');
+      setSubmitMessage(error instanceof Error ? error.message : '응답을 제출하지 못했습니다.');
     },
   });
 
@@ -193,7 +193,7 @@ export function PublicSurveyResponsePage() {
 
     return survey.questions.reduce<Record<string, string>>((result, question) => {
       if (question.required && isEmptyAnswer(answers[question.id])) {
-        result[question.id] = 'This answer is required.';
+        result[question.id] = '필수 문항을 입력해 주세요.';
       }
       return result;
     }, {});
@@ -202,7 +202,7 @@ export function PublicSurveyResponsePage() {
   if (surveyQuery.isLoading) {
     return (
       <div className="page-shell py-16">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading survey...</div>
+        <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">설문을 불러오는 중입니다.</div>
       </div>
     );
   }
@@ -213,11 +213,11 @@ export function PublicSurveyResponsePage() {
         <EmptyState
           action={
             <Link className="btn-primary" to="/">
-              Go home
+              홈으로 돌아가기
             </Link>
           }
-          description="The survey form could not be found for this store."
-          title="Survey not found"
+          description="이 매장에서 사용할 수 있는 설문을 찾지 못했습니다."
+          title="설문을 찾을 수 없습니다"
         />
       </div>
     );
@@ -233,29 +233,29 @@ export function PublicSurveyResponsePage() {
         <div className="mx-auto max-w-xl space-y-6">
           <div className="rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_35px_90px_-45px_rgba(15,23,42,0.85)]">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-200">{store.name}</p>
-            <h1 className="mt-3 text-3xl font-black">Response received</h1>
+            <h1 className="mt-3 text-3xl font-black">응답이 접수되었습니다</h1>
             <p className="mt-3 text-sm leading-7 text-slate-200">{submitMessage}</p>
-            {tableCode ? <p className="mt-4 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/85">Table {tableCode}</p> : null}
+            {tableCode ? <p className="mt-4 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/85">테이블 {tableCode}</p> : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-500">Responses</p>
+              <p className="text-sm font-semibold text-slate-500">응답 수</p>
               <p className="mt-2 text-3xl font-black text-slate-900">{submittedSummary?.responseCount ?? 0}</p>
             </div>
             <div className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-500">Average rating</p>
+              <p className="text-sm font-semibold text-slate-500">평균 만족도</p>
               <p className="mt-2 text-3xl font-black text-slate-900">{submittedSummary?.averageRating ?? 0}</p>
             </div>
             <div className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-500">Form</p>
+              <p className="text-sm font-semibold text-slate-500">설문명</p>
               <p className="mt-2 text-lg font-semibold text-slate-900">{survey.title}</p>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Link className="btn-primary justify-center" to={homePath}>
-              Back to store
+              매장으로 돌아가기
             </Link>
             <button
               className="btn-secondary justify-center"
@@ -267,7 +267,7 @@ export function PublicSurveyResponsePage() {
               }}
               type="button"
             >
-              Submit another response
+              다시 응답하기
             </button>
           </div>
         </div>
@@ -281,17 +281,17 @@ export function PublicSurveyResponsePage() {
         <div className="rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_35px_90px_-45px_rgba(15,23,42,0.85)]">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-200">{store.name}</p>
-            {tableCode ? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/85">Table {tableCode}</span> : null}
+            {tableCode ? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/85">테이블 {tableCode}</span> : null}
           </div>
           <h1 className="mt-3 text-3xl font-black">{survey.title}</h1>
           <p className="mt-3 max-w-xl text-sm leading-7 text-slate-200">{survey.description}</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <div className="rounded-[24px] bg-white/10 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Existing responses</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">누적 응답</p>
               <p className="mt-2 text-3xl font-black">{summary?.responseCount ?? 0}</p>
             </div>
             <div className="rounded-[24px] bg-white/10 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Current average</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">현재 평균 만족도</p>
               <p className="mt-2 text-3xl font-black">{summary?.averageRating ?? 0}</p>
             </div>
           </div>
@@ -299,11 +299,11 @@ export function PublicSurveyResponsePage() {
 
         <div className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-[0_25px_60px_-45px_rgba(15,23,42,0.55)]">
           <label>
-            <span className="field-label">Your name (optional)</span>
+            <span className="field-label">이름 (선택)</span>
             <input
               className="input-base"
               onChange={(event) => setCustomerName(event.target.value)}
-              placeholder="Guest"
+              placeholder="손님"
               value={customerName}
             />
           </label>
@@ -330,7 +330,7 @@ export function PublicSurveyResponsePage() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Link className="btn-secondary justify-center" to={homePath}>
-            Back to store
+            매장으로 돌아가기
           </Link>
           <button
             className="btn-primary justify-center"
@@ -338,7 +338,7 @@ export function PublicSurveyResponsePage() {
             onClick={() => {
               if (Object.keys(requiredErrors).length) {
                 setErrors(requiredErrors);
-                setSubmitMessage('Please answer the required questions before submitting.');
+                setSubmitMessage('필수 문항을 먼저 입력해 주세요.');
                 return;
               }
 
@@ -348,7 +348,7 @@ export function PublicSurveyResponsePage() {
             }}
             type="button"
           >
-            Submit response
+            응답 제출
           </button>
         </div>
       </div>

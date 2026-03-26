@@ -94,8 +94,8 @@ export function AiReportsPage() {
   const [customEnd, setCustomEnd] = useState('');
 
   usePageMeta(
-    'AI 인사이트',
-    '점주가 바로 이해할 수 있도록 문제 TOP3, 강점 TOP3, 주간 변화, 실행 액션을 한 화면에 정리한 AI 인사이트 대시보드입니다.',
+    'AI 운영 리포트',
+    '점주가 바로 이해할 수 있도록 문제 TOP3, 강점 TOP3, 주간 변화, 실행 액션을 한 화면에 정리한 AI 운영 리포트 화면입니다.',
   );
 
   const dashboardQuery = useQuery({
@@ -147,8 +147,8 @@ export function AiReportsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="사장님용 AI 요약"
-        title="AI 인사이트"
+        eyebrow="AI 운영 리포트"
+        title="AI 운영 리포트"
         description="데이터는 우리가 해석하고, 사장님은 결정만 하시면 됩니다. 이번 주 가장 중요한 문제와 바로 실행할 액션을 한 화면에서 확인하세요."
         actions={
           <>

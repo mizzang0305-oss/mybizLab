@@ -36,7 +36,7 @@ export function AiManagerPage() {
       <PageHeader
         eyebrow="오늘 AI 요약"
         title="AI 점장"
-        description="오늘 주문, 매출, 인기/부진 메뉴, 단골 증가, 예약/웨이팅을 분석해 Gemini 또는 대체 요약을 보여줍니다."
+        description="오늘 주문, 매출, 인기/부진 메뉴, 단골 흐름, 예약/웨이팅을 분석해 AI 운영 요약을 보여줍니다."
         actions={
           <button className="btn-primary" onClick={() => aiQuery.refetch()} type="button">
             AI 요약 새로고침

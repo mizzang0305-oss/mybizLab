@@ -74,14 +74,23 @@
 
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-[#ec5b13] px-4 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition duration-200 hover:bg-[#d94f0b] disabled:cursor-not-allowed disabled:opacity-60;
+    min-height: 2.75rem;
+    line-height: 1.6;
+    word-break: keep-all;
   }
 
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition duration-200 hover:border-orange-200 hover:text-[#ec5b13] disabled:cursor-not-allowed disabled:opacity-60;
+    min-height: 2.75rem;
+    line-height: 1.6;
+    word-break: keep-all;
   }
 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-100/80 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition duration-200 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60;
+    min-height: 2.75rem;
+    line-height: 1.6;
+    word-break: keep-all;
   }
 
   .field-label {
@@ -90,6 +99,8 @@
 
   .input-base {
     @apply min-w-0 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-4 focus:ring-orange-100;
+    line-height: 1.6;
+    word-break: keep-all;
   }
 
   .status-badge {
