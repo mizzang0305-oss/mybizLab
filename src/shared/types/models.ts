@@ -26,7 +26,7 @@ export type StoreRequestStatus = 'draft' | 'submitted' | 'reviewing' | 'approved
 export type StoreVisibility = 'public' | 'private';
 export type InquiryStatus = 'new' | 'in_progress' | 'completed' | 'on_hold';
 export type InquiryCategory = 'general' | 'reservation' | 'group_booking' | 'event' | 'brand';
-export type SubscriptionPlan = 'starter' | 'pro' | 'business' | 'enterprise';
+export type SubscriptionPlan = 'free' | 'pro' | 'vip';
 export type SetupPaymentStatus = 'setup_pending' | 'setup_paid';
 export type SubscriptionStatus =
   | 'subscription_pending'
@@ -34,6 +34,7 @@ export type SubscriptionStatus =
   | 'subscription_past_due'
   | 'subscription_cancelled'
   | 'refund_requested';
+export type StoreSubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'cancelled';
 export type PaymentMethodStatus = 'ready' | 'action_required' | 'missing';
 export type BillingEventStatus = 'pending' | 'paid' | 'failed' | 'requested';
 export type AdminUserRole = 'platform_owner' | 'platform_admin' | 'store_owner' | 'store_manager';
@@ -41,6 +42,25 @@ export type AdminUserStatus = 'active' | 'pending' | 'inactive';
 export type InvitationStatus = 'sent' | 'scheduled' | 'accepted' | 'none';
 export type StoreMediaType = 'hero' | 'storefront' | 'interior';
 export type SystemStatusState = 'active' | 'ready' | 'warning' | 'pending' | 'error';
+export type CustomerContactType = 'phone' | 'email';
+export type CustomerPreferredChannel = 'sms' | 'phone' | 'email';
+export type CustomerTimelineEventType =
+  | 'customer_created'
+  | 'contact_captured'
+  | 'preference_updated'
+  | 'note_added'
+  | 'inquiry_captured'
+  | 'reservation_captured'
+  | 'waitlist_captured'
+  | 'order_linked';
+export type CustomerTimelineSource =
+  | 'dashboard'
+  | 'public_store'
+  | 'public_inquiry'
+  | 'public_waiting'
+  | 'public_order'
+  | 'system'
+  | 'demo_seed';
 export type ProvisioningAction =
   | 'requested'
   | 'review_started'
@@ -155,7 +175,14 @@ export interface Store {
   inquiry_enabled?: boolean;
   reservation_enabled?: boolean;
   order_entry_enabled?: boolean;
+  /**
+   * @deprecated Canonical plan truth now lives in store_subscriptions.
+   * Keep this mirrored field only while legacy UI reads are migrated.
+   */
   subscription_plan: SubscriptionPlan;
+  /**
+   * @deprecated Legacy plan mirror. Use store_subscriptions instead.
+   */
   plan?: SubscriptionPlan;
   admin_email: string;
   created_from_request_id?: string;
@@ -256,6 +283,58 @@ export interface Customer {
   is_regular: boolean;
   marketing_opt_in: boolean;
   created_at: string;
+  updated_at?: string;
+}
+
+export interface CustomerContact {
+  id: string;
+  store_id: string;
+  customer_id: string;
+  type: CustomerContactType;
+  value: string;
+  normalized_value: string;
+  is_primary: boolean;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerPreference {
+  id: string;
+  store_id: string;
+  customer_id: string;
+  marketing_opt_in: boolean;
+  preferred_contact_channel?: CustomerPreferredChannel;
+  seating_notes?: string;
+  dietary_notes?: string;
+  preference_tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerTimelineEvent {
+  id: string;
+  store_id: string;
+  customer_id: string;
+  event_type: CustomerTimelineEventType;
+  source: CustomerTimelineSource;
+  summary: string;
+  metadata: Record<string, boolean | number | string | null>;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface StoreSubscription {
+  id: string;
+  store_id: string;
+  plan: SubscriptionPlan;
+  status: StoreSubscriptionStatus;
+  billing_provider?: 'portone' | 'manual';
+  trial_ends_at?: string;
+  current_period_starts_at?: string;
+  current_period_ends_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Inquiry {
@@ -461,6 +540,10 @@ export interface BillingRecord {
   events: BillingEvent[];
 }
 
+/**
+ * @deprecated Canonical access root is profiles + store_members.
+ * Keep this legacy platform-console shape only while old views are migrated.
+ */
 export interface AdminUser {
   id: string;
   profile_id?: string;
@@ -579,6 +662,7 @@ export interface MvpDatabase {
   profiles: Profile[];
   store_requests: StoreRequest[];
   stores: Store[];
+  store_subscriptions: StoreSubscription[];
   store_analytics_profiles: StoreAnalyticsProfile[];
   store_brand_profiles: StoreBrandProfile[];
   store_media: StoreMedia[];
@@ -591,6 +675,9 @@ export interface MvpDatabase {
   menu_categories: MenuCategory[];
   menu_items: MenuItem[];
   customers: Customer[];
+  customer_contacts: CustomerContact[];
+  customer_preferences: CustomerPreference[];
+  customer_timeline_events: CustomerTimelineEvent[];
   inquiries: Inquiry[];
   orders: Order[];
   order_items: OrderItem[];

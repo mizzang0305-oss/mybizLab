@@ -1,3 +1,8 @@
+/**
+ * @deprecated Phase 1 introduces src/shared/lib/repositories/demoRepository as
+ * the canonical demo boundary. Keep this adapter only while legacy diagnosis
+ * flows are still wired to the old adapter layer.
+ */
 import { buildDiagnosisSessionRecord } from '@/shared/lib/diagnosisSessionRecord';
 import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import type { DemoDataAdapterDescriptor, ResolveAdminAccessInput } from '@/shared/lib/data/contracts';

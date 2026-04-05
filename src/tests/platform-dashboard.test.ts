@@ -36,8 +36,8 @@ const session = {
   email: 'ops@mybiz.ai.kr',
   fullName: 'Platform Owner',
   authenticatedAt: '2026-03-14T09:00:00.000Z',
-  provider: 'local' as const,
-  role: 'platform_owner' as const,
+  provider: 'demo' as const,
+  role: 'owner' as const,
 };
 
 async function renderDashboardRoute(

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { requestPaymentMock } = vi.hoisted(() => ({
   requestPaymentMock: vi.fn(),
@@ -31,7 +31,7 @@ function createValidCheckoutCustomer(
 ): CheckoutCustomerPayload {
   return {
     email: 'buyer@example.com',
-    fullName: '홍길동',
+    fullName: 'Hong Gil Dong',
     phoneNumber: '010-1234-5678',
     ...overrides,
   };
@@ -47,18 +47,18 @@ function createValidCheckoutSessionPayload(
       initiatedAt: '2026-03-15T00:00:00.000Z',
       payMethod: 'CARD',
       pgProvider: 'KG_INICIS',
-      plan: 'starter',
+      plan: 'pro',
       source: 'pricing-page',
     },
     customer: createValidCheckoutCustomer(),
     noticeUrls: ['https://example.com/api/billing/webhook'],
-    orderName: 'Starter 구독',
+    orderName: 'PRO \uad6c\ub3c5',
     payMethod: 'CARD',
-    paymentId: 'subscription-starter-001',
-    plan: 'starter',
-    redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+    paymentId: 'subscription-pro-001',
+    plan: 'pro',
+    redirectUrl: 'https://example.com/pricing?portone=redirect&plan=pro',
     storeId: 'store-v2-test',
-    totalAmount: 29000,
+    totalAmount: 79000,
     ...overrides,
   };
 }
@@ -70,7 +70,7 @@ function createValidCheckoutSessionResponse(
     checkout: createValidCheckoutSessionPayload(overrides),
     endpoint: '/api/billing/checkout',
     ok: true,
-    plan: 'starter',
+    plan: 'pro',
   };
 }
 
@@ -101,21 +101,21 @@ describe('PortOne checkout client helpers', () => {
             currency: 'KRW',
             customer: {
               email: 'buyer@example.com',
-              fullName: '홍길동',
+              fullName: 'Hong Gil Dong',
               phoneNumber: '010-1234-5678',
             },
             noticeUrls: ['https://example.com/api/billing/webhook'],
-            orderName: 'Starter 구독',
+            orderName: 'PRO \uad6c\ub3c5',
             payMethod: 'CARD',
-            paymentId: 'subscription-starter-001',
-            plan: 'starter',
-            redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+            paymentId: 'subscription-pro-001',
+            plan: 'pro',
+            redirectUrl: 'https://example.com/pricing?portone=redirect&plan=pro',
             storeId: 'store-v2-test',
-            totalAmount: 29000,
+            totalAmount: 79000,
           },
           endpoint: '/api/billing/checkout',
           ok: true,
-          plan: 'starter',
+          plan: 'pro',
         }),
         {
           headers: { 'content-type': 'application/json; charset=utf-8' },
@@ -124,11 +124,11 @@ describe('PortOne checkout client helpers', () => {
       ),
     ) as typeof fetch;
     requestPaymentMock.mockResolvedValue({
-      paymentId: 'subscription-starter-001',
+      paymentId: 'subscription-pro-001',
       transactionType: 'PAYMENT',
     });
 
-    const result = await launchPortOneCheckout('starter');
+    const result = await launchPortOneCheckout('pro');
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/billing/checkout',
@@ -147,7 +147,7 @@ describe('PortOne checkout client helpers', () => {
         channelKey: 'channel-key-test',
         storeId: 'store-v2-test',
       },
-      plan: 'starter',
+      plan: 'pro',
     });
     expect(requestBody.customer).toMatchObject({
       email: expect.any(String),
@@ -161,14 +161,14 @@ describe('PortOne checkout client helpers', () => {
         currency: 'KRW',
         customer: {
           email: 'buyer@example.com',
-          fullName: '홍길동',
+          fullName: 'Hong Gil Dong',
           phoneNumber: '010-1234-5678',
         },
         payMethod: 'CARD',
-        paymentId: 'subscription-starter-001',
-        redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+        paymentId: 'subscription-pro-001',
+        redirectUrl: 'https://example.com/pricing?portone=redirect&plan=pro',
         storeId: 'store-v2-test',
-        totalAmount: 29000,
+        totalAmount: 79000,
       }),
     );
     expect(consoleInfoSpy).toHaveBeenCalledWith(
@@ -182,7 +182,7 @@ describe('PortOne checkout client helpers', () => {
         paymentId: 'subs***-001',
         redirectUrl: 'https://example.com/pricing?***',
         storeId: 'stor***test',
-        totalAmount: 29000,
+        totalAmount: 79000,
       }),
     );
     expect(consoleInfoSpy).toHaveBeenCalledWith(
@@ -198,11 +198,11 @@ describe('PortOne checkout client helpers', () => {
         paymentId: 'subs***-001',
         redirectUrl: 'https://example.com/pricing?***',
         storeId: 'stor***test',
-        totalAmount: 29000,
+        totalAmount: 79000,
       }),
     );
     expect(result.payment).toMatchObject({
-      paymentId: 'subscription-starter-001',
+      paymentId: 'subscription-pro-001',
       transactionType: 'PAYMENT',
     });
   });
@@ -215,18 +215,18 @@ describe('PortOne checkout client helpers', () => {
       }),
     ) as typeof fetch;
     requestPaymentMock.mockResolvedValue({
-      paymentId: 'subscription-starter-001',
+      paymentId: 'subscription-pro-001',
       transactionType: 'PAYMENT',
     });
 
-    await launchPortOneCheckout('starter', {
+    await launchPortOneCheckout('pro', {
       customData: { requestId: 'request_123' },
       customer: {
         email: 'owner@store.kr',
-        fullName: '홍길동',
+        fullName: 'Hong Gil Dong',
         phoneNumber: '010-1234-5678',
       },
-      orderName: '성수 브런치 하우스 Starter 결제',
+      orderName: '\uc131\uc218 \ube0c\ub7f0\uce58 \ud558\uc6b0\uc2a4 PRO \uacb0\uc81c',
       redirectPath: '/onboarding?step=payment',
       source: 'onboarding-flow',
     });
@@ -238,10 +238,10 @@ describe('PortOne checkout client helpers', () => {
       customData: { requestId: 'request_123' },
       customer: {
         email: 'owner@store.kr',
-        fullName: '홍길동',
+        fullName: 'Hong Gil Dong',
         phoneNumber: '010-1234-5678',
       },
-      orderName: '성수 브런치 하우스 Starter 결제',
+      orderName: '\uc131\uc218 \ube0c\ub7f0\uce58 \ud558\uc6b0\uc2a4 PRO \uacb0\uc81c',
       redirectPath: '/onboarding?step=payment',
       source: 'onboarding-flow',
     });
@@ -286,7 +286,7 @@ describe('PortOne checkout client helpers', () => {
       ),
     ) as typeof fetch;
 
-    const request = launchPortOneCheckout('starter');
+    const request = launchPortOneCheckout('pro');
 
     await expect(request).rejects.toMatchObject({
       code: 'INVALID_CHECKOUT_SESSION',
@@ -337,15 +337,15 @@ describe('PortOne checkout client helpers', () => {
       currency: 'KRW',
       customer: {
         email: 'buyer@example.com',
-        fullName: '홍길동',
+        fullName: 'Hong Gil Dong',
         phoneNumber: '010-1234-5678',
       },
-      orderName: 'Starter 구독',
+      orderName: 'PRO \uad6c\ub3c5',
       payMethod: 'CARD',
-      paymentId: 'subscription-starter-001',
-      redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+      paymentId: 'subscription-pro-001',
+      redirectUrl: 'https://example.com/pricing?portone=redirect&plan=pro',
       storeId: 'store-v2-test',
-      totalAmount: 29000,
+      totalAmount: 79000,
     });
     expect(paymentRequest).not.toHaveProperty('popup');
     expect(paymentRequest).not.toHaveProperty('windowType');
@@ -357,7 +357,7 @@ describe('PortOne checkout client helpers', () => {
         createValidCheckoutSessionPayload({
           customer: createValidCheckoutCustomer({
             email: '',
-            fullName: '',
+            fullName: 'Hong Gil Dong',
             phoneNumber: '',
           }),
         }),
@@ -369,7 +369,7 @@ describe('PortOne checkout client helpers', () => {
         createValidCheckoutSessionPayload({
           customer: createValidCheckoutCustomer({
             email: '',
-            fullName: '',
+            fullName: 'Hong Gil Dong',
             phoneNumber: '',
           }),
         }),
@@ -436,7 +436,7 @@ describe('PortOne checkout client helpers', () => {
     expect(() =>
       buildPortOnePaymentRequest(
         createValidCheckoutSessionPayload({
-          redirectUrl: '/pricing?portone=redirect&plan=starter',
+          redirectUrl: '/pricing?portone=redirect&plan=pro',
         }),
       ),
     ).toThrowError(PortOneCheckoutError);
@@ -464,10 +464,12 @@ describe('PortOne checkout client helpers', () => {
       }),
     ) as typeof fetch;
 
-    await expect(createCheckoutSession('business')).rejects.toMatchObject({
+    await expect(createCheckoutSession('vip')).rejects.toMatchObject({
       code: 'FUNCTION_INVOCATION_FAILED',
       stage: 'server-invocation',
       status: 500,
     });
   });
 });
+
+

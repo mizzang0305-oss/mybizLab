@@ -13,9 +13,9 @@ const CHECKOUT_ENV_NAMES = {
 } as const;
 const KG_INICIS_PAYMENT_ID_MAX_LENGTH = 40;
 const COMPACT_PLAN_CODE: Record<BillingPlanCode, string> = {
-  business: 'biz',
+  free: 'free',
   pro: 'pro',
-  starter: 'st',
+  vip: 'vip',
 };
 
 type CheckoutEnvKey = keyof typeof CHECKOUT_ENV_NAMES;
@@ -521,7 +521,7 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
       details: {
         receivedPlan: requestedPlan ?? null,
       },
-      message: 'Checkout requires plan to be one of starter, pro, business.',
+        message: 'Checkout requires plan to be one of free, pro, vip.',
       stage: 'request-body',
       status: 400,
     });

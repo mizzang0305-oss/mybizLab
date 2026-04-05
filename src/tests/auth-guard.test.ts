@@ -19,8 +19,8 @@ vi.mock('react-router-dom', async () => {
 });
 
 vi.mock('@/shared/lib/adminSession', () => ({
-  hasDashboardAccess: (session: { role?: string } | null | undefined) =>
-    Boolean(session && ['platform_owner', 'platform_admin', 'store_owner', 'store_manager'].includes(session.role || '')),
+  hasDashboardAccess: (session: { accessibleStoreIds?: string[]; role?: string } | null | undefined) =>
+    Boolean(session && session.accessibleStoreIds?.length && ['owner', 'manager', 'staff'].includes(session.role || '')),
   useAdminSessionStore: (selector: (state: { session: unknown }) => unknown) => selector(mockSessionState),
 }));
 
@@ -43,7 +43,7 @@ describe('RequireAdminAuth', () => {
   });
 
   it('allows authenticated requests to continue to the dashboard outlet', () => {
-    mockSessionState.session = { email: 'admin@mybiz.ai.kr', role: 'platform_owner' };
+    mockSessionState.session = { accessibleStoreIds: ['store_golden_coffee'], email: 'admin@mybiz.ai.kr', role: 'owner' };
 
     const html = renderToStaticMarkup(createElement(RequireAdminAuth));
 
@@ -52,7 +52,7 @@ describe('RequireAdminAuth', () => {
   });
 
   it('redirects to login when the session exists without dashboard permission', () => {
-    mockSessionState.session = { email: 'blocked@mybiz.ai.kr', role: 'viewer' };
+    mockSessionState.session = { accessibleStoreIds: ['store_golden_coffee'], email: 'blocked@mybiz.ai.kr', role: 'viewer' };
 
     const html = renderToStaticMarkup(createElement(RequireAdminAuth));
 

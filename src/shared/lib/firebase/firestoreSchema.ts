@@ -42,7 +42,7 @@ export const firestoreStoreSchema = z
     tagline: z.string().default('Demo store'),
     description: z.string().default('Demo-ready store record'),
     public_status: z.enum(['public', 'private']).default('public'),
-    subscription_plan: z.enum(['starter', 'pro', 'business', 'enterprise']).default('starter'),
+    subscription_plan: z.enum(['free', 'pro', 'vip']).default('free'),
     admin_email: z.string().default(''),
     created_at: z.string().default(''),
     updated_at: z.string().default(''),

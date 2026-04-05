@@ -24,7 +24,7 @@ export const LEGAL_LINKS = [
 ] as const;
 
 export interface PricingPlan {
-  name: 'Starter' | 'Pro' | 'Business';
+  name: 'FREE' | 'PRO' | 'VIP';
   priceLabel: string;
   summary: string;
   features: string[];
@@ -33,20 +33,20 @@ export interface PricingPlan {
 
 export const PRICING_PLANS: PricingPlan[] = [
   {
-    name: 'Starter',
+    name: 'FREE',
     priceLabel: '월 29,000원',
     summary: '한 매장을 빠르게 시작하는 기본 운영 플랜',
     features: ['AI 스토어 진단', '기본 매출 분석', '주문 관리'],
   },
   {
-    name: 'Pro',
+    name: 'PRO',
     priceLabel: '월 79,000원',
     summary: '고객 관리와 예약 운영까지 함께 보는 추천 플랜',
     features: ['고객 관리', '예약 관리', 'AI 운영 리포트'],
     highlighted: true,
   },
   {
-    name: 'Business',
+    name: 'VIP',
     priceLabel: '월 149,000원',
     summary: '운영 자동화와 리포트를 깊게 보는 확장 플랜',
     features: ['고급 매출 분석', '통합 운영 관리', '브랜드 확장 준비'],

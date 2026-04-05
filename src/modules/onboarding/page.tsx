@@ -90,20 +90,20 @@ const storeModeWizardOptions = DIAGNOSIS_STORE_MODE_OPTIONS.filter((option) => o
 
 const planCards = [
   {
-    code: 'starter' as const,
-    title: 'Starter',
+    code: 'free' as const,
+    title: 'FREE',
     desc: '한 매장을 빠르게 시작하는 기본 플랜',
     features: ['AI 진단', '기본 매출 분석', '주문 관리'],
   },
   {
     code: 'pro' as const,
-    title: 'Pro',
+    title: 'PRO',
     desc: '고객 관리와 예약 운영까지 함께 보는 추천 플랜',
     features: ['고객 관리', '예약 관리', 'AI 운영 리포트'],
   },
   {
-    code: 'business' as const,
-    title: 'Business',
+    code: 'vip' as const,
+    title: 'VIP',
     desc: '운영 자동화와 리포트를 깊게 보는 확장 플랜',
     features: ['주간 운영 리포트', '통합 운영 분석', '브랜드 확장 준비'],
   },
@@ -725,7 +725,7 @@ export function OnboardingPage() {
   const currentIndex = steps.findIndex((item) => item.key === flow.step);
   const currentRequestWizardIndex = requestWizardSteps.findIndex((item) => item.key === flow.requestWizardStep);
   const suggestionLabels = featureLabels(flow.diagnosisResult?.recommendedModules ?? []);
-  const currentPlanTitle = planCards.find((plan) => plan.code === flow.selectedPlan)?.title || 'Starter';
+  const currentPlanTitle = planCards.find((plan) => plan.code === flow.selectedPlan)?.title || 'FREE';
   const recommendedFeatureSet = useMemo(
     () => new Set(flow.diagnosisResult?.recommendedModules ?? []),
     [flow.diagnosisResult?.recommendedModules],
