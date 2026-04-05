@@ -2,7 +2,6 @@ import { generateGeminiSummary } from '@/integrations/gemini/gemini';
 import { supabase } from '@/integrations/supabase/client';
 import { DATA_PROVIDER, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
-import { matchOrCreateCustomer } from '@/shared/lib/domain/customers';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
 import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
@@ -16,6 +15,8 @@ import {
 import { manualMetricFormSchema, type ManualMetricFormInput } from '@/shared/lib/manualMetricSchema';
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
+import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import { listStoreCustomers, upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
 import { normalizeSurveyQuestions, surveyFormSchema, surveyResponseSchema } from '@/shared/lib/surveySchema';
 import {
   createStoreBrandConfig,
@@ -72,17 +73,15 @@ import type {
 
 const DEMO_PROFILE_ID = 'profile_platform_owner';
 const SETUP_FEE_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
-  starter: 390000,
+  free: 0,
   pro: 390000,
-  business: 590000,
-  enterprise: 990000,
+  vip: 590000,
 };
 const DEMO_STORE_ORDER = ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'] as const;
 const SUBSCRIPTION_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
-  starter: 29000,
+  free: 0,
   pro: 79000,
-  business: 149000,
-  enterprise: 0,
+  vip: 149000,
 };
 
 interface SaveSetupRequestOptions {
@@ -210,8 +209,8 @@ function syncStoresToLocalCache(stores: Store[], priorityRows?: LivePrioritySett
         ...incomingStore,
         brand_config: incomingStore.brand_config,
         public_status: existingStore?.public_status ?? incomingStore.public_status ?? 'public',
-        subscription_plan: incomingStore.subscription_plan ?? existingStore?.subscription_plan ?? 'starter',
-        plan: incomingStore.plan ?? existingStore?.plan ?? incomingStore.subscription_plan ?? 'starter',
+        subscription_plan: incomingStore.subscription_plan ?? existingStore?.subscription_plan ?? 'free',
+        plan: incomingStore.plan ?? existingStore?.plan ?? incomingStore.subscription_plan ?? 'free',
         admin_email: incomingStore.admin_email || existingStore?.admin_email || getStoreBrandConfig(incomingStore).email,
       });
       const storeIndex = database.stores.findIndex((store) => store.id === nextStore.id);
@@ -925,6 +924,7 @@ function ensureDemoAdminBootstrapData() {
 
   changed = mergeMissingById(database.profiles, seededDatabase.profiles) || changed;
   changed = mergeMissingById(database.stores, seededDatabase.stores) || changed;
+  changed = mergeMissingById(database.store_subscriptions, seededDatabase.store_subscriptions) || changed;
   changed = mergeMissingById(database.store_members, seededDatabase.store_members) || changed;
   changed = mergeMissingById(database.store_features, seededDatabase.store_features) || changed;
   changed = mergeMissingById(database.store_analytics_profiles, seededDatabase.store_analytics_profiles) || changed;
@@ -936,6 +936,9 @@ function ensureDemoAdminBootstrapData() {
   changed = mergeMissingById(database.admin_users, seededDatabase.admin_users) || changed;
 
   changed = mergeMissingById(database.customers, seededDatabase.customers) || changed;
+  changed = mergeMissingById(database.customer_contacts, seededDatabase.customer_contacts) || changed;
+  changed = mergeMissingById(database.customer_preferences, seededDatabase.customer_preferences) || changed;
+  changed = mergeMissingById(database.customer_timeline_events, seededDatabase.customer_timeline_events) || changed;
   changed = mergeMissingById(database.inquiries, seededDatabase.inquiries) || changed;
   changed = mergeMissingById(database.orders, seededDatabase.orders) || changed;
   changed = mergeMissingById(database.order_items, seededDatabase.order_items) || changed;
@@ -1883,58 +1886,43 @@ async function generateAiNarrative(storeId: string) {
 }
 
 export async function getCurrentProfile() {
-  const database = ensureDemoAdminBootstrapData();
-  return database.profiles.find((profile) => profile.id === DEMO_PROFILE_ID) || null;
+  const repository = getCanonicalMyBizRepository();
+  const access = await repository.resolveStoreAccess({
+    fallbackEmail: 'ops@mybiz.ai.kr',
+    fallbackFullName: '운영 관리자',
+    fallbackProfileId: DEMO_PROFILE_ID,
+  });
+
+  return access?.profile || null;
 }
 
 export async function listAccessibleStores() {
+  const repository = getCanonicalMyBizRepository();
+  const access = await repository.resolveStoreAccess({
+    fallbackEmail: 'ops@mybiz.ai.kr',
+    fallbackFullName: '운영 관리자',
+    fallbackProfileId: DEMO_PROFILE_ID,
+  });
+
+  if (!access?.accessibleStores.length) {
+    return [];
+  }
+
   if (shouldUseSupabaseStoreProvisioning()) {
-    const profileId = await getAuthenticatedSupabaseUserId();
-    if (!supabase) {
-      return [];
-    }
-
-    const { data: membershipRows, error: membershipError } = await supabase
-      .from('store_members')
-      .select('store_id')
-      .eq('profile_id', profileId);
-
-    if (membershipError) {
-      throw new Error(`Failed to load accessible stores: ${membershipError.message}`);
-    }
-
-    const storeIds = Array.from(new Set((membershipRows || []).map((row) => String(row.store_id)).filter(Boolean)));
-    if (!storeIds.length) {
-      return [];
-    }
-
-    const { data: storeRows, error: storeError } = await supabase
-      .from('stores')
-      .select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan')
-      .in('store_id', storeIds);
-
-    if (storeError) {
-      throw new Error(`Failed to load accessible store rows: ${storeError.message}`);
-    }
-
-    const database = getDatabase();
-    const stores = ((storeRows || []) as LiveStoreRow[]).map((row) =>
-      mapLiveStoreToAppStore(row, database.stores.find((store) => store.id === row.store_id) || null),
-    );
+    const storeIds = access.accessibleStores.map((store) => store.id);
     const [priorityRows, analyticsProfiles] = await Promise.all([
-      fetchPrioritySettingsRows(storeIds.map((storeId) => storeId)),
-      fetchAnalyticsProfiles(storeIds.map((storeId) => storeId)),
+      fetchPrioritySettingsRows(storeIds),
+      fetchAnalyticsProfiles(storeIds),
     ]);
-    syncStoresToLocalCache(stores, priorityRows, analyticsProfiles);
+    syncStoresToLocalCache(access.accessibleStores, priorityRows, analyticsProfiles);
+  }
 
-    return stores.slice().sort((left, right) => compareStoresByDashboardReady(getDatabase(), left, right));
+  if (shouldUseSupabaseStoreProvisioning()) {
+    return access.accessibleStores.slice().sort((left, right) => right.created_at.localeCompare(left.created_at));
   }
 
   const database = ensureDemoAdminBootstrapData();
-  const accessibleStores = getStoreMembersStores(database);
-  const stores = accessibleStores.length ? accessibleStores : database.stores;
-
-  return stores.slice().sort((left, right) => compareStoresByDashboardReady(database, left, right));
+  return access.accessibleStores.slice().sort((left, right) => compareStoresByDashboardReady(database, left, right));
 }
 
 export async function listSetupRequests() {
@@ -1944,7 +1932,7 @@ export async function listSetupRequests() {
 
 export async function saveSetupRequest(input: SetupRequestInput, options?: SaveSetupRequestOptions) {
   const timestamp = nowIso();
-  const requestedPlan = options?.requestedPlan ?? 'starter';
+  const requestedPlan = options?.requestedPlan ?? 'free';
   const requestedSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
   const brandName = input.brand_name?.trim() || input.business_name;
   const tagline = input.tagline?.trim() || `${brandName} 오픈 준비 중`;
@@ -1998,7 +1986,7 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 }
 
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
-  const subscriptionPlan = options?.plan ?? 'starter';
+  const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
     const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan);
     const profileId = await getAuthenticatedSupabaseUserId();
@@ -2128,7 +2116,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
         id: createId('billing_event'),
         store_id: storeId,
         event_type: 'subscription_charge',
-        title: `${subscriptionPlan === 'starter' ? 'Starter' : subscriptionPlan === 'pro' ? 'Pro' : 'Business'} 구독 결제 완료`,
+          title: `${subscriptionPlan === 'free' ? 'FREE' : subscriptionPlan === 'pro' ? 'PRO' : 'VIP'} 구독 결제 완료`,
         amount: SUBSCRIPTION_AMOUNT_BY_PLAN[subscriptionPlan],
         status: subscriptionEventStatus,
         occurred_at: timestamp,
@@ -2207,6 +2195,24 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
         ];
 
     database.stores.unshift(store);
+    database.store_subscriptions.unshift({
+      id: createId('store_subscription'),
+      store_id: storeId,
+      plan: subscriptionPlan,
+      status:
+        subscriptionStatus === 'subscription_active'
+          ? 'active'
+          : subscriptionStatus === 'subscription_past_due'
+            ? 'past_due'
+            : subscriptionStatus === 'subscription_cancelled'
+              ? 'cancelled'
+              : 'trialing',
+      billing_provider: options?.paymentId ? 'portone' : 'manual',
+      current_period_starts_at: timestamp,
+      current_period_ends_at: subscriptionStatus === 'subscription_active' ? isoDaysFromNow(30) : undefined,
+      created_at: timestamp,
+      updated_at: timestamp,
+    });
     database.store_brand_profiles.unshift({
       id: createId('store_brand_profile'),
       store_id: storeId,
@@ -2583,9 +2589,7 @@ export async function generateAiReport(storeId: string, reportType: ReportType) 
 }
 
 export async function listCustomers(storeId: string) {
-  return getStoreScopedData(storeId).customers
-    .slice()
-    .sort((left, right) => (right.last_visit_at || '').localeCompare(left.last_visit_at || ''));
+  return listStoreCustomers(storeId);
 }
 
 function normalizePhoneKey(value?: string) {
@@ -2620,46 +2624,20 @@ export async function upsertCustomer(
   storeId: string,
   customerInput: Pick<Customer, 'name' | 'phone' | 'email' | 'marketing_opt_in'> & { id?: string },
 ) {
-  const timestamp = nowIso();
-  let nextCustomer: Customer | null = null;
   const parsed = customerContactSchema.parse(customerInput);
-
-  updateDatabase((database) => {
-    if (parsed.id) {
-      database.customers = database.customers.map((customer) => {
-        if (customer.id !== parsed.id) {
-          return customer;
-        }
-
-        nextCustomer = {
-          ...customer,
-          name: parsed.name,
-          phone: parsed.phone,
-          email: parsed.email || undefined,
-          marketing_opt_in: parsed.marketing_opt_in,
-        };
-
-        return nextCustomer!;
-      });
-      return;
-    }
-
-    nextCustomer = {
-      id: createId('customer'),
-      store_id: storeId,
-      name: parsed.name,
-      phone: parsed.phone,
-      email: parsed.email || undefined,
-      marketing_opt_in: parsed.marketing_opt_in,
-      visit_count: 0,
-      is_regular: false,
-      created_at: timestamp,
-    };
-
-    database.customers.unshift(nextCustomer);
+  const memoryRecord = await upsertCustomerMemory({
+    customerId: parsed.id,
+    email: parsed.email || undefined,
+    eventType: parsed.id ? 'preference_updated' : 'customer_created',
+    marketingOptIn: parsed.marketing_opt_in,
+    name: parsed.name,
+    phone: parsed.phone,
+    source: 'dashboard',
+    storeId,
+    summary: parsed.id ? '고객 카드가 대시보드에서 수정되었습니다.' : '고객 카드가 대시보드에서 생성되었습니다.',
   });
 
-  return nextCustomer;
+  return memoryRecord.customer;
 }
 
 function upsertInquiryCustomer(
@@ -2815,26 +2793,25 @@ export async function attachCustomerToOrder(
   orderId: string,
   input: { phone: string; name?: string; email?: string; marketingOptIn?: boolean },
 ): Promise<Customer | null> {
-  let matchedCustomer: Customer | null = null;
+  const memoryRecord = await upsertCustomerMemory({
+    email: input.email,
+    eventType: 'order_linked',
+    marketingOptIn: input.marketingOptIn,
+    name: input.name,
+    phone: input.phone,
+    source: 'public_order',
+    storeId,
+    summary: '주문 고객 정보가 고객 메모리에 연결되었습니다.',
+    visitIncrement: 1,
+  });
 
   updateDatabase((database) => {
-    const result = matchOrCreateCustomer(database.customers, {
-      storeId,
-      phone: input.phone,
-      name: input.name,
-      email: input.email,
-      marketingOptIn: input.marketingOptIn,
-      visitedAt: nowIso(),
-    });
-
-    database.customers = result.customers;
-    matchedCustomer = result.customer;
     database.orders = database.orders.map((order) =>
-      order.id === orderId ? { ...order, customer_id: result.customer.id } : order,
+      order.id === orderId ? { ...order, customer_id: memoryRecord.customer.id } : order,
     );
   });
 
-  return matchedCustomer;
+  return memoryRecord.customer;
 }
 
 export async function listReservations(storeId: string) {
@@ -3125,23 +3102,30 @@ export async function submitPublicInquiry(input: {
     throw new Error('Inquiry is not enabled for this store.');
   }
 
+  const memoryRecord = await upsertCustomerMemory({
+    email: parsed.email,
+    eventType: 'inquiry_captured',
+    marketingOptIn: parsed.marketingOptIn,
+    metadata: {
+      category: parsed.category,
+      requestedVisitDate: parsed.requestedVisitDate || null,
+    },
+    name: parsed.customerName,
+    occurredAt: nowIso(),
+    phone: parsed.phone,
+    source: 'public_inquiry',
+    storeId: input.storeId,
+    summary: '공개 문의가 고객 메모리에 기록되었습니다.',
+  });
+
   let inquiry: Inquiry | null = null;
-  let customer: Customer | null = null;
 
   updateDatabase((database) => {
-    customer = upsertInquiryCustomer(database, {
-      storeId: input.storeId,
-      customerName: parsed.customerName,
-      phone: parsed.phone,
-      email: parsed.email,
-      marketingOptIn: parsed.marketingOptIn,
-    });
-
     const timestamp = nowIso();
     inquiry = {
       id: createId('inquiry'),
       store_id: input.storeId,
-      customer_id: customer?.id,
+      customer_id: memoryRecord.customer.id,
       customer_name: parsed.customerName,
       phone: parsed.phone,
       email: parsed.email,
@@ -3161,13 +3145,13 @@ export async function submitPublicInquiry(input: {
     incrementConsultationMetric(database, input.storeId, timestamp);
   });
 
-  if (!inquiry || !customer) {
+  if (!inquiry) {
     throw new Error('Inquiry could not be created.');
   }
 
   return {
     inquiry,
-    customer,
+    customer: memoryRecord.customer,
     summary: buildPublicInquirySummary(getStoreScopedData(input.storeId).inquiries),
   };
 }

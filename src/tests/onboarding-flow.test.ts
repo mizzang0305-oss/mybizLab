@@ -45,7 +45,7 @@ describe('onboarding flow helpers', () => {
     expect(result.reportSummary).toContain('서울 성수동');
     expect(result.analysisSource).toBe('fallback');
     expect(result.limitationsNote).toContain('실시간 POS');
-    expect(['starter', 'pro', 'business']).toContain(result.recommendedPlan);
+    expect(['free', 'pro', 'vip']).toContain(result.recommendedPlan);
   });
 
   it('stores the request and activates the store with paid billing state', async () => {

@@ -159,7 +159,7 @@ function appendProvisioningLog(
 }
 
 function buildBillingRecord(storeId: string, request: StoreRequest, timestamp: string): BillingRecord {
-  const setupAmount = request.requested_plan === 'enterprise' ? 990000 : request.requested_plan === 'business' ? 590000 : 390000;
+  const setupAmount = request.requested_plan === 'vip' ? 590000 : request.requested_plan === 'pro' ? 390000 : 0;
 
   const event: BillingEvent = {
     id: createId('billing_event'),
@@ -289,6 +289,16 @@ function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest,
   const billingRecord = buildBillingRecord(storeId, request, timestamp);
 
   database.stores.unshift(store);
+  database.store_subscriptions.unshift({
+    id: createId('store_subscription'),
+    store_id: storeId,
+    plan: request.requested_plan,
+    status: 'trialing',
+    billing_provider: 'manual',
+    current_period_starts_at: timestamp,
+    created_at: timestamp,
+    updated_at: timestamp,
+  });
   database.store_brand_profiles.unshift({
     id: createId('store_brand_profile'),
     store_id: storeId,

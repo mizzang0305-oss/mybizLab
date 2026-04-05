@@ -146,7 +146,7 @@ function createDiagnosisSchema() {
         type: 'array',
       },
       recommendedPlan: {
-        enum: ['starter', 'pro', 'business'],
+        enum: ['free', 'pro', 'vip'],
         type: 'string',
       },
       recommendedQuestions: {

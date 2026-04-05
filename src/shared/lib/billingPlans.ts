@@ -1,21 +1,21 @@
 export const BILLING_PLAN_DETAILS = {
-  starter: {
-    amount: 29000,
-    code: 'starter',
-    orderName: 'Starter 월 구독',
-    planName: 'Starter',
+  free: {
+    amount: 0,
+    code: 'free',
+    orderName: 'FREE 플랜',
+    planName: 'FREE',
   },
   pro: {
     amount: 79000,
     code: 'pro',
-    orderName: 'Pro 월 구독',
-    planName: 'Pro',
+    orderName: 'PRO 구독',
+    planName: 'PRO',
   },
-  business: {
+  vip: {
     amount: 149000,
-    code: 'business',
-    orderName: 'Business 월 구독',
-    planName: 'Business',
+    code: 'vip',
+    orderName: 'VIP 구독',
+    planName: 'VIP',
   },
 } as const;
 
