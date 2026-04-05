@@ -1,13 +1,21 @@
 import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createId } from '@/shared/lib/ids';
 import type {
+  ConversationMessage,
+  ConversationSession,
   Customer,
   CustomerContact,
   CustomerPreference,
   CustomerTimelineEvent,
+  Inquiry,
   Profile,
+  Reservation,
+  Store,
   StoreMember,
+  StorePublicPage,
   StoreSubscription,
+  VisitorSession,
+  WaitingEntry,
 } from '@/shared/types/models';
 import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
 
@@ -87,8 +95,30 @@ export const demoRepository: CanonicalMyBizRepository = {
 
     return event;
   },
+  findStoreById: async (storeId) => {
+    return getDatabase().stores.find((store) => store.id === storeId) || null;
+  },
+  findStoreBySlug: async (slug) => {
+    const normalizedSlug = slug.trim().toLowerCase();
+    return getDatabase().stores.find((store) => store.slug.trim().toLowerCase() === normalizedSlug) || null;
+  },
   getStoreSubscription: async (storeId) => {
     return getDatabase().store_subscriptions.find((subscription) => subscription.store_id === storeId) || null;
+  },
+  getStorePublicPage: async (storeId) => {
+    return getDatabase().store_public_pages.find((page) => page.store_id === storeId) || null;
+  },
+  getStorePublicPageBySlug: async (slug) => {
+    const normalizedSlug = slug.trim().toLowerCase();
+    return getDatabase().store_public_pages.find((page) => page.slug.trim().toLowerCase() === normalizedSlug) || null;
+  },
+  listConversationMessages: async (sessionId) => {
+    return getDatabase().conversation_messages.filter((message) => message.conversation_session_id === sessionId);
+  },
+  listConversationSessions: async (storeId, inquiryId) => {
+    return getDatabase().conversation_sessions.filter(
+      (session) => session.store_id === storeId && (!inquiryId || session.inquiry_id === inquiryId),
+    );
   },
   listCustomerContacts: async (storeId, customerId) => {
     return getDatabase().customer_contacts.filter(
@@ -108,6 +138,12 @@ export const demoRepository: CanonicalMyBizRepository = {
   listCustomers: async (storeId) => {
     return getDatabase().customers.filter((customer) => customer.store_id === storeId);
   },
+  listInquiries: async (storeId) => {
+    return getDatabase().inquiries.filter((inquiry) => inquiry.store_id === storeId);
+  },
+  listReservations: async (storeId) => {
+    return getDatabase().reservations.filter((reservation) => reservation.store_id === storeId);
+  },
   listStoreSubscriptions: async (storeIds) => {
     const subscriptions = getDatabase().store_subscriptions;
 
@@ -117,6 +153,14 @@ export const demoRepository: CanonicalMyBizRepository = {
 
     const storeIdSet = new Set(storeIds);
     return subscriptions.filter((subscription) => storeIdSet.has(subscription.store_id));
+  },
+  listVisitorSessions: async (storeId, visitorToken) => {
+    return getDatabase().visitor_sessions.filter(
+      (session) => session.store_id === storeId && (!visitorToken || session.visitor_token === visitorToken),
+    );
+  },
+  listWaitingEntries: async (storeId) => {
+    return getDatabase().waiting_entries.filter((entry) => entry.store_id === storeId);
   },
   resolveStoreAccess: async (input) => {
     const profile = ensureDemoProfile(input);
@@ -140,6 +184,32 @@ export const demoRepository: CanonicalMyBizRepository = {
     };
 
     return resolved;
+  },
+  saveConversationMessage: async (message) => {
+    updateDatabase((database) => {
+      const index = database.conversation_messages.findIndex((item) => item.id === message.id);
+      if (index >= 0) {
+        database.conversation_messages[index] = message;
+        return;
+      }
+
+      database.conversation_messages.unshift(message);
+    });
+
+    return message;
+  },
+  saveConversationSession: async (session) => {
+    updateDatabase((database) => {
+      const index = database.conversation_sessions.findIndex((item) => item.id === session.id);
+      if (index >= 0) {
+        database.conversation_sessions[index] = session;
+        return;
+      }
+
+      database.conversation_sessions.unshift(session);
+    });
+
+    return session;
   },
   saveCustomer: async (customer) => {
     updateDatabase((database) => {
@@ -180,6 +250,58 @@ export const demoRepository: CanonicalMyBizRepository = {
 
     return preference;
   },
+  saveInquiry: async (inquiry) => {
+    updateDatabase((database) => {
+      const index = database.inquiries.findIndex((item) => item.id === inquiry.id);
+      if (index >= 0) {
+        database.inquiries[index] = inquiry;
+        return;
+      }
+
+      database.inquiries.unshift(inquiry);
+    });
+
+    return inquiry;
+  },
+  saveReservation: async (reservation) => {
+    updateDatabase((database) => {
+      const index = database.reservations.findIndex((item) => item.id === reservation.id);
+      if (index >= 0) {
+        database.reservations[index] = reservation;
+        return;
+      }
+
+      database.reservations.unshift(reservation);
+    });
+
+    return reservation;
+  },
+  saveStore: async (store) => {
+    updateDatabase((database) => {
+      const index = database.stores.findIndex((item) => item.id === store.id);
+      if (index >= 0) {
+        database.stores[index] = store;
+        return;
+      }
+
+      database.stores.unshift(store);
+    });
+
+    return store;
+  },
+  saveStorePublicPage: async (page) => {
+    updateDatabase((database) => {
+      const index = database.store_public_pages.findIndex((item) => item.store_id === page.store_id);
+      if (index >= 0) {
+        database.store_public_pages[index] = page;
+        return;
+      }
+
+      database.store_public_pages.unshift(page);
+    });
+
+    return page;
+  },
   saveStoreSubscription: async (subscription) => {
     updateDatabase((database) => {
       const subscriptionIndex = database.store_subscriptions.findIndex((item) => item.store_id === subscription.store_id);
@@ -202,5 +324,31 @@ export const demoRepository: CanonicalMyBizRepository = {
     });
 
     return subscription;
+  },
+  saveVisitorSession: async (session) => {
+    updateDatabase((database) => {
+      const index = database.visitor_sessions.findIndex((item) => item.id === session.id);
+      if (index >= 0) {
+        database.visitor_sessions[index] = session;
+        return;
+      }
+
+      database.visitor_sessions.unshift(session);
+    });
+
+    return session;
+  },
+  saveWaitingEntry: async (entry) => {
+    updateDatabase((database) => {
+      const index = database.waiting_entries.findIndex((item) => item.id === entry.id);
+      if (index >= 0) {
+        database.waiting_entries[index] = entry;
+        return;
+      }
+
+      database.waiting_entries.unshift(entry);
+    });
+
+    return entry;
   },
 };

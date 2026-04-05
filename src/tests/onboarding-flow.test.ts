@@ -84,4 +84,31 @@ describe('onboarding flow helpers', () => {
     expect(billingRecord?.events.some((event) => event.event_type === 'setup_fee' && event.status === 'paid')).toBe(true);
     expect(billingRecord?.events.some((event) => event.event_type === 'subscription_charge' && event.status === 'paid')).toBe(true);
   });
+
+  it('activates the free plan without paid billing events and provisions a canonical public page', async () => {
+    const savedRequest = await saveSetupRequest(requestInput, { requestedPlan: 'free' });
+    const created = await createStoreFromSetupRequest(requestInput, {
+      requestId: savedRequest.id,
+      plan: 'free',
+      paymentId: 'free_12345',
+      paymentMethodStatus: 'ready',
+      requestStatus: 'approved',
+      reviewerEmail: 'onboarding@mybiz.ai.kr',
+      setupStatus: 'setup_paid',
+      subscriptionStatus: 'subscription_active',
+    });
+
+    const database = getDatabase();
+    const billingRecord = database.billing_records.find((record) => record.store_id === created.store.id);
+    const storeSubscription = database.store_subscriptions.find((subscription) => subscription.store_id === created.store.id);
+    const publicPage = database.store_public_pages.find((page) => page.store_id === created.store.id);
+
+    expect(billingRecord?.plan).toBe('free');
+    expect(billingRecord?.events.some((event) => event.status === 'paid' && event.amount > 0)).toBe(false);
+    expect(storeSubscription).toMatchObject({
+      plan: 'free',
+      status: 'active',
+    });
+    expect(publicPage?.slug).toBe(created.store.slug);
+  });
 });

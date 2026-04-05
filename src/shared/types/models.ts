@@ -44,6 +44,10 @@ export type StoreMediaType = 'hero' | 'storefront' | 'interior';
 export type SystemStatusState = 'active' | 'ready' | 'warning' | 'pending' | 'error';
 export type CustomerContactType = 'phone' | 'email';
 export type CustomerPreferredChannel = 'sms' | 'phone' | 'email';
+export type ConversationChannel = 'public_inquiry' | 'ai_chat' | 'dashboard_manual';
+export type ConversationSessionStatus = 'open' | 'closed';
+export type ConversationMessageSender = 'customer' | 'assistant' | 'staff' | 'system';
+export type VisitorSessionChannel = 'home' | 'menu' | 'order' | 'survey' | 'inquiry';
 export type CustomerTimelineEventType =
   | 'customer_created'
   | 'contact_captured'
@@ -52,13 +56,20 @@ export type CustomerTimelineEventType =
   | 'inquiry_captured'
   | 'reservation_captured'
   | 'waitlist_captured'
-  | 'order_linked';
+  | 'order_linked'
+  | 'reservation_updated'
+  | 'waitlist_updated'
+  | 'conversation_started'
+  | 'conversation_message';
 export type CustomerTimelineSource =
   | 'dashboard'
   | 'public_store'
   | 'public_inquiry'
   | 'public_waiting'
   | 'public_order'
+  | 'reservation'
+  | 'waiting'
+  | 'conversation'
   | 'system'
   | 'demo_seed';
 export type ProvisioningAction =
@@ -341,6 +352,8 @@ export interface Inquiry {
   id: string;
   store_id: string;
   customer_id?: string;
+  conversation_session_id?: string;
+  visitor_session_id?: string;
   customer_name: string;
   phone: string;
   email?: string;
@@ -396,23 +409,114 @@ export interface KitchenTicket {
 export interface Reservation {
   id: string;
   store_id: string;
+  customer_id?: string;
+  visitor_session_id?: string;
   customer_name: string;
   phone: string;
   party_size: number;
   reserved_at: string;
   status: ReservationStatus;
   note?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface WaitingEntry {
   id: string;
   store_id: string;
+  customer_id?: string;
+  visitor_session_id?: string;
   customer_name: string;
   phone: string;
   party_size: number;
   quoted_wait_minutes: number;
   status: WaitingStatus;
   created_at: string;
+  updated_at?: string;
+}
+
+export interface ConversationSession {
+  id: string;
+  store_id: string;
+  customer_id?: string;
+  inquiry_id?: string;
+  visitor_session_id?: string;
+  channel: ConversationChannel;
+  status: ConversationSessionStatus;
+  subject: string;
+  created_at: string;
+  updated_at: string;
+  last_message_at?: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  store_id: string;
+  conversation_session_id: string;
+  customer_id?: string;
+  inquiry_id?: string;
+  sender: ConversationMessageSender;
+  body: string;
+  metadata: Record<string, boolean | number | string | null>;
+  created_at: string;
+}
+
+export interface StorePublicPage {
+  id: string;
+  store_id: string;
+  slug: string;
+  brand_name: string;
+  logo_url?: string;
+  brand_color: string;
+  tagline: string;
+  description: string;
+  business_type?: string;
+  phone: string;
+  email: string;
+  address: string;
+  directions: string;
+  opening_hours?: string;
+  parking_note?: string;
+  public_status: StoreVisibility;
+  homepage_visible: boolean;
+  consultation_enabled: boolean;
+  inquiry_enabled: boolean;
+  reservation_enabled: boolean;
+  order_entry_enabled: boolean;
+  theme_preset?: 'light' | 'warm' | 'modern';
+  preview_target?: 'survey' | 'order' | 'inquiry';
+  hero_title: string;
+  hero_subtitle: string;
+  hero_description: string;
+  primary_cta_label?: string;
+  mobile_cta_label?: string;
+  cta_config: Record<string, boolean | number | string | null>;
+  content_blocks: Array<Record<string, boolean | number | string | null>>;
+  seo_metadata: Record<string, boolean | number | string | null>;
+  media: StoreMedia[];
+  notices: StoreNotice[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VisitorSession {
+  id: string;
+  store_id: string;
+  public_page_id?: string;
+  customer_id?: string;
+  inquiry_id?: string;
+  reservation_id?: string;
+  waiting_entry_id?: string;
+  visitor_token: string;
+  channel: VisitorSessionChannel;
+  entry_path: string;
+  last_path: string;
+  referrer?: string;
+  metadata: Record<string, boolean | number | string | null>;
+  first_seen_at: string;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export type SurveyQuestionType = 'single_choice' | 'multiple_choice' | 'rating' | 'revisit_intent' | 'text';
@@ -663,6 +767,7 @@ export interface MvpDatabase {
   store_requests: StoreRequest[];
   stores: Store[];
   store_subscriptions: StoreSubscription[];
+  store_public_pages: StorePublicPage[];
   store_analytics_profiles: StoreAnalyticsProfile[];
   store_brand_profiles: StoreBrandProfile[];
   store_media: StoreMedia[];
@@ -679,6 +784,9 @@ export interface MvpDatabase {
   customer_preferences: CustomerPreference[];
   customer_timeline_events: CustomerTimelineEvent[];
   inquiries: Inquiry[];
+  conversation_sessions: ConversationSession[];
+  conversation_messages: ConversationMessage[];
+  visitor_sessions: VisitorSession[];
   orders: Order[];
   order_items: OrderItem[];
   kitchen_tickets: KitchenTicket[];

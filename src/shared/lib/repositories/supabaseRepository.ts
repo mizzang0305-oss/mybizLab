@@ -1,16 +1,25 @@
 import { supabase } from '@/integrations/supabase/client';
 import type {
+  ConversationMessage,
+  ConversationSession,
   Customer,
   CustomerContact,
   CustomerPreference,
   CustomerTimelineEvent,
+  Inquiry,
   Profile,
+  Reservation,
   Store,
   StoreMember,
+  StorePublicPage,
   StoreSubscription,
+  VisitorSession,
+  WaitingEntry,
 } from '@/shared/types/models';
 import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
-import { mapLiveStoreToAppStore } from '@/shared/lib/storeData';
+import { getStoreBrandConfig, mapLiveStoreToAppStore } from '@/shared/lib/storeData';
+
+const LIVE_STORE_SELECT = 'store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan';
 
 function assertSupabase() {
   if (!supabase) {
@@ -79,15 +88,68 @@ function mapStoreSubscriptionRow(row: Record<string, unknown>): StoreSubscriptio
   };
 }
 
+function mapStoreRow(row: {
+  store_id: string;
+  name: string;
+  timezone: string | null;
+  created_at: string;
+  brand_config: unknown;
+  slug: string | null;
+  trial_ends_at: string | null;
+  plan: string | null;
+}): Store {
+  return mapLiveStoreToAppStore(row, null);
+}
+
 export const supabaseRepository: CanonicalMyBizRepository = {
   appendTimelineEvent: async (event) => {
     const client = assertSupabase();
-    const { data, error } = await client.from('customer_timeline_events').insert(event).select('*').single();
+    const { error } = await client.from('customer_timeline_events').insert(event);
     if (error) {
       throw new Error(`Failed to write customer timeline event: ${error.message}`);
     }
 
-    return data as CustomerTimelineEvent;
+    return event;
+  },
+  findStoreById: async (storeId) => {
+    const client = assertSupabase();
+    const { data, error } = await client.from('stores').select(LIVE_STORE_SELECT).eq('store_id', storeId).maybeSingle();
+    if (error) {
+      throw new Error(`Failed to load store: ${error.message}`);
+    }
+
+    return data
+      ? mapStoreRow(data as {
+          store_id: string;
+          name: string;
+          timezone: string | null;
+          created_at: string;
+          brand_config: unknown;
+          slug: string | null;
+          trial_ends_at: string | null;
+          plan: string | null;
+        })
+      : null;
+  },
+  findStoreBySlug: async (slug) => {
+    const client = assertSupabase();
+    const { data, error } = await client.from('stores').select(LIVE_STORE_SELECT).eq('slug', slug).maybeSingle();
+    if (error) {
+      throw new Error(`Failed to load store by slug: ${error.message}`);
+    }
+
+    return data
+      ? mapStoreRow(data as {
+          store_id: string;
+          name: string;
+          timezone: string | null;
+          created_at: string;
+          brand_config: unknown;
+          slug: string | null;
+          trial_ends_at: string | null;
+          plan: string | null;
+        })
+      : null;
   },
   getStoreSubscription: async (storeId) => {
     const client = assertSupabase();
@@ -102,6 +164,51 @@ export const supabaseRepository: CanonicalMyBizRepository = {
     }
 
     return data ? mapStoreSubscriptionRow(data as Record<string, unknown>) : null;
+  },
+  getStorePublicPage: async (storeId) => {
+    const client = assertSupabase();
+    const { data, error } = await client.from('store_public_pages').select('*').eq('store_id', storeId).maybeSingle();
+    if (error) {
+      throw new Error(`Failed to load store public page: ${error.message}`);
+    }
+
+    return (data as StorePublicPage | null) || null;
+  },
+  getStorePublicPageBySlug: async (slug) => {
+    const client = assertSupabase();
+    const { data, error } = await client.from('store_public_pages').select('*').eq('slug', slug).maybeSingle();
+    if (error) {
+      throw new Error(`Failed to load store public page by slug: ${error.message}`);
+    }
+
+    return (data as StorePublicPage | null) || null;
+  },
+  listConversationMessages: async (sessionId) => {
+    const client = assertSupabase();
+    const { data, error } = await client
+      .from('conversation_messages')
+      .select('*')
+      .eq('conversation_session_id', sessionId)
+      .order('created_at', { ascending: true });
+    if (error) {
+      throw new Error(`Failed to load conversation messages: ${error.message}`);
+    }
+
+    return (data || []) as ConversationMessage[];
+  },
+  listConversationSessions: async (storeId, inquiryId) => {
+    const client = assertSupabase();
+    let query = client.from('conversation_sessions').select('*').eq('store_id', storeId);
+    if (inquiryId) {
+      query = query.eq('inquiry_id', inquiryId);
+    }
+
+    const { data, error } = await query.order('updated_at', { ascending: false });
+    if (error) {
+      throw new Error(`Failed to load conversation sessions: ${error.message}`);
+    }
+
+    return (data || []) as ConversationSession[];
   },
   listCustomerContacts: async (storeId, customerId) => {
     const client = assertSupabase();
@@ -154,6 +261,28 @@ export const supabaseRepository: CanonicalMyBizRepository = {
 
     return (data || []) as Customer[];
   },
+  listInquiries: async (storeId) => {
+    const client = assertSupabase();
+    const { data, error } = await client.from('inquiries').select('*').eq('store_id', storeId).order('created_at', { ascending: false });
+    if (error) {
+      throw new Error(`Failed to load inquiries: ${error.message}`);
+    }
+
+    return (data || []) as Inquiry[];
+  },
+  listReservations: async (storeId) => {
+    const client = assertSupabase();
+    const { data, error } = await client
+      .from('reservations')
+      .select('*')
+      .eq('store_id', storeId)
+      .order('reserved_at', { ascending: true });
+    if (error) {
+      throw new Error(`Failed to load reservations: ${error.message}`);
+    }
+
+    return (data || []) as Reservation[];
+  },
   listStoreSubscriptions: async (storeIds) => {
     const client = assertSupabase();
     let query = client.from('store_subscriptions').select('*');
@@ -167,6 +296,33 @@ export const supabaseRepository: CanonicalMyBizRepository = {
     }
 
     return (data || []).map((row) => mapStoreSubscriptionRow(row as Record<string, unknown>));
+  },
+  listVisitorSessions: async (storeId, visitorToken) => {
+    const client = assertSupabase();
+    let query = client.from('visitor_sessions').select('*').eq('store_id', storeId);
+    if (visitorToken) {
+      query = query.eq('visitor_token', visitorToken);
+    }
+
+    const { data, error } = await query.order('updated_at', { ascending: false });
+    if (error) {
+      throw new Error(`Failed to load visitor sessions: ${error.message}`);
+    }
+
+    return (data || []) as VisitorSession[];
+  },
+  listWaitingEntries: async (storeId) => {
+    const client = assertSupabase();
+    const { data, error } = await client
+      .from('waiting_entries')
+      .select('*')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      throw new Error(`Failed to load waiting entries: ${error.message}`);
+    }
+
+    return (data || []) as WaitingEntry[];
   },
   resolveStoreAccess: async (input) => {
     const client = assertSupabase();
@@ -205,7 +361,7 @@ export const supabaseRepository: CanonicalMyBizRepository = {
     if (storeIds.length) {
       const { data: storeRows, error: storeError } = await client
         .from('stores')
-        .select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan')
+        .select(LIVE_STORE_SELECT)
         .in('store_id', storeIds);
 
       if (storeError) {
@@ -221,7 +377,7 @@ export const supabaseRepository: CanonicalMyBizRepository = {
         slug: string | null;
         trial_ends_at: string | null;
         plan: string | null;
-      }>).map((row) => mapLiveStoreToAppStore(row, null));
+      }>).map((row) => mapStoreRow(row));
     }
 
     const resolved: ResolvedStoreAccess = {
@@ -236,40 +392,110 @@ export const supabaseRepository: CanonicalMyBizRepository = {
 
     return resolved;
   },
+  saveConversationMessage: async (message) => {
+    const client = assertSupabase();
+    const { error } = await client.from('conversation_messages').upsert(message, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`Failed to save conversation message: ${error.message}`);
+    }
+
+    return message;
+  },
+  saveConversationSession: async (session) => {
+    const client = assertSupabase();
+    const { error } = await client.from('conversation_sessions').upsert(session, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`Failed to save conversation session: ${error.message}`);
+    }
+
+    return session;
+  },
   saveCustomer: async (customer) => {
     const client = assertSupabase();
-    const { data, error } = await client.from('customers').upsert(customer, { onConflict: 'id' }).select('*').single();
+    const { error } = await client.from('customers').upsert(customer, { onConflict: 'id' });
     if (error) {
       throw new Error(`Failed to save customer: ${error.message}`);
     }
 
-    return data as Customer;
+    return customer;
   },
   saveCustomerContact: async (contact) => {
     const client = assertSupabase();
-    const { data, error } = await client
-      .from('customer_contacts')
-      .upsert(contact, { onConflict: 'id' })
-      .select('*')
-      .single();
+    const { error } = await client.from('customer_contacts').upsert(contact, { onConflict: 'id' });
     if (error) {
       throw new Error(`Failed to save customer contact: ${error.message}`);
     }
 
-    return data as CustomerContact;
+    return contact;
   },
   saveCustomerPreference: async (preference) => {
     const client = assertSupabase();
-    const { data, error } = await client
-      .from('customer_preferences')
-      .upsert(preference, { onConflict: 'customer_id' })
-      .select('*')
-      .single();
+    const { error } = await client.from('customer_preferences').upsert(preference, { onConflict: 'customer_id' });
     if (error) {
       throw new Error(`Failed to save customer preference: ${error.message}`);
     }
 
-    return data as CustomerPreference;
+    return preference;
+  },
+  saveInquiry: async (inquiry) => {
+    const client = assertSupabase();
+    const { error } = await client.from('inquiries').upsert(inquiry, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`Failed to save inquiry: ${error.message}`);
+    }
+
+    return inquiry;
+  },
+  saveReservation: async (reservation) => {
+    const client = assertSupabase();
+    const { error } = await client.from('reservations').upsert(reservation, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`Failed to save reservation: ${error.message}`);
+    }
+
+    return reservation;
+  },
+  saveStore: async (store) => {
+    const client = assertSupabase();
+    const brandConfig = getStoreBrandConfig(store);
+    const payload = {
+      store_id: store.store_id || store.id,
+      name: store.name,
+      slug: store.slug,
+      brand_config: brandConfig,
+      plan: store.plan || store.subscription_plan,
+      trial_ends_at: store.trial_ends_at || null,
+      timezone: store.timezone || null,
+    };
+
+    const { data, error } = await client.from('stores').upsert(payload, { onConflict: 'store_id' }).select(LIVE_STORE_SELECT).single();
+    if (error) {
+      throw new Error(`Failed to save store: ${error.message}`);
+    }
+
+    return mapStoreRow(data as {
+      store_id: string;
+      name: string;
+      timezone: string | null;
+      created_at: string;
+      brand_config: unknown;
+      slug: string | null;
+      trial_ends_at: string | null;
+      plan: string | null;
+    });
+  },
+  saveStorePublicPage: async (page) => {
+    const client = assertSupabase();
+    const { data, error } = await client
+      .from('store_public_pages')
+      .upsert(page, { onConflict: 'store_id' })
+      .select('*')
+      .single();
+    if (error) {
+      throw new Error(`Failed to save store public page: ${error.message}`);
+    }
+
+    return data as StorePublicPage;
   },
   saveStoreSubscription: async (subscription) => {
     const client = assertSupabase();
@@ -283,5 +509,23 @@ export const supabaseRepository: CanonicalMyBizRepository = {
     }
 
     return mapStoreSubscriptionRow(data as Record<string, unknown>);
+  },
+  saveVisitorSession: async (session) => {
+    const client = assertSupabase();
+    const { error } = await client.from('visitor_sessions').upsert(session, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`Failed to save visitor session: ${error.message}`);
+    }
+
+    return session;
+  },
+  saveWaitingEntry: async (entry) => {
+    const client = assertSupabase();
+    const { error } = await client.from('waiting_entries').upsert(entry, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`Failed to save waiting entry: ${error.message}`);
+    }
+
+    return entry;
   },
 };

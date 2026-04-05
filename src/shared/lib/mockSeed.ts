@@ -12,6 +12,68 @@ function isoDaysAgo(daysAgo: number, hours = 9) {
   return value.toISOString();
 }
 
+function hasEnabledFeature(
+  features: MvpDatabase['store_features'],
+  storeId: string,
+  key: MvpDatabase['store_features'][number]['feature_key'],
+) {
+  return features.some((feature) => feature.store_id === storeId && feature.feature_key === key && feature.enabled);
+}
+
+function buildSeedStorePublicPages(database: MvpDatabase): MvpDatabase['store_public_pages'] {
+  return database.stores.map((store) => {
+    const brandConfig = store.brand_config;
+    const location = database.store_locations.find((item) => item.store_id === store.id) || null;
+    const media = database.store_media.filter((item) => item.store_id === store.id);
+    const notices = database.store_notices.filter((item) => item.store_id === store.id);
+
+    return {
+      id: `store_public_page_${store.id}`,
+      store_id: store.id,
+      slug: store.slug,
+      brand_name: store.name,
+      logo_url: store.logo_url,
+      brand_color: store.brand_color,
+      tagline: store.tagline,
+      description: store.description,
+      business_type: brandConfig.business_type,
+      phone: brandConfig.phone,
+      email: brandConfig.email,
+      address: brandConfig.address,
+      directions: location?.directions || '',
+      opening_hours: location?.opening_hours,
+      parking_note: location?.parking_note,
+      public_status: store.public_status,
+      homepage_visible: store.homepage_visible ?? store.public_status === 'public',
+      consultation_enabled: store.consultation_enabled ?? true,
+      inquiry_enabled: store.inquiry_enabled ?? true,
+      reservation_enabled:
+        store.reservation_enabled ?? hasEnabledFeature(database.store_features, store.id, 'reservation_management'),
+      order_entry_enabled:
+        store.order_entry_enabled ??
+        (hasEnabledFeature(database.store_features, store.id, 'table_order') ||
+          hasEnabledFeature(database.store_features, store.id, 'order_management')),
+      theme_preset: store.theme_preset,
+      preview_target: store.preview_target,
+      hero_title: store.name,
+      hero_subtitle: store.tagline,
+      hero_description: store.description,
+      primary_cta_label: store.primary_cta_label,
+      mobile_cta_label: store.mobile_cta_label,
+      cta_config: {},
+      content_blocks: [],
+      seo_metadata: {
+        canonicalUrl: buildStoreUrl(store.slug),
+        title: store.name,
+      },
+      media,
+      notices,
+      created_at: store.created_at,
+      updated_at: store.updated_at,
+    };
+  });
+}
+
 export function createSeedDatabase(): MvpDatabase {
   const profileId = 'profile_platform_owner';
   const goldenOwnerProfileId = 'profile_golden_owner';
@@ -68,7 +130,7 @@ export function createSeedDatabase(): MvpDatabase {
     },
   ]);
 
-  return {
+  const database: MvpDatabase = {
     profiles: [
       {
         id: profileId,
@@ -1154,6 +1216,9 @@ export function createSeedDatabase(): MvpDatabase {
         updated_at: isoDaysAgo(1, 18),
       },
     ],
+    conversation_sessions: [],
+    conversation_messages: [],
+    visitor_sessions: [],
     orders: [
       {
         id: orderCompleted,
@@ -2038,5 +2103,10 @@ export function createSeedDatabase(): MvpDatabase {
         created_at: isoDaysAgo(2, 16),
       },
     ],
+    store_public_pages: [],
   };
+
+  database.store_public_pages = buildSeedStorePublicPages(database);
+
+  return database;
 }

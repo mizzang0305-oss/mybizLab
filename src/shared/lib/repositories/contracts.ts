@@ -1,12 +1,19 @@
 import type {
+  ConversationMessage,
+  ConversationSession,
   Customer,
   CustomerContact,
   CustomerPreference,
   CustomerTimelineEvent,
   Profile,
+  Inquiry,
+  Reservation,
   Store,
   StoreMember,
+  StorePublicPage,
   StoreSubscription,
+  VisitorSession,
+  WaitingEntry,
 } from '@/shared/types/models';
 
 export type CanonicalRepositoryProvider = 'demo' | 'supabase';
@@ -63,6 +70,12 @@ export interface CanonicalPlanRepository {
   saveStoreSubscription: (subscription: StoreSubscription) => Promise<StoreSubscription>;
 }
 
+export interface CanonicalStoreRepository {
+  findStoreById: (storeId: string) => Promise<Store | null>;
+  findStoreBySlug: (slug: string) => Promise<Store | null>;
+  saveStore: (store: Store) => Promise<Store>;
+}
+
 export interface CanonicalCustomerMemoryRepository {
   appendTimelineEvent: (event: CustomerTimelineEvent) => Promise<CustomerTimelineEvent>;
   listCustomerContacts: (storeId: string, customerId?: string) => Promise<CustomerContact[]>;
@@ -74,7 +87,39 @@ export interface CanonicalCustomerMemoryRepository {
   saveCustomerPreference: (preference: CustomerPreference) => Promise<CustomerPreference>;
 }
 
+export interface CanonicalInquiryRepository {
+  listConversationMessages: (sessionId: string) => Promise<ConversationMessage[]>;
+  listConversationSessions: (storeId: string, inquiryId?: string) => Promise<ConversationSession[]>;
+  listInquiries: (storeId: string) => Promise<Inquiry[]>;
+  saveConversationMessage: (message: ConversationMessage) => Promise<ConversationMessage>;
+  saveConversationSession: (session: ConversationSession) => Promise<ConversationSession>;
+  saveInquiry: (inquiry: Inquiry) => Promise<Inquiry>;
+}
+
+export interface CanonicalReservationRepository {
+  listReservations: (storeId: string) => Promise<Reservation[]>;
+  saveReservation: (reservation: Reservation) => Promise<Reservation>;
+}
+
+export interface CanonicalWaitingRepository {
+  listWaitingEntries: (storeId: string) => Promise<WaitingEntry[]>;
+  saveWaitingEntry: (entry: WaitingEntry) => Promise<WaitingEntry>;
+}
+
+export interface CanonicalPublicPageRepository {
+  getStorePublicPage: (storeId: string) => Promise<StorePublicPage | null>;
+  getStorePublicPageBySlug: (slug: string) => Promise<StorePublicPage | null>;
+  listVisitorSessions: (storeId: string, visitorToken?: string) => Promise<VisitorSession[]>;
+  saveStorePublicPage: (page: StorePublicPage) => Promise<StorePublicPage>;
+  saveVisitorSession: (session: VisitorSession) => Promise<VisitorSession>;
+}
+
 export interface CanonicalMyBizRepository
   extends CanonicalAccessRepository,
+    CanonicalStoreRepository,
     CanonicalPlanRepository,
-    CanonicalCustomerMemoryRepository {}
+    CanonicalCustomerMemoryRepository,
+    CanonicalInquiryRepository,
+    CanonicalReservationRepository,
+    CanonicalWaitingRepository,
+    CanonicalPublicPageRepository {}

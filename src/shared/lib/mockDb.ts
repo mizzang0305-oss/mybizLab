@@ -74,6 +74,8 @@ function normalizeDatabase(database: Record<string, unknown>) {
   nextDatabase.store_requests = (database.store_requests as MvpDatabase['store_requests']) ?? nextDatabase.store_setup_requests ?? seeded.store_requests;
   nextDatabase.store_subscriptions =
     (database.store_subscriptions as MvpDatabase['store_subscriptions']) ?? seeded.store_subscriptions;
+  nextDatabase.store_public_pages =
+    (database.store_public_pages as MvpDatabase['store_public_pages']) ?? seeded.store_public_pages;
   nextDatabase.store_features = normalizeStoreFeatures((database.store_features as MvpDatabase['store_features']) ?? seeded.store_features);
   nextDatabase.stores = ((database.stores as MvpDatabase['stores']) ?? seeded.stores).map((store) => {
     const seededStore = seeded.stores.find((seededRecord) => seededRecord.id === store.id);
@@ -133,6 +135,11 @@ function normalizeDatabase(database: Record<string, unknown>) {
   nextDatabase.customer_timeline_events =
     (database.customer_timeline_events as MvpDatabase['customer_timeline_events']) ?? seeded.customer_timeline_events;
   nextDatabase.inquiries = (database.inquiries as MvpDatabase['inquiries']) ?? seeded.inquiries;
+  nextDatabase.conversation_sessions =
+    (database.conversation_sessions as MvpDatabase['conversation_sessions']) ?? seeded.conversation_sessions;
+  nextDatabase.conversation_messages =
+    (database.conversation_messages as MvpDatabase['conversation_messages']) ?? seeded.conversation_messages;
+  nextDatabase.visitor_sessions = (database.visitor_sessions as MvpDatabase['visitor_sessions']) ?? seeded.visitor_sessions;
   nextDatabase.billing_records = (database.billing_records as MvpDatabase['billing_records']) ?? seeded.billing_records;
   nextDatabase.admin_users = (database.admin_users as MvpDatabase['admin_users']) ?? seeded.admin_users;
   nextDatabase.system_status = (database.system_status as MvpDatabase['system_status']) ?? seeded.system_status;

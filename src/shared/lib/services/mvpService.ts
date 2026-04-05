@@ -1,6 +1,6 @@
 import { generateGeminiSummary } from '@/integrations/gemini/gemini';
 import { supabase } from '@/integrations/supabase/client';
-import { DATA_PROVIDER, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
+import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
@@ -17,6 +17,32 @@ import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import { listStoreCustomers, upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
+import {
+  getPublicInquirySummary,
+  getPublicInquiryFormSnapshot,
+  listStoreInquiries,
+  submitCanonicalPublicInquiry,
+  updateStoreInquiry,
+} from '@/shared/lib/services/inquiryService';
+import {
+  buildDefaultStorePublicPage,
+  getCanonicalStorePublicPage,
+  getCanonicalStorePublicPageBySlug,
+  resolvePublicPageCapabilities,
+  saveCanonicalStorePublicPage,
+  type StorePublicPageUpsertInput,
+} from '@/shared/lib/services/publicPageService';
+import {
+  listStoreReservations,
+  saveStoreReservation,
+  updateStoreReservationStatus,
+} from '@/shared/lib/services/reservationService';
+import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
+import {
+  listStoreWaitingEntries,
+  saveStoreWaitingEntry,
+  updateStoreWaitingStatus,
+} from '@/shared/lib/services/waitingService';
 import { normalizeSurveyQuestions, surveyFormSchema, surveyResponseSchema } from '@/shared/lib/surveySchema';
 import {
   createStoreBrandConfig,
@@ -310,7 +336,7 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
     throw new Error('Supabase client is not configured.');
   }
 
-  const [storeResult, membershipResult, analyticsResult, priorityResult, homeContentResult] = await Promise.all([
+  const [storeResult, membershipResult, analyticsResult, priorityResult] = await Promise.all([
     supabase.from('stores').select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan').eq('store_id', storeId).maybeSingle(),
     supabase
       .from('store_members')
@@ -325,8 +351,8 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
       .select('id,store_id,revenue_weight,repeat_customer_weight,reservation_weight,consultation_weight,branding_weight,order_efficiency_weight,created_at,updated_at,version')
       .eq('store_id', storeId)
       .maybeSingle(),
-    supabase.from('store_home_content').select('id,store_id').eq('store_id', storeId).maybeSingle(),
   ]);
+  const homeContentResult = { data: true as const };
 
   if (storeResult.error) {
     throw new Error(`Failed to verify store row: ${storeResult.error.message}`);
@@ -340,10 +366,6 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
   if (priorityResult.error) {
     throw new Error(`Failed to verify priority settings: ${priorityResult.error.message}`);
   }
-  if (homeContentResult.error) {
-    throw new Error(`Failed to verify store home content: ${homeContentResult.error.message}`);
-  }
-
   if (!storeResult.data) {
     throw new Error('스토어 생성 후 stores row를 찾지 못했습니다.');
   }
@@ -1992,6 +2014,35 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     const profileId = await getAuthenticatedSupabaseUserId();
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
 
+    await getCanonicalMyBizRepository().saveStorePublicPage(
+      buildDefaultStorePublicPage({
+        store: {
+          ...verified.store,
+          homepage_visible: (input.public_status ?? verified.store.public_status) === 'public',
+          public_status: input.public_status ?? verified.store.public_status,
+          consultation_enabled: true,
+          inquiry_enabled: subscriptionPlan !== 'free',
+          reservation_enabled: subscriptionPlan !== 'free',
+          primary_cta_label: input.primary_cta_label?.trim() || verified.store.primary_cta_label,
+          mobile_cta_label: input.mobile_cta_label?.trim() || verified.store.mobile_cta_label,
+          preview_target: input.preview_target ?? verified.store.preview_target,
+          tagline: input.tagline?.trim() || verified.store.tagline,
+          description: input.description?.trim() || verified.store.description,
+          theme_preset: input.theme_preset ?? verified.store.theme_preset,
+        },
+        location: {
+          id: createId('store_location'),
+          store_id: verified.store.id,
+          address: input.address,
+          directions: input.address,
+          opening_hours: input.opening_hours?.trim() || '매일 10:00 - 21:00',
+          published: (input.public_status ?? verified.store.public_status) === 'public',
+        },
+        media: [],
+        notices: [],
+      }),
+    );
+
     return {
       store: verified.store,
       publicUrl: buildStoreUrl(provisionedStore.slug),
@@ -2006,9 +2057,10 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
   const requestStatus = options?.requestStatus ?? 'approved';
   const reviewNotes = options?.reviewNotes;
   const reviewerEmail = options?.reviewerEmail;
-  const setupStatus = options?.setupStatus ?? 'setup_pending';
-  const subscriptionStatus = options?.subscriptionStatus ?? 'subscription_pending';
-  const paymentMethodStatus = options?.paymentMethodStatus ?? 'missing';
+  const setupStatus = options?.setupStatus ?? (subscriptionPlan === 'free' ? 'setup_paid' : 'setup_pending');
+  const subscriptionStatus =
+    options?.subscriptionStatus ?? (subscriptionPlan === 'free' ? 'subscription_active' : 'subscription_pending');
+  const paymentMethodStatus = options?.paymentMethodStatus ?? (subscriptionPlan === 'free' ? 'ready' : 'missing');
   const setupEventStatus = options?.setupEventStatus ?? (setupStatus === 'setup_paid' ? 'paid' : 'pending');
   const subscriptionEventStatus =
     options?.subscriptionEventStatus ?? (subscriptionStatus === 'subscription_active' ? 'paid' : 'pending');
@@ -2358,6 +2410,22 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     });
     database.billing_records[0].events = billingEvents;
   });
+
+  await getCanonicalMyBizRepository().saveStorePublicPage(
+    buildDefaultStorePublicPage({
+      store,
+      location: {
+        id: createId('store_location'),
+        store_id: store.id,
+        address: input.address,
+        directions: input.address,
+        opening_hours: input.opening_hours?.trim() || '매일 10:00 - 21:00',
+        published: requestedPublicStatus === 'public',
+      },
+      media: [],
+      notices: [],
+    }),
+  );
 
   return {
     store,
@@ -2740,11 +2808,7 @@ function incrementConsultationMetric(database: MvpDatabase, storeId: string, cre
 }
 
 export async function listInquiries(storeId: string) {
-  const data = getStoreScopedData(storeId);
-  return sortInquiriesByRecent(data.inquiries).map((inquiry) => ({
-    ...inquiry,
-    customer: data.customers.find((customer) => customer.id === inquiry.customer_id) || null,
-  }));
+  return listStoreInquiries(storeId);
 }
 
 export async function updateInquiryRecord(
@@ -2756,36 +2820,7 @@ export async function updateInquiryRecord(
     memo: string;
   },
 ): Promise<Inquiry> {
-  const parsed = inquiryOwnerUpdateSchema.parse({
-    ...input,
-    tags: normalizeInquiryTags(input.tags),
-    memo: input.memo.trim(),
-  });
-  let nextInquiry: Inquiry | null = null;
-
-  updateDatabase((database) => {
-    database.inquiries = database.inquiries.map((inquiry) => {
-      if (inquiry.id !== inquiryId || inquiry.store_id !== storeId) {
-        return inquiry;
-      }
-
-      nextInquiry = {
-        ...inquiry,
-        status: parsed.status,
-        tags: parsed.tags,
-        memo: parsed.memo,
-        updated_at: nowIso(),
-      };
-
-      return nextInquiry!;
-    });
-  });
-
-  if (!nextInquiry) {
-    throw new Error('Inquiry could not be found for this store.');
-  }
-
-  return nextInquiry;
+  return updateStoreInquiry(storeId, inquiryId, input);
 }
 
 export async function attachCustomerToOrder(
@@ -2815,38 +2850,18 @@ export async function attachCustomerToOrder(
 }
 
 export async function listReservations(storeId: string) {
-  return getStoreScopedData(storeId).reservations
-    .slice()
-    .sort((left, right) => left.reserved_at.localeCompare(right.reserved_at));
+  return listStoreReservations(storeId);
 }
 
 export async function saveReservation(
   storeId: string,
   input: Omit<Reservation, 'id' | 'store_id'> & { id?: string },
 ) {
-  const reservation: Reservation = {
-    ...input,
-    id: input.id || createId('reservation'),
-    store_id: storeId,
-  };
-
-  updateDatabase((database) => {
-    const existingIndex = database.reservations.findIndex((item) => item.id === reservation.id);
-    if (existingIndex >= 0) {
-      database.reservations[existingIndex] = reservation;
-    } else {
-      database.reservations.unshift(reservation);
-    }
-  });
-
-  return reservation;
+  return saveStoreReservation(storeId, input);
 }
 
 export async function updateReservationStatus(storeId: string, reservationId: string, status: ReservationStatus) {
-  return saveReservation(storeId, {
-    ...(getStoreScopedData(storeId).reservations.find((reservation) => reservation.id === reservationId) as Reservation),
-    status,
-  });
+  return updateStoreReservationStatus(storeId, reservationId, status);
 }
 
 export async function listSchedules(storeId: string) {
@@ -3061,17 +3076,7 @@ export async function submitPublicSurveyResponse(input: {
 }
 
 export async function getPublicInquiryForm(storeId: string) {
-  const store = await getStoreById(storeId);
-  if (!store) {
-    return null;
-  }
-
-  const inquiries = getStoreScopedData(storeId).inquiries;
-
-  return {
-    store,
-    summary: buildPublicInquirySummary(inquiries),
-  };
+  return getPublicInquiryFormSnapshot(storeId);
 }
 
 export async function submitPublicInquiry(input: {
@@ -3083,6 +3088,10 @@ export async function submitPublicInquiry(input: {
   requestedVisitDate?: string;
   message: string;
   marketingOptIn: boolean;
+  visitorSessionId?: string;
+  visitorToken?: string;
+  visitorPath?: string;
+  referrer?: string;
 }): Promise<{
   inquiry: Inquiry;
   customer: Customer;
@@ -3092,7 +3101,17 @@ export async function submitPublicInquiry(input: {
     recentTags: string[];
     lastInquiryAt?: string;
   };
+  visitorSessionId?: string;
 }> {
+  const canonicalResult = await submitCanonicalPublicInquiry(input);
+
+  updateDatabase((database) => {
+    incrementConsultationMetric(database, input.storeId, canonicalResult.inquiry.created_at);
+  });
+
+  return canonicalResult;
+  /*
+
   const parsed = publicInquirySchema.parse(input);
   const inquiryForm = await getPublicInquiryForm(input.storeId);
   if (!inquiryForm) {
@@ -3154,6 +3173,7 @@ export async function submitPublicInquiry(input: {
     customer: memoryRecord.customer,
     summary: buildPublicInquirySummary(getStoreScopedData(input.storeId).inquiries),
   };
+  */
 }
 
 export async function getBrandProfile(storeId: string) {
@@ -3297,6 +3317,63 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
     }
   }
 
+  const repository = getCanonicalMyBizRepository();
+  const [storeRecord, publicPage] = await Promise.all([
+    repository.findStoreById(storeId),
+    getCanonicalStorePublicPage(storeId),
+  ]);
+
+  if (storeRecord && publicPage) {
+    const scoped = getStoreScopedData(storeId);
+    const mergedStore = normalizeStoreRecord({
+      ...storeRecord,
+      slug: publicPage.slug,
+      logo_url: publicPage.logo_url || storeRecord.logo_url,
+      brand_color: publicPage.brand_color,
+      tagline: publicPage.tagline,
+      description: publicPage.description,
+      business_type: publicPage.business_type,
+      phone: publicPage.phone,
+      email: publicPage.email,
+      address: publicPage.address,
+      public_status: publicPage.public_status,
+      homepage_visible: publicPage.homepage_visible,
+      consultation_enabled: publicPage.consultation_enabled,
+      inquiry_enabled: publicPage.inquiry_enabled,
+      reservation_enabled: publicPage.reservation_enabled,
+      order_entry_enabled: publicPage.order_entry_enabled,
+      primary_cta_label: publicPage.primary_cta_label,
+      mobile_cta_label: publicPage.mobile_cta_label,
+      preview_target: publicPage.preview_target,
+      theme_preset: publicPage.theme_preset,
+      brand_config: {
+        ...getStoreBrandConfig(storeRecord),
+        address: publicPage.address,
+        business_type: publicPage.business_type || getStoreBrandConfig(storeRecord).business_type,
+        email: publicPage.email,
+        phone: publicPage.phone,
+      },
+    });
+
+    return {
+      store: mergedStore,
+      analyticsProfile: scoped.analyticsProfile || buildStoreAnalyticsProfile(mergedStore),
+      location: {
+        id: `store_public_location_${storeId}`,
+        store_id: storeId,
+        address: publicPage.address,
+        directions: publicPage.directions,
+        parking_note: publicPage.parking_note,
+        opening_hours: publicPage.opening_hours,
+        published: publicPage.homepage_visible,
+      },
+      notices: getPublishedStoreNotices(publicPage.notices),
+      media: getSortedStoreMedia(publicPage.media),
+      prioritySettings:
+        scoped.prioritySettings || buildStorePrioritySettings(storeId, scoped.analyticsProfile?.analytics_preset || 'seongsu_brunch_cafe'),
+    };
+  }
+
   const data = getStoreScopedData(storeId);
   if (!data.store) {
     return null;
@@ -3314,9 +3391,103 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
 }
 
 export async function updateStoreSettings(storeId: string, input: UpdateStoreSettingsInput) {
-  if (shouldUseSupabaseStoreProvisioning() && supabase) {
-    const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
+  const repository = getCanonicalMyBizRepository();
+  const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
+  const currentStore = await repository.findStoreById(storeId);
 
+  if (currentStore) {
+    const timestamp = nowIso();
+    const currentConfig = getStoreBrandConfig(currentStore);
+    const currentPage = await getCanonicalStorePublicPage(storeId);
+    const nextBrandConfig = createStoreBrandConfig({
+      owner_name: currentConfig.owner_name,
+      business_number: currentConfig.business_number,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      business_type: input.businessType,
+    });
+
+    const nextStore = normalizeStoreRecord({
+      ...withStoreBrandConfig(currentStore, nextBrandConfig),
+      name: input.storeName.trim(),
+      slug: normalizedSlug,
+      public_status: input.publicStatus,
+      homepage_visible: input.homepageVisible,
+      consultation_enabled: input.consultationEnabled,
+      inquiry_enabled: input.inquiryEnabled,
+      reservation_enabled: input.reservationEnabled,
+      order_entry_enabled: input.orderEntryEnabled,
+      logo_url: input.logoUrl.trim(),
+      brand_color: input.brandColor.trim() || currentStore.brand_color,
+      tagline: input.tagline.trim(),
+      description: input.description.trim(),
+      updated_at: timestamp,
+    });
+
+    const savedStore = await repository.saveStore(nextStore);
+    await saveCanonicalStorePublicPage(
+      savedStore,
+      {
+        ...input,
+        slug: normalizedSlug,
+        mobileCtaLabel: currentStore.mobile_cta_label,
+        previewTarget: currentStore.preview_target,
+        primaryCtaLabel: currentStore.primary_cta_label,
+        themePreset: currentStore.theme_preset,
+      },
+      currentPage,
+    );
+
+    if (IS_DEMO_RUNTIME) {
+      updateDatabase((database) => {
+        database.store_tables = database.store_tables.map((table) =>
+          table.store_id === storeId
+            ? {
+              ...table,
+              qr_value: `${buildStoreUrl(normalizedSlug)}/order?table=${encodeURIComponent(table.table_no)}`,
+            }
+            : table,
+        );
+
+        database.store_requests = database.store_requests.map((request) =>
+          request.linked_store_id === storeId
+            ? {
+              ...request,
+              business_name: savedStore.name,
+              phone: nextBrandConfig.phone,
+              email: nextBrandConfig.email,
+              address: nextBrandConfig.address,
+              business_type: nextBrandConfig.business_type,
+              requested_slug: normalizedSlug,
+              brand_name: savedStore.name,
+              brand_color: savedStore.brand_color,
+              tagline: savedStore.tagline,
+              description: savedStore.description,
+              hero_image_url: input.heroImageUrl.trim(),
+              storefront_image_url: input.storefrontImageUrl.trim(),
+              interior_image_url: input.interiorImageUrl.trim(),
+              directions: input.directions.trim(),
+              notices: input.noticeTitle.trim() || input.noticeContent.trim()
+                ? [
+                  {
+                    id: createId('request_notice'),
+                    title: input.noticeTitle.trim(),
+                    content: input.noticeContent.trim(),
+                  },
+                ]
+                : [],
+              updated_at: timestamp,
+            }
+            : request,
+        );
+      });
+    }
+
+    return getStoreSettings(storeId);
+  }
+
+  if (shouldUseSupabaseStoreProvisioning() && supabase) {
     const currentStore = await getStoreById(storeId);
     if (!currentStore) {
       throw new Error('스토어를 찾을 수 없습니다.');
@@ -3347,7 +3518,6 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
 
     return getStoreSettings(storeId);
   }
-  const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
   const timestamp = nowIso();
   let snapshot: StoreSettingsSnapshot | null = null;
 
@@ -4088,39 +4258,18 @@ export async function updateKitchenTicketStatus(storeId: string, ticketId: strin
 }
 
 export async function listWaitingEntries(storeId: string) {
-  return getStoreScopedData(storeId).waitingEntries
-    .slice()
-    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+  return listStoreWaitingEntries(storeId);
 }
 
 export async function saveWaitingEntry(
   storeId: string,
   input: Omit<WaitingEntry, 'id' | 'store_id' | 'created_at'> & { id?: string; created_at?: string },
 ) {
-  const waitingEntry: WaitingEntry = {
-    ...input,
-    id: input.id || createId('waiting'),
-    store_id: storeId,
-    created_at: input.created_at || nowIso(),
-  };
-
-  updateDatabase((database) => {
-    const existingIndex = database.waiting_entries.findIndex((item) => item.id === waitingEntry.id);
-    if (existingIndex >= 0) {
-      database.waiting_entries[existingIndex] = waitingEntry;
-    } else {
-      database.waiting_entries.unshift(waitingEntry);
-    }
-  });
-
-  return waitingEntry;
+  return saveStoreWaitingEntry(storeId, input);
 }
 
 export async function updateWaitingStatus(storeId: string, waitingId: string, status: WaitingStatus) {
-  return saveWaitingEntry(storeId, {
-    ...(getStoreScopedData(storeId).waitingEntries.find((entry) => entry.id === waitingId) as WaitingEntry),
-    status,
-  });
+  return updateStoreWaitingStatus(storeId, waitingId, status);
 }
 
 export async function listContracts(storeId: string) {
@@ -4295,17 +4444,6 @@ function buildPublicSurveySummary(activeSurvey: Survey | null, responses: Survey
   };
 }
 
-function buildPublicInquirySummary(inquiries: Inquiry[]) {
-  const recentTags = [...new Set(inquiries.flatMap((inquiry) => inquiry.tags).filter(Boolean))].slice(0, 4);
-
-  return {
-    totalCount: inquiries.length,
-    openCount: inquiries.filter((inquiry) => inquiry.status !== 'completed').length,
-    recentTags,
-    lastInquiryAt: sortInquiriesByRecent(inquiries)[0]?.created_at,
-  };
-}
-
 function buildPublicExperience(store: Store, notices: StoreNotice[]) {
   const source = `${store.slug} ${store.name} ${store.business_type || ''}`.toLowerCase();
   const latestNotice = notices[0];
@@ -4380,23 +4518,70 @@ export async function getPublicStoreById(storeId: string) {
 
 async function getPublicStoreSnapshot(store: Store) {
   const surveys = await listSurveys(store.id);
-
   const scoped = getStoreScopedData(store.id);
+  const repository = getCanonicalMyBizRepository();
   const menu = await listMenu(store.id);
   const tables = await listStoreTables(store.id);
-  const capabilities = buildStoreCapabilityFlags(store, scoped.features);
-  const notices = getPublishedStoreNotices(scoped.notices);
+  const canonicalPage =
+    (await getCanonicalStorePublicPage(store.id)) ||
+    buildDefaultStorePublicPage({
+      store,
+      features: scoped.features,
+      location: getPrimaryStoreLocation(scoped.locations),
+      media: getSortedStoreMedia(scoped.media),
+      notices: getPublishedStoreNotices(scoped.notices),
+    });
+  const capabilities = await resolvePublicPageCapabilities(store.id, canonicalPage);
+  const notices = getPublishedStoreNotices(canonicalPage.notices);
+  const publicStoreRecord = normalizeStoreRecord({
+    ...store,
+    slug: canonicalPage.slug,
+    logo_url: canonicalPage.logo_url || store.logo_url,
+    brand_color: canonicalPage.brand_color,
+    tagline: canonicalPage.tagline,
+    description: canonicalPage.description,
+    business_type: canonicalPage.business_type,
+    phone: canonicalPage.phone,
+    email: canonicalPage.email,
+    address: canonicalPage.address,
+    public_status: canonicalPage.public_status,
+    homepage_visible: canonicalPage.homepage_visible,
+    consultation_enabled: canonicalPage.consultation_enabled,
+    inquiry_enabled: canonicalPage.inquiry_enabled,
+    reservation_enabled: canonicalPage.reservation_enabled,
+    order_entry_enabled: canonicalPage.order_entry_enabled,
+    primary_cta_label: canonicalPage.primary_cta_label,
+    mobile_cta_label: canonicalPage.mobile_cta_label,
+    preview_target: canonicalPage.preview_target,
+    theme_preset: canonicalPage.theme_preset,
+    brand_config: {
+      ...getStoreBrandConfig(store),
+      address: canonicalPage.address,
+      business_type: canonicalPage.business_type || getStoreBrandConfig(store).business_type,
+      email: canonicalPage.email,
+      phone: canonicalPage.phone,
+    },
+  });
   const surveySummary = buildPublicSurveySummary(surveys.find((survey) => survey.is_active) || surveys[0] || null, scoped.surveyResponses);
-  const inquirySummary = buildPublicInquirySummary(scoped.inquiries);
+  const inquirySummary = await getPublicInquirySummary(store.id);
   const menuHighlights = buildPublicMenuHighlights(menu.items, scoped.orderItems, scoped.orders);
-  const experience = buildPublicExperience(store, notices);
+  const experience = buildPublicExperience(publicStoreRecord, notices);
 
   return {
-    store,
+    store: publicStoreRecord,
+    publicPageId: canonicalPage.id,
     menu,
     tables,
-    location: getPrimaryStoreLocation(scoped.locations),
-    media: getSortedStoreMedia(scoped.media),
+    location: {
+      id: `store_public_location_${store.id}`,
+      store_id: store.id,
+      address: canonicalPage.address,
+      directions: canonicalPage.directions,
+      parking_note: canonicalPage.parking_note,
+      opening_hours: canonicalPage.opening_hours,
+      published: canonicalPage.homepage_visible,
+    },
+    media: getSortedStoreMedia(canonicalPage.media),
     notices,
     capabilities,
     features: scoped.features.filter((feature) => feature.enabled),
