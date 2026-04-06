@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { resetDatabase } from '@/shared/lib/mockDb';
+import { getDatabase, resetDatabase } from '@/shared/lib/mockDb';
 import {
   getDashboardSnapshot,
   getPublicInquiryForm,
@@ -34,6 +34,9 @@ describe('crm inquiry flow', () => {
 
     expect(result.inquiry?.status).toBe('new');
     expect(result.customer?.phone).toBe('010-9999-0000');
+    expect(result.inquiry.customer_id).toBe(result.customer.id);
+    expect(result.inquiry.conversation_session_id).toBeTruthy();
+    expect(result.inquiry.visitor_session_id).toBeTruthy();
 
     const inquiries = await listInquiries('store_mint_bbq');
     expect(inquiries[0]?.customer_name).toBe('Demo Lead');
@@ -46,6 +49,43 @@ describe('crm inquiry flow', () => {
 
     const afterConsultations = getDashboardSnapshot('store_mint_bbq', { range: 'weekly' }).totals.consultations;
     expect(afterConsultations).toBe(beforeConsultations + 1);
+
+    const database = getDatabase();
+    expect(
+      database.conversation_sessions.some(
+        (session) =>
+          session.store_id === 'store_mint_bbq' &&
+          session.customer_id === result.customer.id &&
+          session.inquiry_id === result.inquiry.id,
+      ),
+    ).toBe(true);
+    expect(
+      database.conversation_messages.some(
+        (message) =>
+          message.store_id === 'store_mint_bbq' &&
+          message.inquiry_id === result.inquiry.id &&
+          message.customer_id === result.customer.id,
+      ),
+    ).toBe(true);
+    expect(
+      database.visitor_sessions.some(
+        (session) =>
+          session.store_id === 'store_mint_bbq' &&
+          session.inquiry_id === result.inquiry.id &&
+          session.customer_id === result.customer.id,
+      ),
+    ).toBe(true);
+    expect(
+      database.customer_timeline_events.filter(
+        (event) => event.store_id === 'store_mint_bbq' && event.customer_id === result.customer.id,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event_type: 'inquiry_captured' }),
+        expect.objectContaining({ event_type: 'conversation_started' }),
+        expect.objectContaining({ event_type: 'conversation_message' }),
+      ]),
+    );
   });
 
   it('lets the owner update inquiry status, tags, and memo from CRM', async () => {

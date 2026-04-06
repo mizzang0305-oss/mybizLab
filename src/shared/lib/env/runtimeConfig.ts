@@ -3,9 +3,11 @@ import { z } from 'zod';
 import { readPublicEnv } from '@/shared/lib/publicEnv';
 
 const LEGACY_DATA_PROVIDER_VALUES = ['local', 'firebase', 'mock', 'supabase'] as const;
+const APP_RUNTIME_MODE_VALUES = ['demo', 'live'] as const;
 
 const PublicRuntimeSchema = z.object({
   appBaseUrl: z.string().url().optional(),
+  appRuntimeMode: z.enum(APP_RUNTIME_MODE_VALUES).optional(),
   dataProvider: z.enum(LEGACY_DATA_PROVIDER_VALUES).optional(),
   demoAdminEmail: z.string().email().optional(),
   demoAdminPassword: z.string().min(1).optional(),
@@ -25,10 +27,12 @@ const PublicRuntimeSchema = z.object({
 });
 
 export type LegacyDataProvider = (typeof LEGACY_DATA_PROVIDER_VALUES)[number];
+export type AppRuntimeMode = (typeof APP_RUNTIME_MODE_VALUES)[number];
 export type StoreDataMode = 'local' | 'firebase';
 
 export interface PublicRuntimeConfig {
   appBaseUrl: string;
+  appRuntimeMode: AppRuntimeMode;
   dataMode: StoreDataMode;
   dataProvider: LegacyDataProvider;
   demoAdminEmail: string;
@@ -57,6 +61,7 @@ export interface PublicRuntimeConfig {
 function readRawPublicRuntimeInput() {
   return {
     appBaseUrl: readPublicEnv('VITE_APP_BASE_URL'),
+    appRuntimeMode: readPublicEnv('VITE_APP_RUNTIME_MODE'),
     dataProvider: readPublicEnv('VITE_DATA_PROVIDER'),
     demoAdminEmail: readPublicEnv('VITE_DEMO_ADMIN_EMAIL'),
     demoAdminPassword: readPublicEnv('VITE_DEMO_ADMIN_PASSWORD'),
@@ -82,6 +87,7 @@ function resolveDataMode(dataProvider: LegacyDataProvider): StoreDataMode {
 
 function normalizeConfig(parsed: Partial<z.infer<typeof PublicRuntimeSchema>>, warnings: string[]): PublicRuntimeConfig {
   const dataProvider = parsed.dataProvider ?? 'local';
+  const appRuntimeMode = parsed.appRuntimeMode ?? 'demo';
   const firebaseConfigured =
     Boolean(parsed.firebaseApiKey) &&
     Boolean(parsed.firebaseAuthDomain) &&
@@ -96,6 +102,7 @@ function normalizeConfig(parsed: Partial<z.infer<typeof PublicRuntimeSchema>>, w
 
   return {
     appBaseUrl: parsed.appBaseUrl ?? 'https://mybiz.ai.kr',
+    appRuntimeMode,
     dataMode: resolveDataMode(dataProvider),
     dataProvider,
     demoAdminEmail: parsed.demoAdminEmail ?? 'demo@mybizlab.ai',

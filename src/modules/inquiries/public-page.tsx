@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
@@ -6,8 +6,10 @@ import { EmptyState } from '@/shared/components/EmptyState';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { publicInquirySchema, type PublicInquiryFormInput } from '@/shared/lib/inquirySchema';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { touchVisitorSession } from '@/shared/lib/services/publicPageService';
 import { getPublicInquiryForm, submitPublicInquiry } from '@/shared/lib/services/mvpService';
 import { buildStoreIdPath } from '@/shared/lib/storeSlug';
+import { getOrCreateVisitorSessionState, saveVisitorSessionState } from '@/shared/lib/visitorSessionClient';
 
 const categoryOptions: Array<{ label: string; value: PublicInquiryFormInput['category']; hint: string }> = [
   { label: '일반 문의', value: 'general', hint: '간단한 질문이나 방문 전 문의' },
@@ -33,6 +35,8 @@ export function PublicInquiryPage() {
   const [form, setForm] = useState<PublicInquiryFormInput>(initialForm);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof PublicInquiryFormInput, string>>>({});
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [visitorSessionId, setVisitorSessionId] = useState<string | undefined>();
+  const [visitorToken, setVisitorToken] = useState<string | undefined>();
 
   const inquiryQuery = useQuery({
     queryKey: queryKeys.publicInquiry(storeId),
@@ -43,14 +47,73 @@ export function PublicInquiryPage() {
   const storeName = inquiryQuery.data?.store.name || '매장 문의';
   usePageMeta(`${storeName} 문의`, '예약, 상담, 단체 방문 문의를 남길 수 있는 고객용 문의 화면입니다.');
 
+  useEffect(() => {
+    const snapshot = inquiryQuery.data;
+    if (!snapshot?.publicPageId) {
+      return;
+    }
+
+    const sessionState = getOrCreateVisitorSessionState(storeId);
+    let cancelled = false;
+
+    setVisitorToken(sessionState.visitorToken);
+
+    void touchVisitorSession({
+      channel: 'inquiry',
+      firstSeenAt: sessionState.firstSeenAt,
+      metadata: {
+        routeMode: 'public-inquiry',
+      },
+      path: `/s/${storeId}/inquiry`,
+      publicPageId: snapshot.publicPageId,
+      referrer: typeof document !== 'undefined' ? document.referrer : undefined,
+      sessionId: sessionState.sessionId,
+      storeId,
+      visitorToken: sessionState.visitorToken,
+    })
+      .then((session) => {
+        if (cancelled) {
+          return;
+        }
+
+        setVisitorSessionId(session.id);
+        saveVisitorSessionState(storeId, {
+          firstSeenAt: session.first_seen_at,
+          sessionId: session.id,
+          visitorToken: session.visitor_token,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVisitorSessionId(sessionState.sessionId);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inquiryQuery.data, storeId]);
+
   const submitMutation = useMutation({
     mutationFn: (input: PublicInquiryFormInput) =>
       submitPublicInquiry({
         ...input,
+        referrer: typeof document !== 'undefined' ? document.referrer : undefined,
         storeId,
         marketingOptIn: input.marketingOptIn ?? false,
+        visitorPath: `/s/${storeId}/inquiry`,
+        visitorSessionId,
+        visitorToken,
       }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      if (result.visitorSessionId && visitorToken) {
+        saveVisitorSessionState(storeId, {
+          firstSeenAt: getOrCreateVisitorSessionState(storeId).firstSeenAt,
+          sessionId: result.visitorSessionId,
+          visitorToken,
+        });
+        setVisitorSessionId(result.visitorSessionId);
+      }
       setSubmitMessage('문의가 정상적으로 접수되었습니다. 운영 화면과 후속 응대 목록에도 함께 반영됩니다.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.publicInquiry(storeId) }),

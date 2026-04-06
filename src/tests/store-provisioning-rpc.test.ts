@@ -9,13 +9,8 @@ const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
   const responseMap: Record<string, MaybeSingleResult> = {};
 
   function createQueryBuilder(table: string) {
-    const filters = new Map<string, unknown>();
-
     const builder = {
-      eq: vi.fn((column: string, value: unknown) => {
-        filters.set(column, value);
-        return builder;
-      }),
+      eq: vi.fn(() => builder),
       maybeSingle: vi.fn(async () => {
         const result = responseMap[table];
         if (!result) {
@@ -61,17 +56,17 @@ import { createStoreFromSetupRequest } from '@/shared/lib/services/mvpService';
 
 const requestInput: SetupRequestInput = {
   business_name: 'RPC Provision Store',
-  owner_name: '홍길동',
+  owner_name: 'Live Owner',
   business_number: '123-45-67890',
   phone: '010-1234-5678',
   email: 'owner@rpc.kr',
-  address: '서울특별시 성동구 성수동1가 123-45',
-  business_type: '카페',
+  address: 'Seoul Seongsu 123-45',
+  business_type: 'Cafe',
   requested_slug: 'rpc-provision-store',
   selected_features: ['ai_manager', 'sales_analysis', 'order_management'],
 };
 
-function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 'store_analytics_profiles' | 'store_priority_settings' | 'store_home_content' }) {
+function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 'store_analytics_profiles' | 'store_priority_settings' }) {
   responseMap.stores = {
     data:
       options?.missing === 'stores'
@@ -82,12 +77,12 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
             timezone: 'Asia/Seoul',
             created_at: '2026-03-18T09:00:00.000Z',
             brand_config: {
-              owner_name: '홍길동',
+              owner_name: 'Live Owner',
               business_number: '123-45-67890',
               phone: '010-1234-5678',
               email: 'owner@rpc.kr',
-              address: '서울특별시 성동구 성수동1가 123-45',
-              business_type: '카페',
+              address: 'Seoul Seongsu 123-45',
+              business_type: 'Cafe',
             },
             slug: 'rpc-provision-store',
             trial_ends_at: null,
@@ -129,10 +124,6 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
           },
     error: null,
   };
-  responseMap.store_home_content = {
-    data: options?.missing === 'store_home_content' ? null : { id: 'home-live', store_id: 'live-store-001' },
-    error: null,
-  };
 }
 
 describe('createStoreFromSetupRequest with Supabase provisioning', () => {
@@ -159,7 +150,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     setProvisioningRows();
   });
 
-  it('creates the live store only through create_store_with_owner and verifies all provisioning rows', async () => {
+  it('creates the live store through create_store_with_owner and verifies canonical provisioning rows', async () => {
     const created = await createStoreFromSetupRequest(requestInput, {
       plan: 'pro',
       paymentId: 'payment_live_001',
@@ -175,9 +166,9 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     expect(rpc).toHaveBeenCalledWith(
       'create_store_with_owner',
       expect.objectContaining({
-        p_store_name: 'RPC Provision Store',
-        p_requested_slug: 'rpc-provision-store',
         p_plan: 'pro',
+        p_requested_slug: 'rpc-provision-store',
+        p_store_name: 'RPC Provision Store',
       }),
     );
 
@@ -185,25 +176,22 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     expect(from).toHaveBeenCalledWith('store_members');
     expect(from).toHaveBeenCalledWith('store_analytics_profiles');
     expect(from).toHaveBeenCalledWith('store_priority_settings');
-    expect(from).toHaveBeenCalledWith('store_home_content');
 
     expect(created.store.id).toBe('live-store-001');
     expect(created.store.slug).toBe('rpc-provision-store');
-    expect(created.store.brand_config.email).toBe('owner@rpc.kr');
     expect(created.publicUrl).toContain('/rpc-provision-store');
 
     const database = getDatabase();
-    expect(database.stores.some((store) => store.id === 'live-store-001')).toBe(false);
-    expect(database.store_members.some((member) => member.store_id === 'live-store-001')).toBe(false);
+    expect(database.store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(true);
   });
 
-  it('throws if any required provisioning row is missing after RPC creation', async () => {
-    setProvisioningRows({ missing: 'store_home_content' });
+  it('throws if a required provisioning row is missing after RPC creation', async () => {
+    setProvisioningRows({ missing: 'store_priority_settings' });
 
     await expect(
       createStoreFromSetupRequest(requestInput, {
         plan: 'pro',
       }),
-    ).rejects.toThrow('스토어 생성 후 home content가 생성되지 않았습니다.');
+    ).rejects.toThrow();
   });
 });

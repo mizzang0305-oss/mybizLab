@@ -90,20 +90,20 @@ const storeModeWizardOptions = DIAGNOSIS_STORE_MODE_OPTIONS.filter((option) => o
 
 const planCards = [
   {
-    code: 'starter' as const,
-    title: 'Starter',
+    code: 'free' as const,
+    title: 'FREE',
     desc: '한 매장을 빠르게 시작하는 기본 플랜',
     features: ['AI 진단', '기본 매출 분석', '주문 관리'],
   },
   {
     code: 'pro' as const,
-    title: 'Pro',
+    title: 'PRO',
     desc: '고객 관리와 예약 운영까지 함께 보는 추천 플랜',
     features: ['고객 관리', '예약 관리', 'AI 운영 리포트'],
   },
   {
-    code: 'business' as const,
-    title: 'Business',
+    code: 'vip' as const,
+    title: 'VIP',
     desc: '운영 자동화와 리포트를 깊게 보는 확장 플랜',
     features: ['주간 운영 리포트', '통합 운영 분석', '브랜드 확장 준비'],
   },
@@ -504,7 +504,7 @@ export function OnboardingPage() {
     },
   });
 
-  async function finalizeActivation(paymentId: string, fallbackUsed: boolean, source: 'browser' | 'demo' | 'redirect') {
+  async function finalizeActivation(paymentId: string, fallbackUsed: boolean, source: 'browser' | 'demo' | 'redirect' | 'free') {
     setFlow((current) => ({
       ...current,
       paymentId,
@@ -513,6 +513,14 @@ export function OnboardingPage() {
       activationStatus: 'processing',
       step: 'activation',
     }));
+    if (source === 'free') {
+      setMessage({
+        tone: 'success',
+        text: 'FREE 플랜을 바로 활성화하고 스토어 생성을 진행합니다.',
+      });
+      await activateStore.mutateAsync(paymentId);
+      return;
+    }
     setMessage({
       tone: 'success',
       text: source === 'demo' ? '데모 결제 확인 후 스토어 승인과 생성을 진행합니다.' : '결제 확인 후 스토어 승인과 생성을 진행합니다.',
@@ -680,6 +688,13 @@ export function OnboardingPage() {
   }
 
   async function startCheckout() {
+    if (flow.selectedPlan === 'free') {
+      setFlow((current) => ({ ...current, paymentStatus: 'processing' }));
+      setMessage({ tone: 'info', text: 'FREE 플랜은 결제 없이 바로 스토어를 활성화합니다.' });
+      await finalizeActivation(`free_${Date.now()}`, false, 'free');
+      return;
+    }
+
     try {
       setFlow((current) => ({ ...current, paymentStatus: 'processing' }));
       setMessage({ tone: 'info', text: '결제창을 준비하고 있습니다. 결제가 끝나면 승인과 스토어 생성이 바로 이어집니다.' });
@@ -725,7 +740,7 @@ export function OnboardingPage() {
   const currentIndex = steps.findIndex((item) => item.key === flow.step);
   const currentRequestWizardIndex = requestWizardSteps.findIndex((item) => item.key === flow.requestWizardStep);
   const suggestionLabels = featureLabels(flow.diagnosisResult?.recommendedModules ?? []);
-  const currentPlanTitle = planCards.find((plan) => plan.code === flow.selectedPlan)?.title || 'Starter';
+  const currentPlanTitle = planCards.find((plan) => plan.code === flow.selectedPlan)?.title || 'FREE';
   const recommendedFeatureSet = useMemo(
     () => new Set(flow.diagnosisResult?.recommendedModules ?? []),
     [flow.diagnosisResult?.recommendedModules],
@@ -1555,9 +1570,15 @@ export function OnboardingPage() {
                 })}
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <button className="btn-primary" disabled={!flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
-                  {flow.paymentStatus === 'processing' ? '결제창 준비 중...' : 'PortOne 결제 진행'}
-                </button>
+          <button className="btn-primary" disabled={!flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
+            {flow.paymentStatus === 'processing'
+              ? flow.selectedPlan === 'free'
+                ? '스토어 활성화 중...'
+                : '결제창 준비 중...'
+              : flow.selectedPlan === 'free'
+                ? 'FREE 플랜 바로 시작'
+                : 'PortOne 결제 진행'}
+          </button>
                 <button className="btn-secondary" onClick={() => setFlow((current) => ({ ...current, requestWizardStep: 'summary', step: 'request' }))} type="button">
                   요청 정보 수정
                 </button>

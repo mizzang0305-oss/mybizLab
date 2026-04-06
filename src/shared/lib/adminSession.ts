@@ -1,15 +1,15 @@
 import { create } from 'zustand';
 
 import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PASSWORD } from '@/shared/lib/appConfig';
-import { demoDataAdapters, getActiveDemoDataAdapter, getPreferredDemoDataAdapter } from '@/shared/lib/data';
+import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import { useUiStore } from '@/shared/lib/uiStore';
-import type { AdminUserRole } from '@/shared/types/models';
+import type { StoreMember } from '@/shared/types/models';
 
 const STORAGE_KEY = 'mybizlab:admin-session';
 const DEFAULT_NEXT_PATH = '/dashboard';
 const FALLBACK_PROFILE_ID = 'profile_platform_owner';
 const FALLBACK_FULL_NAME = '운영 관리자';
-const DASHBOARD_ACCESS_ROLES: AdminUserRole[] = ['platform_owner', 'platform_admin', 'store_owner', 'store_manager'];
+const DASHBOARD_ACCESS_ROLES: StoreMember['role'][] = ['owner', 'manager', 'staff'];
 
 export const DEMO_ADMIN_CREDENTIALS = {
   email: DEMO_ADMIN_EMAIL,
@@ -22,8 +22,8 @@ export interface AdminSession {
   email: string;
   fullName: string;
   profileId: string;
-  provider: 'local' | 'firebase';
-  role: AdminUserRole;
+  provider: 'demo' | 'supabase';
+  role: StoreMember['role'];
 }
 
 interface AdminSessionState {
@@ -50,7 +50,7 @@ function normalizeSession(value: Partial<AdminSession> | null | undefined) {
     return null;
   }
 
-  const role = value.role && DASHBOARD_ACCESS_ROLES.includes(value.role) ? value.role : 'platform_owner';
+  const role = value.role && DASHBOARD_ACCESS_ROLES.includes(value.role) ? value.role : 'owner';
 
   return {
     accessibleStoreIds: Array.isArray(value.accessibleStoreIds) ? value.accessibleStoreIds : [],
@@ -58,7 +58,7 @@ function normalizeSession(value: Partial<AdminSession> | null | undefined) {
     email: value.email,
     fullName: normalizeAdminDisplayName(value.fullName),
     profileId: value.profileId,
-    provider: value.provider === 'firebase' ? 'firebase' : 'local',
+    provider: value.provider === 'supabase' ? 'supabase' : 'demo',
     role,
   } satisfies AdminSession;
 }
@@ -108,20 +108,14 @@ export const useAdminSessionStore = create<AdminSessionState>((set) => ({
 }));
 
 export async function createDemoAdminSession(options: CreateDemoAdminSessionOptions = {}) {
-  const resolutionInput = {
+  const repository = getCanonicalMyBizRepository();
+  const resolvedAccess = await repository.resolveStoreAccess({
     fallbackEmail: DEMO_ADMIN_CREDENTIALS.email,
     fallbackFullName: FALLBACK_FULL_NAME,
     fallbackProfileId: FALLBACK_PROFILE_ID,
     requestedEmail: options.email,
     requestedFullName: options.fullName,
-  };
-  const activeAdapter = getActiveDemoDataAdapter();
-  const preferredAdapter = getPreferredDemoDataAdapter();
-
-  let resolvedAccess = await activeAdapter.resolveAdminAccess(resolutionInput);
-  if (!resolvedAccess && preferredAdapter.id !== 'local') {
-    resolvedAccess = await demoDataAdapters.local.resolveAdminAccess(resolutionInput);
-  }
+  });
 
   const nextSession =
     normalizeSession(
@@ -131,9 +125,9 @@ export async function createDemoAdminSession(options: CreateDemoAdminSessionOpti
             authenticatedAt: new Date().toISOString(),
             email: resolvedAccess.email,
             fullName: resolvedAccess.fullName,
-            profileId: resolvedAccess.profileId,
+            profileId: resolvedAccess.profile.id,
             provider: resolvedAccess.provider,
-            role: resolvedAccess.role,
+            role: resolvedAccess.primaryRole || 'owner',
           }
         : {
             accessibleStoreIds: [],
@@ -141,8 +135,8 @@ export async function createDemoAdminSession(options: CreateDemoAdminSessionOpti
             email: options.email?.trim().toLowerCase() || DEMO_ADMIN_CREDENTIALS.email,
             fullName: options.fullName || FALLBACK_FULL_NAME,
             profileId: FALLBACK_PROFILE_ID,
-            provider: preferredAdapter.isConfigured() ? preferredAdapter.id : 'local',
-            role: 'platform_owner',
+            provider: 'demo',
+            role: 'owner',
           },
     ) || {
       accessibleStoreIds: [],
@@ -150,8 +144,8 @@ export async function createDemoAdminSession(options: CreateDemoAdminSessionOpti
       email: DEMO_ADMIN_CREDENTIALS.email,
       fullName: FALLBACK_FULL_NAME,
       profileId: FALLBACK_PROFILE_ID,
-      provider: 'local',
-      role: 'platform_owner',
+      provider: 'demo',
+      role: 'owner',
     };
 
   useUiStore.getState().setSelectedStoreId(nextSession.accessibleStoreIds[0]);
@@ -172,5 +166,5 @@ export function isDemoPasswordLoginEnabled() {
 }
 
 export function hasDashboardAccess(session: AdminSession | null | undefined) {
-  return Boolean(session && DASHBOARD_ACCESS_ROLES.includes(session.role));
+  return Boolean(session && session.accessibleStoreIds.length && DASHBOARD_ACCESS_ROLES.includes(session.role));
 }

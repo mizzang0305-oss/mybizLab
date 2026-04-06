@@ -1,3 +1,8 @@
+/**
+ * @deprecated Phase 1 introduces src/shared/lib/repositories as the canonical
+ * repository boundary. This adapter registry remains only for legacy demo
+ * bootstrap flows.
+ */
 import { DATA_PROVIDER } from '@/shared/lib/appConfig';
 import { firebaseAdapter } from '@/shared/lib/data/adapters/firebaseAdapter';
 import { localMockAdapter } from '@/shared/lib/data/adapters/localMockAdapter';
