@@ -9,6 +9,20 @@ export function normalizeCustomerEmail(value?: string | null) {
   return value?.trim().toLowerCase() || '';
 }
 
+export function getCustomerRecordId(customer: Pick<Customer, 'customer_id' | 'id'> | null | undefined) {
+  return customer?.customer_id || customer?.id || '';
+}
+
+export function normalizeCustomerRecord(customer: Customer): Customer {
+  const customerId = getCustomerRecordId(customer);
+
+  return {
+    ...customer,
+    id: customerId,
+    customer_id: customerId,
+  };
+}
+
 export function sortCustomerRoleWeight(role: 'owner' | 'manager' | 'staff') {
   if (role === 'owner') {
     return 3;
@@ -97,16 +111,17 @@ export function mergeCustomerRecord(
     visitIncrement?: number;
   },
 ): Customer {
-  const visitCount = customer.visit_count + (input.visitIncrement ?? 0);
+  const normalizedCustomer = normalizeCustomerRecord(customer);
+  const visitCount = normalizedCustomer.visit_count + (input.visitIncrement ?? 0);
 
   return {
-    ...customer,
-    name: input.name?.trim() || customer.name,
-    phone: input.phone?.trim() || customer.phone,
-    email: input.email?.trim().toLowerCase() || customer.email,
-    marketing_opt_in: input.marketingOptIn ?? customer.marketing_opt_in,
+    ...normalizedCustomer,
+    name: input.name?.trim() || normalizedCustomer.name,
+    phone: input.phone?.trim() || normalizedCustomer.phone,
+    email: input.email?.trim().toLowerCase() || normalizedCustomer.email,
+    marketing_opt_in: input.marketingOptIn ?? normalizedCustomer.marketing_opt_in,
     visit_count: visitCount,
-    last_visit_at: input.visitIncrement ? input.timestamp : customer.last_visit_at,
+    last_visit_at: input.visitIncrement ? input.timestamp : normalizedCustomer.last_visit_at,
     is_regular: visitCount >= 3,
     updated_at: input.timestamp,
   };

@@ -1,5 +1,8 @@
 import { createId } from '@/shared/lib/ids';
+import { IS_LIVE_RUNTIME } from '@/shared/lib/appConfig';
+import { requestPublicApi } from '@/shared/lib/publicApiClient';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
 import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import type { Store, StoreFeature, StoreLocation, StoreMedia, StoreNotice, StorePublicPage, VisitorSession } from '@/shared/types/models';
 import { assertStoreEntitlement, getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
@@ -7,6 +10,10 @@ import { assertStoreEntitlement, getStoreEntitlements } from '@/shared/lib/servi
 function nowIso() {
   return new Date().toISOString();
 }
+
+type PublicPageServiceOptions = {
+  repository?: CanonicalMyBizRepository;
+};
 
 export interface StorePublicPageUpsertInput {
   storeName: string;
@@ -156,13 +163,13 @@ export function buildDefaultStorePublicPage(input: {
   };
 }
 
-export async function getCanonicalStorePublicPage(storeId: string) {
-  const repository = getCanonicalMyBizRepository();
+export async function getCanonicalStorePublicPage(storeId: string, options?: PublicPageServiceOptions) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
   return repository.getStorePublicPage(storeId);
 }
 
-export async function getCanonicalStorePublicPageBySlug(slug: string) {
-  const repository = getCanonicalMyBizRepository();
+export async function getCanonicalStorePublicPageBySlug(slug: string, options?: PublicPageServiceOptions) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
   return repository.getStorePublicPageBySlug(slug);
 }
 
@@ -170,8 +177,9 @@ export async function saveCanonicalStorePublicPage(
   store: Store,
   input: StorePublicPageUpsertInput,
   currentPage?: StorePublicPage | null,
+  options?: PublicPageServiceOptions,
 ) {
-  const repository = getCanonicalMyBizRepository();
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const timestamp = nowIso();
 
   const nextPage: StorePublicPage = {
@@ -223,8 +231,12 @@ export async function saveCanonicalStorePublicPage(
   return repository.saveStorePublicPage(nextPage);
 }
 
-export async function resolvePublicPageCapabilities(storeId: string, page: StorePublicPage): Promise<PublicPageCapabilities> {
-  const { entitlements } = await getStoreEntitlements(storeId);
+export async function resolvePublicPageCapabilities(
+  storeId: string,
+  page: StorePublicPage,
+  options?: PublicPageServiceOptions,
+): Promise<PublicPageCapabilities> {
+  const { entitlements } = await getStoreEntitlements(storeId, { repository: options?.repository });
 
   return {
     homepageVisible: entitlements.public_store_page && page.homepage_visible && page.public_status === 'public',
@@ -251,9 +263,16 @@ export interface TouchVisitorSessionInput {
   metadata?: VisitorSession['metadata'];
 }
 
-export async function touchVisitorSession(input: TouchVisitorSessionInput) {
-  await assertStoreEntitlement(input.storeId, 'public_store_page');
-  const repository = getCanonicalMyBizRepository();
+export async function touchVisitorSession(input: TouchVisitorSessionInput, options?: PublicPageServiceOptions) {
+  if (!options?.repository && IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<VisitorSession>('/api/public/visitor-session', {
+      body: input,
+      method: 'POST',
+    });
+  }
+
+  await assertStoreEntitlement(input.storeId, 'public_store_page', undefined, { repository: options?.repository });
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const timestamp = nowIso();
   let existing: VisitorSession | null = null;
 

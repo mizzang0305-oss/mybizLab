@@ -5,6 +5,7 @@ import {
   publicInquirySchema,
 } from '@/shared/lib/inquirySchema';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
 import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
 import {
   getCanonicalStorePublicPage,
@@ -16,6 +17,10 @@ import type { Customer, Inquiry } from '@/shared/types/models';
 function nowIso() {
   return new Date().toISOString();
 }
+
+type InquiryServiceOptions = {
+  repository?: CanonicalMyBizRepository;
+};
 
 export interface PublicInquirySummary {
   totalCount: number;
@@ -44,8 +49,8 @@ export function buildEmptyPublicInquirySummary(): PublicInquirySummary {
   };
 }
 
-export async function getPublicInquirySummary(storeId: string) {
-  const repository = getCanonicalMyBizRepository();
+export async function getPublicInquirySummary(storeId: string, options?: InquiryServiceOptions) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
 
   try {
     return buildPublicInquirySummary(await repository.listInquiries(storeId));
@@ -99,13 +104,13 @@ export async function updateStoreInquiry(
   });
 }
 
-export async function getPublicInquiryFormSnapshot(storeId: string) {
-  await assertStoreEntitlement(storeId, 'public_store_page');
-  const repository = getCanonicalMyBizRepository();
+export async function getPublicInquiryFormSnapshot(storeId: string, options?: InquiryServiceOptions) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
+  await assertStoreEntitlement(storeId, 'public_store_page', undefined, { repository });
   const [store, page, summary] = await Promise.all([
     repository.findStoreById(storeId),
-    getCanonicalStorePublicPage(storeId),
-    getPublicInquirySummary(storeId),
+    getCanonicalStorePublicPage(storeId, { repository }),
+    getPublicInquirySummary(storeId, { repository }),
   ]);
 
   if (!store || !page) {
@@ -120,7 +125,7 @@ export async function getPublicInquiryFormSnapshot(storeId: string) {
     };
   }
 
-  await assertStoreEntitlement(storeId, 'public_inquiry');
+  await assertStoreEntitlement(storeId, 'public_inquiry', undefined, { repository });
 
   return {
     publicPageId: page.id,
@@ -129,26 +134,29 @@ export async function getPublicInquiryFormSnapshot(storeId: string) {
   };
 }
 
-export async function submitCanonicalPublicInquiry(input: {
-  storeId: string;
-  customerName: string;
-  phone: string;
-  email?: string;
-  category: Inquiry['category'];
-  requestedVisitDate?: string;
-  message: string;
-  marketingOptIn: boolean;
-  visitorSessionId?: string;
-  visitorToken?: string;
-  visitorPath?: string;
-  referrer?: string;
-}) {
-  const repository = getCanonicalMyBizRepository();
+export async function submitCanonicalPublicInquiry(
+  input: {
+    storeId: string;
+    customerName: string;
+    phone: string;
+    email?: string;
+    category: Inquiry['category'];
+    requestedVisitDate?: string;
+    message: string;
+    marketingOptIn: boolean;
+    visitorSessionId?: string;
+    visitorToken?: string;
+    visitorPath?: string;
+    referrer?: string;
+  },
+  options?: InquiryServiceOptions,
+) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const parsed = publicInquirySchema.parse(input);
   const storeId = input.storeId;
   const [store, page] = await Promise.all([
     repository.findStoreById(storeId),
-    getCanonicalStorePublicPage(storeId),
+    getCanonicalStorePublicPage(storeId, { repository }),
   ]);
 
   if (!store || !page) {
@@ -158,39 +166,45 @@ export async function submitCanonicalPublicInquiry(input: {
     throw new Error('Inquiry is not enabled for this store.');
   }
 
-  await assertStoreEntitlement(storeId, 'public_inquiry');
+  await assertStoreEntitlement(storeId, 'public_inquiry', undefined, { repository });
 
   const timestamp = nowIso();
   const inquiryId = createId('inquiry');
   const conversationSessionId = createId('conversation_session');
   const visitorToken = input.visitorToken?.trim() || `public_inquiry_${Date.now()}`;
-  const visitorSession = await touchVisitorSession({
-    channel: 'inquiry',
-    firstSeenAt: input.visitorSessionId ? undefined : timestamp,
-    path: input.visitorPath?.trim() || `/s/${storeId}/inquiry`,
-    publicPageId: page.id,
-    referrer: input.referrer?.trim(),
-    sessionId: input.visitorSessionId,
-    storeId,
-    visitorToken,
-  });
-
-  const memoryRecord = await upsertCustomerMemory({
-    email: parsed.email,
-    eventType: 'inquiry_captured',
-    marketingOptIn: parsed.marketingOptIn,
-    metadata: {
-      category: parsed.category,
-      requestedVisitDate: parsed.requestedVisitDate || null,
-      visitorSessionId: visitorSession.id,
+  const visitorSession = await touchVisitorSession(
+    {
+      channel: 'inquiry',
+      firstSeenAt: input.visitorSessionId ? undefined : timestamp,
+      path: input.visitorPath?.trim() || `/s/${storeId}/inquiry`,
+      publicPageId: page.id,
+      referrer: input.referrer?.trim(),
+      sessionId: input.visitorSessionId,
+      storeId,
+      visitorToken,
     },
-    name: parsed.customerName,
-    occurredAt: timestamp,
-    phone: parsed.phone,
-    source: 'public_inquiry',
-    storeId,
-    summary: '공개 문의가 고객 메모리에 기록되었습니다.',
-  });
+    { repository },
+  );
+
+  const memoryRecord = await upsertCustomerMemory(
+    {
+      email: parsed.email,
+      eventType: 'inquiry_captured',
+      marketingOptIn: parsed.marketingOptIn,
+      metadata: {
+        category: parsed.category,
+        requestedVisitDate: parsed.requestedVisitDate || null,
+        visitorSessionId: visitorSession.id,
+      },
+      name: parsed.customerName,
+      occurredAt: timestamp,
+      phone: parsed.phone,
+      source: 'public_inquiry',
+      storeId,
+      summary: '공개 문의가 고객 메모리에 기록되었습니다.',
+    },
+    { repository },
+  );
 
   const conversationSession = await repository.saveConversationSession({
     id: conversationSessionId,
@@ -276,20 +290,23 @@ export async function submitCanonicalPublicInquiry(input: {
     created_at: timestamp,
   });
 
-  await touchVisitorSession({
-    channel: 'inquiry',
-    customerId: memoryRecord.customer.id,
-    firstSeenAt: visitorSession.first_seen_at,
-    inquiryId: inquiry.id,
-    path: input.visitorPath?.trim() || `/s/${storeId}/inquiry`,
-    publicPageId: page.id,
-    referrer: input.referrer?.trim(),
-    sessionId: visitorSession.id,
-    storeId,
-    visitorToken,
-  });
+  await touchVisitorSession(
+    {
+      channel: 'inquiry',
+      customerId: memoryRecord.customer.id,
+      firstSeenAt: visitorSession.first_seen_at,
+      inquiryId: inquiry.id,
+      path: input.visitorPath?.trim() || `/s/${storeId}/inquiry`,
+      publicPageId: page.id,
+      referrer: input.referrer?.trim(),
+      sessionId: visitorSession.id,
+      storeId,
+      visitorToken,
+    },
+    { repository },
+  );
 
-  const summary = await getPublicInquirySummary(storeId);
+  const summary = await getPublicInquirySummary(storeId, { repository });
 
   return {
     customer: memoryRecord.customer,

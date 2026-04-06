@@ -3,11 +3,14 @@ import {
   buildCustomerContact,
   buildCustomerPreference,
   buildCustomerTimelineEvent,
+  getCustomerRecordId,
   mergeCustomerRecord,
   normalizeCustomerEmail,
+  normalizeCustomerRecord,
   normalizeCustomerPhone,
 } from '@/shared/lib/domain/customerMemory';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import type { CanonicalCustomerMemoryRepository } from '@/shared/lib/repositories';
 import type { Customer, CustomerContact, CustomerPreference, CustomerTimelineEvent } from '@/shared/types/models';
 import type { CustomerMemoryRecord, CustomerMemoryUpsertInput } from '@/shared/lib/repositories/contracts';
 
@@ -23,16 +26,23 @@ function resolveCustomerMatch(
   const normalizedPhone = normalizeCustomerPhone(input.phone);
   const normalizedEmail = normalizeCustomerEmail(input.email);
 
-  const directCustomer = input.customerId ? customers.find((customer) => customer.id === input.customerId) || null : null;
+  const directCustomer = input.customerId
+    ? customers.find((customer) => getCustomerRecordId(customer) === input.customerId) || null
+    : null;
   const phoneContact = normalizedPhone
     ? contacts.find((contact) => contact.type === 'phone' && contact.normalized_value === normalizedPhone) || null
     : null;
   const emailContact = normalizedEmail
     ? contacts.find((contact) => contact.type === 'email' && contact.normalized_value === normalizedEmail) || null
     : null;
-  const phoneCustomer = phoneContact ? customers.find((customer) => customer.id === phoneContact.customer_id) || null : null;
-  const emailCustomer = emailContact ? customers.find((customer) => customer.id === emailContact.customer_id) || null : null;
-  const duplicateConflict = Boolean(phoneCustomer && emailCustomer && phoneCustomer.id !== emailCustomer.id);
+  const phoneCustomer = phoneContact
+    ? customers.find((customer) => getCustomerRecordId(customer) === phoneContact.customer_id) || null
+    : null;
+  const emailCustomer = emailContact
+    ? customers.find((customer) => getCustomerRecordId(customer) === emailContact.customer_id) || null
+    : null;
+  const duplicateConflict =
+    Boolean(phoneCustomer && emailCustomer && getCustomerRecordId(phoneCustomer) !== getCustomerRecordId(emailCustomer));
 
   return {
     customer: directCustomer || phoneCustomer || emailCustomer || null,
@@ -51,8 +61,13 @@ export async function listStoreCustomers(storeId: string) {
     .sort((left, right) => (right.last_visit_at || right.created_at).localeCompare(left.last_visit_at || left.created_at));
 }
 
-export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Promise<CustomerMemoryRecord> {
-  const repository = getCanonicalMyBizRepository();
+export async function upsertCustomerMemory(
+  input: CustomerMemoryUpsertInput,
+  options?: {
+    repository?: CanonicalCustomerMemoryRepository;
+  },
+): Promise<CustomerMemoryRecord> {
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const timestamp = nowIso();
   const [customers, contacts, preferences] = await Promise.all([
     repository.listCustomers(input.storeId),
@@ -62,10 +77,10 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
 
   const match = resolveCustomerMatch(customers, contacts, input);
   const created = !match.customer;
-  const baseCustomer: Customer =
-    match.customer ||
-    {
+  const baseCustomer: Customer = normalizeCustomerRecord(
+    match.customer || {
       id: createId('customer'),
+      customer_id: undefined,
       store_id: input.storeId,
       name: input.name?.trim() || '고객',
       phone: input.phone?.trim() || '',
@@ -76,7 +91,8 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
       marketing_opt_in: Boolean(input.marketingOptIn),
       created_at: timestamp,
       updated_at: timestamp,
-    };
+    },
+  );
 
   const nextCustomer = created
     ? {
@@ -96,9 +112,10 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
         visitIncrement: input.visitIncrement,
       });
 
-  const savedCustomer = await repository.saveCustomer(nextCustomer);
+  const savedCustomer = normalizeCustomerRecord(await repository.saveCustomer(normalizeCustomerRecord(nextCustomer)));
+  const savedCustomerId = getCustomerRecordId(savedCustomer);
 
-  const currentContacts = contacts.filter((contact) => contact.customer_id === savedCustomer.id);
+  const currentContacts = contacts.filter((contact) => contact.customer_id === savedCustomerId);
   const nextContacts: CustomerContact[] = [];
   if (match.normalizedPhone) {
     const existingPhoneContact =
@@ -109,14 +126,14 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
       ? {
           ...existingPhoneContact,
           store_id: input.storeId,
-          customer_id: savedCustomer.id,
+          customer_id: savedCustomerId,
           value: input.phone!.trim(),
           normalized_value: match.normalizedPhone,
           is_primary: true,
           updated_at: timestamp,
         }
       : buildCustomerContact({
-          customerId: savedCustomer.id,
+          customerId: savedCustomerId,
           isPrimary: true,
           storeId: input.storeId,
           timestamp,
@@ -135,14 +152,14 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
       ? {
           ...existingEmailContact,
           store_id: input.storeId,
-          customer_id: savedCustomer.id,
+          customer_id: savedCustomerId,
           value: input.email!.trim().toLowerCase(),
           normalized_value: match.normalizedEmail,
           is_primary: !match.normalizedPhone,
           updated_at: timestamp,
         }
       : buildCustomerContact({
-          customerId: savedCustomer.id,
+          customerId: savedCustomerId,
           isPrimary: !match.normalizedPhone,
           storeId: input.storeId,
           timestamp,
@@ -152,7 +169,7 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
     nextContacts.push(await repository.saveCustomerContact(emailContact));
   }
 
-  const existingPreference = preferences.find((preference) => preference.customer_id === savedCustomer.id) || null;
+  const existingPreference = preferences.find((preference) => preference.customer_id === savedCustomerId) || null;
   const nextPreference: CustomerPreference =
     existingPreference
       ? {
@@ -161,7 +178,7 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
           updated_at: timestamp,
         }
       : buildCustomerPreference({
-          customerId: savedCustomer.id,
+          customerId: savedCustomerId,
           marketingOptIn: input.marketingOptIn,
           storeId: input.storeId,
           timestamp,
@@ -170,7 +187,7 @@ export async function upsertCustomerMemory(input: CustomerMemoryUpsertInput): Pr
 
   const timelineEvent = await repository.appendTimelineEvent(
     buildCustomerTimelineEvent({
-      customerId: savedCustomer.id,
+      customerId: savedCustomerId,
       eventType: input.eventType || (created ? 'customer_created' : 'contact_captured'),
       metadata: {
         email: input.email?.trim().toLowerCase() || null,

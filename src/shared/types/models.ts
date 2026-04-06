@@ -285,6 +285,7 @@ export interface MenuItem {
 
 export interface Customer {
   id: string;
+  customer_id?: string;
   store_id: string;
   name: string;
   phone: string;

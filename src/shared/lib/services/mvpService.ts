@@ -1,6 +1,6 @@
 import { generateGeminiSummary } from '@/integrations/gemini/gemini';
 import { supabase } from '@/integrations/supabase/client';
-import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
+import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_LIVE_RUNTIME, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
@@ -15,6 +15,7 @@ import {
 import { manualMetricFormSchema, type ManualMetricFormInput } from '@/shared/lib/manualMetricSchema';
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
+import { requestPublicApi } from '@/shared/lib/publicApiClient';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import { listStoreCustomers, upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
 import {
@@ -3076,6 +3077,12 @@ export async function submitPublicSurveyResponse(input: {
 }
 
 export async function getPublicInquiryForm(storeId: string) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicInquiryFormSnapshot>>>('/api/public/inquiry-form', {
+      searchParams: { storeId },
+    });
+  }
+
   return getPublicInquiryFormSnapshot(storeId);
 }
 
@@ -3103,6 +3110,23 @@ export async function submitPublicInquiry(input: {
   };
   visitorSessionId?: string;
 }> {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<{
+      inquiry: Inquiry;
+      customer: Customer;
+      summary: {
+        totalCount: number;
+        openCount: number;
+        recentTags: string[];
+        lastInquiryAt?: string;
+      };
+      visitorSessionId?: string;
+    }>('/api/public/inquiry', {
+      body: input,
+      method: 'POST',
+    });
+  }
+
   const canonicalResult = await submitCanonicalPublicInquiry(input);
 
   updateDatabase((database) => {
@@ -4499,6 +4523,12 @@ function buildPublicExperience(store: Store, notices: StoreNotice[]) {
 }
 
 export async function getPublicStore(storeSlug: string) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
+      searchParams: { slug: normalizeStoreSlug(storeSlug) },
+    });
+  }
+
   const store = await getStoreBySlug(storeSlug);
   if (!store) {
     return null;
@@ -4508,6 +4538,12 @@ export async function getPublicStore(storeSlug: string) {
 }
 
 export async function getPublicStoreById(storeId: string) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
+      searchParams: { storeId },
+    });
+  }
+
   const store = await getStoreById(storeId);
   if (!store) {
     return null;

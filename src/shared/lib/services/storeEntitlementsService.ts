@@ -1,4 +1,6 @@
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
+import type { SubscriptionPlan } from '@/shared/types/models';
 
 export type StoreEntitlement =
   | 'public_store_page'
@@ -31,6 +33,26 @@ const PLAN_ENTITLEMENTS = {
   },
 } as const;
 
+type StoreEntitlementsOptions = {
+  repository?: CanonicalMyBizRepository;
+};
+
+function normalizeStorePlan(value: unknown): SubscriptionPlan {
+  if (value === 'free' || value === 'pro' || value === 'vip') {
+    return value;
+  }
+
+  if (value === 'starter') {
+    return 'free';
+  }
+
+  if (value === 'business' || value === 'enterprise') {
+    return 'vip';
+  }
+
+  return 'free';
+}
+
 const ENTITLEMENT_ERROR_MESSAGE: Record<StoreEntitlement, string> = {
   customer_memory: '고객 메모리 기능은 PRO 또는 VIP 플랜에서 사용할 수 있습니다.',
   public_inquiry: '문의 접수는 PRO 또는 VIP 플랜에서 사용할 수 있습니다.',
@@ -39,27 +61,38 @@ const ENTITLEMENT_ERROR_MESSAGE: Record<StoreEntitlement, string> = {
   waiting_board: '웨이팅 보드는 PRO 또는 VIP 플랜에서 사용할 수 있습니다.',
 };
 
-export async function getStorePlan(storeId: string) {
-  const repository = getCanonicalMyBizRepository();
+export async function getStorePlan(storeId: string, options?: StoreEntitlementsOptions) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
+  const store = await repository.findStoreById(storeId);
+
+  if (store) {
+    return normalizeStorePlan(store.plan ?? store.subscription_plan);
+  }
+
   const subscription = await repository.getStoreSubscription(storeId);
-  return subscription?.plan || 'free';
+  return normalizeStorePlan(subscription?.plan);
 }
 
-export async function getStoreEntitlements(storeId: string) {
-  const plan = await getStorePlan(storeId);
+export async function getStoreEntitlements(storeId: string, options?: StoreEntitlementsOptions) {
+  const plan = await getStorePlan(storeId, options);
   return {
     entitlements: PLAN_ENTITLEMENTS[plan],
     plan,
   };
 }
 
-export async function hasStoreEntitlement(storeId: string, entitlement: StoreEntitlement) {
-  const { entitlements } = await getStoreEntitlements(storeId);
+export async function hasStoreEntitlement(storeId: string, entitlement: StoreEntitlement, options?: StoreEntitlementsOptions) {
+  const { entitlements } = await getStoreEntitlements(storeId, options);
   return entitlements[entitlement];
 }
 
-export async function assertStoreEntitlement(storeId: string, entitlement: StoreEntitlement, fallbackMessage?: string) {
-  const enabled = await hasStoreEntitlement(storeId, entitlement);
+export async function assertStoreEntitlement(
+  storeId: string,
+  entitlement: StoreEntitlement,
+  fallbackMessage?: string,
+  options?: StoreEntitlementsOptions,
+) {
+  const enabled = await hasStoreEntitlement(storeId, entitlement, options);
   if (enabled) {
     return;
   }

@@ -1,8 +1,8 @@
 import { DATA_PROVIDER, IS_DEMO_RUNTIME, isSupabaseConfigured } from '@/shared/lib/appConfig';
 import { demoRepository } from '@/shared/lib/repositories/demoRepository';
-import { supabaseRepository } from '@/shared/lib/repositories/supabaseRepository';
+import { createSupabaseRepository, supabaseRepository } from '@/shared/lib/repositories/supabaseRepository';
 
-export { demoRepository, supabaseRepository };
+export { createSupabaseRepository, demoRepository, supabaseRepository };
 export type {
   CanonicalAccessRepository,
   CanonicalCustomerMemoryRepository,
