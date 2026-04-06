@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import checkoutHandler from '../../api/billing/checkout';
 import {
@@ -14,7 +14,7 @@ function createValidCheckoutCustomer(
 ): CheckoutCustomerPayload {
   return {
     email: 'buyer@example.com',
-    fullName: '홍길동',
+    fullName: 'Hong Gil Dong',
     phoneNumber: '010-1234-5678',
     ...overrides,
   };
@@ -28,18 +28,18 @@ function createValidCheckoutSessionPayload(
     currency: 'KRW',
     customData: {
       initiatedAt: '2026-03-15T00:00:00.000Z',
-      plan: 'starter',
+      plan: 'pro',
       source: 'pricing-page',
     },
     customer: createValidCheckoutCustomer(),
     noticeUrls: ['https://example.com/api/billing/webhook'],
-    orderName: 'Starter 구독',
+    orderName: 'PRO \uad6c\ub3c5',
     payMethod: 'CARD',
-    paymentId: 'subscription-starter-001',
-    plan: 'starter',
-    redirectUrl: 'https://example.com/pricing?portone=redirect&plan=starter',
+    paymentId: 'subscription-pro-001',
+    plan: 'pro',
+    redirectUrl: 'https://example.com/pricing?portone=redirect&plan=pro',
     storeId: 'store-v2-test',
-    totalAmount: 29000,
+    totalAmount: 79000,
     ...overrides,
   };
 }
@@ -121,7 +121,7 @@ describe('/api/billing/checkout', () => {
 
     const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
-        body: JSON.stringify({ plan: 'starter' }),
+        body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
       }),
     );
@@ -142,7 +142,7 @@ describe('/api/billing/checkout', () => {
 
     const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
-        body: JSON.stringify({ plan: 'starter' }),
+        body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
       }),
     );
@@ -163,7 +163,7 @@ describe('/api/billing/checkout', () => {
 
     const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
-        body: JSON.stringify({ plan: 'starter' }),
+        body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
       }),
     );
@@ -180,14 +180,14 @@ describe('/api/billing/checkout', () => {
   it('fails validation when redirectUrl is not an absolute URL', () => {
     const result = validateCheckoutSessionPayload(
       createValidCheckoutSessionPayload({
-        redirectUrl: '/pricing?portone=redirect&plan=starter',
+        redirectUrl: '/pricing?portone=redirect&plan=pro',
       }),
     );
 
     expect(result).toMatchObject({
       ok: false,
       details: {
-        redirectUrl: '/pricing?portone=redirect&plan=starter',
+        redirectUrl: '/pricing?portone=redirect&plan=pro',
       },
       status: 500,
     });
@@ -331,9 +331,9 @@ describe('/api/billing/checkout', () => {
   });
 
   it.each([
-    ['starter', /^mb_st_[a-f0-9]{16}$/],
+    ['free', /^mb_free_[a-f0-9]{16}$/],
     ['pro', /^mb_pro_[a-f0-9]{16}$/],
-    ['business', /^mb_biz_[a-f0-9]{16}$/],
+    ['vip', /^mb_vip_[a-f0-9]{16}$/],
   ] as const)('creates a short ASCII-safe paymentId for %s', (plan, pattern) => {
     const paymentId = createCheckoutPaymentId(plan);
 
@@ -369,7 +369,7 @@ describe('/api/billing/checkout', () => {
           phoneNumber: expect.any(String),
         },
         noticeUrls: ['https://example.com/api/billing/webhook'],
-        orderName: 'Pro 월 구독',
+        orderName: 'PRO \uad6c\ub3c5',
         payMethod: 'CARD',
         plan: 'pro',
         redirectUrl: 'https://example.com/pricing?portone=redirect&plan=pro',
@@ -398,10 +398,10 @@ describe('/api/billing/checkout', () => {
             slug: rawSlug,
             storeName: rawStoreName,
           },
-          plan: 'starter',
+          plan: 'pro',
           redirectPath: '/onboarding?step=payment',
           source: 'onboarding-flow',
-          orderName: '성수 브런치 하우스 Starter 결제',
+          orderName: '\uc131\uc218 \ube0c\ub7f0\uce58 \ud558\uc6b0\uc2a4 PRO \uacb0\uc81c',
         }),
         method: 'POST',
       }),
@@ -410,12 +410,12 @@ describe('/api/billing/checkout', () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(payload.checkout.redirectUrl).toBe('https://example.com/onboarding?step=payment&portone=redirect&plan=starter');
-    expect(payload.checkout.orderName).toBe('성수 브런치 하우스 Starter 결제');
+    expect(payload.checkout.redirectUrl).toBe('https://example.com/onboarding?step=payment&portone=redirect&plan=pro');
+    expect(payload.checkout.orderName).toBe('\uc131\uc218 \ube0c\ub7f0\uce58 \ud558\uc6b0\uc2a4 PRO \uacb0\uc81c');
     expect(payload.checkout.customData.requestId).toBe('request_123');
-    expect(payload.checkout.customData.planKey).toBe('starter');
+    expect(payload.checkout.customData.planKey).toBe('pro');
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
-    expect(payload.checkout.customData.slug).toBe(encodeURIComponent('성수-브런치-하우스'));
+    expect(payload.checkout.customData.slug).toBe(encodeURIComponent('\uc131\uc218-\ube0c\ub7f0\uce58-\ud558\uc6b0\uc2a4'));
     expect(payload.checkout.customData.source).toBeUndefined();
     expect(payload.checkout.customData.storeName).toBeUndefined();
     expect(payload.checkout.customData.region).toBeUndefined();
@@ -423,3 +423,5 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.customData.orderName).toBeUndefined();
   });
 });
+
+

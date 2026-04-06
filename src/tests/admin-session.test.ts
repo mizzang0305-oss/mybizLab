@@ -15,8 +15,8 @@ describe('admin session bootstrap', () => {
     const session = await createDemoAdminSession();
 
     expect(session.email).toBe('ops@mybiz.ai.kr');
-    expect(session.role).toBe('platform_owner');
-    expect(session.provider).toBe('local');
+    expect(session.role).toBe('owner');
+    expect(session.provider).toBe('demo');
     expect(session.accessibleStoreIds).toContain('store_golden_coffee');
     expect(useUiStore.getState().selectedStoreId).toBe('store_golden_coffee');
   });
@@ -32,7 +32,7 @@ describe('admin session bootstrap', () => {
 
     expect(session.profileId).toBe('profile_platform_owner');
     expect(session.email).toBe(DEMO_ADMIN_CREDENTIALS.email);
-    expect(session.role).toBe('platform_owner');
+    expect(session.role).toBe('owner');
     expect(useUiStore.getState().selectedStoreId).toBe('store_golden_coffee');
   });
 
@@ -44,8 +44,8 @@ describe('admin session bootstrap', () => {
         email: DEMO_ADMIN_CREDENTIALS.email,
         fullName: '운영 관리자',
         authenticatedAt: '2026-03-16T00:00:00.000Z',
-        provider: 'local',
-        role: 'platform_owner',
+        provider: 'demo',
+        role: 'owner',
       },
     });
 

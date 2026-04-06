@@ -12,6 +12,68 @@ function isoDaysAgo(daysAgo: number, hours = 9) {
   return value.toISOString();
 }
 
+function hasEnabledFeature(
+  features: MvpDatabase['store_features'],
+  storeId: string,
+  key: MvpDatabase['store_features'][number]['feature_key'],
+) {
+  return features.some((feature) => feature.store_id === storeId && feature.feature_key === key && feature.enabled);
+}
+
+function buildSeedStorePublicPages(database: MvpDatabase): MvpDatabase['store_public_pages'] {
+  return database.stores.map((store) => {
+    const brandConfig = store.brand_config;
+    const location = database.store_locations.find((item) => item.store_id === store.id) || null;
+    const media = database.store_media.filter((item) => item.store_id === store.id);
+    const notices = database.store_notices.filter((item) => item.store_id === store.id);
+
+    return {
+      id: `store_public_page_${store.id}`,
+      store_id: store.id,
+      slug: store.slug,
+      brand_name: store.name,
+      logo_url: store.logo_url,
+      brand_color: store.brand_color,
+      tagline: store.tagline,
+      description: store.description,
+      business_type: brandConfig.business_type,
+      phone: brandConfig.phone,
+      email: brandConfig.email,
+      address: brandConfig.address,
+      directions: location?.directions || '',
+      opening_hours: location?.opening_hours,
+      parking_note: location?.parking_note,
+      public_status: store.public_status,
+      homepage_visible: store.homepage_visible ?? store.public_status === 'public',
+      consultation_enabled: store.consultation_enabled ?? true,
+      inquiry_enabled: store.inquiry_enabled ?? true,
+      reservation_enabled:
+        store.reservation_enabled ?? hasEnabledFeature(database.store_features, store.id, 'reservation_management'),
+      order_entry_enabled:
+        store.order_entry_enabled ??
+        (hasEnabledFeature(database.store_features, store.id, 'table_order') ||
+          hasEnabledFeature(database.store_features, store.id, 'order_management')),
+      theme_preset: store.theme_preset,
+      preview_target: store.preview_target,
+      hero_title: store.name,
+      hero_subtitle: store.tagline,
+      hero_description: store.description,
+      primary_cta_label: store.primary_cta_label,
+      mobile_cta_label: store.mobile_cta_label,
+      cta_config: {},
+      content_blocks: [],
+      seo_metadata: {
+        canonicalUrl: buildStoreUrl(store.slug),
+        title: store.name,
+      },
+      media,
+      notices,
+      created_at: store.created_at,
+      updated_at: store.updated_at,
+    };
+  });
+}
+
 export function createSeedDatabase(): MvpDatabase {
   const profileId = 'profile_platform_owner';
   const goldenOwnerProfileId = 'profile_golden_owner';
@@ -68,7 +130,7 @@ export function createSeedDatabase(): MvpDatabase {
     },
   ]);
 
-  return {
+  const database: MvpDatabase = {
     profiles: [
       {
         id: profileId,
@@ -110,7 +172,7 @@ export function createSeedDatabase(): MvpDatabase {
         address: '서울시 강남구 테헤란로 201',
         business_type: '샐러드',
         requested_slug: 'urban-salad',
-        requested_plan: 'starter',
+        requested_plan: 'free',
         selected_features: ['order_management', 'table_order', 'sales_analysis'],
         brand_name: 'Urban Salad Lab',
         brand_color: '#16a34a',
@@ -172,7 +234,7 @@ export function createSeedDatabase(): MvpDatabase {
         address: '서울시 용산구 한강대로 88',
         business_type: '카페 로스터리',
         requested_slug: 'north-roast',
-        requested_plan: 'business',
+        requested_plan: 'vip',
         selected_features: ['ai_manager', 'ai_business_report', 'customer_management', 'brand_management', 'sales_analysis', 'order_management', 'table_order'],
         brand_name: 'North Roast',
         brand_color: '#7c2d12',
@@ -237,7 +299,7 @@ export function createSeedDatabase(): MvpDatabase {
         address: '서울시 마포구 연남동 45-8',
         business_type: 'izakaya',
         requested_slug: 'mint-izakaya',
-        requested_plan: 'business',
+        requested_plan: 'vip',
         selected_features: ['ai_manager', 'ai_business_report', 'customer_management', 'reservation_management', 'surveys', 'brand_management', 'sales_analysis', 'order_management', 'waiting_board', 'table_order'],
         brand_name: 'Mint Izakaya',
         brand_color: '#0f766e',
@@ -267,7 +329,7 @@ export function createSeedDatabase(): MvpDatabase {
         address: '서울시 종로구 율곡로 31',
         business_type: '면요리',
         requested_slug: 'ember-noodle',
-        requested_plan: 'starter',
+        requested_plan: 'free',
         selected_features: ['order_management', 'sales_analysis', 'table_order'],
         brand_name: 'Ember Noodle Bar',
         brand_color: '#b91c1c',
@@ -296,7 +358,7 @@ export function createSeedDatabase(): MvpDatabase {
         address: '서울시 강서구 마곡중앙로 77',
         business_type: 'korean_buffet',
         requested_slug: 'seoul-buffet-house',
-        requested_plan: 'business',
+        requested_plan: 'vip',
         selected_features: ['ai_manager', 'ai_business_report', 'customer_management', 'surveys', 'brand_management', 'sales_analysis'],
         brand_name: 'Seoul Buffet House',
         brand_color: '#8b5e3c',
@@ -385,7 +447,7 @@ export function createSeedDatabase(): MvpDatabase {
         mobile_cta_label: '문의 남기기',
         preview_target: 'inquiry',
         public_status: 'public',
-        subscription_plan: 'business',
+        subscription_plan: 'vip',
         admin_email: 'mint@example.com',
         created_from_request_id: requestMint,
         created_at: isoDaysAgo(72),
@@ -420,7 +482,7 @@ export function createSeedDatabase(): MvpDatabase {
         mobile_cta_label: '고객 설문 열기',
         preview_target: 'survey',
         public_status: 'public',
-        subscription_plan: 'business',
+        subscription_plan: 'vip',
         admin_email: 'buffet@example.com',
         created_from_request_id: requestBuffet,
         created_at: isoDaysAgo(11),
@@ -428,6 +490,41 @@ export function createSeedDatabase(): MvpDatabase {
       },
     ],
     store_analytics_profiles: analyticsSeed.profiles,
+    store_subscriptions: [
+      {
+        id: 'subscription_golden',
+        store_id: storeA,
+        plan: 'pro',
+        status: 'active',
+        billing_provider: 'portone',
+        current_period_starts_at: isoDaysAgo(33, 10),
+        current_period_ends_at: isoDaysAgo(-27, 10),
+        created_at: isoDaysAgo(90),
+        updated_at: isoDaysAgo(3, 10),
+      },
+      {
+        id: 'subscription_mint',
+        store_id: storeB,
+        plan: 'vip',
+        status: 'past_due',
+        billing_provider: 'portone',
+        current_period_starts_at: isoDaysAgo(64, 10),
+        current_period_ends_at: isoDaysAgo(-2, 9),
+        created_at: isoDaysAgo(72),
+        updated_at: isoDaysAgo(0, 9),
+      },
+      {
+        id: 'subscription_buffet',
+        store_id: storeC,
+        plan: 'vip',
+        status: 'active',
+        billing_provider: 'manual',
+        current_period_starts_at: isoDaysAgo(26, 9),
+        current_period_ends_at: isoDaysAgo(-4, 9),
+        created_at: isoDaysAgo(11),
+        updated_at: isoDaysAgo(0, 9),
+      },
+    ],
     store_brand_profiles: [
       {
         id: 'brand_profile_golden',
@@ -597,6 +694,27 @@ export function createSeedDatabase(): MvpDatabase {
       },
     ],
     store_members: [
+      {
+        id: 'member_platform_store_a',
+        store_id: storeA,
+        profile_id: profileId,
+        role: 'owner',
+        created_at: isoDaysAgo(60),
+      },
+      {
+        id: 'member_platform_store_b',
+        store_id: storeB,
+        profile_id: profileId,
+        role: 'owner',
+        created_at: isoDaysAgo(60),
+      },
+      {
+        id: 'member_platform_store_c',
+        store_id: storeC,
+        profile_id: profileId,
+        role: 'owner',
+        created_at: isoDaysAgo(60),
+      },
       {
         id: 'member_store_a',
         store_id: storeA,
@@ -800,6 +918,7 @@ export function createSeedDatabase(): MvpDatabase {
         is_regular: true,
         marketing_opt_in: true,
         created_at: isoDaysAgo(40),
+        updated_at: isoDaysAgo(1),
       },
       {
         id: 'customer_minho',
@@ -812,6 +931,7 @@ export function createSeedDatabase(): MvpDatabase {
         is_regular: false,
         marketing_opt_in: false,
         created_at: isoDaysAgo(12),
+        updated_at: isoDaysAgo(5),
       },
       {
         id: 'customer_sujin',
@@ -824,6 +944,7 @@ export function createSeedDatabase(): MvpDatabase {
         is_regular: true,
         marketing_opt_in: true,
         created_at: isoDaysAgo(90),
+        updated_at: isoDaysAgo(0, 10),
       },
       {
         id: 'customer_mint_jiwon',
@@ -836,6 +957,209 @@ export function createSeedDatabase(): MvpDatabase {
         is_regular: false,
         marketing_opt_in: true,
         created_at: isoDaysAgo(6, 18),
+        updated_at: isoDaysAgo(1, 19),
+      },
+    ],
+    customer_contacts: [
+      {
+        id: 'customer_contact_hana_phone',
+        store_id: storeA,
+        customer_id: 'customer_hana',
+        type: 'phone',
+        value: '010-1111-1111',
+        normalized_value: '01011111111',
+        is_primary: true,
+        is_verified: false,
+        created_at: isoDaysAgo(40),
+        updated_at: isoDaysAgo(1),
+      },
+      {
+        id: 'customer_contact_hana_email',
+        store_id: storeA,
+        customer_id: 'customer_hana',
+        type: 'email',
+        value: 'hana@example.com',
+        normalized_value: 'hana@example.com',
+        is_primary: false,
+        is_verified: false,
+        created_at: isoDaysAgo(40),
+        updated_at: isoDaysAgo(1),
+      },
+      {
+        id: 'customer_contact_minho_phone',
+        store_id: storeA,
+        customer_id: 'customer_minho',
+        type: 'phone',
+        value: '010-2222-2222',
+        normalized_value: '01022222222',
+        is_primary: true,
+        is_verified: false,
+        created_at: isoDaysAgo(12),
+        updated_at: isoDaysAgo(5),
+      },
+      {
+        id: 'customer_contact_minho_email',
+        store_id: storeA,
+        customer_id: 'customer_minho',
+        type: 'email',
+        value: 'minho@example.com',
+        normalized_value: 'minho@example.com',
+        is_primary: false,
+        is_verified: false,
+        created_at: isoDaysAgo(12),
+        updated_at: isoDaysAgo(5),
+      },
+      {
+        id: 'customer_contact_sujin_phone',
+        store_id: storeA,
+        customer_id: 'customer_sujin',
+        type: 'phone',
+        value: '010-7777-7777',
+        normalized_value: '01077777777',
+        is_primary: true,
+        is_verified: false,
+        created_at: isoDaysAgo(90),
+        updated_at: isoDaysAgo(0, 10),
+      },
+      {
+        id: 'customer_contact_sujin_email',
+        store_id: storeA,
+        customer_id: 'customer_sujin',
+        type: 'email',
+        value: 'sujin@example.com',
+        normalized_value: 'sujin@example.com',
+        is_primary: false,
+        is_verified: false,
+        created_at: isoDaysAgo(90),
+        updated_at: isoDaysAgo(0, 10),
+      },
+      {
+        id: 'customer_contact_mint_jiwon_phone',
+        store_id: storeB,
+        customer_id: 'customer_mint_jiwon',
+        type: 'phone',
+        value: '010-9090-2233',
+        normalized_value: '01090902233',
+        is_primary: true,
+        is_verified: false,
+        created_at: isoDaysAgo(6, 18),
+        updated_at: isoDaysAgo(1, 19),
+      },
+      {
+        id: 'customer_contact_mint_jiwon_email',
+        store_id: storeB,
+        customer_id: 'customer_mint_jiwon',
+        type: 'email',
+        value: 'jiwon@example.com',
+        normalized_value: 'jiwon@example.com',
+        is_primary: false,
+        is_verified: false,
+        created_at: isoDaysAgo(6, 18),
+        updated_at: isoDaysAgo(1, 19),
+      },
+    ],
+    customer_preferences: [
+      {
+        id: 'customer_preference_hana',
+        store_id: storeA,
+        customer_id: 'customer_hana',
+        marketing_opt_in: true,
+        preferred_contact_channel: 'sms',
+        seating_notes: '창가 좌석 선호',
+        dietary_notes: '',
+        preference_tags: ['regular', 'coffee'],
+        created_at: isoDaysAgo(40),
+        updated_at: isoDaysAgo(1),
+      },
+      {
+        id: 'customer_preference_minho',
+        store_id: storeA,
+        customer_id: 'customer_minho',
+        marketing_opt_in: false,
+        preferred_contact_channel: 'phone',
+        seating_notes: '',
+        dietary_notes: '',
+        preference_tags: ['delivery'],
+        created_at: isoDaysAgo(12),
+        updated_at: isoDaysAgo(5),
+      },
+      {
+        id: 'customer_preference_sujin',
+        store_id: storeA,
+        customer_id: 'customer_sujin',
+        marketing_opt_in: true,
+        preferred_contact_channel: 'sms',
+        seating_notes: '단체 방문 잦음',
+        dietary_notes: '',
+        preference_tags: ['group-booking', 'high-value'],
+        created_at: isoDaysAgo(90),
+        updated_at: isoDaysAgo(0, 10),
+      },
+      {
+        id: 'customer_preference_mint_jiwon',
+        store_id: storeB,
+        customer_id: 'customer_mint_jiwon',
+        marketing_opt_in: true,
+        preferred_contact_channel: 'sms',
+        seating_notes: '',
+        dietary_notes: '',
+        preference_tags: ['izakaya'],
+        created_at: isoDaysAgo(6, 18),
+        updated_at: isoDaysAgo(1, 19),
+      },
+    ],
+    customer_timeline_events: [
+      {
+        id: 'customer_timeline_hana_created',
+        store_id: storeA,
+        customer_id: 'customer_hana',
+        event_type: 'customer_created',
+        source: 'demo_seed',
+        summary: '단골 고객 기본 카드가 생성되었습니다.',
+        metadata: {
+          normalizedPhone: '01011111111',
+        },
+        occurred_at: isoDaysAgo(40),
+        created_at: isoDaysAgo(40),
+      },
+      {
+        id: 'customer_timeline_hana_order',
+        store_id: storeA,
+        customer_id: 'customer_hana',
+        event_type: 'order_linked',
+        source: 'demo_seed',
+        summary: '최근 테이블 주문이 고객 메모리에 연결되었습니다.',
+        metadata: {
+          orderId: orderCompleted,
+        },
+        occurred_at: isoDaysAgo(0, 11),
+        created_at: isoDaysAgo(0, 11),
+      },
+      {
+        id: 'customer_timeline_sujin_inquiry',
+        store_id: storeA,
+        customer_id: 'customer_sujin',
+        event_type: 'inquiry_captured',
+        source: 'demo_seed',
+        summary: '단체 예약 문의가 고객 이력에 추가되었습니다.',
+        metadata: {
+          inquiryId: 'inquiry_golden_group',
+        },
+        occurred_at: isoDaysAgo(0, 10),
+        created_at: isoDaysAgo(0, 10),
+      },
+      {
+        id: 'customer_timeline_mint_jiwon_inquiry',
+        store_id: storeB,
+        customer_id: 'customer_mint_jiwon',
+        event_type: 'inquiry_captured',
+        source: 'demo_seed',
+        summary: '이자카야 단체 문의가 고객 메모리에 기록되었습니다.',
+        metadata: {
+          inquiryId: 'inquiry_mint_group',
+        },
+        occurred_at: isoDaysAgo(1, 18),
+        created_at: isoDaysAgo(1, 18),
       },
     ],
     inquiries: [
@@ -892,6 +1216,9 @@ export function createSeedDatabase(): MvpDatabase {
         updated_at: isoDaysAgo(1, 18),
       },
     ],
+    conversation_sessions: [],
+    conversation_messages: [],
+    visitor_sessions: [],
     orders: [
       {
         id: orderCompleted,
@@ -1546,7 +1873,7 @@ export function createSeedDatabase(): MvpDatabase {
         id: 'billing_mint',
         store_id: storeB,
         admin_email: 'mint@example.com',
-        plan: 'business',
+        plan: 'vip',
         setup_status: 'setup_paid',
         subscription_status: 'subscription_past_due',
         last_payment_at: isoDaysAgo(34, 10),
@@ -1776,5 +2103,10 @@ export function createSeedDatabase(): MvpDatabase {
         created_at: isoDaysAgo(2, 16),
       },
     ],
+    store_public_pages: [],
   };
+
+  database.store_public_pages = buildSeedStorePublicPages(database);
+
+  return database;
 }

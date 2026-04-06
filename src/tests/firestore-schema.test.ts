@@ -18,7 +18,7 @@ describe('firestore schema guards', () => {
     });
 
     expect(store.id).toBe('store_demo');
-    expect(store.subscription_plan).toBe('starter');
+    expect(store.subscription_plan).toBe('free');
     expect(store.brand_config.email).toBe('');
   });
 

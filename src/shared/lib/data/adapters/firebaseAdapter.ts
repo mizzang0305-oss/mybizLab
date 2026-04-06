@@ -1,3 +1,8 @@
+/**
+ * @deprecated Phase 1 introduces src/shared/lib/repositories/supabaseRepository
+ * as the canonical production repository boundary. Keep this adapter only while
+ * legacy diagnosis flows still support Firebase.
+ */
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from 'firebase/firestore';
 
 import { getFirebaseClientServices } from '@/integrations/firebase/client';

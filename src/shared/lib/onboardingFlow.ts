@@ -216,14 +216,14 @@ function clampScore(value: unknown, fallback: number) {
 
 function deriveRecommendedPlan(features: FeatureKey[]) {
   if (features.length >= 6 || features.includes('ai_business_report')) {
-    return 'business';
+    return 'vip';
   }
 
   if (features.length >= 4 || features.includes('customer_management') || features.includes('reservation_management')) {
     return 'pro';
   }
 
-  return 'starter';
+  return 'free';
 }
 
 function derivePublicTheme(industryType: DiagnosisInput['industryType']): StoreSetupTheme {
@@ -457,7 +457,7 @@ export function normalizeDiagnosisResult(
   const suggestedFeatures = recommendedModules;
   const recommendedQuestions = fillStringArray(draft.recommendedQuestions, fallback.recommendedQuestions, 4);
   const recommendedPlan =
-    draft.recommendedPlan === 'starter' || draft.recommendedPlan === 'pro' || draft.recommendedPlan === 'business'
+    draft.recommendedPlan === 'free' || draft.recommendedPlan === 'pro' || draft.recommendedPlan === 'vip'
       ? draft.recommendedPlan
       : deriveRecommendedPlan(recommendedModules);
 
@@ -564,7 +564,7 @@ export function createInitialOnboardingFlowState(): OnboardingFlowState {
     diagnosisResult: null,
     requestDraft: buildRequestDraftFromDiagnosis(DEFAULT_DIAGNOSIS_INPUT),
     requestWizardStep: 'basic',
-    selectedPlan: 'starter',
+    selectedPlan: 'free',
     paymentStatus: 'idle',
     activationStatus: 'idle',
   };

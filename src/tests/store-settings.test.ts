@@ -44,11 +44,14 @@ describe('store settings service', () => {
     expect(next?.notices[0]?.title).toBe('오픈 주간 안내');
 
     const database = getDatabase();
+    const publicPage = database.store_public_pages.find((page) => page.store_id === 'store_golden_coffee');
     expect(
       database.store_tables.every((table) =>
         table.store_id !== 'store_golden_coffee' || table.qr_value.includes('/성수-브런치-하우스/order?table='),
       ),
     ).toBe(true);
+    expect(publicPage?.brand_color).toBe('#112233');
+    expect(publicPage?.inquiry_enabled).toBe(true);
 
     const publicStore = await getPublicStore('성수-브런치-하우스');
     expect(publicStore?.store.name).toBe('성수 브런치 하우스');

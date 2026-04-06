@@ -1,13 +1,16 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, NavLink, Outlet, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
 import { AppFooter } from '@/shared/components/AppFooter';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { touchVisitorSession } from '@/shared/lib/services/publicPageService';
 import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { getPublicStore, getPublicStoreById } from '@/shared/lib/services/mvpService';
 import { buildStoreIdPath, buildStorePath } from '@/shared/lib/storeSlug';
+import { getOrCreateVisitorSessionState, saveVisitorSessionState } from '@/shared/lib/visitorSessionClient';
 
 type PublicStoreSnapshot = NonNullable<Awaited<ReturnType<typeof getPublicStore>>>;
 
@@ -16,6 +19,8 @@ export interface StorePublicContextValue {
   publicBasePath: string;
   publicStoreQueryKey: readonly unknown[];
   tableNo?: string;
+  visitorSessionId?: string;
+  visitorToken?: string;
 }
 
 export function useStorePublicContext() {
@@ -24,7 +29,10 @@ export function useStorePublicContext() {
 
 export function StorePublicLayout() {
   const params = useParams<{ storeSlug?: string; storeId?: string }>();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const [visitorSessionId, setVisitorSessionId] = useState<string | undefined>();
+  const [visitorToken, setVisitorToken] = useState<string | undefined>();
   const tableNo = searchParams.get('table') || undefined;
   const storeSlug = params.storeSlug || '';
   const storeId = params.storeId || '';
@@ -46,6 +54,56 @@ export function StorePublicLayout() {
     : 'MyBizLab 공개 스토어 화면입니다.';
 
   usePageMeta(pageTitle, pageDescription);
+
+  useEffect(() => {
+    const publicStore = publicStoreQuery.data;
+    if (!publicStore) {
+      return;
+    }
+
+    const sessionState = getOrCreateVisitorSessionState(publicStore.store.id);
+    const currentPath = `${location.pathname}${location.search}`;
+    const channel = currentPath.includes('/order') ? 'order' : currentPath.includes('/menu') ? 'menu' : 'home';
+    let cancelled = false;
+
+    setVisitorToken(sessionState.visitorToken);
+
+    void touchVisitorSession({
+      channel,
+      firstSeenAt: sessionState.firstSeenAt,
+      metadata: {
+        routeMode: isStoreIdRoute ? 'store-id' : 'slug',
+        tableNo: tableNo || null,
+      },
+      path: currentPath,
+      publicPageId: publicStore.publicPageId,
+      referrer: typeof document !== 'undefined' ? document.referrer : undefined,
+      sessionId: sessionState.sessionId,
+      storeId: publicStore.store.id,
+      visitorToken: sessionState.visitorToken,
+    })
+      .then((session) => {
+        if (cancelled) {
+          return;
+        }
+
+        setVisitorSessionId(session.id);
+        saveVisitorSessionState(publicStore.store.id, {
+          firstSeenAt: session.first_seen_at,
+          sessionId: session.id,
+          visitorToken: session.visitor_token,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVisitorSessionId(sessionState.sessionId);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isStoreIdRoute, location.pathname, location.search, publicStoreQuery.data, tableNo]);
 
   if (publicStoreQuery.isLoading) {
     return (
@@ -142,6 +200,8 @@ export function StorePublicLayout() {
             publicBasePath,
             publicStoreQueryKey,
             tableNo,
+            visitorSessionId,
+            visitorToken,
           }}
         />
       </main>

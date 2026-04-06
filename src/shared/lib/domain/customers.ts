@@ -1,3 +1,8 @@
+/**
+ * @deprecated Phase 2 introduces customerMemoryService and canonical customer
+ * memory repositories. Keep this helper only while legacy order flows are being
+ * phased over.
+ */
 import type { Customer } from '@/shared/types/models';
 import { createId } from '@/shared/lib/ids';
 

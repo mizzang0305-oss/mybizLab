@@ -53,7 +53,7 @@ export const diagnosisResultSchema = z.object({
   limitationsNote: z.string().trim().min(1),
   recommendedDataMode: diagnosisDataModeSchema,
   recommendedModules: z.array(z.enum(ALL_FEATURES)).min(3).max(6),
-  recommendedPlan: z.enum(['starter', 'pro', 'business']),
+  recommendedPlan: z.enum(['free', 'pro', 'vip']),
   recommendedQuestions: z.array(z.string().trim().min(1)).min(4).max(4),
   recommendedStoreMode: diagnosisRecommendedStoreModeSchema,
   recommendedStrategies: z.array(z.string().trim().min(1)).min(3).max(3),

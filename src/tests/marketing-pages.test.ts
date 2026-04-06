@@ -38,7 +38,7 @@ describe('marketing pages', () => {
   it('renders the onboarding page with pricing choices and checkout entry', () => {
     const html = renderRoute('/onboarding');
 
-    expect(html).toContain('Starter');
+    expect(html).toContain('FREE');
     expect(html).toContain('PortOne');
     expect(html).toContain('/pricing');
   });
@@ -66,8 +66,8 @@ describe('marketing pages', () => {
   it('keeps the pricing page reachable', () => {
     const html = renderRoute('/pricing');
 
-    expect(html).toContain('Starter');
-    expect(html).toContain('Pro');
-    expect(html).toContain('Business');
+    expect(html).toContain('FREE');
+    expect(html).toContain('PRO');
+    expect(html).toContain('VIP');
   });
 });

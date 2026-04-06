@@ -13,9 +13,17 @@ function readString(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
-function readPlan(value: unknown, fallback: SubscriptionPlan = 'starter'): SubscriptionPlan {
-  if (value === 'starter' || value === 'pro' || value === 'business' || value === 'enterprise') {
+function readPlan(value: unknown, fallback: SubscriptionPlan = 'free'): SubscriptionPlan {
+  if (value === 'free' || value === 'pro' || value === 'vip') {
     return value;
+  }
+
+  if (value === 'starter') {
+    return 'free';
+  }
+
+  if (value === 'business' || value === 'enterprise') {
+    return 'vip';
   }
 
   return fallback;
@@ -120,8 +128,8 @@ export function normalizeStoreRecord(
     created_at: store.created_at || fallback?.created_at || new Date().toISOString(),
     updated_at: store.updated_at || fallback?.updated_at || store.created_at || new Date().toISOString(),
     public_status: store.public_status ?? fallback?.public_status ?? 'public',
-    subscription_plan: readPlan(store.subscription_plan ?? store.plan, fallback?.subscription_plan ?? 'starter'),
-    plan: readPlan(store.plan ?? store.subscription_plan, fallback?.subscription_plan ?? 'starter'),
+    subscription_plan: readPlan(store.subscription_plan ?? store.plan, fallback?.subscription_plan ?? 'free'),
+    plan: readPlan(store.plan ?? store.subscription_plan, fallback?.subscription_plan ?? 'free'),
   };
 }
 
@@ -161,8 +169,8 @@ export function mapLiveStoreToAppStore(
     inquiry_enabled: existingStore?.inquiry_enabled ?? true,
     reservation_enabled: existingStore?.reservation_enabled ?? true,
     order_entry_enabled: existingStore?.order_entry_enabled ?? true,
-    subscription_plan: readPlan(row.plan ?? existingStore?.subscription_plan, 'starter'),
-    plan: readPlan(row.plan ?? existingStore?.plan, 'starter'),
+    subscription_plan: readPlan(row.plan ?? existingStore?.subscription_plan, 'free'),
+    plan: readPlan(row.plan ?? existingStore?.plan, 'free'),
     admin_email: existingStore?.admin_email || '',
     created_from_request_id: existingStore?.created_from_request_id,
     created_at: row.created_at || existingStore?.created_at || new Date().toISOString(),

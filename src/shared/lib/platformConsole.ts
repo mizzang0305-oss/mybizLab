@@ -29,10 +29,9 @@ export const STORE_VISIBILITY_LABELS: Record<StoreVisibility, string> = {
 };
 
 export const SUBSCRIPTION_PLAN_LABELS: Record<SubscriptionPlan, string> = {
-  starter: 'Starter',
-  pro: 'Pro',
-  business: 'Business',
-  enterprise: 'Enterprise',
+  free: 'FREE',
+  pro: 'PRO',
+  vip: 'VIP',
 };
 
 export const SETUP_STATUS_LABELS: Record<SetupPaymentStatus, string> = {

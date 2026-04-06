@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import checkoutHandler from '../../api/billing/checkout';
 import verifyHandler from '../../api/billing/verify';
@@ -72,7 +72,7 @@ describe('/api/billing checkout and verify handlers', () => {
 
     const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
-        body: JSON.stringify({ plan: 'starter' }),
+        body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
       }),
     );
@@ -128,7 +128,7 @@ describe('/api/billing checkout and verify handlers', () => {
           fullName: expect.any(String),
           phoneNumber: expect.any(String),
         },
-        orderName: 'Pro 월 구독',
+        orderName: 'PRO \uad6c\ub3c5',
         payMethod: 'CARD',
         plan: 'pro',
         storeId: 'store-v2-test',
@@ -185,3 +185,5 @@ describe('/api/billing checkout and verify handlers', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+

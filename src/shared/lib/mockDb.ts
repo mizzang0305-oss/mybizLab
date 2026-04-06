@@ -1,4 +1,5 @@
 import { createStoreFeatureId } from '@/shared/lib/domain/features';
+import { IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
 import { getStoreBrandConfig, normalizeStoreRecord } from '@/shared/lib/storeData';
 import type { MvpDatabase } from '@/shared/types/models';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
@@ -19,6 +20,14 @@ function canUseLocalStorage() {
 
 function canUseSessionStorage() {
   return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+}
+
+function assertDemoRuntime() {
+  if (IS_DEMO_RUNTIME) {
+    return;
+  }
+
+  throw new Error('Mock database access is disabled outside explicit demo runtime.');
 }
 
 function isStorageQuotaError(error: unknown) {
@@ -63,6 +72,10 @@ function normalizeDatabase(database: Record<string, unknown>) {
   } as MvpDatabase & { store_setup_requests?: MvpDatabase['store_requests'] };
 
   nextDatabase.store_requests = (database.store_requests as MvpDatabase['store_requests']) ?? nextDatabase.store_setup_requests ?? seeded.store_requests;
+  nextDatabase.store_subscriptions =
+    (database.store_subscriptions as MvpDatabase['store_subscriptions']) ?? seeded.store_subscriptions;
+  nextDatabase.store_public_pages =
+    (database.store_public_pages as MvpDatabase['store_public_pages']) ?? seeded.store_public_pages;
   nextDatabase.store_features = normalizeStoreFeatures((database.store_features as MvpDatabase['store_features']) ?? seeded.store_features);
   nextDatabase.stores = ((database.stores as MvpDatabase['stores']) ?? seeded.stores).map((store) => {
     const seededStore = seeded.stores.find((seededRecord) => seededRecord.id === store.id);
@@ -84,7 +97,7 @@ function normalizeDatabase(database: Record<string, unknown>) {
       inquiry_enabled: normalizedSeedStore.inquiry_enabled ?? true,
       reservation_enabled: normalizedSeedStore.reservation_enabled ?? true,
       order_entry_enabled: normalizedSeedStore.order_entry_enabled ?? true,
-      subscription_plan: normalizedSeedStore.subscription_plan ?? normalizedSeedStore.plan ?? 'starter',
+      subscription_plan: normalizedSeedStore.subscription_plan ?? normalizedSeedStore.plan ?? 'free',
       admin_email: normalizedSeedStore.admin_email ?? brandConfig.email,
     });
   });
@@ -116,7 +129,17 @@ function normalizeDatabase(database: Record<string, unknown>) {
     opening_hours: location.opening_hours ?? '매일 10:00 - 21:00',
   }));
   nextDatabase.store_notices = (database.store_notices as MvpDatabase['store_notices']) ?? seeded.store_notices;
+  nextDatabase.customer_contacts = (database.customer_contacts as MvpDatabase['customer_contacts']) ?? seeded.customer_contacts;
+  nextDatabase.customer_preferences =
+    (database.customer_preferences as MvpDatabase['customer_preferences']) ?? seeded.customer_preferences;
+  nextDatabase.customer_timeline_events =
+    (database.customer_timeline_events as MvpDatabase['customer_timeline_events']) ?? seeded.customer_timeline_events;
   nextDatabase.inquiries = (database.inquiries as MvpDatabase['inquiries']) ?? seeded.inquiries;
+  nextDatabase.conversation_sessions =
+    (database.conversation_sessions as MvpDatabase['conversation_sessions']) ?? seeded.conversation_sessions;
+  nextDatabase.conversation_messages =
+    (database.conversation_messages as MvpDatabase['conversation_messages']) ?? seeded.conversation_messages;
+  nextDatabase.visitor_sessions = (database.visitor_sessions as MvpDatabase['visitor_sessions']) ?? seeded.visitor_sessions;
   nextDatabase.billing_records = (database.billing_records as MvpDatabase['billing_records']) ?? seeded.billing_records;
   nextDatabase.admin_users = (database.admin_users as MvpDatabase['admin_users']) ?? seeded.admin_users;
   nextDatabase.system_status = (database.system_status as MvpDatabase['system_status']) ?? seeded.system_status;
@@ -203,6 +226,8 @@ function persistDatabaseSnapshot(database: MvpDatabase) {
 }
 
 export function getDatabase() {
+  assertDemoRuntime();
+
   if (memoryDatabase) {
     return cloneDatabase(memoryDatabase);
   }
@@ -224,6 +249,7 @@ export function getDatabase() {
 }
 
 export function saveDatabase(database: MvpDatabase) {
+  assertDemoRuntime();
   memoryDatabase = normalizeDatabase(cloneDatabase(database) as unknown as Record<string, unknown>);
 
   persistDatabaseSnapshot(memoryDatabase);
@@ -233,12 +259,14 @@ export function saveDatabase(database: MvpDatabase) {
 }
 
 export function updateDatabase(updater: (database: MvpDatabase) => void) {
+  assertDemoRuntime();
   const database = getDatabase();
   updater(database);
   return saveDatabase(database);
 }
 
 export function resetDatabase() {
+  assertDemoRuntime();
   const seeded = createSeedDatabase();
   return saveDatabase(seeded);
 }
