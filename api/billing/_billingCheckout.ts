@@ -1,6 +1,6 @@
-import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../shared/lib/billingPlans';
-import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData';
-import { BUSINESS_INFO } from '../shared/lib/siteConfig';
+import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans';
+import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../../src/shared/lib/checkoutCustomData';
+import { BUSINESS_INFO } from '../../src/shared/lib/siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const SERVER_ENV_HINT =
@@ -521,7 +521,7 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
       details: {
         receivedPlan: requestedPlan ?? null,
       },
-        message: 'Checkout requires plan to be one of free, pro, vip.',
+      message: 'Checkout requires plan to be one of free, pro, vip.',
       stage: 'request-body',
       status: 400,
     });

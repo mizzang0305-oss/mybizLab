@@ -2,7 +2,7 @@ import {
   createCheckoutErrorResponse,
   createCheckoutMethodNotAllowedResponse,
   handleCheckoutRequest,
-} from '../../src/server/billingCheckout';
+} from './_billingCheckout';
 
 export const config = {
   runtime: 'nodejs',

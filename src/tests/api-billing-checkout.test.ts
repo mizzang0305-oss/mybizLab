@@ -7,7 +7,7 @@ import {
   type CheckoutSessionPayload,
   type InvalidCheckoutSessionDetails,
   validateCheckoutSessionPayload,
-} from '../../src/server/billingCheckout';
+} from '../../api/billing/_billingCheckout';
 
 function createValidCheckoutCustomer(
   overrides: Partial<CheckoutCustomerPayload> = {},
