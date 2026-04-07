@@ -1,8 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { responseJson } from '@/server/billingApiRuntime';
 import { getSupabaseAdminClient } from '@/server/supabaseAdmin';
-import { createSupabaseRepository } from '@/shared/lib/repositories';
+import { createSupabaseRepository } from '@/shared/lib/repositories/supabaseRepository';
 import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '@/shared/lib/services/inquiryService';
 import {
   buildDefaultStorePublicPage,
@@ -27,6 +26,16 @@ import type {
   SurveyResponse,
   VisitorSession,
 } from '@/shared/types/models';
+
+function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?: Record<string, string>) {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      ...extraHeaders,
+    },
+  });
+}
 
 function parseJsonBody<T>(request: Request) {
   return request.json() as Promise<T>;
