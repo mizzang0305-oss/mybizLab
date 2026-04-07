@@ -1,7 +1,7 @@
 import { handlePublicInquiryRequest } from '../../src/server/publicApi';
 
 export const config = {
-  runtime: 'edge',
+  runtime: 'nodejs',
 };
 
 export default async function handler(request: Request) {

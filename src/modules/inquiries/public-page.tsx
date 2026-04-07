@@ -105,6 +105,7 @@ export function PublicInquiryPage() {
         visitorSessionId,
         visitorToken,
       }),
+
     onSuccess: async (result) => {
       if (result.visitorSessionId && visitorToken) {
         saveVisitorSessionState(storeId, {
