@@ -1,14 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getSupabaseAdminClient } from '@/server/supabaseAdmin';
-import { createSupabaseRepository } from '@/shared/lib/repositories/supabaseRepository';
-import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '@/shared/lib/services/inquiryService';
+import { getSupabaseAdminClient } from './supabaseAdmin.js';
+import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
+import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '../shared/lib/services/inquiryService.js';
 import {
   buildDefaultStorePublicPage,
   resolvePublicPageCapabilities,
   touchVisitorSession,
-} from '@/shared/lib/services/publicPageService';
-import { getStoreBrandConfig, normalizeStoreRecord } from '@/shared/lib/storeData';
+} from '../shared/lib/services/publicPageService.js';
+import { getStoreBrandConfig, getStoreRecordId, normalizeStoreRecord } from '../shared/lib/storeData.js';
 import type {
   Inquiry,
   MenuCategory,
@@ -25,7 +25,7 @@ import type {
   Survey,
   SurveyResponse,
   VisitorSession,
-} from '@/shared/types/models';
+} from '../shared/types/models.js';
 
 function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?: Record<string, string>) {
   return new Response(JSON.stringify(body, null, 2), {
@@ -37,8 +37,152 @@ function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?
   });
 }
 
-function parseJsonBody<T>(request: Request) {
-  return request.json() as Promise<T>;
+type PublicApiRequestLike =
+  | Request
+  | {
+      body?: unknown;
+      headers?: unknown;
+      method?: string;
+      rawBody?: unknown;
+      text?: () => Promise<string>;
+      url?: string;
+    };
+
+function isRequestWithText(request: PublicApiRequestLike): request is Request | { text: () => Promise<string> } {
+  return typeof request === 'object' && request !== null && typeof request.text === 'function';
+}
+
+function isArrayBufferView(value: unknown): value is ArrayBufferView {
+  return ArrayBuffer.isView(value);
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return typeof value === 'object' && value !== null && Symbol.asyncIterator in value;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function getHeaderValue(headers: unknown, key: string) {
+  if (headers instanceof Headers) {
+    return headers.get(key) || undefined;
+  }
+
+  if (!headers || typeof headers !== 'object') {
+    return undefined;
+  }
+
+  const match = Object.entries(headers as Record<string, unknown>).find(
+    ([candidate]) => candidate.toLowerCase() === key.toLowerCase(),
+  )?.[1];
+
+  if (typeof match === 'string') {
+    return match;
+  }
+
+  if (Array.isArray(match) && typeof match[0] === 'string') {
+    return match[0];
+  }
+
+  return undefined;
+}
+
+async function readRequestBodyText(request: PublicApiRequestLike) {
+  if (isRequestWithText(request)) {
+    return request.text();
+  }
+
+  const rawBody =
+    typeof request === 'object' && request !== null && 'rawBody' in request && request.rawBody !== undefined
+      ? request.rawBody
+      : typeof request === 'object' && request !== null && 'body' in request
+        ? request.body
+        : undefined;
+
+  if (rawBody === undefined || rawBody === null) {
+    return '';
+  }
+
+  if (typeof rawBody === 'string') {
+    return rawBody;
+  }
+
+  if (Buffer.isBuffer(rawBody)) {
+    return rawBody.toString('utf8');
+  }
+
+  if (rawBody instanceof ArrayBuffer) {
+    return Buffer.from(rawBody).toString('utf8');
+  }
+
+  if (isArrayBufferView(rawBody)) {
+    return Buffer.from(rawBody.buffer, rawBody.byteOffset, rawBody.byteLength).toString('utf8');
+  }
+
+  if (isPlainObject(rawBody)) {
+    return JSON.stringify(rawBody);
+  }
+
+  if (isAsyncIterable(rawBody)) {
+    const chunks: Uint8Array[] = [];
+
+    for await (const chunk of rawBody) {
+      if (typeof chunk === 'string') {
+        chunks.push(Buffer.from(chunk));
+        continue;
+      }
+
+      if (Buffer.isBuffer(chunk)) {
+        chunks.push(chunk);
+        continue;
+      }
+
+      if (chunk instanceof ArrayBuffer) {
+        chunks.push(Buffer.from(chunk));
+        continue;
+      }
+
+      if (isArrayBufferView(chunk)) {
+        chunks.push(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength));
+      }
+    }
+
+    return Buffer.concat(chunks).toString('utf8');
+  }
+
+  return String(rawBody);
+}
+
+async function parseJsonBody<T>(request: PublicApiRequestLike) {
+  const rawBody = await readRequestBodyText(request);
+
+  if (!rawBody.trim()) {
+    throw new Error('Request body is required.');
+  }
+
+  return JSON.parse(rawBody) as T;
+}
+
+function getRequestUrl(request: PublicApiRequestLike) {
+  const rawUrl = typeof request.url === 'string' && request.url.trim() ? request.url : '/';
+
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return new URL(rawUrl);
+  }
+
+  const protocol = getHeaderValue(request.headers, 'x-forwarded-proto') || 'https';
+  const host =
+    getHeaderValue(request.headers, 'x-forwarded-host') ||
+    getHeaderValue(request.headers, 'host') ||
+    'localhost';
+
+  return new URL(rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`, `${protocol}://${host}`);
 }
 
 function createPublicApiErrorResponse(error: unknown, status = 500) {
@@ -236,6 +380,7 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
   if (!store) {
     return null;
   }
+  const storeId = getStoreRecordId(store);
 
   const [
     page,
@@ -252,19 +397,19 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     orders,
     orderItems,
   ] = await Promise.all([
-    repository.getStorePublicPage(store.id),
-    selectOptionalList<StoreFeature>(client, 'store_features', store.id),
-    selectOptionalList<StoreLocation>(client, 'store_locations', store.id),
-    selectOptionalList<StoreMedia>(client, 'store_media', store.id, { column: 'sort_order', ascending: true }),
-    selectOptionalList<StoreNotice>(client, 'store_notices', store.id, { column: 'published_at', ascending: false }),
-    selectOptionalList<StoreTable>(client, 'store_tables', store.id, { column: 'table_no', ascending: true }),
-    selectOptionalList<MenuCategory>(client, 'menu_categories', store.id, { column: 'sort_order', ascending: true }),
-    selectOptionalList<MenuItem>(client, 'menu_items', store.id, { column: 'name', ascending: true }),
-    selectOptionalList<Survey>(client, 'surveys', store.id),
-    selectOptionalList<SurveyResponse>(client, 'survey_responses', store.id),
-    repository.listInquiries(store.id),
-    selectOptionalList<Order>(client, 'orders', store.id),
-    selectOptionalList<OrderItem>(client, 'order_items', store.id),
+    repository.getStorePublicPage(storeId),
+    selectOptionalList<StoreFeature>(client, 'store_features', storeId),
+    selectOptionalList<StoreLocation>(client, 'store_locations', storeId),
+    selectOptionalList<StoreMedia>(client, 'store_media', storeId, { column: 'sort_order', ascending: true }),
+    selectOptionalList<StoreNotice>(client, 'store_notices', storeId, { column: 'published_at', ascending: false }),
+    selectOptionalList<StoreTable>(client, 'store_tables', storeId, { column: 'table_no', ascending: true }),
+    selectOptionalList<MenuCategory>(client, 'menu_categories', storeId, { column: 'sort_order', ascending: true }),
+    selectOptionalList<MenuItem>(client, 'menu_items', storeId, { column: 'name', ascending: true }),
+    selectOptionalList<Survey>(client, 'surveys', storeId),
+    selectOptionalList<SurveyResponse>(client, 'survey_responses', storeId),
+    repository.listInquiries(storeId),
+    selectOptionalList<Order>(client, 'orders', storeId),
+    selectOptionalList<OrderItem>(client, 'order_items', storeId),
   ]);
 
   const sortedMedia = sortMedia(media);
@@ -324,8 +469,8 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     },
     tables: tables.filter((table) => table.is_active),
     location: {
-      id: primaryLocation?.id || `store_public_location_${store.id}`,
-      store_id: store.id,
+      id: primaryLocation?.id || `store_public_location_${storeId}`,
+      store_id: storeId,
       address: canonicalPage.address,
       directions: canonicalPage.directions,
       parking_note: canonicalPage.parking_note,
@@ -346,9 +491,9 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
   };
 }
 
-export async function handlePublicStoreRequest(request: Request) {
+export async function handlePublicStoreRequest(request: PublicApiRequestLike) {
   try {
-    const url = new URL(request.url);
+    const url = getRequestUrl(request);
     const storeId = url.searchParams.get('storeId') || undefined;
     const slug = url.searchParams.get('slug') || undefined;
 
@@ -367,9 +512,9 @@ export async function handlePublicStoreRequest(request: Request) {
   }
 }
 
-export async function handlePublicInquiryFormRequest(request: Request) {
+export async function handlePublicInquiryFormRequest(request: PublicApiRequestLike) {
   try {
-    const url = new URL(request.url);
+    const url = getRequestUrl(request);
     const storeId = url.searchParams.get('storeId');
 
     if (!storeId) {
@@ -388,7 +533,7 @@ export async function handlePublicInquiryFormRequest(request: Request) {
   }
 }
 
-export async function handlePublicVisitorSessionRequest(request: Request) {
+export async function handlePublicVisitorSessionRequest(request: PublicApiRequestLike) {
   try {
     const repository = createSupabaseRepository(getSupabaseAdminClient());
     const body = await parseJsonBody<Parameters<typeof touchVisitorSession>[0]>(request);
@@ -399,7 +544,7 @@ export async function handlePublicVisitorSessionRequest(request: Request) {
   }
 }
 
-export async function handlePublicInquiryRequest(request: Request) {
+export async function handlePublicInquiryRequest(request: PublicApiRequestLike) {
   try {
     const repository = createSupabaseRepository(getSupabaseAdminClient());
     const body = await parseJsonBody<Parameters<typeof submitCanonicalPublicInquiry>[0]>(request);

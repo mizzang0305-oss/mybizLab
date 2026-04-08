@@ -3,7 +3,7 @@ import { IS_LIVE_RUNTIME } from '@/shared/lib/appConfig';
 import { requestPublicApi } from '@/shared/lib/publicApiClient';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { getStoreBrandConfig } from '@/shared/lib/storeData';
+import { getStoreBrandConfig, getStoreRecordId } from '@/shared/lib/storeData';
 import type { Store, StoreFeature, StoreLocation, StoreMedia, StoreNotice, StorePublicPage, VisitorSession } from '@/shared/types/models';
 import { assertStoreEntitlement, getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
 
@@ -116,12 +116,13 @@ export function buildDefaultStorePublicPage(input: {
 }): StorePublicPage {
   const timestamp = input.store.updated_at || input.store.created_at;
   const brandConfig = getStoreBrandConfig(input.store);
-  const media = (input.media || []).filter((item) => item.store_id === input.store.id);
-  const notices = (input.notices || []).filter((item) => item.store_id === input.store.id);
+  const storeId = getStoreRecordId(input.store);
+  const media = (input.media || []).filter((item) => item.store_id === storeId);
+  const notices = (input.notices || []).filter((item) => item.store_id === storeId);
 
   return {
     id: createId('store_public_page'),
-    store_id: input.store.id,
+    store_id: storeId,
     slug: input.store.slug,
     brand_name: input.store.name,
     logo_url: input.store.logo_url,
@@ -181,10 +182,11 @@ export async function saveCanonicalStorePublicPage(
 ) {
   const repository = options?.repository || getCanonicalMyBizRepository();
   const timestamp = nowIso();
+  const storeId = getStoreRecordId(store);
 
   const nextPage: StorePublicPage = {
     id: currentPage?.id || createId('store_public_page'),
-    store_id: store.id,
+    store_id: storeId,
     slug: input.slug.trim(),
     brand_name: input.storeName.trim(),
     logo_url: input.logoUrl.trim() || undefined,
@@ -222,8 +224,8 @@ export async function saveCanonicalStorePublicPage(
       description: input.description.trim(),
       title: input.storeName.trim(),
     },
-    media: buildMedia(store.id, input, timestamp),
-    notices: buildNotices(store.id, input, timestamp),
+    media: buildMedia(storeId, input, timestamp),
+    notices: buildNotices(storeId, input, timestamp),
     created_at: currentPage?.created_at || timestamp,
     updated_at: timestamp,
   };
@@ -278,7 +280,7 @@ export async function touchVisitorSession(input: TouchVisitorSessionInput, optio
 
   if (input.sessionId) {
     try {
-      const existingSessions = await repository.listVisitorSessions(input.storeId, input.visitorToken);
+      const existingSessions = await repository.listVisitorSessions(input.storeId);
       existing = existingSessions.find((session) => session.id === input.sessionId) || null;
     } catch {
       existing = null;
