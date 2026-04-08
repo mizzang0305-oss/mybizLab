@@ -1,4 +1,5 @@
 import { createId } from '@/shared/lib/ids';
+import { getCustomerRecordId } from '@/shared/lib/domain/customerMemory';
 import {
   inquiryOwnerUpdateSchema,
   normalizeInquiryTags,
@@ -69,7 +70,7 @@ export async function listStoreInquiries(storeId: string) {
     .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
     .map((inquiry) => ({
       ...inquiry,
-      customer: customers.find((customer) => customer.id === inquiry.customer_id) || null,
+      customer: customers.find((customer) => getCustomerRecordId(customer) === inquiry.customer_id) || null,
     }));
 }
 
@@ -205,11 +206,12 @@ export async function submitCanonicalPublicInquiry(
     },
     { repository },
   );
+  const customerId = getCustomerRecordId(memoryRecord.customer);
 
   const conversationSession = await repository.saveConversationSession({
     id: conversationSessionId,
     store_id: storeId,
-    customer_id: memoryRecord.customer.id,
+    customer_id: customerId,
     inquiry_id: inquiryId,
     visitor_session_id: visitorSession.id,
     channel: 'public_inquiry',
@@ -223,7 +225,7 @@ export async function submitCanonicalPublicInquiry(
   await repository.appendTimelineEvent({
     id: createId('customer_timeline'),
     store_id: storeId,
-    customer_id: memoryRecord.customer.id,
+    customer_id: customerId,
     event_type: 'conversation_started',
     source: 'conversation',
     summary: '공개 문의 대화가 시작되었습니다.',
@@ -240,7 +242,7 @@ export async function submitCanonicalPublicInquiry(
   const inquiry = await repository.saveInquiry({
     id: inquiryId,
     store_id: storeId,
-    customer_id: memoryRecord.customer.id,
+    customer_id: customerId,
     conversation_session_id: conversationSession.id,
     visitor_session_id: visitorSession.id,
     customer_name: parsed.customerName,
@@ -262,7 +264,7 @@ export async function submitCanonicalPublicInquiry(
     id: createId('conversation_message'),
     store_id: storeId,
     conversation_session_id: conversationSession.id,
-    customer_id: memoryRecord.customer.id,
+    customer_id: customerId,
     inquiry_id: inquiry.id,
     sender: 'customer',
     body: parsed.message,
@@ -276,7 +278,7 @@ export async function submitCanonicalPublicInquiry(
   await repository.appendTimelineEvent({
     id: createId('customer_timeline'),
     store_id: storeId,
-    customer_id: memoryRecord.customer.id,
+    customer_id: customerId,
     event_type: 'conversation_message',
     source: 'conversation',
     summary: '고객 문의 메시지가 customer timeline에 기록되었습니다.',
@@ -293,7 +295,7 @@ export async function submitCanonicalPublicInquiry(
   await touchVisitorSession(
     {
       channel: 'inquiry',
-      customerId: memoryRecord.customer.id,
+      customerId: customerId,
       firstSeenAt: visitorSession.first_seen_at,
       inquiryId: inquiry.id,
       path: input.visitorPath?.trim() || `/s/${storeId}/inquiry`,

@@ -60,6 +60,17 @@ interface CheckoutEnv {
   storeId?: string;
 }
 
+type CheckoutRequestLike =
+  | Request
+  | {
+      body?: unknown;
+      headers?: unknown;
+      method?: string;
+      rawBody?: unknown;
+      text?: () => Promise<string>;
+      url?: string;
+    };
+
 type CheckoutSessionField =
   | 'channelKey'
   | 'customData'
@@ -485,8 +496,95 @@ function requireCheckoutEnv() {
   };
 }
 
-async function parseRequestBody(request: Request) {
-  const rawBody = await request.text();
+function isRequestWithText(request: CheckoutRequestLike): request is Request | { text: () => Promise<string> } {
+  return typeof request === 'object' && request !== null && typeof request.text === 'function';
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return typeof value === 'object' && value !== null && Symbol.asyncIterator in value;
+}
+
+function isArrayBufferView(value: unknown): value is ArrayBufferView {
+  return ArrayBuffer.isView(value);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+async function readRequestBodyText(request: CheckoutRequestLike) {
+  if (isRequestWithText(request)) {
+    return request.text();
+  }
+
+  const rawBody =
+    typeof request === 'object' && request !== null && 'rawBody' in request && request.rawBody !== undefined
+      ? request.rawBody
+      : typeof request === 'object' && request !== null && 'body' in request
+        ? request.body
+        : undefined;
+
+  if (rawBody === undefined || rawBody === null) {
+    return '';
+  }
+
+  if (typeof rawBody === 'string') {
+    return rawBody;
+  }
+
+  if (Buffer.isBuffer(rawBody)) {
+    return rawBody.toString('utf8');
+  }
+
+  if (rawBody instanceof ArrayBuffer) {
+    return Buffer.from(rawBody).toString('utf8');
+  }
+
+  if (isArrayBufferView(rawBody)) {
+    return Buffer.from(rawBody.buffer, rawBody.byteOffset, rawBody.byteLength).toString('utf8');
+  }
+
+  if (isPlainObject(rawBody)) {
+    return JSON.stringify(rawBody);
+  }
+
+  if (isAsyncIterable(rawBody)) {
+    const chunks: Uint8Array[] = [];
+
+    for await (const chunk of rawBody) {
+      if (typeof chunk === 'string') {
+        chunks.push(Buffer.from(chunk));
+        continue;
+      }
+
+      if (Buffer.isBuffer(chunk)) {
+        chunks.push(chunk);
+        continue;
+      }
+
+      if (chunk instanceof ArrayBuffer) {
+        chunks.push(Buffer.from(chunk));
+        continue;
+      }
+
+      if (isArrayBufferView(chunk)) {
+        chunks.push(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength));
+      }
+    }
+
+    return Buffer.concat(chunks).toString('utf8');
+  }
+
+  return String(rawBody);
+}
+
+async function parseRequestBody(request: CheckoutRequestLike) {
+  const rawBody = await readRequestBodyText(request);
 
   if (!rawBody.trim()) {
     throw new CheckoutApiError({
@@ -622,7 +720,7 @@ export function createCheckoutMethodNotAllowedResponse() {
   );
 }
 
-export async function handleCheckoutRequest(request: Request) {
+export async function handleCheckoutRequest(request: CheckoutRequestLike) {
   const env = requireCheckoutEnv();
   const body = await parseRequestBody(request);
 

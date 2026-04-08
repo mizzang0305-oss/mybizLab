@@ -29,6 +29,10 @@ function readPlan(value: unknown, fallback: SubscriptionPlan = 'free'): Subscrip
   return fallback;
 }
 
+export function getStoreRecordId(store: Pick<Store, 'id' | 'store_id'> | null | undefined) {
+  return store?.store_id || store?.id || '';
+}
+
 export function getStoreBrandConfig(
   store:
     | (Pick<Store, 'owner_name' | 'business_number' | 'phone' | 'email' | 'address' | 'business_type'> & Partial<Pick<Store, 'brand_config'>>)
@@ -121,9 +125,12 @@ export function normalizeStoreRecord(
   }>,
 ): Store {
   const brandConfig = getStoreBrandConfig(store);
+  const storeId = getStoreRecordId(store);
 
   return {
     ...withStoreBrandConfig(store, brandConfig),
+    id: storeId,
+    store_id: storeId,
     slug: store.slug,
     created_at: store.created_at || fallback?.created_at || new Date().toISOString(),
     updated_at: store.updated_at || fallback?.updated_at || store.created_at || new Date().toISOString(),

@@ -382,6 +382,70 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
   });
 
+  it('accepts a node-style parsed body object without request.text()', async () => {
+    const response = await checkoutHandler({
+      body: {
+        browserContext: {
+          appBaseUrl: 'https://example.com',
+          channelKey: 'channel-key-test',
+          storeId: 'store-v2-test',
+        },
+        plan: 'pro',
+      },
+      headers: {
+        host: 'example.com',
+      },
+      method: 'POST',
+      url: '/api/billing/checkout',
+    } as never);
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.checkout.storeId).toBe('store-v2-test');
+    expect(payload.checkout.channelKey).toBe('channel-key-test');
+  });
+
+  it('writes a node-style response when a server response object is provided', async () => {
+    const recorded = {
+      headers: new Map<string, string>(),
+      payload: null as unknown,
+      statusCode: 0,
+    };
+    const response = {
+      json(payload: unknown) {
+        recorded.payload = payload;
+        return payload;
+      },
+      setHeader(name: string, value: string) {
+        recorded.headers.set(name, value);
+        return value;
+      },
+      status(code: number) {
+        recorded.statusCode = code;
+        return this;
+      },
+    };
+
+    await checkoutHandler(
+      {
+        body: { plan: 'pro' },
+        headers: { host: 'example.com' },
+        method: 'POST',
+        url: '/api/billing/checkout',
+      } as never,
+      response as never,
+    );
+
+    expect(recorded.statusCode).toBe(200);
+    expect(recorded.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(recorded.payload).toMatchObject({
+      ok: true,
+      plan: 'pro',
+    });
+  });
+
   it('keeps only minimal ASCII-safe merchant data for onboarding checkout', async () => {
     const rawStoreName = '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4';
     const rawRegion = '\uC11C\uC6B8 \uC131\uC218\uB3D9';
