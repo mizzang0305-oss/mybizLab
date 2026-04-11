@@ -25,6 +25,7 @@ import {
   createCheckoutSession,
   launchPortOneCheckout,
 } from '@/shared/lib/portoneCheckout';
+import { BUSINESS_INFO } from '@/shared/lib/siteConfig';
 
 function createValidCheckoutCustomer(
   overrides: Partial<CheckoutCustomerPayload> = {},
@@ -245,6 +246,28 @@ describe('PortOne checkout client helpers', () => {
       redirectPath: '/onboarding?step=payment',
       source: 'onboarding-flow',
     });
+  });
+
+  it('uses the corrected business representative as the default checkout customer', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(createValidCheckoutSessionResponse()), {
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        status: 200,
+      }),
+    ) as typeof fetch;
+
+    await createCheckoutSession('pro');
+
+    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
+    const requestBody = JSON.parse(String(fetchCall?.[1]?.body));
+
+    expect(requestBody.customer).toMatchObject({
+      email: BUSINESS_INFO.email,
+      fullName: '이정민',
+      phoneNumber: BUSINESS_INFO.customerCenter,
+    });
+    expect(requestBody.customer.fullName).toBe(BUSINESS_INFO.representative);
+    expect(requestBody.customer.fullName).not.toBe('이정미');
   });
 
   it('returns a clear error when checkout API responds with JSON', async () => {

@@ -70,4 +70,11 @@ describe('marketing pages', () => {
     expect(html).toContain('PRO');
     expect(html).toContain('VIP');
   });
+
+  it('renders the corrected business representative in shared legal surfaces', () => {
+    const html = renderRoute('/pricing');
+
+    expect(html).toContain('대표자: 이정민');
+    expect(html).not.toContain('이정미');
+  });
 });

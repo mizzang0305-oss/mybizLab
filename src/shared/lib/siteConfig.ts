@@ -9,7 +9,7 @@ export const SUBSCRIPTION_START_PATH = '/onboarding';
 
 export const BUSINESS_INFO = {
   companyName: '마이비즈랩',
-  representative: '이정미',
+  representative: '이정민',
   businessRegistrationNumber: '741-01-03857',
   ecommerceRegistrationNumber: '2026-인천남동구-0346',
   address: '인천광역시 남동구 만수서로 101, 121-1(만수동, 유한프라자)',
