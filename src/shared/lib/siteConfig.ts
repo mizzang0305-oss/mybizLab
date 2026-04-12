@@ -1,8 +1,8 @@
 export const SITE_NAME = '마이비즈랩';
 export const SERVICE_DOMAIN = 'mybiz.ai.kr';
-export const SERVICE_TAGLINE = '스토어 AI 진단과 운영 개선을 돕는 소상공인 운영 AI 플랫폼';
+export const SERVICE_TAGLINE = '고객 기억으로 재방문 매출을 만드는 매장 운영 SaaS';
 export const SERVICE_DESCRIPTION =
-  'MyBizLab은 고객관리, 예약, 주문, 매출 데이터를 기반으로 AI가 매장 운영을 진단하고 성장 전략을 제안하는 소상공인 운영 AI 플랫폼입니다.';
+  'MyBizLab은 공개페이지 유입, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결하고 다음 행동을 추천해 재방문 매출로 이어주는 매장 운영 SaaS입니다.';
 export const POLICY_UPDATED_AT = '2026년 3월 14일';
 export const SUPPORT_PHONE_NUMBER = '032-214-5757';
 export const SUBSCRIPTION_START_PATH = '/onboarding';

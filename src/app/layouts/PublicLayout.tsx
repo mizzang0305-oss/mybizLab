@@ -48,7 +48,7 @@ export function PublicLayout() {
                   관리자 로그인
                 </Link>
                 <Link className="btn-primary" to={SUBSCRIPTION_START_PATH}>
-                  스토어 AI 진단 시작
+                  무료 공개페이지 시작
                 </Link>
               </div>
             </div>
