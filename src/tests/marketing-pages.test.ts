@@ -23,10 +23,18 @@ function renderRoute(pathname: string) {
 }
 
 describe('marketing pages', () => {
-  it('renders the landing page with the main entry links and no public route exposure', () => {
+  it('renders the redesigned landing page with the customer-memory story and conversion path', () => {
     const html = renderRoute('/');
 
-    expect(html).toContain('AI');
+    expect(html).toContain('고객을 기억하는 매장 시스템');
+    expect(html).toContain('흩어진 문의·예약·웨이팅을 한 고객 기억으로 묶어, 단골 매출로 바꾸세요');
+    expect(html).toContain('무료 공개페이지 시작');
+    expect(html).toContain('운영 데모 보기');
+    expect(html).toContain('기억이 없으면, 재방문 매출도 남지 않습니다');
+    expect(html).toContain('유입부터 다음 행동 추천까지, 한 흐름으로 연결됩니다');
+    expect(html).toContain('FREE로 유입을 만들고, PRO와 VIP로 운영을 확장합니다');
+    expect(html).toContain('공개 유입');
+    expect(html).toContain('고객 타임라인');
     expect(html).toContain('/onboarding');
     expect(html).toContain('/pricing');
     expect(html).toContain('/login');
