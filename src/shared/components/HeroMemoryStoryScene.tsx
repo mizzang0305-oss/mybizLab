@@ -76,8 +76,8 @@ function buildFocalMotion(active: boolean, prefersReducedMotion: boolean) {
 
   return {
     opacity: 1,
-    scale: [1, 1.012, 1],
-    y: [0, -4, 0],
+    scale: 1,
+    y: 0,
   };
 }
 
@@ -210,33 +210,31 @@ export function HeroMemoryStoryScene() {
               animate={buildFocalMotion(true, prefersReducedMotion)}
               initial={prefersReducedMotion ? false : { opacity: 0, y: 16, scale: 0.97 }}
               exit={prefersReducedMotion ? undefined : { opacity: 0, y: -12, scale: 0.985 }}
-              transition={{
-                duration: 0.5,
-                ease: 'easeOut',
-                scale: {
-                  duration: 2.4,
-                  repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY,
-                  ease: 'easeInOut',
-                },
-                y: {
-                  duration: 2.4,
-                  repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY,
-                  ease: 'easeInOut',
-                },
-              }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{currentStage.eyebrow}</p>
                   <h3 className="mt-3 text-[1.35rem] font-semibold leading-[1.3] text-white sm:text-[1.45rem]">{currentStage.title}</h3>
                 </div>
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-orange-100">
+                <motion.div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-orange-100"
+                  animate={
+                    prefersReducedMotion
+                      ? { scale: 1, borderColor: 'rgba(255,255,255,0.1)' }
+                      : {
+                          scale: [1, 1.06, 1],
+                          borderColor: ['rgba(255,255,255,0.1)', 'rgba(251,191,36,0.32)', 'rgba(255,255,255,0.1)'],
+                        }
+                  }
+                  transition={{ duration: 1.6, repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
+                >
                   {currentStage.key === 'arrival' ? <Icons.Globe size={18} /> : null}
                   {currentStage.key === 'capture' ? <Icons.Message size={18} /> : null}
                   {currentStage.key === 'memory' ? <Icons.Users size={18} /> : null}
                   {currentStage.key === 'recommend' ? <Icons.Zap size={18} /> : null}
                   {currentStage.key === 'revenue' ? <Icons.Chart size={18} /> : null}
-                </div>
+                </motion.div>
               </div>
 
               <p className="mt-4 text-sm leading-6 text-slate-300 sm:text-[15px]">{currentStage.description}</p>
