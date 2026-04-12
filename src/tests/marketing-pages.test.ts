@@ -27,7 +27,10 @@ describe('marketing pages', () => {
     const html = renderRoute('/');
 
     expect(html).toContain('고객을 기억하는 매장 시스템');
-    expect(html).toContain('흩어진 문의·예약·웨이팅을 한 고객 기억으로 묶어, 단골 매출로 바꾸세요');
+    expect(html).toContain('문의·예약·웨이팅을');
+    expect(html).toContain('한 고객 기억으로 묶어');
+    expect(html).toContain('단골 매출로 바꾸세요');
+    expect(html).toContain('무료 공개페이지로 유입을 받고, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결해 다음 행동까지 추천합니다.');
     expect(html).toContain('무료 공개페이지 시작');
     expect(html).toContain('운영 데모 보기');
     expect(html).toContain('기억이 없으면, 재방문 매출도 남지 않습니다');
