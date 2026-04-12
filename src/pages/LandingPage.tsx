@@ -98,22 +98,24 @@ export function LandingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(236,91,19,0.16),transparent_24%),radial-gradient(circle_at_84%_18%,rgba(59,130,246,0.14),transparent_22%),linear-gradient(180deg,#080a0f_0%,#0b0f15_48%,#07090d_100%)]" />
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:34px_34px]" />
 
-        <div className="page-shell relative py-12 sm:py-16 lg:py-20">
-          <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16">
-            <div className="max-w-[37rem] space-y-8">
-              <div className="space-y-4">
+        <div className="page-shell relative py-14 sm:py-20 lg:py-24">
+          <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:gap-24">
+            <div className="max-w-[38rem] space-y-10 sm:space-y-12">
+              <div className="space-y-6 sm:space-y-7">
                 <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-100">
                   고객을 기억하는 매장 시스템
                 </span>
-                <h1 className="max-w-[11.4ch] text-balance font-display text-[2.5rem] font-black leading-[1.04] tracking-[-0.04em] text-white sm:text-[3.35rem] lg:text-[4.5rem]">
-                  흩어진 문의·예약·웨이팅을 한 고객 기억으로 묶어, 단골 매출로 바꾸세요
+                <h1 className="font-display text-[2.45rem] font-black leading-[1.05] tracking-[-0.045em] text-white [word-break:keep-all] [text-wrap:balance] sm:text-[3.15rem] lg:text-[3.95rem]">
+                  <span className="block">문의·예약·웨이팅을</span>
+                  <span className="mt-1.5 block sm:mt-2">한 고객 기억으로 묶어</span>
+                  <span className="mt-1.5 block sm:mt-2">단골 매출로 바꾸세요</span>
                 </h1>
                 <p className="max-w-[34rem] text-pretty text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
-                  무료 공개페이지로 유입 받고, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결해 다음 행동까지 추천합니다.
+                  무료 공개페이지로 유입을 받고, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결해 다음 행동까지 추천합니다.
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-3.5 sm:flex-row">
                 <Link className="btn-primary min-w-[180px]" to={SUBSCRIPTION_START_PATH}>
                   무료 공개페이지 시작
                 </Link>
@@ -125,8 +127,8 @@ export function LandingPage() {
                 </Link>
               </div>
 
-              <div className="border-t border-white/10 pt-4">
-                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-300">
+              <div className="border-t border-white/10 pt-5 sm:pt-6">
+                <div className="flex flex-wrap gap-x-5 gap-y-2.5 text-sm text-slate-300">
                   {proofItems.map((item) => (
                     <span key={item} className="inline-flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-orange-300" />
