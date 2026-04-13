@@ -83,25 +83,25 @@ function buildFocalMotion(active: boolean, prefersReducedMotion: boolean) {
 
 export function HeroMemoryStoryScene() {
   const prefersReducedMotion = useReducedMotion() ?? false;
-  const [stageIndex, setStageIndex] = useState(prefersReducedMotion ? storyStages.length - 1 : 0);
-  const currentStage = storyStages[stageIndex] ?? storyStages[storyStages.length - 1];
+  const [stageIndex, setStageIndex] = useState(0);
+  const currentStage = storyStages[stageIndex] ?? storyStages[0];
 
   useEffect(() => {
     if (prefersReducedMotion) {
-      setStageIndex(storyStages.length - 1);
+      setStageIndex(0);
       return;
     }
 
     const intervalId = window.setInterval(() => {
       setStageIndex((current) => (current + 1) % storyStages.length);
-    }, 2800);
+    }, 3200);
 
     return () => window.clearInterval(intervalId);
   }, [prefersReducedMotion]);
 
   return (
     <div className="relative mx-auto w-full max-w-[600px]">
-      <div className="mb-4 grid grid-cols-5 gap-2 sm:mb-5 sm:gap-3">
+      <div className="mb-3 grid grid-cols-5 gap-2 sm:mb-4 sm:gap-3">
         {storyStages.map((stage, index) => {
           const active = index === stageIndex;
           const reached = index < stageIndex;
@@ -111,10 +111,15 @@ export function HeroMemoryStoryScene() {
               <div
                 className={[
                   'h-[2px] rounded-full transition',
-                  active ? 'bg-white/70' : reached ? 'bg-white/30' : 'bg-white/10',
+                  active ? 'bg-white/58' : reached ? 'bg-white/18' : 'bg-white/8',
                 ].join(' ')}
               />
-              <p className={['mt-2 text-[10px] font-medium tracking-[0.12em] transition', active ? 'text-slate-300' : 'text-slate-500'].join(' ')}>
+              <p
+                className={[
+                  'mt-2 text-[9px] font-medium tracking-[0.1em] transition sm:text-[10px]',
+                  active ? 'text-slate-400' : reached ? 'text-slate-500' : 'text-slate-600',
+                ].join(' ')}
+              >
                 {stage.label}
               </p>
             </div>
@@ -177,29 +182,58 @@ export function HeroMemoryStoryScene() {
         </svg>
 
         <motion.div
-          className="absolute left-4 top-16 z-10 w-[132px] rounded-[26px] border border-white/8 bg-white/[0.03] p-3 text-white/70 backdrop-blur-[10px] sm:left-6 sm:top-18 sm:w-[148px]"
-          animate={prefersReducedMotion ? { opacity: 0.34, y: 0 } : { opacity: [0.24, 0.36, 0.24], y: [0, -2, 0] }}
-          transition={{ duration: 4.2, repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
+          aria-hidden="true"
+          className="absolute left-4 top-[86px] z-10 w-[126px] rounded-[28px] border border-white/6 bg-white/[0.02] p-3 backdrop-blur-[14px] sm:left-6 sm:top-[94px] sm:w-[146px]"
+          animate={
+            prefersReducedMotion
+              ? { opacity: 0.18, y: 0, scale: 1 }
+              : {
+                  opacity: stageIndex <= 1 ? 0.24 : 0.12,
+                  y: stageIndex === 0 ? -2 : 0,
+                  scale: stageIndex === 0 ? 1.01 : 0.985,
+                }
+          }
+          transition={{ duration: 0.55, ease: 'easeOut' }}
           style={{ filter: 'blur(1.6px)' }}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">START</p>
-          <div className="mt-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.05] text-slate-300">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-orange-200/50" />
+            <span className="h-px flex-1 rounded-full bg-white/10" />
+          </div>
+          <div className="mt-4 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04] text-slate-400">
             <Icons.Globe size={16} />
           </div>
-          <p className="mt-3 text-sm font-medium text-slate-300">공개 유입</p>
+          <div className="mt-4 space-y-2.5">
+            <div className="h-2 rounded-full bg-white/[0.06]" />
+            <div className="h-2 w-[72%] rounded-full bg-white/[0.04]" />
+          </div>
         </motion.div>
 
         <motion.div
-          className="absolute bottom-10 right-4 z-10 w-[146px] rounded-[26px] border border-white/8 bg-white/[0.03] p-3 text-white/70 backdrop-blur-[10px] sm:bottom-12 sm:right-6 sm:w-[162px]"
-          animate={prefersReducedMotion ? { opacity: 0.34, y: 0 } : { opacity: [0.24, 0.36, 0.24], y: [0, 2, 0] }}
-          transition={{ duration: 4.4, repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY, ease: 'easeInOut', delay: 0.18 }}
+          aria-hidden="true"
+          className="absolute bottom-11 right-4 z-10 w-[138px] rounded-[28px] border border-white/6 bg-white/[0.02] p-3 backdrop-blur-[14px] sm:bottom-12 sm:right-6 sm:w-[156px]"
+          animate={
+            prefersReducedMotion
+              ? { opacity: 0.12, y: 0, scale: 0.985 }
+              : {
+                  opacity: currentStage.key === 'revenue' ? 0.24 : 0.1,
+                  y: currentStage.key === 'revenue' ? 1 : 0,
+                  scale: currentStage.key === 'revenue' ? 1 : 0.975,
+                }
+          }
+          transition={{ duration: 0.55, ease: 'easeOut' }}
           style={{ filter: 'blur(1.6px)' }}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">OUTCOME</p>
-          <div className="mt-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.05] text-slate-300">
+          <div className="flex justify-end">
+            <span className="h-7 w-7 rounded-2xl border border-white/8 bg-white/[0.03]" />
+          </div>
+          <div className="mt-4 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04] text-slate-400">
             <Icons.Chart size={16} />
           </div>
-          <p className="mt-3 text-sm font-medium text-slate-300">반복 매출</p>
+          <div className="mt-4 space-y-2.5">
+            <div className="h-2.5 w-[68%] rounded-full bg-white/[0.05]" />
+            <div className="h-2.5 w-[84%] rounded-full bg-white/[0.04]" />
+          </div>
         </motion.div>
 
         <div className="absolute inset-x-4 top-[72px] z-20 sm:inset-x-0 sm:top-[82px]">

@@ -98,17 +98,17 @@ export function LandingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(236,91,19,0.16),transparent_24%),radial-gradient(circle_at_84%_18%,rgba(59,130,246,0.14),transparent_22%),linear-gradient(180deg,#080a0f_0%,#0b0f15_48%,#07090d_100%)]" />
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:34px_34px]" />
 
-        <div className="page-shell relative py-14 sm:py-20 lg:py-24">
-          <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:gap-24">
-            <div className="max-w-[38rem] space-y-10 sm:space-y-12">
-              <div className="space-y-6 sm:space-y-7">
+        <div className="page-shell relative py-16 sm:py-22 lg:py-28">
+          <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)] lg:gap-20 xl:gap-24">
+            <div className="max-w-[41rem] space-y-11 sm:space-y-13">
+              <div className="space-y-7 sm:space-y-8">
                 <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-100">
                   고객을 기억하는 매장 시스템
                 </span>
-                <h1 className="font-display text-[2.45rem] font-black leading-[1.05] tracking-[-0.045em] text-white [word-break:keep-all] [text-wrap:balance] sm:text-[3.15rem] lg:text-[3.95rem]">
-                  <span className="block">문의·예약·웨이팅을</span>
-                  <span className="mt-1.5 block sm:mt-2">한 고객 기억으로 묶어</span>
-                  <span className="mt-1.5 block sm:mt-2">단골 매출로 바꾸세요</span>
+                <h1 className="max-w-[13.8ch] font-display text-[2.35rem] font-black leading-[1.08] tracking-[-0.05em] text-white [word-break:keep-all] [text-wrap:balance] sm:text-[3rem] lg:max-w-[14.8ch] lg:text-[3.32rem] xl:max-w-[15.4ch] xl:text-[3.62rem]">
+                  <span className="block lg:whitespace-nowrap">문의·예약·웨이팅을</span>
+                  <span className="mt-1.5 block lg:whitespace-nowrap">한 고객 기억으로 묶어</span>
+                  <span className="mt-1.5 block lg:whitespace-nowrap">단골 매출로 바꾸세요</span>
                 </h1>
                 <p className="max-w-[34rem] text-pretty text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
                   무료 공개페이지로 유입을 받고, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결해 다음 행동까지 추천합니다.
