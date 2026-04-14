@@ -23,31 +23,30 @@ function renderRoute(pathname: string) {
 }
 
 describe('marketing pages', () => {
-  it('renders the landing page with the diagnosis-flow rail and customer-memory sections', () => {
+  it('renders the landing page as a diagnosis film with the arrival-first stage', () => {
     const html = renderRoute('/');
 
     expect(html).toContain('고객을 기억하는 매장 시스템');
-    expect(html).toContain('고객 흐름을 진단해');
-    expect(html).toContain('다음 단골 매출');
-    expect(html).toContain('행동을 찾으세요');
-    expect(html).toContain('스토어 확인부터 운영 데이터 연결, 고객 흐름 진단, 실행안 도출까지.');
+    expect(html).toContain('문의·예약·웨이팅을');
+    expect(html).toContain('한 고객 기억으로 묶어');
+    expect(html).toContain('단골 매출로 바꾸세요');
+    expect(html).toContain('무료 공개페이지로 유입을 받고, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결해 다음 행동까지 추천합니다.');
     expect(html).toContain('01');
     expect(html).toContain('스토어 확인');
-    expect(html).toContain('운영 데이터 연결');
-    expect(html).toContain('고객 흐름 진단');
+    expect(html).toContain('신호 수집');
+    expect(html).toContain('고객 기억 결합');
     expect(html).toContain('실행안 도출');
+    expect(html).toContain('매출 회수');
     expect(html).toContain('#store-check');
-    expect(html).toContain('#operations-connect');
-    expect(html).toContain('#customer-flow-diagnosis');
+    expect(html).toContain('#signal-capture');
+    expect(html).toContain('#memory-merge');
     expect(html).toContain('#action-plan');
-    expect(html).toContain('매장과 운영 문맥을 먼저 확인합니다');
+    expect(html).toContain('#revenue-recovery');
+    expect(html).toContain('방문자가 공개페이지에 도착합니다');
+    expect(html).not.toContain('기억은 반복 방문과 객단가로 돌아옵니다');
     expect(html).toContain('무료 공개페이지 시작');
     expect(html).toContain('운영 데모 보기');
-    expect(html).toContain('매장 문맥이 보여야, 필요한 고객 기억도 보입니다');
-    expect(html).toContain('공개 유입과 운영 신호가 한 고객 흐름으로 들어옵니다');
-    expect(html).toContain('고객 카드와 타임라인이 운영 병목과 재방문 신호를 보여줍니다');
-    expect(html).toContain('다음 행동이 보이면, 재방문과 객단가가 함께 움직입니다');
-    expect(html).toContain('FREE로 유입을 시작하고, PRO와 VIP로 운영과 재방문 매출을 확장합니다');
+    expect(html).toContain('FREE로 유입을 만들고, PRO와 VIP로 고객 기억과 반복 매출을 확장합니다');
     expect(html).toContain('/onboarding');
     expect(html).toContain('/pricing');
     expect(html).toContain('/login');
