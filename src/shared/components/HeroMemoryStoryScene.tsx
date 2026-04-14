@@ -1,255 +1,124 @@
-import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 import { Icons } from '@/shared/components/Icons';
 
-type StoryStageKey = 'arrival' | 'capture' | 'memory' | 'recommend' | 'revenue';
+export type DiagnosisHeroStepId = 'store-check' | 'operations-connect' | 'customer-flow-diagnosis' | 'action-plan';
 
-const storyStages = [
-  {
-    key: 'arrival',
-    label: '유입',
-    eyebrow: 'PUBLIC PAGE',
-    title: '방문자가 공개페이지에 도착합니다',
-    description: '첫 방문이 어떤 채널에서 들어왔는지부터 남겨, 다음 행동의 시작점을 만듭니다.',
-    note: '지도 · 링크 유입',
-  },
-  {
-    key: 'capture',
-    label: '수집',
-    eyebrow: 'ACTION CAPTURE',
-    title: '문의·예약·웨이팅이 같은 흐름으로 모입니다',
-    description: '서로 다른 행동 채널을 따로 흩어두지 않고, 응대에 바로 쓰이는 신호로 연결합니다.',
-    note: '문의 / AI 상담 / 예약 / 웨이팅',
-  },
-  {
-    key: 'memory',
-    label: '기억',
-    eyebrow: 'CUSTOMER MEMORY',
-    title: '새 고객은 만들고, 다시 온 고객은 이어 붙입니다',
-    description: '행동이 고객 카드와 타임라인으로 이어져 매번 처음 응대하는 운영을 줄입니다.',
-    note: '고객 카드 + 타임라인',
-  },
-  {
-    key: 'recommend',
-    label: '추천',
-    eyebrow: 'NEXT ACTION',
-    title: '지금 가장 가까운 다음 행동을 제안합니다',
-    description: '재방문 메시지, 예약 유도, 현장 응대 우선순위를 고객 맥락에 맞게 고릅니다.',
-    note: '재방문 유도 추천',
-  },
-  {
-    key: 'revenue',
-    label: '매출',
-    eyebrow: 'REPEAT REVENUE',
-    title: '기억은 반복 방문과 객단가로 돌아옵니다',
-    description: '놓쳤던 고객 흐름이 다시 이어지면서 단골 매출과 다음 기회가 함께 쌓이기 시작합니다.',
-    note: '재방문 · 추가 제안',
-  },
+const sourceSignals = [
+  { label: '공개 유입', icon: Icons.Globe },
+  { label: '문의/상담', icon: Icons.Message },
+  { label: '예약', icon: Icons.Reservation },
+  { label: '웨이팅', icon: Icons.Waiting },
 ] as const;
 
-const actionSignals = [
-  { key: 'inquiry', label: '문의', icon: Icons.Message },
-  { key: 'reservation', label: '예약', icon: Icons.Reservation },
-  { key: 'waiting', label: '웨이팅', icon: Icons.Waiting },
-] as const;
-
-const timelinePreview = [
-  { label: '공개페이지 방문', detail: '첫 유입 기록' },
-  { label: '예약 요청', detail: '주말 브런치 2인' },
-] as const;
-
-const revenueBars = [42, 60, 78] as const;
-
-function stageReached(currentStage: StoryStageKey, targetStage: StoryStageKey) {
-  return storyStages.findIndex((stage) => stage.key === currentStage) >= storyStages.findIndex((stage) => stage.key === targetStage);
-}
-
-function buildFocalMotion(active: boolean, prefersReducedMotion: boolean) {
-  if (prefersReducedMotion) {
-    return { opacity: 1, scale: 1, y: 0 };
+const heroStageContent: Record<
+  DiagnosisHeroStepId,
+  {
+    eyebrow: string;
+    title: string;
+    description: string;
   }
+> = {
+  'store-check': {
+    eyebrow: 'STORE CHECK',
+    title: '매장과 운영 문맥을 먼저 확인합니다',
+    description: '업종, 피크 타임, 현장 대기 강도를 먼저 이해해야 어떤 고객 기억이 필요한지 정확해집니다.',
+  },
+  'operations-connect': {
+    eyebrow: 'OPERATIONS CONNECT',
+    title: '운영 신호를 한 흐름으로 연결합니다',
+    description: '공개 유입, 문의, 예약, 웨이팅이 같은 고객 흐름으로 들어와야 다음 타임라인이 또렷해집니다.',
+  },
+  'customer-flow-diagnosis': {
+    eyebrow: 'CUSTOMER FLOW',
+    title: '고객 카드와 타임라인으로 병목을 읽습니다',
+    description: '같은 고객의 이력이 이어지면 어디에서 전환이 끊겼는지, 누가 다시 올 가능성이 높은지 보입니다.',
+  },
+  'action-plan': {
+    eyebrow: 'ACTION PLAN',
+    title: '다음 행동과 매출 기회를 실행안으로 남깁니다',
+    description: '재방문 타깃, 업셀 힌트, 운영자 추천이 남아야 고객 기억이 실제 매출로 이어집니다.',
+  },
+};
 
-  if (!active) {
-    return { opacity: 0.9, scale: 1, y: 0 };
-  }
-
-  return {
-    opacity: 1,
-    scale: 1,
-    y: 0,
-  };
-}
-
-export function HeroMemoryStoryScene() {
+export function HeroMemoryStoryScene({ activeStep }: { activeStep: DiagnosisHeroStepId }) {
   const prefersReducedMotion = useReducedMotion() ?? false;
-  const [stageIndex, setStageIndex] = useState(0);
-  const currentStage = storyStages[stageIndex] ?? storyStages[0];
-
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      setStageIndex(0);
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      setStageIndex((current) => (current + 1) % storyStages.length);
-    }, 3200);
-
-    return () => window.clearInterval(intervalId);
-  }, [prefersReducedMotion]);
+  const currentStage = heroStageContent[activeStep];
 
   return (
-    <div className="relative mx-auto w-full max-w-[600px]">
-      <div className="mb-3 grid grid-cols-5 gap-2 sm:mb-4 sm:gap-3">
-        {storyStages.map((stage, index) => {
-          const active = index === stageIndex;
-          const reached = index < stageIndex;
-
-          return (
-            <div key={stage.key} className="min-w-0">
-              <div
-                className={[
-                  'h-[2px] rounded-full transition',
-                  active ? 'bg-white/58' : reached ? 'bg-white/18' : 'bg-white/8',
-                ].join(' ')}
-              />
-              <p
-                className={[
-                  'mt-2 text-[9px] font-medium tracking-[0.1em] transition sm:text-[10px]',
-                  active ? 'text-slate-400' : reached ? 'text-slate-500' : 'text-slate-600',
-                ].join(' ')}
-              >
-                {stage.label}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="relative min-h-[350px] overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,13,19,0.98),rgba(7,9,13,0.98))] p-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,0.92)] sm:min-h-[410px] sm:p-5">
+    <div className="relative mx-auto w-full max-w-[620px]" data-hero-step={activeStep}>
+      <div className="relative min-h-[390px] overflow-hidden rounded-[38px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,13,19,0.98),rgba(7,9,13,0.98))] p-4 shadow-[0_36px_110px_-52px_rgba(0,0,0,0.92)] sm:min-h-[430px] sm:p-5">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(236,91,19,0.12),transparent_24%),radial-gradient(circle_at_82%_18%,rgba(59,130,246,0.12),transparent_20%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]" />
-        <div className="absolute inset-0 opacity-16 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:28px_28px]" />
-
-        <svg className="absolute inset-0 h-full w-full" fill="none" viewBox="0 0 620 420">
-          <motion.path
-            d="M 112 126 C 184 162, 244 180, 308 206"
-            stroke="rgba(148,163,184,0.22)"
-            strokeDasharray="8 10"
-            strokeLinecap="round"
-            strokeWidth="2.4"
-            animate={
-              prefersReducedMotion
-                ? { opacity: 0.28, pathLength: 1 }
-                : {
-                    opacity: stageReached(currentStage.key, 'capture') ? [0.18, 0.36, 0.18] : 0.14,
-                    pathLength: stageReached(currentStage.key, 'capture') ? 1 : 0.45,
-                  }
-            }
-            transition={{
-              duration: 1,
-              opacity: {
-                duration: 2.4,
-                repeat: prefersReducedMotion || !stageReached(currentStage.key, 'capture') ? 0 : Number.POSITIVE_INFINITY,
-                ease: 'easeInOut',
-              },
-            }}
-          />
-          <motion.path
-            d="M 316 216 C 388 226, 448 248, 506 298"
-            stroke="rgba(74,222,128,0.22)"
-            strokeDasharray="8 10"
-            strokeLinecap="round"
-            strokeWidth="2.4"
-            animate={
-              prefersReducedMotion
-                ? { opacity: 0.3, pathLength: 1 }
-                : {
-                    opacity: stageReached(currentStage.key, 'recommend') ? [0.16, 0.42, 0.16] : 0.12,
-                    pathLength: stageReached(currentStage.key, 'recommend') ? 1 : 0.38,
-                  }
-            }
-            transition={{
-              duration: 1.1,
-              delay: 0.08,
-              opacity: {
-                duration: 2.3,
-                repeat: prefersReducedMotion || !stageReached(currentStage.key, 'recommend') ? 0 : Number.POSITIVE_INFINITY,
-                ease: 'easeInOut',
-              },
-            }}
-          />
-        </svg>
+        <div className="absolute inset-0 opacity-12 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:28px_28px]" />
 
         <motion.div
           aria-hidden="true"
-          className="absolute left-4 top-[86px] z-10 w-[126px] rounded-[28px] border border-white/6 bg-white/[0.02] p-3 backdrop-blur-[14px] sm:left-6 sm:top-[94px] sm:w-[146px]"
+          className="absolute left-5 top-12 h-[186px] w-[164px] rounded-[30px] border border-white/6 bg-white/[0.02] backdrop-blur-[16px] sm:left-7 sm:top-14 sm:h-[210px] sm:w-[184px]"
           animate={
             prefersReducedMotion
-              ? { opacity: 0.18, y: 0, scale: 1 }
+              ? { opacity: 0.1, scale: 0.98 }
               : {
-                  opacity: stageIndex <= 1 ? 0.24 : 0.12,
-                  y: stageIndex === 0 ? -2 : 0,
-                  scale: stageIndex === 0 ? 1.01 : 0.985,
+                  opacity: activeStep === 'store-check' ? 0.18 : 0.08,
+                  scale: activeStep === 'store-check' ? 1 : 0.98,
                 }
           }
-          transition={{ duration: 0.55, ease: 'easeOut' }}
-          style={{ filter: 'blur(1.6px)' }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          style={{ filter: 'blur(1.8px)' }}
         >
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-orange-200/50" />
-            <span className="h-px flex-1 rounded-full bg-white/10" />
-          </div>
-          <div className="mt-4 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04] text-slate-400">
-            <Icons.Globe size={16} />
-          </div>
-          <div className="mt-4 space-y-2.5">
-            <div className="h-2 rounded-full bg-white/[0.06]" />
-            <div className="h-2 w-[72%] rounded-full bg-white/[0.04]" />
+          <div className="p-4">
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-200/50" />
+              <span className="h-px flex-1 rounded-full bg-white/10" />
+            </div>
+            <div className="mt-5 h-11 w-11 rounded-2xl bg-white/[0.04]" />
+            <div className="mt-6 space-y-2.5">
+              <div className="h-2.5 rounded-full bg-white/[0.06]" />
+              <div className="h-2.5 w-[72%] rounded-full bg-white/[0.04]" />
+              <div className="h-2.5 w-[58%] rounded-full bg-white/[0.03]" />
+            </div>
           </div>
         </motion.div>
 
         <motion.div
           aria-hidden="true"
-          className="absolute bottom-11 right-4 z-10 w-[138px] rounded-[28px] border border-white/6 bg-white/[0.02] p-3 backdrop-blur-[14px] sm:bottom-12 sm:right-6 sm:w-[156px]"
+          className="absolute bottom-11 right-5 h-[172px] w-[188px] rounded-[30px] border border-white/6 bg-white/[0.02] backdrop-blur-[16px] sm:bottom-12 sm:right-7 sm:h-[196px] sm:w-[212px]"
           animate={
             prefersReducedMotion
-              ? { opacity: 0.12, y: 0, scale: 0.985 }
+              ? { opacity: 0.1, scale: 0.98 }
               : {
-                  opacity: currentStage.key === 'revenue' ? 0.24 : 0.1,
-                  y: currentStage.key === 'revenue' ? 1 : 0,
-                  scale: currentStage.key === 'revenue' ? 1 : 0.975,
+                  opacity: activeStep === 'action-plan' ? 0.18 : 0.08,
+                  scale: activeStep === 'action-plan' ? 1 : 0.975,
                 }
           }
-          transition={{ duration: 0.55, ease: 'easeOut' }}
-          style={{ filter: 'blur(1.6px)' }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          style={{ filter: 'blur(1.8px)' }}
         >
-          <div className="flex justify-end">
-            <span className="h-7 w-7 rounded-2xl border border-white/8 bg-white/[0.03]" />
-          </div>
-          <div className="mt-4 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04] text-slate-400">
-            <Icons.Chart size={16} />
-          </div>
-          <div className="mt-4 space-y-2.5">
-            <div className="h-2.5 w-[68%] rounded-full bg-white/[0.05]" />
-            <div className="h-2.5 w-[84%] rounded-full bg-white/[0.04]" />
+          <div className="p-4">
+            <div className="ml-auto h-8 w-8 rounded-2xl border border-white/8 bg-white/[0.03]" />
+            <div className="mt-5 flex items-end gap-2">
+              {[44, 62, 76].map((height) => (
+                <div key={height} className="flex h-20 flex-1 items-end rounded-[18px] bg-white/[0.04] p-2">
+                  <div className="w-full rounded-full bg-white/[0.08]" style={{ height: `${height}%` }} />
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
 
-        <div className="absolute inset-x-4 top-[72px] z-20 sm:inset-x-0 sm:top-[82px]">
+        <div className="absolute inset-x-4 top-[72px] z-20 sm:inset-x-0 sm:top-[84px]">
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentStage.key}
-              className="mx-auto w-full max-w-[338px] rounded-[32px] border border-white/12 bg-[linear-gradient(180deg,rgba(18,23,31,0.98),rgba(8,11,16,0.98))] p-5 text-white shadow-[0_40px_90px_-46px_rgba(0,0,0,0.98)] sm:max-w-[360px] sm:p-6"
-              animate={buildFocalMotion(true, prefersReducedMotion)}
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 16, scale: 0.97 }}
+              key={activeStep}
+              className="mx-auto w-full max-w-[356px] rounded-[32px] border border-white/12 bg-[linear-gradient(180deg,rgba(18,23,31,0.98),rgba(8,11,16,0.98))] p-5 text-white shadow-[0_40px_90px_-46px_rgba(0,0,0,0.98)] sm:max-w-[382px] sm:p-6"
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={prefersReducedMotion ? undefined : { opacity: 0, y: -12, scale: 0.985 }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 16, scale: 0.97 }}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{currentStage.eyebrow}</p>
-                  <h3 className="mt-3 text-[1.35rem] font-semibold leading-[1.3] text-white sm:text-[1.45rem]">{currentStage.title}</h3>
+                  <h3 className="mt-3 text-[1.34rem] font-semibold leading-[1.3] text-white sm:text-[1.48rem]">{currentStage.title}</h3>
                 </div>
                 <motion.div
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-orange-100"
@@ -261,57 +130,74 @@ export function HeroMemoryStoryScene() {
                           borderColor: ['rgba(255,255,255,0.1)', 'rgba(251,191,36,0.32)', 'rgba(255,255,255,0.1)'],
                         }
                   }
-                  transition={{ duration: 1.6, repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
+                  transition={{ duration: 1.7, repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
                 >
-                  {currentStage.key === 'arrival' ? <Icons.Globe size={18} /> : null}
-                  {currentStage.key === 'capture' ? <Icons.Message size={18} /> : null}
-                  {currentStage.key === 'memory' ? <Icons.Users size={18} /> : null}
-                  {currentStage.key === 'recommend' ? <Icons.Zap size={18} /> : null}
-                  {currentStage.key === 'revenue' ? <Icons.Chart size={18} /> : null}
+                  {activeStep === 'store-check' ? <Icons.Store size={18} /> : null}
+                  {activeStep === 'operations-connect' ? <Icons.Globe size={18} /> : null}
+                  {activeStep === 'customer-flow-diagnosis' ? <Icons.Users size={18} /> : null}
+                  {activeStep === 'action-plan' ? <Icons.Zap size={18} /> : null}
                 </motion.div>
               </div>
 
               <p className="mt-4 text-sm leading-6 text-slate-300 sm:text-[15px]">{currentStage.description}</p>
 
-              {currentStage.key === 'arrival' ? (
+              {activeStep === 'store-check' ? (
                 <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400/12 text-emerald-200">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-300/12 text-orange-100">
                       <Icons.Store size={18} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-white">성수 브런치랩</p>
-                      <p className="mt-1 text-xs text-slate-400">{currentStage.note}</p>
+                      <p className="mt-1 text-xs text-slate-400">브런치 카페 · 주말 웨이팅 강한 매장</p>
                     </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {['점심 피크 운영', '지도/링크 유입 중심'].map((item) => (
+                      <div key={item} className="rounded-[18px] bg-white/[0.04] px-3 py-2 text-xs text-slate-200">
+                        {item}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : null}
 
-              {currentStage.key === 'capture' ? (
-                <div className="mt-5 grid gap-2">
-                  {actionSignals.map((signal) => {
+              {activeStep === 'operations-connect' ? (
+                <div className="mt-5 space-y-3">
+                  {sourceSignals.map((signal, index) => {
                     const Icon = signal.icon;
 
                     return (
-                      <div key={signal.key} className="flex items-center gap-3 rounded-[20px] border border-white/8 bg-white/[0.04] px-3 py-3">
+                      <motion.div
+                        key={signal.label}
+                        className="flex items-center gap-3 rounded-[20px] border border-white/8 bg-white/[0.04] px-3 py-3"
+                        initial={prefersReducedMotion ? false : { opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.28, delay: prefersReducedMotion ? 0 : index * 0.05 }}
+                      >
                         <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/[0.06] text-slate-200">
                           <Icon size={15} />
                         </div>
                         <span className="text-sm font-medium text-slate-100">{signal.label}</span>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
               ) : null}
 
-              {currentStage.key === 'memory' ? (
+              {activeStep === 'customer-flow-diagnosis' ? (
                 <div className="mt-5 space-y-3">
                   <div className="rounded-[24px] border border-white/10 bg-white/[0.05] px-4 py-3">
                     <p className="text-base font-semibold text-white">김서연 고객</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">브런치 선호 · 재방문 이력 2회</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">문의 → 예약 → 웨이팅 이력이 한 카드에 연결됨</p>
                   </div>
 
-                  {timelinePreview.map((item) => (
+                  {[
+                    { label: '문의 남김', detail: '주말 브런치 문의' },
+                    { label: '예약 시도', detail: '토요일 12:30 · 2인' },
+                    { label: '현장 방문', detail: '10분 대기 후 착석' },
+                  ].map((item) => (
                     <div key={item.label} className="flex items-start gap-3 rounded-[20px] bg-white/[0.04] px-3 py-3">
                       <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-orange-300" />
                       <div>
@@ -323,33 +209,36 @@ export function HeroMemoryStoryScene() {
                 </div>
               ) : null}
 
-              {currentStage.key === 'recommend' ? (
-                <div className="mt-5 rounded-[24px] border border-sky-300/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-4">
-                  <p className="text-sm font-semibold text-white">다음 주 점심 시간 재방문 유도</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-300">예약과 현장 대기 이력이 있어, 지금은 재방문 메시지가 가장 가깝습니다.</p>
-                </div>
-              ) : null}
+              {activeStep === 'action-plan' ? (
+                <div className="mt-5 space-y-3">
+                  <div className="rounded-[24px] border border-emerald-300/14 bg-emerald-300/8 px-4 py-4">
+                    <p className="text-sm font-semibold text-white">주말 브런치 재방문 메시지 발송</p>
+                    <p className="mt-2 text-xs leading-5 text-slate-300">문의 후 미예약 고객에게 주말 예약 가능 시간과 세트 업셀을 함께 제안합니다.</p>
+                  </div>
 
-              {currentStage.key === 'revenue' ? (
-                <div className="mt-5">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {['재방문 타깃', '업셀 힌트', '운영자 메모'].map((item) => (
+                      <div key={item} className="rounded-[18px] bg-white/[0.04] px-3 py-3 text-xs leading-5 text-slate-200">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+
                   <div className="flex items-end gap-2">
-                    {revenueBars.map((height, index) => (
+                    {[42, 60, 78].map((height, index) => (
                       <div key={height} className="flex h-20 flex-1 items-end rounded-[20px] bg-white/[0.05] p-2">
                         <motion.div
                           className="w-full rounded-full bg-[linear-gradient(180deg,rgba(16,185,129,0.95),rgba(74,222,128,0.62))]"
                           animate={
                             prefersReducedMotion
                               ? { height: `${height}%` }
-                              : {
-                                  height: [`36%`, `${height}%`, `${Math.max(40, height - 7)}%`, `${height}%`],
-                                }
+                              : { height: [`36%`, `${height}%`, `${Math.max(40, height - 7)}%`, `${height}%`] }
                           }
                           transition={{ duration: 1.35, delay: index * 0.08, repeat: prefersReducedMotion ? 0 : Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
                         />
                       </div>
                     ))}
                   </div>
-                  <p className="mt-4 text-xs leading-5 text-slate-300">재방문과 다음 제안이 연결되면서, 단골 매출 루프가 만들어지기 시작합니다.</p>
                 </div>
               ) : null}
             </motion.div>
