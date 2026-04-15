@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'motion/react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { DiagnosisCinemaShell } from '@/shared/components/DiagnosisCinemaShell';
 import { DiagnosisLoadingPanel } from '@/shared/components/DiagnosisLoadingPanel';
 import { Panel } from '@/shared/components/Panel';
 import { useAccessibleStores } from '@/shared/hooks/useCurrentStore';
-import { DIAGNOSIS_CORRIDOR_STEPS } from '@/shared/lib/diagnosisCorridor';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { createDemoAdminSession, useAdminSessionStore } from '@/shared/lib/adminSession';
 import { BILLING_PLAN_DETAILS } from '@/shared/lib/billingPlans';
@@ -26,6 +25,10 @@ import {
   type DiagnosisAvailableDataKey,
 } from '@/shared/lib/diagnosisBlueprint';
 import { persistDiagnosisSession } from '@/shared/lib/diagnosisSessions';
+import {
+  getNextDiagnosisCorridorStepIndex,
+  getPreviousDiagnosisCorridorStepIndex,
+} from '@/shared/lib/diagnosisCorridor';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
 import {
   DIAGNOSIS_LOADING_STAGES,
@@ -340,9 +343,17 @@ export function OnboardingPage() {
   const [message, setMessage] = useState<MessageState | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
   const redirectHandledRef = useRef(false);
+  const setupFlowRef = useRef<HTMLDivElement | null>(null);
+  const shouldStartInSetupFlow =
+    Boolean(searchParams.get('portone') || searchParams.get('paymentId') || searchParams.get('code')) ||
+    flow.step !== 'diagnosis' ||
+    Boolean(flow.requestId) ||
+    searchParams.get('setup') === '1';
+  const [diagnosisCinemaStepIndex, setDiagnosisCinemaStepIndex] = useState(() => (shouldStartInSetupFlow ? 4 : 0));
   const [showEntryTransition, setShowEntryTransition] = useState(
     Boolean((location.state as { corridorEntry?: boolean } | null)?.corridorEntry),
   );
+  const [showSetupFlow, setShowSetupFlow] = useState(() => shouldStartInSetupFlow);
 
   usePageMeta('스토어 AI 진단 신청', 'AI 진단, 생성 요청, 결제, 승인, 대시보드 진입까지 이어지는 MyBizLab 온보딩입니다.');
 
@@ -749,6 +760,25 @@ export function OnboardingPage() {
     }
   }
 
+  function moveDiagnosisCinema(direction: 1 | -1) {
+    setDiagnosisCinemaStepIndex((current) =>
+      direction > 0 ? getNextDiagnosisCorridorStepIndex(current) : getPreviousDiagnosisCorridorStepIndex(current),
+    );
+  }
+
+  function openSetupFlow() {
+    setDiagnosisCinemaStepIndex(4);
+    setShowSetupFlow(true);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('setup', '1');
+      return next;
+    });
+    window.requestAnimationFrame(() => {
+      setupFlowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   const selectedIndustryLabel = getIndustryLabel(flow.diagnosisInput.industryType);
   const selectedStoreModeLabel =
     flow.diagnosisInput.storeModeSelection === 'not_sure' ? '아직 모르겠음' : getRecommendedStoreModeLabel(flow.diagnosisInput.storeModeSelection);
@@ -767,110 +797,85 @@ export function OnboardingPage() {
   const selectedFeatureLabels = featureLabels(flow.requestDraft.selectedFeatures);
 
   return (
-    <div className="page-shell space-y-8 py-10 sm:py-14">
-      <AnimatePresence>
-        {showEntryTransition ? (
-          <motion.div
-            className="pointer-events-none fixed inset-0 z-[80] flex items-center justify-center bg-[#03050a]/82 px-6 backdrop-blur-xl"
-            exit={{ opacity: 0 }}
-            initial={{ opacity: 1 }}
-            transition={{ duration: 0.42, ease: 'easeOut' }}
+    <div className="space-y-0">
+      <DiagnosisCinemaShell
+        currentStepIndex={diagnosisCinemaStepIndex}
+        onBack={() => moveDiagnosisCinema(-1)}
+        onContinue={openSetupFlow}
+        onEntryTransitionComplete={() => setShowEntryTransition(false)}
+        onNext={() => moveDiagnosisCinema(1)}
+        showEntryTransition={showEntryTransition}
+      />
+
+      {showSetupFlow ? (
+        <div ref={setupFlowRef} className="page-shell space-y-8 py-10 sm:py-14">
+          <section
+            className="relative overflow-hidden rounded-[40px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,15,23,0.98),rgba(4,7,12,0.94))] px-6 py-7 text-white shadow-[0_40px_120px_-74px_rgba(0,0,0,0.98)] sm:px-8 sm:py-8"
+            data-onboarding-world="cinema-bridge"
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(236,91,19,0.16),transparent_24%),radial-gradient(circle_at_82%_16%,rgba(96,165,250,0.16),transparent_22%)]" />
-            <motion.div
-              aria-hidden="true"
-              className="absolute left-[12%] right-[12%] top-1/2 h-px bg-[linear-gradient(90deg,rgba(251,146,60,0),rgba(251,146,60,0.96),rgba(129,140,248,0.8))]"
-              initial={{ scaleX: 0.12 }}
-              animate={{ scaleX: 1 }}
-              style={{ originX: 0 }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-            />
-            <motion.div
-              className="relative w-full max-w-xl rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(12,17,26,0.96),rgba(4,8,13,0.94))] p-6 text-white shadow-[0_36px_120px_-72px_rgba(0,0,0,0.98)]"
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              initial={{ opacity: 0, y: 24, scale: 0.96 }}
-              transition={{ duration: 0.42, ease: 'easeOut' }}
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-100">Corridor Continuity</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">진단 복도에서 스토어 시작 패널로 그대로 이어집니다</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-300">
-                같은 dark world와 glow language를 유지한 채 AI 진단, 생성 요청, 결제, 스토어 활성화까지 연결하고 있습니다.
-              </p>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_16%,rgba(236,91,19,0.16),transparent_24%),radial-gradient(circle_at_84%_18%,rgba(96,165,250,0.12),transparent_20%)]" />
+            <div className="pointer-events-none absolute inset-0 opacity-12 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:42px_42px]" />
 
-      <section
-        className="relative overflow-hidden rounded-[40px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,15,23,0.98),rgba(4,7,12,0.94))] px-6 py-7 text-white shadow-[0_40px_120px_-74px_rgba(0,0,0,0.98)] sm:px-8 sm:py-8"
-        data-onboarding-world="continuous"
-      >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_16%,rgba(236,91,19,0.16),transparent_24%),radial-gradient(circle_at_84%_18%,rgba(96,165,250,0.12),transparent_20%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-12 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:42px_42px]" />
-
-        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.78fr)] lg:items-center">
-          <div className="space-y-5">
-            <span className="inline-flex rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">
-              진단 복도 연장
-            </span>
-            <div className="space-y-3">
-              <h1 className="max-w-[14ch] text-balance font-display text-[2.15rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-white sm:text-[2.8rem]">
-                방금 본 진단 흐름을 같은 세계 안에서 스토어 시작 패널로 이어갑니다
-              </h1>
-              <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-base">
-                공개 페이지 유입, 문의·예약·웨이팅 캡처, 고객 기억 결합, 다음 액션 도출, 운영 대시보드 payoff라는 서사를 유지한 채
-                온보딩으로 들어옵니다. 이 아래에서는 비즈니스 로직은 그대로 두고, 같은 dark shell 안에서 스토어 생성과 결제를 진행합니다.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                to="/pricing"
-              >
-                요금제 자세히 보기
-              </Link>
-              <button
-                className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                onClick={() => {
-                  clearOnboardingFlowState();
-                  setFlow(createInitialOnboardingFlowState());
-                  setMessage(null);
-                  setRequestErrors({});
-                }}
-                type="button"
-              >
-                처음부터 다시
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Same rail</p>
-            <div className="relative mt-4 space-y-3 pl-2">
-              <div className="absolute bottom-3 left-[9px] top-3 w-px bg-white/10" />
-              {DIAGNOSIS_CORRIDOR_STEPS.map((step, index) => (
-                <div key={step.id} className="relative flex gap-3">
-                  <span className={`mt-1.5 h-4 w-4 rounded-full border ${index === DIAGNOSIS_CORRIDOR_STEPS.length - 1 ? 'border-orange-200/40 bg-orange-300 shadow-[0_0_18px_rgba(251,146,60,0.85)]' : 'border-white/15 bg-[#090d14]'}`} />
-                  <div className="pb-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{step.number}</p>
-                    <p className="mt-1 text-sm font-semibold text-white">{step.label}</p>
-                    {index === DIAGNOSIS_CORRIDOR_STEPS.length - 1 ? (
-                      <p className="mt-1 text-xs leading-5 text-slate-300">같은 흐름이 운영 대시보드와 실제 온보딩 실행으로 이어집니다.</p>
-                    ) : null}
-                  </div>
+            <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.78fr)] lg:items-center">
+              <div className="space-y-5">
+                <span className="inline-flex rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">
+                  Diagnosis to setup bridge
+                </span>
+                <div className="space-y-3">
+                  <h1 className="max-w-[14ch] text-balance font-display text-[2.15rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-white sm:text-[2.8rem]">
+                    진단 시네마의 같은 dark world 안에서 실제 스토어 설정으로 이어집니다.
+                  </h1>
+                  <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-base">
+                    위에서 본 공개 스토어 유입, 문의·예약·웨이팅 capture, customer memory 결합, next action, dashboard payoff의 흐름을 유지한 채
+                    아래에서 실제 생성 요청과 결제를 진행합니다.
+                  </p>
                 </div>
-              ))}
-            </div>
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                    to="/pricing"
+                  >
+                    플랜 자세히 보기
+                  </Link>
+                  <button
+                    className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                    onClick={() => {
+                      clearOnboardingFlowState();
+                      setFlow(createInitialOnboardingFlowState());
+                      setMessage(null);
+                      setRequestErrors({});
+                      setDiagnosisCinemaStepIndex(0);
+                      setShowSetupFlow(false);
+                      setSearchParams((current) => {
+                        const next = new URLSearchParams(current);
+                        next.delete('setup');
+                        next.delete('portone');
+                        next.delete('paymentId');
+                        next.delete('code');
+                        return next;
+                      });
+                      window.scrollTo({ behavior: 'smooth', top: 0 });
+                    }}
+                    type="button"
+                  >
+                    처음부터 다시
+                  </button>
+                </div>
+              </div>
 
-            <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-6 text-slate-300">
-              스토어 시작, 결제, 승인, 대시보드 진입은 이 아래의 온보딩 단계 패널에서 계속 진행됩니다. 화면 분위기는 유지하되 API, 결제, 인증,
-              DB 동작은 그대로 보존합니다.
+              <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">World continuity</p>
+                <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
+                  <p>공개 스토어는 무료 acquisition 입구입니다.</p>
+                  <p>문의, 예약, 웨이팅은 customer-input channels입니다.</p>
+                  <p>customer memory와 timeline이 중심이고, 대시보드는 마지막 payoff로만 등장합니다.</p>
+                  <p>FREE / PRO / VIP는 같은 business truth 위에서 이어집니다.</p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <Panel title="온보딩 진행 단계" subtitle="현재 단계와 다음 단계가 자연스럽게 이어지도록 구성했습니다.">
+          <Panel title="온보딩 진행 단계" subtitle="현재 단계와 다음 단계가 자연스럽게 이어지도록 구성했습니다.">
         <div className="grid gap-3 md:grid-cols-5">
           {steps.map((step, index) => {
             const done = index < currentIndex;
@@ -1796,6 +1801,8 @@ export function OnboardingPage() {
           </Panel>
         </div>
       </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -2,10 +2,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { AppFooter } from '@/shared/components/AppFooter';
 import { Icons } from '@/shared/components/Icons';
-import {
-  DIAGNOSIS_CORRIDOR_LINK_STATE,
-  isDiagnosisShellPath,
-} from '@/shared/lib/diagnosisCorridor';
+import { DIAGNOSIS_CORRIDOR_LINK_STATE, isDiagnosisShellPath } from '@/shared/lib/diagnosisCorridor';
 import { SITE_NAME, SERVICE_TAGLINE, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const navigationLinks = [
@@ -24,8 +21,8 @@ export function PublicLayout() {
 
   return (
     <div
-      data-public-shell-theme={isDiagnosisShell ? 'diagnosis' : 'default'}
       className={`flex min-h-screen flex-col ${isDiagnosisShell ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea]'}`}
+      data-public-shell-theme={isDiagnosisShell ? 'diagnosis' : 'default'}
     >
       <header
         className={[
@@ -50,10 +47,7 @@ export function PublicLayout() {
                 <nav className="hidden items-center gap-2 text-sm font-semibold text-slate-400 lg:flex">
                   <NavLink
                     className={({ isActive }) =>
-                      [
-                        'rounded-full px-3 py-2 transition',
-                        isActive ? 'bg-white/[0.08] text-white' : 'hover:bg-white/[0.05] hover:text-slate-200',
-                      ].join(' ')
+                      ['rounded-full px-3 py-2 transition', isActive ? 'bg-white/[0.08] text-white' : 'hover:bg-white/[0.05] hover:text-slate-200'].join(' ')
                     }
                     to="/pricing"
                   >
@@ -61,12 +55,7 @@ export function PublicLayout() {
                   </NavLink>
                 </nav>
               ) : (
-                <nav
-                  className={[
-                    'flex flex-wrap items-center gap-2 text-sm font-semibold',
-                    isDiagnosisShell ? 'text-slate-300' : 'text-slate-600',
-                  ].join(' ')}
-                >
+                <nav className={['flex flex-wrap items-center gap-2 text-sm font-semibold', isDiagnosisShell ? 'text-slate-300' : 'text-slate-600'].join(' ')}>
                   {navigationLinks.map((item) => (
                     <NavLink
                       key={item.href}
@@ -100,7 +89,7 @@ export function PublicLayout() {
                   }
                   to={isOnboardingPage ? '/' : '/login'}
                 >
-                  {isOnboardingPage ? '진단 복도로 돌아가기' : '관리자 로그인'}
+                  {isOnboardingPage ? '진단 시네마로 돌아가기' : '관리자 로그인'}
                 </Link>
 
                 {isOnboardingPage ? (
@@ -109,7 +98,7 @@ export function PublicLayout() {
                   </Link>
                 ) : (
                   <Link className="btn-primary" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
-                    무료 공개페이지 시작
+                    공개 스토어 진단 생성
                   </Link>
                 )}
               </div>
