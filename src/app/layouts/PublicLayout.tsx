@@ -2,6 +2,10 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { AppFooter } from '@/shared/components/AppFooter';
 import { Icons } from '@/shared/components/Icons';
+import {
+  DIAGNOSIS_CORRIDOR_LINK_STATE,
+  isDiagnosisShellPath,
+} from '@/shared/lib/diagnosisCorridor';
 import { SITE_NAME, SERVICE_TAGLINE, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const navigationLinks = [
@@ -15,13 +19,18 @@ const navigationLinks = [
 export function PublicLayout() {
   const location = useLocation();
   const isLandingPage = location.pathname === '/';
+  const isOnboardingPage = location.pathname === SUBSCRIPTION_START_PATH;
+  const isDiagnosisShell = isDiagnosisShellPath(location.pathname);
 
   return (
-    <div className={`flex min-h-screen flex-col ${isLandingPage ? 'bg-[#07090d]' : 'bg-[#f6f2ea]'}`}>
+    <div
+      data-public-shell-theme={isDiagnosisShell ? 'diagnosis' : 'default'}
+      className={`flex min-h-screen flex-col ${isDiagnosisShell ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea]'}`}
+    >
       <header
         className={[
-          'sticky top-0 z-40 border-b backdrop-blur',
-          isLandingPage ? 'border-white/10 bg-[#07090d]/88' : 'border-slate-200/80 bg-[#f6f2ea]/90',
+          'sticky top-0 z-40 border-b backdrop-blur-xl',
+          isDiagnosisShell ? 'border-white/10 bg-[#04070d]/88' : 'border-slate-200/80 bg-[#f6f2ea]/90',
         ].join(' ')}
       >
         <div className="page-shell py-4">
@@ -31,8 +40,8 @@ export function PublicLayout() {
                 <Icons.Store size={22} />
               </div>
               <div>
-                <p className={`font-display text-xl font-black ${isLandingPage ? 'text-white' : 'text-slate-900'}`}>{SITE_NAME}</p>
-                <p className={`text-xs ${isLandingPage ? 'text-slate-400' : 'text-slate-500'}`}>{SERVICE_TAGLINE}</p>
+                <p className={`font-display text-xl font-black ${isDiagnosisShell ? 'text-white' : 'text-slate-900'}`}>{SITE_NAME}</p>
+                <p className={`text-xs ${isDiagnosisShell ? 'text-slate-400' : 'text-slate-500'}`}>{SERVICE_TAGLINE}</p>
               </div>
             </Link>
 
@@ -41,7 +50,10 @@ export function PublicLayout() {
                 <nav className="hidden items-center gap-2 text-sm font-semibold text-slate-400 lg:flex">
                   <NavLink
                     className={({ isActive }) =>
-                      ['rounded-full px-3 py-2 transition', isActive ? 'bg-white/[0.08] text-white' : 'hover:bg-white/[0.05] hover:text-slate-200'].join(' ')
+                      [
+                        'rounded-full px-3 py-2 transition',
+                        isActive ? 'bg-white/[0.08] text-white' : 'hover:bg-white/[0.05] hover:text-slate-200',
+                      ].join(' ')
                     }
                     to="/pricing"
                   >
@@ -49,12 +61,26 @@ export function PublicLayout() {
                   </NavLink>
                 </nav>
               ) : (
-                <nav className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
+                <nav
+                  className={[
+                    'flex flex-wrap items-center gap-2 text-sm font-semibold',
+                    isDiagnosisShell ? 'text-slate-300' : 'text-slate-600',
+                  ].join(' ')}
+                >
                   {navigationLinks.map((item) => (
                     <NavLink
                       key={item.href}
                       className={({ isActive }) =>
-                        ['rounded-full px-3 py-2 transition', isActive ? 'bg-white text-slate-900 shadow-sm' : 'hover:bg-white/70 hover:text-slate-900'].join(' ')
+                        [
+                          'rounded-full px-3 py-2 transition',
+                          isDiagnosisShell
+                            ? isActive
+                              ? 'bg-white/[0.08] text-white'
+                              : 'hover:bg-white/[0.05] hover:text-slate-100'
+                            : isActive
+                              ? 'bg-white text-slate-900 shadow-sm'
+                              : 'hover:bg-white/70 hover:text-slate-900',
+                        ].join(' ')
                       }
                       end={item.href === '/'}
                       to={item.href}
@@ -64,13 +90,28 @@ export function PublicLayout() {
                   ))}
                 </nav>
               )}
+
               <div className="flex flex-wrap items-center gap-3">
-                <Link className={isLandingPage ? 'btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white' : 'btn-secondary'} to="/login">
-                  관리자 로그인
+                <Link
+                  className={
+                    isDiagnosisShell
+                      ? 'btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
+                      : 'btn-secondary'
+                  }
+                  to={isOnboardingPage ? '/' : '/login'}
+                >
+                  {isOnboardingPage ? '진단 복도로 돌아가기' : '관리자 로그인'}
                 </Link>
-                <Link className="btn-primary" to={SUBSCRIPTION_START_PATH}>
-                  무료 공개페이지 시작
-                </Link>
+
+                {isOnboardingPage ? (
+                  <Link className="btn-primary" to="/pricing">
+                    플랜 비교 보기
+                  </Link>
+                ) : (
+                  <Link className="btn-primary" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
+                    무료 공개페이지 시작
+                  </Link>
+                )}
               </div>
             </div>
           </div>

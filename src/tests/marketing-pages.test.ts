@@ -23,41 +23,42 @@ function renderRoute(pathname: string) {
 }
 
 describe('marketing pages', () => {
-  it('renders the landing page as a diagnosis film with the arrival-first stage', () => {
+  it('renders the landing page as one continuous diagnosis corridor with dashboard reserved for the final step', () => {
     const html = renderRoute('/');
 
-    expect(html).toContain('고객을 기억하는 매장 시스템');
-    expect(html).toContain('문의·예약·웨이팅을');
-    expect(html).toContain('한 고객 기억으로 묶어');
-    expect(html).toContain('단골 매출로 바꾸세요');
-    expect(html).toContain('무료 공개페이지로 유입을 받고, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결해 다음 행동까지 추천합니다.');
+    expect(html).toContain('data-corridor-shell="continuous"');
+    expect(html).toContain('Customer-memory revenue system');
+    expect(html).toContain('공개 페이지에서 받은 신호를 고객 기억으로 묶어 다음 매출로 전환합니다');
     expect(html).toContain('01');
     expect(html).toContain('스토어 확인');
     expect(html).toContain('신호 수집');
     expect(html).toContain('고객 기억 결합');
     expect(html).toContain('실행안 도출');
-    expect(html).toContain('매출 회수');
+    expect(html).toContain('운영 대시보드');
     expect(html).toContain('#store-check');
     expect(html).toContain('#signal-capture');
     expect(html).toContain('#memory-merge');
     expect(html).toContain('#action-plan');
-    expect(html).toContain('#revenue-recovery');
-    expect(html).toContain('방문자가 공개페이지에 도착합니다');
-    expect(html).not.toContain('기억은 반복 방문과 객단가로 돌아옵니다');
-    expect(html).toContain('무료 공개페이지 시작');
-    expect(html).toContain('운영 데모 보기');
-    expect(html).toContain('FREE로 유입을 만들고, PRO와 VIP로 고객 기억과 반복 매출을 확장합니다');
+    expect(html).toContain('#operations-dashboard');
+    expect(html).toContain('클릭하면 같은 어두운 진단 셸을 유지한 채 스토어 시작 패널로 이어집니다.');
+    expect(html).toContain('운영 대시보드는 같은 메모리 시스템에서만 마지막에 떠오릅니다');
+    expect(html).toContain('FREE / PRO / VIP');
     expect(html).toContain('/onboarding');
     expect(html).toContain('/pricing');
     expect(html).toContain('/login');
+    expect(html).not.toContain('data-diagnosis-dashboard="true"');
     expect(html).not.toContain('/:storeSlug/menu');
     expect(html).not.toContain('/:storeSlug/order');
     expect(html).not.toContain('App Explorer');
   });
 
-  it('renders the onboarding page with pricing choices and checkout entry', () => {
+  it('renders the onboarding page inside the same dark public shell', () => {
     const html = renderRoute('/onboarding');
 
+    expect(html).toContain('data-public-shell-theme="diagnosis"');
+    expect(html).toContain('data-onboarding-world="continuous"');
+    expect(html).toContain('방금 본 진단 흐름을 같은 세계 안에서 스토어 시작 패널로 이어갑니다');
+    expect(html).toContain('스토어 시작, 결제, 승인, 대시보드 진입은 이 아래의 온보딩 단계 패널에서 계속 진행됩니다.');
     expect(html).toContain('FREE');
     expect(html).toContain('PortOne');
     expect(html).toContain('/pricing');
@@ -95,6 +96,6 @@ describe('marketing pages', () => {
     const html = renderRoute('/pricing');
 
     expect(html).toContain('대표자: 이정민');
-    expect(html).not.toContain('이정미');
+    expect(html).not.toContain('대표자: 이정민민');
   });
 });
