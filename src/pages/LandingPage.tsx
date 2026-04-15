@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'motion/react';
 
-import { HeroMemoryStoryScene } from '@/shared/components/HeroMemoryStoryScene';
+import { HeroMemoryStoryScene, type DiagnosisHeroStepId } from '@/shared/components/HeroMemoryStoryScene';
 import { Icons } from '@/shared/components/Icons';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import {
@@ -14,6 +14,8 @@ import { SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const landingDescription =
   'MyBiz는 공개 페이지 유입, 문의·예약·웨이팅 캡처, 고객 기억 결합, 다음 액션 도출, 운영 대시보드와 회복 매출까지 하나의 진단 복도로 이어주는 customer-memory revenue system입니다.';
+
+type DiagnosisStepId = (typeof diagnosisSteps)[number]['id'];
 
 const planLadder = [
   {
@@ -299,6 +301,27 @@ export function LandingPage() {
                         </div>
                       ))}
                     </div>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-300/12 text-emerald-100">
+                      <Icons.Zap size={18} />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                    {[
+                      { label: '재방문 타깃', value: '최근 14일 문의 후 미예약 고객' },
+                      { label: '업셀 힌트', value: '브런치 세트 + 시즌 음료' },
+                      { label: '운영자 메모', value: '주말 점심 전 문자 발송 권장' },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-[22px] bg-white/[0.04] px-4 py-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{item.label}</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-100">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 rounded-[24px] border border-emerald-300/16 bg-emerald-300/7 px-4 py-4">
+                    <p className="text-sm font-semibold text-white">예상 매출 영향</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">재방문 유도와 세트 업셀을 같이 실행하면, 단골 매출과 객단가가 동시에 움직일 가능성이 높습니다.</p>
                   </div>
                   <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
                     <p className="text-sm font-semibold text-white">대시보드에 올라오는 핵심 루프</p>
