@@ -1,44 +1,38 @@
 import { useDeferredValue, useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-import {
-  DIAGNOSIS_ACTION_LABELS,
-  DIAGNOSIS_CHANNEL_LABELS,
-  clampDiagnosisCorridorStepIndex,
-  getDiagnosisSceneState,
-} from '@/shared/lib/diagnosisCorridor';
+import { clampDiagnosisCorridorStepIndex, getDiagnosisSceneState } from '@/shared/lib/diagnosisCorridor';
 
 const CAMERA_POSITIONS = [
-  new THREE.Vector3(-0.6, 0.2, 16.4),
-  new THREE.Vector3(-0.1, 0.15, 15.3),
-  new THREE.Vector3(0.2, 0.1, 14.2),
-  new THREE.Vector3(0.8, 0.16, 14.8),
-  new THREE.Vector3(0.3, 0.05, 13.2),
+  new THREE.Vector3(-4.6, 1.2, 22.4),
+  new THREE.Vector3(-1.1, 0.7, 18.6),
+  new THREE.Vector3(0.3, 0.4, 14.2),
+  new THREE.Vector3(2.6, 0.3, 15.6),
+  new THREE.Vector3(1.1, 0.2, 13.4),
 ] as const;
 
 const CAMERA_TARGETS = [
-  new THREE.Vector3(-2.4, 0, 0),
-  new THREE.Vector3(1.8, 0, 0),
-  new THREE.Vector3(2.8, 0, 0),
-  new THREE.Vector3(3.2, 0, 0),
-  new THREE.Vector3(1.2, 0.15, 0),
+  new THREE.Vector3(-3.2, 0, 0),
+  new THREE.Vector3(1.4, 0, 0),
+  new THREE.Vector3(0, 0, 0),
+  new THREE.Vector3(2.4, 0, 0),
+  new THREE.Vector3(0.4, 0, 0),
 ] as const;
 
-const BRANCH_LABEL_POSITIONS = [
-  { left: '61%', top: '23%' },
-  { left: '71%', top: '48%' },
-  { left: '61%', top: '73%' },
+const FOCAL_POINTS = [
+  new THREE.Vector3(-3.2, 0, 0),
+  new THREE.Vector3(-0.6, 0, 0),
+  new THREE.Vector3(0, 0, 0),
+  new THREE.Vector3(2.4, 0, 0),
+  new THREE.Vector3(0.4, 0, 0),
 ] as const;
 
-const ACTION_LABEL_POSITIONS = [
-  { left: '77%', top: '22%' },
-  { left: '83%', top: '48%' },
-  { left: '77%', top: '74%' },
-] as const;
+const COLOR_WHITE = new THREE.Color(0xf8fbff);
+const COLOR_SKY = new THREE.Color(0x7dd3fc);
+const COLOR_VIOLET = new THREE.Color(0xc4b5fd);
 
 function seededUnit(seed: number) {
   const value = Math.sin(seed * 12.9898) * 43758.5453123;
@@ -56,162 +50,145 @@ function setPosition(buffer: Float32Array, index: number, x: number, y: number, 
   buffer[offset + 2] = z;
 }
 
-function createConnectionPairs(nodeCount: number) {
-  const pairs: Array<[number, number]> = [];
-  const channelCount = 3;
-  const channelSize = Math.floor(nodeCount / channelCount);
-
-  for (let channel = 0; channel < channelCount; channel += 1) {
-    const start = channel * channelSize;
-    const end = channel === channelCount - 1 ? nodeCount : start + channelSize;
-
-    for (let index = start; index < end - 1; index += 1) {
-      pairs.push([index, index + 1]);
-    }
-
-    for (let index = start; index < end - 4; index += 4) {
-      pairs.push([index, index + 4]);
-    }
-  }
-
-  for (let index = 0; index < channelSize; index += 6) {
-    const mid = Math.min(index + channelSize, nodeCount - 1);
-    const low = Math.min(index + channelSize * 2, nodeCount - 1);
-    pairs.push([index, mid]);
-    pairs.push([mid, low]);
-  }
-
-  return pairs;
-}
-
-function buildStoreCheckLayout(nodeCount: number) {
-  const positions = new Float32Array(nodeCount * 3);
-
-  for (let index = 0; index < nodeCount; index += 1) {
-    const progress = index / Math.max(1, nodeCount - 1);
-    const x = THREE.MathUtils.lerp(-10.5, -1.5, progress) + seededRange(index + 10, -0.1, 0.1);
-    const y = Math.sin(progress * Math.PI * 1.2) * 0.34 + seededRange(index + 20, -0.18, 0.18);
-    const z = Math.cos(progress * Math.PI * 0.9) * 0.7 + seededRange(index + 30, -0.24, 0.24);
-    setPosition(positions, index, x, y, z);
-  }
-
-  return positions;
-}
-
-function buildSignalCaptureLayout(nodeCount: number) {
-  const positions = new Float32Array(nodeCount * 3);
-  const branches = 3;
-  const branchSize = Math.floor(nodeCount / branches);
-  const targetY = [-3.3, 0, 3.3];
-
-  for (let branch = 0; branch < branches; branch += 1) {
-    const start = branch * branchSize;
-    const end = branch === branches - 1 ? nodeCount : start + branchSize;
-
-    for (let index = start; index < end; index += 1) {
-      const localIndex = index - start;
-      const progress = localIndex / Math.max(1, end - start - 1);
-      const bend = Math.sin(progress * Math.PI) * 0.9;
-      const x = THREE.MathUtils.lerp(-1.2, 4.6, progress) + seededRange(index + 40, -0.12, 0.12);
-      const y = THREE.MathUtils.lerp(0, targetY[branch], progress) + bend * (branch === 1 ? 0.1 : branch === 0 ? -0.2 : 0.2);
-      const z = seededRange(index + 50, -1.1, 1.1) * (0.25 + progress * 0.55);
-      setPosition(positions, index, x, y, z);
-    }
-  }
-
-  return positions;
-}
-
-function buildMemoryMergeLayout(nodeCount: number) {
-  const positions = new Float32Array(nodeCount * 3);
-
-  for (let index = 0; index < nodeCount; index += 1) {
-    const progress = index / Math.max(1, nodeCount - 1);
-    const theta = progress * Math.PI * 7.5;
-    const radius = 1.6 + (index % 18) * 0.085;
-    const x = 2.8 + Math.cos(theta) * radius;
-    const y = Math.sin(theta) * radius * 0.72;
-    const z = Math.sin(theta * 1.35) * 1.7 + seededRange(index + 60, -0.18, 0.18);
-    setPosition(positions, index, x, y, z);
-  }
-
-  return positions;
-}
-
-function buildActionExtractionLayout(nodeCount: number) {
-  const positions = new Float32Array(nodeCount * 3);
-  const rayTargets = [
-    new THREE.Vector3(8.4, -3.4, 0.2),
-    new THREE.Vector3(9.2, 0.1, 0.8),
-    new THREE.Vector3(8.2, 3.7, -0.2),
-  ];
-
-  for (let index = 0; index < nodeCount; index += 1) {
-    const rayIndex = index % rayTargets.length;
-    const rayProgress = Math.floor(index / rayTargets.length) / Math.max(1, Math.floor(nodeCount / rayTargets.length) - 1);
-    const sourceRadius = 1.2 + (index % 10) * 0.05;
-    const sourceTheta = (index / nodeCount) * Math.PI * 5;
-    const source = new THREE.Vector3(
-      2.7 + Math.cos(sourceTheta) * sourceRadius,
-      Math.sin(sourceTheta) * sourceRadius * 0.8,
-      Math.cos(sourceTheta * 1.2) * 0.9,
-    );
-    const target = rayTargets[rayIndex];
-    const x = THREE.MathUtils.lerp(source.x, target.x, rayProgress) + seededRange(index + 70, -0.1, 0.1);
-    const y = THREE.MathUtils.lerp(source.y, target.y, rayProgress) + seededRange(index + 80, -0.12, 0.12);
-    const z = THREE.MathUtils.lerp(source.z, target.z, rayProgress) + seededRange(index + 90, -0.14, 0.14);
-    setPosition(positions, index, x, y, z);
-  }
-
-  return positions;
+function setColor(buffer: Float32Array, index: number, color: THREE.Color) {
+  const offset = index * 3;
+  buffer[offset] = color.r;
+  buffer[offset + 1] = color.g;
+  buffer[offset + 2] = color.b;
 }
 
 function finalFramePoint(progress: number, width: number, height: number) {
   const perimeter = width * 2 + height * 2;
   const distance = progress * perimeter;
 
-  if (distance <= width) {
-    return new THREE.Vector3(-width / 2 + distance, height / 2, 0);
-  }
-  if (distance <= width + height) {
-    return new THREE.Vector3(width / 2, height / 2 - (distance - width), 0);
-  }
-  if (distance <= width * 2 + height) {
-    return new THREE.Vector3(width / 2 - (distance - width - height), -height / 2, 0);
+  if (distance <= width) return new THREE.Vector3(-width / 2 + distance, height / 2, 0);
+  if (distance <= width + height) return new THREE.Vector3(width / 2, height / 2 - (distance - width), 0);
+  if (distance <= width * 2 + height) return new THREE.Vector3(width / 2 - (distance - width - height), -height / 2, 0);
+  return new THREE.Vector3(-width / 2, -height / 2 + (distance - width * 2 - height), 0);
+}
+
+function createPairs(nodeCount: number) {
+  const pairs: Array<[number, number]> = [];
+
+  for (let index = 0; index < nodeCount - 1; index += 1) {
+    pairs.push([index, index + 1]);
   }
 
-  return new THREE.Vector3(-width / 2, -height / 2 + (distance - width * 2 - height), 0);
+  for (let index = 0; index < nodeCount - 6; index += 3) {
+    pairs.push([index, index + 6]);
+  }
+
+  for (let index = 0; index < nodeCount / 3; index += 5) {
+    pairs.push([index, index + Math.floor(nodeCount / 3)]);
+    pairs.push([index + Math.floor(nodeCount / 3), index + Math.floor((nodeCount / 3) * 2)]);
+  }
+
+  return pairs;
+}
+
+function buildDetectionLayout(nodeCount: number) {
+  const positions = new Float32Array(nodeCount * 3);
+
+  for (let index = 0; index < nodeCount; index += 1) {
+    const progress = index / Math.max(1, nodeCount - 1);
+    const band = index % 7;
+    const x = THREE.MathUtils.lerp(-12, 11.5, progress) + Math.sin(progress * Math.PI * 7 + band) * 0.9;
+    const y = Math.sin(progress * Math.PI * 5 + band * 0.7) * (1.3 + (band % 3)) + seededRange(index + 11, -1.4, 1.4);
+    const z = Math.cos(progress * Math.PI * 4 + band * 0.45) * 2.7 + seededRange(index + 21, -1.3, 1.3);
+    setPosition(positions, index, index < nodeCount * 0.22 ? THREE.MathUtils.lerp(-7.8, -2.4, progress / 0.22) : x, y, z);
+  }
+
+  return positions;
+}
+
+function buildBranchLayout(nodeCount: number) {
+  const positions = new Float32Array(nodeCount * 3);
+  const third = Math.floor(nodeCount / 3);
+
+  for (let index = 0; index < nodeCount; index += 1) {
+    const branch = Math.min(2, Math.floor(index / third));
+    const local = (index % third) / Math.max(1, third - 1);
+    const targetY = [-5.2, 0, 5.2][branch];
+    const x = THREE.MathUtils.lerp(-5.8, 9.6, local);
+    const y = THREE.MathUtils.lerp(0, targetY, local) + Math.sin(local * Math.PI) * (branch === 1 ? 0.3 : 1.2);
+    const z = Math.sin(local * Math.PI * 3 + branch) * 1.5 + seededRange(index + 31, -0.5, 0.5);
+    setPosition(positions, index, x + seededRange(index + 41, -0.4, 0.4), y + seededRange(index + 51, -0.35, 0.35), z);
+  }
+
+  return positions;
+}
+
+function buildMergeLayout(nodeCount: number) {
+  const positions = new Float32Array(nodeCount * 3);
+
+  for (let index = 0; index < nodeCount; index += 1) {
+    const progress = index / Math.max(1, nodeCount - 1);
+    const theta = progress * Math.PI * 11;
+    const radius = 0.9 + (index % 22) * 0.12;
+    setPosition(
+      positions,
+      index,
+      Math.cos(theta) * radius * 0.9,
+      Math.sin(theta) * radius * 0.72,
+      Math.sin(theta * 1.3) * 1.5 + seededRange(index + 61, -0.15, 0.15),
+    );
+  }
+
+  return positions;
+}
+
+function buildOutputLayout(nodeCount: number) {
+  const positions = new Float32Array(nodeCount * 3);
+  const rayTargets = [
+    new THREE.Vector3(9.4, -4.8, 1.1),
+    new THREE.Vector3(10.2, 0.2, 1.4),
+    new THREE.Vector3(9.2, 4.8, -1),
+  ];
+
+  for (let index = 0; index < nodeCount; index += 1) {
+    const rayIndex = index % 3;
+    const progress = Math.floor(index / 3) / Math.max(1, Math.floor(nodeCount / 3) - 1);
+    const theta = (index / nodeCount) * Math.PI * 8;
+    const source = new THREE.Vector3(Math.cos(theta) * 1.9, Math.sin(theta) * 1.3, Math.sin(theta * 1.4) * 0.7);
+    const point = source.lerp(rayTargets[rayIndex], progress);
+    setPosition(
+      positions,
+      index,
+      point.x + seededRange(index + 71, -0.22, 0.22),
+      point.y + seededRange(index + 81, -0.28, 0.28),
+      point.z + seededRange(index + 91, -0.26, 0.26),
+    );
+  }
+
+  return positions;
 }
 
 function buildPayoffLayout(nodeCount: number) {
   const positions = new Float32Array(nodeCount * 3);
-  const storeCount = Math.floor(nodeCount * 0.34);
-  const dashboardCount = Math.floor(nodeCount * 0.38);
+  const storeCount = Math.floor(nodeCount * 0.26);
+  const dashboardCount = Math.floor(nodeCount * 0.3);
+  const orbitStart = storeCount + dashboardCount;
 
-  for (let index = 0; index < nodeCount; index += 1) {
-    if (index < storeCount) {
-      const point = finalFramePoint(index / Math.max(1, storeCount - 1), 4.2, 6.1);
-      setPosition(positions, index, point.x - 2.6, point.y + 0.25, seededRange(index + 100, -0.3, 0.3));
-      continue;
-    }
+  for (let index = 0; index < storeCount; index += 1) {
+    const point = finalFramePoint(index / Math.max(1, storeCount - 1), 5.1, 7);
+    setPosition(positions, index, point.x - 4.5, point.y + 0.35, seededRange(index + 101, -0.25, 0.25));
+  }
 
-    if (index < storeCount + dashboardCount) {
-      const localIndex = index - storeCount;
-      const point = finalFramePoint(localIndex / Math.max(1, dashboardCount - 1), 6.4, 4.1);
-      setPosition(positions, index, point.x + 3.2, point.y - 0.15, seededRange(index + 110, -0.22, 0.22));
-      continue;
-    }
+  for (let index = 0; index < dashboardCount; index += 1) {
+    const point = finalFramePoint(index / Math.max(1, dashboardCount - 1), 7.4, 4.6);
+    setPosition(positions, storeCount + index, point.x + 4.7, point.y - 0.1, seededRange(index + 111, -0.22, 0.22));
+  }
 
-    const localIndex = index - storeCount - dashboardCount;
-    const progress = localIndex / Math.max(1, nodeCount - storeCount - dashboardCount - 1);
+  for (let index = orbitStart; index < nodeCount; index += 1) {
+    const progress = (index - orbitStart) / Math.max(1, nodeCount - orbitStart - 1);
     const theta = progress * Math.PI * 8;
-    const radius = 0.8 + (localIndex % 12) * 0.08;
+    const radius = 1 + (index % 14) * 0.09;
     setPosition(
       positions,
       index,
-      0.4 + Math.cos(theta) * radius,
-      Math.sin(theta) * radius * 0.8,
-      Math.cos(theta * 1.3) * 0.8,
+      Math.cos(theta) * radius * 0.84,
+      Math.sin(theta) * radius * 0.7,
+      Math.sin(theta * 1.2) * 1 + seededRange(index + 121, -0.12, 0.12),
     );
   }
 
@@ -220,10 +197,10 @@ function buildPayoffLayout(nodeCount: number) {
 
 function buildLayouts(nodeCount: number) {
   return [
-    buildStoreCheckLayout(nodeCount),
-    buildSignalCaptureLayout(nodeCount),
-    buildMemoryMergeLayout(nodeCount),
-    buildActionExtractionLayout(nodeCount),
+    buildDetectionLayout(nodeCount),
+    buildBranchLayout(nodeCount),
+    buildMergeLayout(nodeCount),
+    buildOutputLayout(nodeCount),
     buildPayoffLayout(nodeCount),
   ] as const;
 }
@@ -249,19 +226,27 @@ function dampValue(current: number, target: number, lambda: number, delta: numbe
 
 export function DiagnosisCinemaWorld({
   isFrozen = false,
+  pulseSeed = 0,
   stepIndex,
 }: {
   isFrozen?: boolean;
+  pulseSeed?: number;
   stepIndex: number;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const frozenRef = useRef(isFrozen);
-  const payoffProgressRef = useRef(0);
   const stepRef = useRef(clampDiagnosisCorridorStepIndex(stepIndex));
+  const frozenRef = useRef(isFrozen);
+  const pulseSeedRef = useRef(pulseSeed);
+  const pulseProgressRef = useRef(1);
+  const pulseAnchorRef = useRef(FOCAL_POINTS[0].clone());
+  const payoffProgressRef = useRef(0);
   const deferredStepIndex = useDeferredValue(stepIndex);
 
   useEffect(() => {
     stepRef.current = clampDiagnosisCorridorStepIndex(deferredStepIndex);
+    if (stepRef.current !== 4) {
+      payoffProgressRef.current = 0;
+    }
   }, [deferredStepIndex]);
 
   useEffect(() => {
@@ -269,89 +254,83 @@ export function DiagnosisCinemaWorld({
   }, [isFrozen]);
 
   useEffect(() => {
-    const host = hostRef.current;
+    if (pulseSeed === pulseSeedRef.current) return;
+    pulseSeedRef.current = pulseSeed;
+    pulseProgressRef.current = 0;
+    pulseAnchorRef.current.copy(FOCAL_POINTS[stepRef.current]);
+  }, [pulseSeed]);
 
-    if (!host) {
-      return;
-    }
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
 
     const isMobile = window.innerWidth < 768;
-    const nodeCount = isMobile ? 72 : 114;
+    const nodeCount = isMobile ? 126 : 174;
     const layouts = buildLayouts(nodeCount);
-    const connectionPairs = createConnectionPairs(nodeCount);
+    const colors = new Float32Array(nodeCount * 3);
+    for (let index = 0; index < nodeCount; index += 1) {
+      setColor(colors, index, index % 6 < 2 ? COLOR_SKY : index % 6 < 4 ? COLOR_VIOLET : COLOR_WHITE);
+    }
+
     const currentPositions = layouts[0].slice();
-    const linePositions = new Float32Array(connectionPairs.length * 6);
-    updateLinePositions(linePositions, currentPositions, connectionPairs);
+    const pairs = createPairs(nodeCount);
+    const linePositions = new Float32Array(pairs.length * 6);
+    updateLinePositions(linePositions, currentPositions, pairs);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x02050a, 10, 24);
+    scene.fog = new THREE.Fog(0x02050a, 14, 34);
 
-    const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
     camera.position.copy(CAMERA_POSITIONS[0]);
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.25 : 1.6));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.35 : 1.75));
     renderer.setClearColor(0x02050a, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     host.appendChild(renderer.domElement);
 
     const composer = new EffectComposer(renderer);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), isMobile ? 1.2 : 1.55, 0.95, 0.62);
     composer.addPass(new RenderPass(scene, camera));
-    composer.addPass(
-      new UnrealBloomPass(
-        new THREE.Vector2(1, 1),
-        isMobile ? 0.85 : 1.15,
-        isMobile ? 0.45 : 0.7,
-        isMobile ? 0.92 : 0.78,
-      ),
-    );
+    composer.addPass(bloomPass);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.enablePan = false;
-    controls.enableZoom = false;
-    controls.autoRotate = !frozenRef.current;
-    controls.autoRotateSpeed = 0.22;
-    controls.minPolarAngle = Math.PI * 0.34;
-    controls.maxPolarAngle = Math.PI * 0.66;
-    controls.target.copy(CAMERA_TARGETS[0]);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
-    const keyLight = new THREE.PointLight(0xff8b3d, 1.35, 24);
-    keyLight.position.set(1.5, 2.4, 4.4);
-    const fillLight = new THREE.PointLight(0x76a4ff, 1.1, 24);
-    fillLight.position.set(6.8, 1.2, 5.6);
-    scene.add(ambientLight, keyLight, fillLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.32));
+    const coolLight = new THREE.PointLight(0xbcc8ff, 1.7, 30);
+    coolLight.position.set(2, 4.8, 8.4);
+    const skyLight = new THREE.PointLight(0x7dd3fc, 1.4, 30);
+    skyLight.position.set(-8, -3, 5.4);
+    const warmLight = new THREE.PointLight(0xff8a2b, 0.88, 16);
+    warmLight.position.set(0, 0, 6.4);
+    scene.add(coolLight, skyLight, warmLight);
 
     const starGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array((isMobile ? 220 : 360) * 3);
-    for (let index = 0; index < starPositions.length / 3; index += 1) {
-      starPositions[index * 3] = seededRange(index + 120, -18, 18);
-      starPositions[index * 3 + 1] = seededRange(index + 140, -10, 10);
-      starPositions[index * 3 + 2] = seededRange(index + 160, -15, 5);
+    const starCount = isMobile ? 320 : 520;
+    const starPositions = new Float32Array(starCount * 3);
+    const starColors = new Float32Array(starCount * 3);
+    for (let index = 0; index < starCount; index += 1) {
+      starPositions[index * 3] = seededRange(index + 131, -24, 24);
+      starPositions[index * 3 + 1] = seededRange(index + 141, -14, 14);
+      starPositions[index * 3 + 2] = seededRange(index + 151, -20, 2);
+      setColor(starColors, index, index % 4 === 0 ? COLOR_WHITE : index % 2 === 0 ? COLOR_VIOLET : COLOR_SKY);
     }
     starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
     const stars = new THREE.Points(
       starGeometry,
-      new THREE.PointsMaterial({
-        color: 0x9fbfff,
-        size: isMobile ? 0.035 : 0.045,
-        sizeAttenuation: true,
-        transparent: true,
-        opacity: 0.38,
-      }),
+      new THREE.PointsMaterial({ size: isMobile ? 0.05 : 0.06, transparent: true, opacity: 0.5, sizeAttenuation: true, vertexColors: true }),
     );
     scene.add(stars);
 
     const pointGeometry = new THREE.BufferGeometry();
     pointGeometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
+    pointGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const pointsMaterial = new THREE.PointsMaterial({
-      color: 0xfff0dc,
-      size: isMobile ? 0.12 : 0.14,
-      sizeAttenuation: true,
+      size: isMobile ? 0.12 : 0.145,
       transparent: true,
       opacity: 0.94,
       blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+      vertexColors: true,
     });
     const points = new THREE.Points(pointGeometry, pointsMaterial);
     scene.add(points);
@@ -360,110 +339,64 @@ export function DiagnosisCinemaWorld({
     lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
     const lines = new THREE.LineSegments(
       lineGeometry,
-      new THREE.LineBasicMaterial({
-        color: 0xffb56a,
-        transparent: true,
-        opacity: 0.56,
-        blending: THREE.AdditiveBlending,
-      }),
+      new THREE.LineBasicMaterial({ color: 0xb8b5ff, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending }),
     );
     scene.add(lines);
 
     const coreGroup = new THREE.Group();
-    const coreOuter = new THREE.Mesh(
-      new THREE.TorusGeometry(1.18, 0.035, 18, 120),
-      new THREE.MeshBasicMaterial({
-        color: 0xff9e52,
-        transparent: true,
-        opacity: 0,
-      }),
-    );
-    const coreInner = new THREE.Mesh(
-      new THREE.SphereGeometry(0.42, 24, 24),
-      new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0,
-      }),
-    );
-    const coreHalo = new THREE.Mesh(
-      new THREE.SphereGeometry(0.78, 20, 20),
-      new THREE.MeshBasicMaterial({
-        color: 0xff7b2c,
-        transparent: true,
-        opacity: 0,
-      }),
-    );
-    coreHalo.scale.set(1.4, 0.92, 1.4);
-    coreGroup.position.set(2.8, 0, 0);
-    coreGroup.add(coreOuter, coreHalo, coreInner);
+    const outerRing = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.04, 18, 128), new THREE.MeshBasicMaterial({ color: 0xc4b5fd, transparent: true, opacity: 0 }));
+    const innerRing = new THREE.Mesh(new THREE.TorusGeometry(1.42, 0.03, 18, 96), new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0 }));
+    const coreHalo = new THREE.Mesh(new THREE.SphereGeometry(1.1, 24, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));
+    coreHalo.scale.set(1.6, 1.1, 1.6);
+    const coreDot = new THREE.Mesh(new THREE.SphereGeometry(0.34, 24, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));
+    coreGroup.add(outerRing, innerRing, coreHalo, coreDot);
     scene.add(coreGroup);
 
-    const actionGroup = new THREE.Group();
-    const actionMaterial = new THREE.LineBasicMaterial({
-      color: 0x7fd0ff,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-    });
+    const outputGroup = new THREE.Group();
+    const outputMaterial = new THREE.LineBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
     [
-      [new THREE.Vector3(2.9, 0, 0), new THREE.Vector3(5.2, -2.2, 0.2), new THREE.Vector3(8.2, -3.2, 0.4)],
-      [new THREE.Vector3(2.9, 0, 0), new THREE.Vector3(5.8, 0.1, 0.4), new THREE.Vector3(9.0, 0.1, 0.8)],
-      [new THREE.Vector3(2.9, 0, 0), new THREE.Vector3(5.1, 2.3, -0.1), new THREE.Vector3(8.1, 3.4, -0.2)],
+      [new THREE.Vector3(0, 0, 0), new THREE.Vector3(4.4, -1.8, 0.4), new THREE.Vector3(9, -4.8, 1.2)],
+      [new THREE.Vector3(0, 0, 0), new THREE.Vector3(4.8, 0.1, 0.6), new THREE.Vector3(10, 0.2, 1.3)],
+      [new THREE.Vector3(0, 0, 0), new THREE.Vector3(4.4, 1.8, -0.3), new THREE.Vector3(9, 4.8, -1)],
     ].forEach((curvePoints) => {
       const curve = new THREE.CatmullRomCurve3(curvePoints.map((point) => point.clone()));
-      const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(48));
-      actionGroup.add(new THREE.Line(geometry, actionMaterial));
+      outputGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(56)), outputMaterial));
     });
-    scene.add(actionGroup);
+    scene.add(outputGroup);
 
+    const storeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+    const storeAccent = new THREE.LineBasicMaterial({ color: 0xff8a2b, transparent: true, opacity: 0 });
     const storeGroup = new THREE.Group();
-    const storeMaterial = new THREE.LineBasicMaterial({
-      color: 0xffa45d,
-      transparent: true,
-      opacity: 0,
-    });
-    const storeFrame = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(3.8, 5.2, 0.36)),
-      storeMaterial,
-    );
-    storeGroup.position.set(-2.6, 0.2, 0.1);
-    storeGroup.add(storeFrame);
-    const storeBeacon = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.4, 0.42),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }),
-    );
-    storeBeacon.position.set(0, 1.8, 0.2);
-    storeGroup.add(storeBeacon);
+    storeGroup.position.set(-4.5, 0.35, 0.2);
+    storeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(4.8, 6.8, 0.34)), storeMaterial));
+    const canopy = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(4.8, 0.7, 0.42)), storeAccent);
+    canopy.position.set(0, 3.9, 0);
+    storeGroup.add(canopy);
     scene.add(storeGroup);
 
+    const dashboardMaterial = new THREE.LineBasicMaterial({ color: 0xdbeafe, transparent: true, opacity: 0 });
     const dashboardGroup = new THREE.Group();
-    const dashboardMaterial = new THREE.LineBasicMaterial({
-      color: 0x9ac3ff,
-      transparent: true,
-      opacity: 0,
-    });
-    const dashboardFrame = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(5.8, 3.5, 0.3)),
-      dashboardMaterial,
-    );
-    dashboardGroup.position.set(3.3, 0.15, 0.85);
-    dashboardGroup.add(dashboardFrame);
-    [-1.4, 0, 1.4].forEach((offsetX, index) => {
-      const bar = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.BoxGeometry(0.78, 0.9 + index * 0.55, 0.16)),
-        dashboardMaterial,
-      );
-      bar.position.set(offsetX, -0.7 + index * 0.3, 0.16);
+    dashboardGroup.position.set(4.7, -0.1, 0.8);
+    dashboardGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(7.4, 4.6, 0.28)), dashboardMaterial));
+    [-1.8, 0, 1.8].forEach((offsetX, index) => {
+      const bar = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.8, 1.1 + index * 0.62, 0.18)), dashboardMaterial);
+      bar.position.set(offsetX, -0.8 + index * 0.34, 0.14);
       dashboardGroup.add(bar);
     });
     scene.add(dashboardGroup);
+
+    const pulseGroup = new THREE.Group();
+    const pulseShell = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }));
+    const pulseRing = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.04, 16, 120), new THREE.MeshBasicMaterial({ color: 0xff8a2b, transparent: true, opacity: 0 }));
+    pulseGroup.add(pulseShell, pulseRing);
+    scene.add(pulseGroup);
 
     const resize = () => {
       const width = host.clientWidth || window.innerWidth;
       const height = host.clientHeight || window.innerHeight;
       renderer.setSize(width, height, false);
       composer.setSize(width, height);
+      bloomPass.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     };
@@ -476,121 +409,93 @@ export function DiagnosisCinemaWorld({
     let disposed = false;
 
     const animate = () => {
-      if (disposed) {
-        return;
-      }
-
+      if (disposed) return;
       frame = window.requestAnimationFrame(animate);
+
       const delta = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.elapsedTime;
       const safeStepIndex = stepRef.current;
       const sceneState = getDiagnosisSceneState(safeStepIndex);
-      const isFinalStep = safeStepIndex === 4;
       const targetPositions = layouts[safeStepIndex];
-      const payoffProgress = isFinalStep
-        ? THREE.MathUtils.clamp(
-            frozenRef.current ? 1 : payoffProgressRef.current + delta / 1.8,
-            0,
-            1,
-          )
-        : 0;
 
-      payoffProgressRef.current = payoffProgress;
-
-      const condensationProgress = isFinalStep ? Math.min(payoffProgress / 0.28, 1) : 0;
-      const showStoreGeometry = sceneState.showGeneratedStore && payoffProgress >= 0.26;
-      const showDashboardGeometry = sceneState.showDashboardPayoff && payoffProgress >= 0.62;
-
-      for (let index = 0; index < currentPositions.length; index += 1) {
-        currentPositions[index] = dampValue(currentPositions[index], targetPositions[index], 7.6, delta);
+      if (pulseProgressRef.current < 1) {
+        pulseProgressRef.current = Math.min(1, pulseProgressRef.current + delta / 0.74);
       }
 
-      updateLinePositions(linePositions, currentPositions, connectionPairs);
+      payoffProgressRef.current = sceneState.isPayoffShot
+        ? THREE.MathUtils.clamp(frozenRef.current ? 1 : payoffProgressRef.current + delta / 1.9, 0, 1)
+        : 0;
+
+      for (let index = 0; index < currentPositions.length; index += 1) {
+        currentPositions[index] = dampValue(currentPositions[index], targetPositions[index], 6.8, delta);
+      }
+
+      updateLinePositions(linePositions, currentPositions, pairs);
       (pointGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
       (lineGeometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
 
-      const linesMaterial = lines.material as THREE.LineBasicMaterial;
-      linesMaterial.opacity = dampValue(
-        linesMaterial.opacity,
-        sceneState.showGeneratedStore ? 0.16 : sceneState.showActionOutputs ? 0.42 : sceneState.showMemoryCore ? 0.5 : 0.36,
-        5.2,
+      const lineMaterial = lines.material as THREE.LineBasicMaterial;
+      lines.visible = !(sceneState.isPayoffShot && payoffProgressRef.current > 0.12);
+      lineMaterial.opacity = dampValue(
+        lineMaterial.opacity,
+        sceneState.isDetectionShot ? 0.18 : sceneState.isMemoryMergeShot ? 0.48 : sceneState.isOutputShot ? 0.2 : sceneState.isPayoffShot ? 0.012 : 0.34,
+        4.8,
         delta,
       );
-      pointsMaterial.opacity = dampValue(pointsMaterial.opacity, sceneState.showGeneratedStore ? 0.48 : 0.9, 5.2, delta);
+      pointsMaterial.opacity = dampValue(pointsMaterial.opacity, sceneState.isPayoffShot ? 0.24 : sceneState.isDetectionShot ? 0.82 : 0.94, 5.2, delta);
 
-      coreGroup.position.lerp(CAMERA_TARGETS[Math.min(safeStepIndex, 2)], 1 - Math.exp(-delta * 4.2));
-      const coreScaleTarget = sceneState.showMemoryCore
-        ? safeStepIndex === 2
-          ? 1.2
-          : safeStepIndex === 4
-            ? THREE.MathUtils.lerp(0.92, 0.68, condensationProgress)
-            : 1
-        : 0.55;
-      coreGroup.scale.x = dampValue(coreGroup.scale.x, coreScaleTarget, 5.5, delta);
-      coreGroup.scale.y = dampValue(coreGroup.scale.y, coreScaleTarget, 5.5, delta);
-      coreGroup.scale.z = dampValue(coreGroup.scale.z, coreScaleTarget, 5.5, delta);
-      (coreOuter.material as THREE.MeshBasicMaterial).opacity = dampValue(
-        (coreOuter.material as THREE.MeshBasicMaterial).opacity,
-        sceneState.showMemoryCore ? 0.82 : 0,
-        5.6,
-        delta,
-      );
-      (coreInner.material as THREE.MeshBasicMaterial).opacity = dampValue(
-        (coreInner.material as THREE.MeshBasicMaterial).opacity,
-        sceneState.showMemoryCore ? 0.98 : 0,
-        6.2,
-        delta,
-      );
-      (coreHalo.material as THREE.MeshBasicMaterial).opacity = dampValue(
-        (coreHalo.material as THREE.MeshBasicMaterial).opacity,
-        sceneState.showMemoryCore ? 0.18 : 0,
-        5.2,
-        delta,
-      );
+      coreGroup.position.lerp(FOCAL_POINTS[safeStepIndex], 1 - Math.exp(-delta * 4.2));
+      const coreScale = sceneState.showMemoryCore ? (sceneState.isMemoryMergeShot ? 1.18 : sceneState.isPayoffShot ? THREE.MathUtils.lerp(0.94, 0.72, payoffProgressRef.current) : 1) : 0.46;
+      coreGroup.scale.x = dampValue(coreGroup.scale.x, coreScale, 5.2, delta);
+      coreGroup.scale.y = dampValue(coreGroup.scale.y, coreScale, 5.2, delta);
+      coreGroup.scale.z = dampValue(coreGroup.scale.z, coreScale, 5.2, delta);
+      (outerRing.material as THREE.MeshBasicMaterial).opacity = dampValue((outerRing.material as THREE.MeshBasicMaterial).opacity, sceneState.showMemoryCore ? 0.58 : 0, 5.6, delta);
+      (innerRing.material as THREE.MeshBasicMaterial).opacity = dampValue((innerRing.material as THREE.MeshBasicMaterial).opacity, sceneState.showMemoryCore ? 0.72 : 0, 5.6, delta);
+      (coreHalo.material as THREE.MeshBasicMaterial).opacity = dampValue((coreHalo.material as THREE.MeshBasicMaterial).opacity, sceneState.showMemoryCore ? 0.22 : 0, 5.2, delta);
+      (coreDot.material as THREE.MeshBasicMaterial).opacity = dampValue((coreDot.material as THREE.MeshBasicMaterial).opacity, sceneState.showMemoryCore ? 0.98 : 0, 6.2, delta);
+
       if (!frozenRef.current) {
-        coreOuter.rotation.y += delta * 0.42;
-        coreOuter.rotation.x += delta * 0.12;
-        coreHalo.rotation.z -= delta * 0.2;
+        outerRing.rotation.y += delta * 0.18;
+        innerRing.rotation.z -= delta * 0.22;
       }
 
-      actionGroup.children.forEach((child: THREE.Object3D) => {
+      outputGroup.children.forEach((child) => {
         const material = (child as THREE.Line).material as THREE.LineBasicMaterial;
-        material.opacity = dampValue(
-          material.opacity,
-          sceneState.showActionOutputs ? (isFinalStep ? Math.max(0, 0.3 - payoffProgress * 0.5) : 0.78) : 0,
-          5.5,
-          delta,
-        );
+        material.opacity = dampValue(material.opacity, sceneState.showOutputRays ? (sceneState.isPayoffShot ? Math.max(0, 0.22 - payoffProgressRef.current * 0.26) : 0.42) : 0, 5.2, delta);
       });
-      actionGroup.scale.x = dampValue(actionGroup.scale.x, sceneState.showActionOutputs ? (isFinalStep ? 0.84 : 1) : 0.75, 5.5, delta);
-      actionGroup.scale.y = dampValue(actionGroup.scale.y, sceneState.showActionOutputs ? (isFinalStep ? 0.84 : 1) : 0.75, 5.5, delta);
-      actionGroup.scale.z = dampValue(actionGroup.scale.z, sceneState.showActionOutputs ? (isFinalStep ? 0.84 : 1) : 0.75, 5.5, delta);
 
-      storeGroup.scale.x = dampValue(storeGroup.scale.x, showStoreGeometry ? 1 : 0.68, 5.2, delta);
-      storeGroup.scale.y = dampValue(storeGroup.scale.y, showStoreGeometry ? 1 : 0.68, 5.2, delta);
-      storeGroup.scale.z = dampValue(storeGroup.scale.z, showStoreGeometry ? 1 : 0.68, 5.2, delta);
-      storeGroup.position.y = dampValue(storeGroup.position.y, showStoreGeometry ? 0.2 : -0.52, 5.6, delta);
-      storeMaterial.opacity = dampValue(storeMaterial.opacity, showStoreGeometry ? 0.76 : 0, 5.6, delta);
-      (storeBeacon.material as THREE.MeshBasicMaterial).opacity = dampValue(
-        (storeBeacon.material as THREE.MeshBasicMaterial).opacity,
-        showStoreGeometry ? 0.16 : 0,
-        5.6,
-        delta,
-      );
+      const storeVisible = sceneState.showGeneratedStore && payoffProgressRef.current >= 0.18;
+      storeGroup.scale.setScalar(dampValue(storeGroup.scale.x, storeVisible ? 1 : 0.64, 5.2, delta));
+      storeGroup.position.y = dampValue(storeGroup.position.y, storeVisible ? 0.35 : -0.8, 5.2, delta);
+      storeMaterial.opacity = dampValue(storeMaterial.opacity, storeVisible ? 0.76 : 0, 5.4, delta);
+      storeAccent.opacity = dampValue(storeAccent.opacity, storeVisible ? 0.82 : 0, 5.4, delta);
 
-      dashboardGroup.scale.x = dampValue(dashboardGroup.scale.x, showDashboardGeometry ? 1 : 0.72, 5.4, delta);
-      dashboardGroup.scale.y = dampValue(dashboardGroup.scale.y, showDashboardGeometry ? 1 : 0.72, 5.4, delta);
-      dashboardGroup.scale.z = dampValue(dashboardGroup.scale.z, showDashboardGeometry ? 1 : 0.72, 5.4, delta);
-      dashboardGroup.position.y = dampValue(dashboardGroup.position.y, showDashboardGeometry ? 0.15 : -0.62, 5.4, delta);
-      dashboardMaterial.opacity = dampValue(dashboardMaterial.opacity, showDashboardGeometry ? 0.86 : 0, 5.6, delta);
+      const dashboardVisible = sceneState.showDashboardPayoff && payoffProgressRef.current >= 0.58;
+      dashboardGroup.scale.setScalar(dampValue(dashboardGroup.scale.x, dashboardVisible ? 1 : 0.72, 5.2, delta));
+      dashboardGroup.position.y = dampValue(dashboardGroup.position.y, dashboardVisible ? -0.1 : -0.9, 5.2, delta);
+      dashboardMaterial.opacity = dampValue(dashboardMaterial.opacity, dashboardVisible ? 0.84 : 0, 5.2, delta);
 
-      camera.position.lerp(CAMERA_POSITIONS[safeStepIndex], 1 - Math.exp(-delta * 3.8));
-      controls.target.lerp(CAMERA_TARGETS[safeStepIndex], 1 - Math.exp(-delta * 3.8));
-      controls.autoRotate = !frozenRef.current;
-      controls.update();
+      const pulseAlpha = 1 - pulseProgressRef.current;
+      pulseGroup.position.copy(pulseAnchorRef.current);
+      pulseGroup.scale.setScalar(THREE.MathUtils.lerp(0.2, 2.8, 1 - pulseAlpha));
+      (pulseShell.material as THREE.MeshBasicMaterial).opacity = pulseAlpha * 0.18;
+      (pulseRing.material as THREE.MeshBasicMaterial).opacity = pulseAlpha * 0.68;
+
+      bloomPass.strength = dampValue(bloomPass.strength, (isMobile ? 1.2 : 1.55) + pulseAlpha * (isMobile ? 0.4 : 0.56) + (sceneState.isMemoryMergeShot ? 0.2 : 0), 5, delta);
+
+      const driftX = frozenRef.current ? 0 : Math.sin(elapsed * 0.22) * 0.28;
+      const driftY = frozenRef.current ? 0 : Math.cos(elapsed * 0.16) * 0.18;
+      const driftZ = frozenRef.current ? 0 : Math.sin(elapsed * 0.12) * 0.22;
+      const basePosition = CAMERA_POSITIONS[safeStepIndex];
+      camera.position.x = dampValue(camera.position.x, basePosition.x + driftX, 3.8, delta);
+      camera.position.y = dampValue(camera.position.y, basePosition.y + driftY, 3.8, delta);
+      camera.position.z = dampValue(camera.position.z, basePosition.z + driftZ, 3.8, delta);
+      warmLight.position.copy(coreGroup.position).add(new THREE.Vector3(0, 0, 6.2));
+      camera.lookAt(CAMERA_TARGETS[safeStepIndex]);
 
       if (!frozenRef.current) {
         stars.rotation.y += delta * 0.01;
-        stars.rotation.x += delta * 0.003;
+        stars.rotation.x += delta * 0.002;
       }
 
       composer.render();
@@ -602,90 +507,23 @@ export function DiagnosisCinemaWorld({
       disposed = true;
       window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', resize);
-      controls.dispose();
       composer.dispose();
       renderer.dispose();
-      scene.traverse((object: THREE.Object3D) => {
-        if ('geometry' in object && object.geometry instanceof THREE.BufferGeometry) {
-          object.geometry.dispose();
-        }
-
+      scene.traverse((object) => {
+        if ('geometry' in object && object.geometry instanceof THREE.BufferGeometry) object.geometry.dispose();
         if ('material' in object) {
-          const materials = Array.isArray(object.material)
-            ? (object.material as THREE.Material[])
-            : [object.material as THREE.Material];
-          materials.forEach((material: THREE.Material) => {
-            material.dispose();
-          });
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => material.dispose());
         }
       });
-
-      if (host.contains(renderer.domElement)) {
-        host.removeChild(renderer.domElement);
-      }
+      if (host.contains(renderer.domElement)) host.removeChild(renderer.domElement);
     };
   }, []);
-
-  const sceneState = getDiagnosisSceneState(stepIndex);
 
   return (
     <div className="absolute inset-0" data-diagnosis-render-mode="webgl">
       <div ref={hostRef} className="h-full w-full" />
-
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[22%] top-[16%] rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200 backdrop-blur-xl">
-          공개 스토어 신호
-        </div>
-
-        {DIAGNOSIS_CHANNEL_LABELS.map((label, index) => (
-          <div
-            key={label}
-            className={`absolute rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-slate-100 backdrop-blur-xl transition duration-500 ${
-              sceneState.showSignalBranches ? 'opacity-100' : 'opacity-0'
-            }`}
-            style={BRANCH_LABEL_POSITIONS[index]}
-          >
-            {label}
-          </div>
-        ))}
-
-        <div
-          className={`absolute left-[68%] top-[30%] rounded-full border border-orange-300/18 bg-orange-300/[0.08] px-3 py-1.5 text-[11px] font-semibold text-orange-50 backdrop-blur-xl transition duration-500 ${
-            sceneState.showMemoryCore ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          고객 기억 코어
-        </div>
-
-        {DIAGNOSIS_ACTION_LABELS.map((label, index) => (
-          <div
-            key={label}
-            className={`absolute rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-slate-100 backdrop-blur-xl transition duration-500 ${
-              sceneState.showActionOutputs ? 'opacity-100' : 'opacity-0'
-            }`}
-            style={ACTION_LABEL_POSITIONS[index]}
-          >
-            {label}
-          </div>
-        ))}
-
-        <div
-          className={`absolute left-[28%] top-[20%] rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200 backdrop-blur-xl transition duration-700 ${
-            sceneState.showGeneratedStore ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{ transitionDelay: sceneState.showGeneratedStore ? '260ms' : '0ms' }}
-        >
-          생성 스토어
-        </div>
-        <div
-          className={`absolute left-[67%] top-[18%] rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200 backdrop-blur-xl transition duration-700 ${
-            sceneState.showDashboardPayoff ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{ transitionDelay: sceneState.showDashboardPayoff ? '980ms' : '0ms' }}
-        >
-          운영 대시보드
-        </div>
-      </div>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.06),transparent_16%),radial-gradient(circle_at_18%_20%,rgba(96,165,250,0.08),transparent_18%),radial-gradient(circle_at_82%_18%,rgba(196,181,253,0.08),transparent_16%)]" />
     </div>
   );
 }
