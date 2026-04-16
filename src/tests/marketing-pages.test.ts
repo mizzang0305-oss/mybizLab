@@ -32,14 +32,17 @@ describe('public diagnosis surfaces', () => {
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
   });
 
-  it('renders onboarding as the diagnosis cinema owner', () => {
+  it('renders onboarding as an autoplay diagnosis cinema with no wizard controls', () => {
     const html = renderRoute('/onboarding');
 
     expect(html).toContain('data-public-shell-theme="diagnosis"');
     expect(html).toContain('data-diagnosis-shell="cinema"');
-    expect(html).toContain('01');
-    expect(html).toContain('스토어 확인');
-    expect(html).toContain('운영 대시보드');
+    expect(html).toContain('data-diagnosis-autoplay="true"');
+    expect(html).toContain('data-diagnosis-autoplay-state="playing"');
+    expect(html).toContain('data-diagnosis-skip="true"');
+    expect(html).toContain('01 스토어 확인');
+    expect(html).not.toContain('data-diagnosis-back=');
+    expect(html).not.toContain('data-diagnosis-next=');
     expect(html).not.toContain('data-diagnosis-post-cinema="true"');
     expect(html).not.toContain('data-diagnosis-pricing-ladder="true"');
     expect(html).not.toContain('data-diagnosis-store-reveal="true"');

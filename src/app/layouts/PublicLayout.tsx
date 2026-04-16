@@ -80,7 +80,7 @@ export function PublicLayout() {
                 </nav>
               )}
 
-              <div className="flex flex-wrap items-center gap-3">
+              {isOnboardingPage ? null : <div className="flex flex-wrap items-center gap-3">
                 <Link
                   className={
                     isDiagnosisShell
@@ -99,7 +99,7 @@ export function PublicLayout() {
                     공개 스토어 진단 생성
                   </Link>
                 )}
-              </div>
+              </div>}
             </div>
           </div>
         </div>
