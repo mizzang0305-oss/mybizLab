@@ -181,7 +181,6 @@ export function DiagnosisCinemaStage({
             />
           </g>
         ))}
-      </svg>
 
       {ambientNodes.map((node, index) => (
         <motion.div
@@ -205,6 +204,7 @@ export function DiagnosisCinemaStage({
           }}
         />
       ))}
+      </svg>
 
       <motion.div
         animate={{
