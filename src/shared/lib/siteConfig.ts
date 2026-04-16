@@ -1,15 +1,15 @@
-export const SITE_NAME = '마이비즈랩';
+export const SITE_NAME = 'MyBiz';
 export const SERVICE_DOMAIN = 'mybiz.ai.kr';
-export const SERVICE_TAGLINE = '고객 기억으로 재방문 매출을 만드는 매장 운영 SaaS';
+export const SERVICE_TAGLINE = '고객 기억으로 반복 매출을 만드는 매장 운영 SaaS';
 export const SERVICE_DESCRIPTION =
-  'MyBizLab은 공개페이지 유입, 문의·AI 상담·예약·웨이팅을 고객 타임라인에 연결하고 다음 행동을 추천해 재방문 매출로 이어주는 매장 운영 SaaS입니다.';
+  'MyBiz는 공개 스토어 유입, 문의·예약·웨이팅 캡처, 고객 기억 결합, 다음 행동 제안, 운영 대시보드까지 이어지는 customer-memory revenue system입니다.';
 export const POLICY_UPDATED_AT = '2026년 3월 14일';
 export const SUPPORT_PHONE_NUMBER = '032-214-5757';
 export const SUBSCRIPTION_START_PATH = '/onboarding';
 
 export const BUSINESS_INFO = {
   companyName: '마이비즈랩',
-  representative: '이정민',
+  representative: '이정미',
   businessRegistrationNumber: '741-01-03857',
   ecommerceRegistrationNumber: '2026-인천남동구-0346',
   address: '인천광역시 남동구 만수서로 101, 121-1(만수동, 유한프라자)',
@@ -34,21 +34,21 @@ export interface PricingPlan {
 export const PRICING_PLANS: PricingPlan[] = [
   {
     name: 'FREE',
-    priceLabel: '월 29,000원',
-    summary: '한 매장을 빠르게 시작하는 기본 운영 플랜',
-    features: ['AI 스토어 진단', '기본 매출 분석', '주문 관리'],
+    priceLabel: '무료',
+    summary: '공개 스토어로 첫 유입과 기본 신호를 모으는 시작 플랜',
+    features: ['공개 스토어 생성', '기본 유입 캡처', '기초 운영 진단'],
   },
   {
     name: 'PRO',
     priceLabel: '월 79,000원',
-    summary: '고객 관리와 예약 운영까지 함께 보는 추천 플랜',
-    features: ['고객 관리', '예약 관리', 'AI 운영 리포트'],
+    summary: '문의·예약·웨이팅을 고객 기억과 운영 액션으로 연결하는 추천 플랜',
+    features: ['고객 기억 타임라인', '예약·웨이팅 운영', 'AI 액션 제안'],
     highlighted: true,
   },
   {
     name: 'VIP',
     priceLabel: '월 149,000원',
-    summary: '운영 자동화와 리포트를 깊게 보는 확장 플랜',
-    features: ['고급 매출 분석', '통합 운영 관리', '브랜드 확장 준비'],
+    summary: '반복 매출 회복과 운영 자동화를 깊게 확장하는 상위 플랜',
+    features: ['고급 리포트', '확장 운영 자동화', '브랜드 맞춤 지원'],
   },
 ] as const;
