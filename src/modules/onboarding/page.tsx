@@ -26,10 +26,7 @@ import {
   type DiagnosisAvailableDataKey,
 } from '@/shared/lib/diagnosisBlueprint';
 import { persistDiagnosisSession } from '@/shared/lib/diagnosisSessions';
-import {
-  getNextDiagnosisCorridorStepIndex,
-  getPreviousDiagnosisCorridorStepIndex,
-} from '@/shared/lib/diagnosisCorridor';
+import { DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS } from '@/shared/lib/diagnosisCorridor';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
 import {
   DIAGNOSIS_LOADING_STAGES,
@@ -351,7 +348,7 @@ export function OnboardingPage() {
     flow.step !== 'diagnosis' ||
     Boolean(flow.requestId) ||
     searchParams.get('setup') === '1';
-  const [diagnosisCinemaStepIndex, setDiagnosisCinemaStepIndex] = useState(() => (shouldStartInSetupFlow ? 4 : 0));
+  const [cinemaPlaybackSeed, setCinemaPlaybackSeed] = useState(0);
   const [showEntryTransition, setShowEntryTransition] = useState(
     Boolean((location.state as { corridorEntry?: boolean } | null)?.corridorEntry),
   );
@@ -361,6 +358,7 @@ export function OnboardingPage() {
   usePageMeta('스토어 AI 진단 신청', 'AI 진단, 생성 요청, 결제, 승인, 대시보드 진입까지 이어지는 MyBizLab 온보딩입니다.');
 
   usePageMeta('MyBiz | 공개 스토어 진단', 'MyBiz의 진단 시네마와 스토어 생성 흐름을 이어 주는 공개 온보딩 화면입니다.');
+  usePageMeta('MyBiz | 공개 스토어 진단', '공개 스토어 진단 시네마에서 생성 흐름까지 이어지는 MyBiz 온보딩입니다.');
 
   const existingSlugs = useMemo(() => (storesQuery.data || []).map((store) => store.slug), [storesQuery.data]);
   const existingSlugSet = useMemo(() => new Set(existingSlugs.map((slug) => normalizeStoreSlug(slug))), [existingSlugs]);
@@ -438,7 +436,7 @@ export function OnboardingPage() {
 
     const timeout = window.setTimeout(() => {
       setShowEntryTransition(false);
-    }, 960);
+    }, DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS);
 
     return () => {
       window.clearTimeout(timeout);
@@ -765,14 +763,7 @@ export function OnboardingPage() {
     }
   }
 
-  function moveDiagnosisCinema(direction: 1 | -1) {
-    setDiagnosisCinemaStepIndex((current) =>
-      direction > 0 ? getNextDiagnosisCorridorStepIndex(current) : getPreviousDiagnosisCorridorStepIndex(current),
-    );
-  }
-
   function openPostCinema() {
-    setDiagnosisCinemaStepIndex(4);
     startTransition(() => {
       setShowPostCinema(true);
     });
@@ -782,7 +773,6 @@ export function OnboardingPage() {
   }
 
   function openSetupFlow() {
-    setDiagnosisCinemaStepIndex(4);
     startTransition(() => {
       setShowPostCinema(true);
       setShowSetupFlow(true);
@@ -803,7 +793,8 @@ export function OnboardingPage() {
     setMessage(null);
     setRequestErrors({});
     startTransition(() => {
-      setDiagnosisCinemaStepIndex(0);
+      setCinemaPlaybackSeed((current) => current + 1);
+      setShowEntryTransition(true);
       setShowPostCinema(false);
       setShowSetupFlow(false);
     });
@@ -838,12 +829,11 @@ export function OnboardingPage() {
   return (
     <div className="space-y-0">
       <DiagnosisCinemaShell
-        currentStepIndex={diagnosisCinemaStepIndex}
-        onBack={() => moveDiagnosisCinema(-1)}
         onContinue={openPostCinema}
-        onEntryTransitionComplete={() => setShowEntryTransition(false)}
-        onNext={() => moveDiagnosisCinema(1)}
+        onSkip={openSetupFlow}
+        playbackSeed={cinemaPlaybackSeed}
         showEntryTransition={showEntryTransition}
+        startCompleted={shouldStartInSetupFlow}
       />
 
       {showPostCinema ? (
@@ -884,23 +874,7 @@ export function OnboardingPage() {
                   </Link>
                   <button
                     className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                    onClick={() => {
-                      clearOnboardingFlowState();
-                      setFlow(createInitialOnboardingFlowState());
-                      setMessage(null);
-                      setRequestErrors({});
-                      setDiagnosisCinemaStepIndex(0);
-                      setShowSetupFlow(false);
-                      setSearchParams((current) => {
-                        const next = new URLSearchParams(current);
-                        next.delete('setup');
-                        next.delete('portone');
-                        next.delete('paymentId');
-                        next.delete('code');
-                        return next;
-                      });
-                      window.scrollTo({ behavior: 'smooth', top: 0 });
-                    }}
+                    onClick={resetCinemaFlow}
                     type="button"
                   >
                     처음부터 다시

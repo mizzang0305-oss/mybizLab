@@ -49,10 +49,12 @@ const actionLabels = [
 
 export function DiagnosisCinemaStage({
   className = '',
+  isFrozen = false,
   renderMode = 'fallback',
   stepIndex,
 }: {
   className?: string;
+  isFrozen?: boolean;
   renderMode?: 'fallback' | 'reduced';
   stepIndex: number;
 }) {
@@ -169,51 +171,51 @@ export function DiagnosisCinemaStage({
           </g>
         ))}
 
-        {[
-          'M 1056 512 C 1170 468, 1262 386, 1340 256',
-          'M 1056 512 C 1198 512, 1276 512, 1384 522',
-          'M 1056 512 C 1170 556, 1260 640, 1334 764',
-        ].map((path) => (
-          <g key={path}>
-            <motion.path
-              d={path}
-              stroke="url(#stage-branch)"
-              strokeLinecap="round"
-              strokeWidth="13"
-              animate={{ opacity: sceneState.showActionOutputs ? 0.26 : 0 }}
-              style={{ filter: 'blur(10px)' }}
-              transition={{ duration: 0.8 }}
-            />
-            <motion.path
-              d={path}
-              stroke="url(#stage-branch)"
-              strokeLinecap="round"
-              strokeWidth="2.8"
-              animate={{ opacity: sceneState.showActionOutputs ? 0.88 : 0 }}
-              transition={{ duration: 0.8 }}
-            />
-          </g>
-        ))}
+      {[
+        'M 1056 512 C 1170 468, 1262 386, 1340 256',
+        'M 1056 512 C 1198 512, 1276 512, 1384 522',
+        'M 1056 512 C 1170 556, 1260 640, 1334 764',
+      ].map((path) => (
+        <g key={path}>
+          <motion.path
+            d={path}
+            stroke="url(#stage-branch)"
+            strokeLinecap="round"
+            strokeWidth="13"
+            animate={{ opacity: sceneState.showActionOutputs ? (safeStepIndex === 4 ? 0.08 : 0.26) : 0 }}
+            style={{ filter: 'blur(10px)' }}
+            transition={{ duration: 0.8 }}
+          />
+          <motion.path
+            d={path}
+            stroke="url(#stage-branch)"
+            strokeLinecap="round"
+            strokeWidth="2.8"
+            animate={{ opacity: sceneState.showActionOutputs ? (safeStepIndex === 4 ? 0.18 : 0.88) : 0 }}
+            transition={{ duration: 0.8 }}
+          />
+        </g>
+      ))}
       </svg>
 
       <motion.div
         className="absolute left-[73.3%] top-1/2 h-[154px] w-[154px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-orange-300/16 bg-orange-300/[0.05]"
         animate={{
           opacity: sceneState.showMemoryCore ? 1 : 0,
-          scale: sceneState.showMemoryCore ? 1 : 0.72,
+          scale: sceneState.showMemoryCore ? (safeStepIndex === 4 ? (isFrozen ? 0.82 : 0.88) : 1) : 0.72,
           boxShadow: sceneState.showMemoryCore ? '0 0 120px rgba(251,146,60,0.28)' : '0 0 0 rgba(0,0,0,0)',
         }}
         transition={{ duration: 0.8, ease: 'easeOut' }}
       >
         <motion.div
           className="absolute inset-[12px] rounded-full border border-white/12"
-          animate={{ rotate: sceneState.showMemoryCore ? 120 : 0 }}
-          transition={{ duration: 12, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
+          animate={{ rotate: sceneState.showMemoryCore ? (isFrozen ? 84 : 120) : 0 }}
+          transition={{ duration: isFrozen ? 0.52 : 12, repeat: isFrozen ? 0 : Number.POSITIVE_INFINITY, ease: 'linear' }}
         />
         <motion.div
           className="absolute inset-[28px] rounded-full border border-white/10"
-          animate={{ rotate: sceneState.showMemoryCore ? -180 : 0 }}
-          transition={{ duration: 10, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
+          animate={{ rotate: sceneState.showMemoryCore ? (isFrozen ? -132 : -180) : 0 }}
+          transition={{ duration: isFrozen ? 0.52 : 10, repeat: isFrozen ? 0 : Number.POSITIVE_INFINITY, ease: 'linear' }}
         />
         <div className="absolute inset-[44px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.92),rgba(251,146,60,0.82),rgba(251,146,60,0))]" />
       </motion.div>
@@ -237,7 +239,7 @@ export function DiagnosisCinemaStage({
           initial={{ opacity: 0, y: 10 }}
           transition={{ duration: 0.5 }}
         >
-          customer memory core
+          고객 기억 코어
         </motion.div>
       ) : null}
 
@@ -258,7 +260,7 @@ export function DiagnosisCinemaStage({
         animate={{ opacity: sceneState.showStoreContext ? 0.9 : 0.4 }}
         transition={{ duration: 0.6 }}
       >
-        public store signal
+        공개 스토어 신호
       </motion.div>
 
       <motion.div
@@ -276,7 +278,7 @@ export function DiagnosisCinemaStage({
           y: sceneState.showGeneratedStore ? 0 : 24,
         }}
         style={{ transformPerspective: 1200 }}
-        transition={{ duration: 0.9, ease: 'easeOut' }}
+        transition={{ delay: sceneState.showGeneratedStore ? 0.34 : 0, duration: 0.9, ease: 'easeOut' }}
       >
         <div className="absolute inset-x-5 top-5 h-2 rounded-full bg-white/10" />
         <div className="absolute inset-x-5 top-12 h-24 rounded-[1.4rem] border border-white/10 bg-white/[0.04]" />
@@ -290,7 +292,7 @@ export function DiagnosisCinemaStage({
           scale: sceneState.showDashboardPayoff ? 1 : 0.76,
           y: sceneState.showDashboardPayoff ? 0 : 28,
         }}
-        transition={{ duration: 0.96, ease: 'easeOut', delay: sceneState.showDashboardPayoff ? 0.08 : 0 }}
+        transition={{ duration: 0.96, ease: 'easeOut', delay: sceneState.showDashboardPayoff ? 1.08 : 0 }}
       >
         <div className="absolute inset-x-5 top-5 flex items-center gap-2">
           <div className="h-2.5 w-2.5 rounded-full bg-orange-300" />

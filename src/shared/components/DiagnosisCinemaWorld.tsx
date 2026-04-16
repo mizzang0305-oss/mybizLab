@@ -247,14 +247,26 @@ function dampValue(current: number, target: number, lambda: number, delta: numbe
   return THREE.MathUtils.damp(current, target, lambda, delta);
 }
 
-export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
+export function DiagnosisCinemaWorld({
+  isFrozen = false,
+  stepIndex,
+}: {
+  isFrozen?: boolean;
+  stepIndex: number;
+}) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const frozenRef = useRef(isFrozen);
+  const payoffProgressRef = useRef(0);
   const stepRef = useRef(clampDiagnosisCorridorStepIndex(stepIndex));
   const deferredStepIndex = useDeferredValue(stepIndex);
 
   useEffect(() => {
     stepRef.current = clampDiagnosisCorridorStepIndex(deferredStepIndex);
   }, [deferredStepIndex]);
+
+  useEffect(() => {
+    frozenRef.current = isFrozen;
+  }, [isFrozen]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -298,7 +310,7 @@ export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
     controls.enableDamping = true;
     controls.enablePan = false;
     controls.enableZoom = false;
-    controls.autoRotate = true;
+    controls.autoRotate = !frozenRef.current;
     controls.autoRotateSpeed = 0.22;
     controls.minPolarAngle = Math.PI * 0.34;
     controls.maxPolarAngle = Math.PI * 0.66;
@@ -472,7 +484,21 @@ export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
       const delta = Math.min(clock.getDelta(), 0.05);
       const safeStepIndex = stepRef.current;
       const sceneState = getDiagnosisSceneState(safeStepIndex);
+      const isFinalStep = safeStepIndex === 4;
       const targetPositions = layouts[safeStepIndex];
+      const payoffProgress = isFinalStep
+        ? THREE.MathUtils.clamp(
+            frozenRef.current ? 1 : payoffProgressRef.current + delta / 1.8,
+            0,
+            1,
+          )
+        : 0;
+
+      payoffProgressRef.current = payoffProgress;
+
+      const condensationProgress = isFinalStep ? Math.min(payoffProgress / 0.28, 1) : 0;
+      const showStoreGeometry = sceneState.showGeneratedStore && payoffProgress >= 0.26;
+      const showDashboardGeometry = sceneState.showDashboardPayoff && payoffProgress >= 0.62;
 
       for (let index = 0; index < currentPositions.length; index += 1) {
         currentPositions[index] = dampValue(currentPositions[index], targetPositions[index], 7.6, delta);
@@ -485,16 +511,23 @@ export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
       const linesMaterial = lines.material as THREE.LineBasicMaterial;
       linesMaterial.opacity = dampValue(
         linesMaterial.opacity,
-        sceneState.showGeneratedStore ? 0.18 : sceneState.showActionOutputs ? 0.42 : sceneState.showMemoryCore ? 0.5 : 0.36,
+        sceneState.showGeneratedStore ? 0.16 : sceneState.showActionOutputs ? 0.42 : sceneState.showMemoryCore ? 0.5 : 0.36,
         5.2,
         delta,
       );
       pointsMaterial.opacity = dampValue(pointsMaterial.opacity, sceneState.showGeneratedStore ? 0.48 : 0.9, 5.2, delta);
 
       coreGroup.position.lerp(CAMERA_TARGETS[Math.min(safeStepIndex, 2)], 1 - Math.exp(-delta * 4.2));
-      coreGroup.scale.x = dampValue(coreGroup.scale.x, sceneState.showMemoryCore ? (safeStepIndex === 2 ? 1.2 : 1) : 0.55, 5.5, delta);
-      coreGroup.scale.y = dampValue(coreGroup.scale.y, sceneState.showMemoryCore ? (safeStepIndex === 2 ? 1.2 : 1) : 0.55, 5.5, delta);
-      coreGroup.scale.z = dampValue(coreGroup.scale.z, sceneState.showMemoryCore ? (safeStepIndex === 2 ? 1.2 : 1) : 0.55, 5.5, delta);
+      const coreScaleTarget = sceneState.showMemoryCore
+        ? safeStepIndex === 2
+          ? 1.2
+          : safeStepIndex === 4
+            ? THREE.MathUtils.lerp(0.92, 0.68, condensationProgress)
+            : 1
+        : 0.55;
+      coreGroup.scale.x = dampValue(coreGroup.scale.x, coreScaleTarget, 5.5, delta);
+      coreGroup.scale.y = dampValue(coreGroup.scale.y, coreScaleTarget, 5.5, delta);
+      coreGroup.scale.z = dampValue(coreGroup.scale.z, coreScaleTarget, 5.5, delta);
       (coreOuter.material as THREE.MeshBasicMaterial).opacity = dampValue(
         (coreOuter.material as THREE.MeshBasicMaterial).opacity,
         sceneState.showMemoryCore ? 0.82 : 0,
@@ -513,42 +546,52 @@ export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
         5.2,
         delta,
       );
-      coreOuter.rotation.y += delta * 0.42;
-      coreOuter.rotation.x += delta * 0.12;
-      coreHalo.rotation.z -= delta * 0.2;
+      if (!frozenRef.current) {
+        coreOuter.rotation.y += delta * 0.42;
+        coreOuter.rotation.x += delta * 0.12;
+        coreHalo.rotation.z -= delta * 0.2;
+      }
 
       actionGroup.children.forEach((child: THREE.Object3D) => {
         const material = (child as THREE.Line).material as THREE.LineBasicMaterial;
-        material.opacity = dampValue(material.opacity, sceneState.showActionOutputs ? 0.78 : 0, 5.5, delta);
+        material.opacity = dampValue(
+          material.opacity,
+          sceneState.showActionOutputs ? (isFinalStep ? Math.max(0, 0.3 - payoffProgress * 0.5) : 0.78) : 0,
+          5.5,
+          delta,
+        );
       });
-      actionGroup.scale.x = dampValue(actionGroup.scale.x, sceneState.showActionOutputs ? 1 : 0.75, 5.5, delta);
-      actionGroup.scale.y = dampValue(actionGroup.scale.y, sceneState.showActionOutputs ? 1 : 0.75, 5.5, delta);
-      actionGroup.scale.z = dampValue(actionGroup.scale.z, sceneState.showActionOutputs ? 1 : 0.75, 5.5, delta);
+      actionGroup.scale.x = dampValue(actionGroup.scale.x, sceneState.showActionOutputs ? (isFinalStep ? 0.84 : 1) : 0.75, 5.5, delta);
+      actionGroup.scale.y = dampValue(actionGroup.scale.y, sceneState.showActionOutputs ? (isFinalStep ? 0.84 : 1) : 0.75, 5.5, delta);
+      actionGroup.scale.z = dampValue(actionGroup.scale.z, sceneState.showActionOutputs ? (isFinalStep ? 0.84 : 1) : 0.75, 5.5, delta);
 
-      storeGroup.scale.x = dampValue(storeGroup.scale.x, sceneState.showGeneratedStore ? 1 : 0.72, 5.2, delta);
-      storeGroup.scale.y = dampValue(storeGroup.scale.y, sceneState.showGeneratedStore ? 1 : 0.72, 5.2, delta);
-      storeGroup.scale.z = dampValue(storeGroup.scale.z, sceneState.showGeneratedStore ? 1 : 0.72, 5.2, delta);
-      storeGroup.position.y = dampValue(storeGroup.position.y, sceneState.showGeneratedStore ? 0.2 : -0.4, 5.6, delta);
-      storeMaterial.opacity = dampValue(storeMaterial.opacity, sceneState.showGeneratedStore ? 0.76 : 0, 5.6, delta);
+      storeGroup.scale.x = dampValue(storeGroup.scale.x, showStoreGeometry ? 1 : 0.68, 5.2, delta);
+      storeGroup.scale.y = dampValue(storeGroup.scale.y, showStoreGeometry ? 1 : 0.68, 5.2, delta);
+      storeGroup.scale.z = dampValue(storeGroup.scale.z, showStoreGeometry ? 1 : 0.68, 5.2, delta);
+      storeGroup.position.y = dampValue(storeGroup.position.y, showStoreGeometry ? 0.2 : -0.52, 5.6, delta);
+      storeMaterial.opacity = dampValue(storeMaterial.opacity, showStoreGeometry ? 0.76 : 0, 5.6, delta);
       (storeBeacon.material as THREE.MeshBasicMaterial).opacity = dampValue(
         (storeBeacon.material as THREE.MeshBasicMaterial).opacity,
-        sceneState.showGeneratedStore ? 0.16 : 0,
+        showStoreGeometry ? 0.16 : 0,
         5.6,
         delta,
       );
 
-      dashboardGroup.scale.x = dampValue(dashboardGroup.scale.x, sceneState.showDashboardPayoff ? 1 : 0.74, 5.4, delta);
-      dashboardGroup.scale.y = dampValue(dashboardGroup.scale.y, sceneState.showDashboardPayoff ? 1 : 0.74, 5.4, delta);
-      dashboardGroup.scale.z = dampValue(dashboardGroup.scale.z, sceneState.showDashboardPayoff ? 1 : 0.74, 5.4, delta);
-      dashboardGroup.position.y = dampValue(dashboardGroup.position.y, sceneState.showDashboardPayoff ? 0.15 : -0.5, 5.4, delta);
-      dashboardMaterial.opacity = dampValue(dashboardMaterial.opacity, sceneState.showDashboardPayoff ? 0.86 : 0, 5.6, delta);
+      dashboardGroup.scale.x = dampValue(dashboardGroup.scale.x, showDashboardGeometry ? 1 : 0.72, 5.4, delta);
+      dashboardGroup.scale.y = dampValue(dashboardGroup.scale.y, showDashboardGeometry ? 1 : 0.72, 5.4, delta);
+      dashboardGroup.scale.z = dampValue(dashboardGroup.scale.z, showDashboardGeometry ? 1 : 0.72, 5.4, delta);
+      dashboardGroup.position.y = dampValue(dashboardGroup.position.y, showDashboardGeometry ? 0.15 : -0.62, 5.4, delta);
+      dashboardMaterial.opacity = dampValue(dashboardMaterial.opacity, showDashboardGeometry ? 0.86 : 0, 5.6, delta);
 
       camera.position.lerp(CAMERA_POSITIONS[safeStepIndex], 1 - Math.exp(-delta * 3.8));
       controls.target.lerp(CAMERA_TARGETS[safeStepIndex], 1 - Math.exp(-delta * 3.8));
+      controls.autoRotate = !frozenRef.current;
       controls.update();
 
-      stars.rotation.y += delta * 0.01;
-      stars.rotation.x += delta * 0.003;
+      if (!frozenRef.current) {
+        stars.rotation.y += delta * 0.01;
+        stars.rotation.x += delta * 0.003;
+      }
 
       composer.render();
     };
@@ -591,7 +634,7 @@ export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
 
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[22%] top-[16%] rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200 backdrop-blur-xl">
-          public store signal
+          공개 스토어 신호
         </div>
 
         {DIAGNOSIS_CHANNEL_LABELS.map((label, index) => (
@@ -611,7 +654,7 @@ export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
             sceneState.showMemoryCore ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          customer memory core
+          고객 기억 코어
         </div>
 
         {DIAGNOSIS_ACTION_LABELS.map((label, index) => (
@@ -630,15 +673,17 @@ export function DiagnosisCinemaWorld({ stepIndex }: { stepIndex: number }) {
           className={`absolute left-[28%] top-[20%] rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200 backdrop-blur-xl transition duration-700 ${
             sceneState.showGeneratedStore ? 'opacity-100' : 'opacity-0'
           }`}
+          style={{ transitionDelay: sceneState.showGeneratedStore ? '260ms' : '0ms' }}
         >
-          generated store
+          생성 스토어
         </div>
         <div
           className={`absolute left-[67%] top-[18%] rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200 backdrop-blur-xl transition duration-700 ${
             sceneState.showDashboardPayoff ? 'opacity-100' : 'opacity-0'
           }`}
+          style={{ transitionDelay: sceneState.showDashboardPayoff ? '980ms' : '0ms' }}
         >
-          operator dashboard
+          운영 대시보드
         </div>
       </div>
     </div>
