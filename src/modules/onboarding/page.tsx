@@ -772,6 +772,16 @@ export function OnboardingPage() {
     });
   }
 
+  function openPostCinema() {
+    setDiagnosisCinemaStepIndex(4);
+    startTransition(() => {
+      setShowPostCinema(true);
+    });
+    window.requestAnimationFrame(() => {
+      postCinemaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function openSetupFlow() {
     startTransition(() => {
       setShowPostCinema(true);

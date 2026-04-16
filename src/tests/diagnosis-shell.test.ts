@@ -103,4 +103,17 @@ describe('diagnosis cinema autoplay shell', () => {
     expect(completedHtml).toContain('data-diagnosis-final-cta="true"');
     expect(completedHtml).toContain('data-diagnosis-replay="true"');
   });
+
+  it('renders the reduced-motion fallback with final payoff hidden until step 05', () => {
+    const initialHtml = renderShell(0);
+    const finalHtml = renderShell(4);
+
+    expect(initialHtml).toContain('data-diagnosis-shell="cinema"');
+    expect(initialHtml).toContain('data-diagnosis-render-mode="reduced"');
+    expect(initialHtml).not.toContain('data-diagnosis-store-reveal="true"');
+    expect(initialHtml).not.toContain('data-diagnosis-dashboard-payoff="true"');
+
+    expect(finalHtml).toContain('data-diagnosis-store-reveal="true"');
+    expect(finalHtml).toContain('data-diagnosis-dashboard-payoff="true"');
+  });
 });
