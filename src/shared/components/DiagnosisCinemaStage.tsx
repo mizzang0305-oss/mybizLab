@@ -1,66 +1,97 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
-import {
-  DIAGNOSIS_ACTION_LABELS,
-  DIAGNOSIS_CHANNEL_LABELS,
-  clampDiagnosisCorridorStepIndex,
-  getDiagnosisSceneState,
-} from '@/shared/lib/diagnosisCorridor';
+import { clampDiagnosisCorridorStepIndex, getDiagnosisSceneState } from '@/shared/lib/diagnosisCorridor';
 
-const stageThemes = [
-  {
-    glow: 'radial-gradient(circle at 20% 28%, rgba(236,91,19,0.18), transparent 18%)',
-    secondaryGlow: 'radial-gradient(circle at 82% 20%, rgba(96,165,250,0.12), transparent 18%)',
-    gridOpacity: 0.1,
-  },
-  {
-    glow: 'radial-gradient(circle at 26% 30%, rgba(236,91,19,0.18), transparent 18%)',
-    secondaryGlow: 'radial-gradient(circle at 78% 22%, rgba(96,165,250,0.14), transparent 18%)',
-    gridOpacity: 0.12,
-  },
-  {
-    glow: 'radial-gradient(circle at 50% 34%, rgba(251,146,60,0.24), transparent 20%)',
-    secondaryGlow: 'radial-gradient(circle at 50% 34%, rgba(129,140,248,0.18), transparent 26%)',
-    gridOpacity: 0.14,
-  },
-  {
-    glow: 'radial-gradient(circle at 52% 34%, rgba(251,146,60,0.18), transparent 18%)',
-    secondaryGlow: 'radial-gradient(circle at 82% 26%, rgba(96,165,250,0.16), transparent 18%)',
-    gridOpacity: 0.12,
-  },
-  {
-    glow: 'radial-gradient(circle at 42% 34%, rgba(251,146,60,0.18), transparent 22%)',
-    secondaryGlow: 'radial-gradient(circle at 72% 34%, rgba(96,165,250,0.18), transparent 22%)',
-    gridOpacity: 0.13,
-  },
+const ambientNodes = [
+  { left: '8%', top: '16%', size: 6, tone: 'sky' },
+  { left: '16%', top: '30%', size: 5, tone: 'white' },
+  { left: '12%', top: '62%', size: 7, tone: 'violet' },
+  { left: '24%', top: '18%', size: 5, tone: 'white' },
+  { left: '28%', top: '44%', size: 6, tone: 'sky' },
+  { left: '22%', top: '72%', size: 5, tone: 'violet' },
+  { left: '38%', top: '12%', size: 5, tone: 'white' },
+  { left: '42%', top: '28%', size: 7, tone: 'sky' },
+  { left: '48%', top: '52%', size: 6, tone: 'white' },
+  { left: '44%', top: '78%', size: 4, tone: 'violet' },
+  { left: '56%', top: '16%', size: 6, tone: 'sky' },
+  { left: '62%', top: '32%', size: 7, tone: 'white' },
+  { left: '66%', top: '58%', size: 6, tone: 'violet' },
+  { left: '74%', top: '20%', size: 5, tone: 'sky' },
+  { left: '78%', top: '42%', size: 6, tone: 'white' },
+  { left: '82%', top: '70%', size: 7, tone: 'sky' },
+  { left: '88%', top: '28%', size: 4, tone: 'violet' },
+  { left: '90%', top: '56%', size: 5, tone: 'white' },
+  { left: '70%', top: '82%', size: 5, tone: 'violet' },
+  { left: '34%', top: '66%', size: 5, tone: 'sky' },
 ] as const;
 
-const branchLabels = [
-  { left: '62%', top: '24%' },
-  { left: '72%', top: '48%' },
-  { left: '62%', top: '72%' },
+const ambientLinks = [
+  'M 120 180 C 240 210, 330 240, 460 300',
+  'M 180 570 C 320 480, 440 430, 560 400',
+  'M 420 130 C 540 210, 660 250, 760 320',
+  'M 540 520 C 680 440, 780 380, 900 340',
+  'M 640 260 C 760 340, 860 430, 980 520',
+  'M 860 190 C 980 260, 1100 300, 1240 340',
+  'M 820 640 C 940 580, 1080 560, 1260 560',
+  'M 420 760 C 560 700, 640 640, 760 580',
 ] as const;
 
-const actionLabels = [
-  { left: '78%', top: '22%' },
-  { left: '84%', top: '48%' },
-  { left: '78%', top: '74%' },
+const branchPaths = [
+  'M 260 520 C 420 460, 560 360, 760 240',
+  'M 260 520 C 460 520, 620 520, 820 520',
+  'M 260 520 C 420 580, 560 680, 760 800',
 ] as const;
+
+const outputPaths = [
+  'M 760 520 C 920 450, 1060 360, 1240 230',
+  'M 760 520 C 940 515, 1080 514, 1260 520',
+  'M 760 520 C 920 590, 1060 676, 1240 810',
+] as const;
+
+const storeShellSegments = [
+  { left: '24%', top: '28%', width: '12%', height: '32%' },
+  { left: '24%', top: '22%', width: '12%', height: '4%' },
+  { left: '27.2%', top: '40%', width: '5.6%', height: '11%' },
+  { left: '24%', top: '62%', width: '12%', height: '7%' },
+] as const;
+
+const dashboardSegments = [
+  { left: '58%', top: '30%', width: '18%', height: '22%' },
+  { left: '60%', top: '56%', width: '4%', height: '10%' },
+  { left: '66%', top: '50%', width: '4%', height: '16%' },
+  { left: '72%', top: '44%', width: '4%', height: '22%' },
+] as const;
+
+function nodeClasses(tone: 'sky' | 'violet' | 'white') {
+  if (tone === 'sky') {
+    return 'bg-sky-300 shadow-[0_0_18px_rgba(125,211,252,0.72)]';
+  }
+
+  if (tone === 'violet') {
+    return 'bg-violet-300 shadow-[0_0_18px_rgba(196,181,253,0.74)]';
+  }
+
+  return 'bg-white shadow-[0_0_20px_rgba(255,255,255,0.82)]';
+}
 
 export function DiagnosisCinemaStage({
   className = '',
   isFrozen = false,
+  pulseSeed = 0,
   renderMode = 'fallback',
   stepIndex,
 }: {
   className?: string;
   isFrozen?: boolean;
+  pulseSeed?: number;
   renderMode?: 'fallback' | 'reduced';
   stepIndex: number;
 }) {
   const safeStepIndex = clampDiagnosisCorridorStepIndex(stepIndex);
   const sceneState = getDiagnosisSceneState(safeStepIndex);
-  const theme = stageThemes[safeStepIndex];
+  const coreGlowScale = sceneState.isMemoryMergeShot ? 1.18 : sceneState.isPayoffShot ? 0.96 : 1;
+  const branchOpacity = sceneState.showSignalBranches ? (sceneState.isMemoryMergeShot ? 0.72 : 0.54) : 0.16;
+  const outputOpacity = sceneState.showOutputRays ? (sceneState.isPayoffShot ? 0.2 : 0.48) : 0;
 
   return (
     <div
@@ -68,240 +99,191 @@ export function DiagnosisCinemaStage({
       data-diagnosis-render-mode={renderMode}
     >
       <motion.div
-        aria-hidden="true"
-        className="absolute inset-0"
         animate={{
-          backgroundImage: `${theme.glow}, ${theme.secondaryGlow}, linear-gradient(180deg,#02050a 0%,#060913 48%,#02050a 100%)`,
+          opacity: sceneState.isPayoffShot ? 0.96 : 0.82,
         }}
-        transition={{ duration: 0.9, ease: 'easeOut' }}
+        className="absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(196,181,253,0.14),transparent_18%),radial-gradient(circle_at_18%_22%,rgba(96,165,250,0.12),transparent_22%),radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.08),transparent_16%),linear-gradient(180deg,#02050a_0%,#030711_56%,#02050a_100%)]"
+        transition={{ duration: 0.8, ease: 'easeOut' }}
       />
-      <motion.div
-        aria-hidden="true"
-        className="absolute inset-0 [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:64px_64px]"
-        animate={{ opacity: theme.gridOpacity }}
-        transition={{ duration: 0.9, ease: 'easeOut' }}
-      />
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(180deg,rgba(2,5,10,0),rgba(2,5,10,0.96))]" />
+      <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_center,rgba(255,255,255,0.8)_0.6px,transparent_0.7px)] [background-size:38px_38px]" />
+      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(180deg,rgba(2,5,10,0),rgba(2,5,10,0.92))]" />
 
       <svg className="absolute inset-0 h-full w-full" fill="none" viewBox="0 0 1440 1024">
         <defs>
-          <linearGradient id="stage-incoming" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="rgba(251,146,60,0)" />
-            <stop offset="70%" stopColor="rgba(251,146,60,0.98)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0.92)" />
+          <linearGradient id="crystal-ambient" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.2)" />
+            <stop offset="55%" stopColor="rgba(125,211,252,0.34)" />
+            <stop offset="100%" stopColor="rgba(196,181,253,0.18)" />
           </linearGradient>
-          <linearGradient id="stage-branch" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="rgba(251,146,60,0.96)" />
-            <stop offset="100%" stopColor="rgba(96,165,250,0.84)" />
+          <linearGradient id="crystal-branch" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.28)" />
+            <stop offset="45%" stopColor="rgba(96,165,250,0.72)" />
+            <stop offset="100%" stopColor="rgba(196,181,253,0.74)" />
           </linearGradient>
-          <linearGradient id="stage-core" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.94)" />
-            <stop offset="55%" stopColor="rgba(251,146,60,0.95)" />
-            <stop offset="100%" stopColor="rgba(129,140,248,0.82)" />
+          <linearGradient id="crystal-output" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.28)" />
+            <stop offset="100%" stopColor="rgba(125,211,252,0.86)" />
           </linearGradient>
         </defs>
 
-        <motion.path
-          d="M 40 512 C 250 512, 360 512, 520 512"
-          stroke="url(#stage-incoming)"
-          strokeLinecap="round"
-          strokeWidth="18"
-          animate={{ opacity: 0.34 }}
-          style={{ filter: 'blur(14px)' }}
-          transition={{ duration: 0.8 }}
-        />
-        <motion.path
-          d="M 40 512 C 250 512, 360 512, 520 512"
-          stroke="url(#stage-incoming)"
-          strokeLinecap="round"
-          strokeWidth="3.5"
-          animate={{ opacity: 0.98 }}
-          transition={{ duration: 0.8 }}
-        />
+        {ambientLinks.map((path, index) => (
+          <motion.path
+            key={path}
+            animate={{ opacity: 0.12 + (index % 3) * 0.04 }}
+            d={path}
+            stroke="url(#crystal-ambient)"
+            strokeLinecap="round"
+            strokeWidth="1.3"
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          />
+        ))}
 
-        {[
-          'M 520 512 C 650 470, 710 360, 860 248',
-          'M 520 512 C 690 512, 786 512, 938 512',
-          'M 520 512 C 650 554, 710 664, 860 776',
-        ].map((path) => (
+        {branchPaths.map((path, index) => (
           <g key={path}>
             <motion.path
+              animate={{ opacity: branchOpacity * 0.45 }}
               d={path}
-              stroke="url(#stage-branch)"
+              stroke="url(#crystal-branch)"
               strokeLinecap="round"
-              strokeWidth="16"
-              animate={{ opacity: sceneState.showSignalBranches ? 0.32 : 0 }}
+              strokeWidth="14"
               style={{ filter: 'blur(12px)' }}
-              transition={{ duration: 0.8 }}
+              transition={{ duration: 0.78, delay: index * 0.04, ease: 'easeOut' }}
             />
             <motion.path
+              animate={{ opacity: branchOpacity }}
               d={path}
-              stroke="url(#stage-branch)"
+              stroke="url(#crystal-branch)"
               strokeLinecap="round"
-              strokeWidth="3.4"
-              animate={{ opacity: sceneState.showSignalBranches ? 0.94 : 0 }}
-              transition={{ duration: 0.8 }}
+              strokeWidth="2.2"
+              transition={{ duration: 0.78, delay: index * 0.04, ease: 'easeOut' }}
             />
           </g>
         ))}
 
-        {[
-          'M 860 248 C 980 312, 1040 416, 1056 512',
-          'M 938 512 C 986 512, 1022 512, 1056 512',
-          'M 860 776 C 980 706, 1040 610, 1056 512',
-        ].map((path) => (
+        {outputPaths.map((path, index) => (
           <g key={path}>
             <motion.path
+              animate={{ opacity: outputOpacity * 0.36 }}
               d={path}
-              stroke="url(#stage-core)"
+              stroke="url(#crystal-output)"
               strokeLinecap="round"
-              strokeWidth="18"
-              animate={{ opacity: sceneState.showMemoryCore ? 0.34 : 0 }}
+              strokeWidth="12"
               style={{ filter: 'blur(12px)' }}
-              transition={{ duration: 0.8 }}
+              transition={{ duration: 0.78, delay: index * 0.04, ease: 'easeOut' }}
             />
             <motion.path
+              animate={{ opacity: outputOpacity }}
               d={path}
-              stroke="url(#stage-core)"
+              stroke="url(#crystal-output)"
               strokeLinecap="round"
-              strokeWidth="3.4"
-              animate={{ opacity: sceneState.showMemoryCore ? 0.94 : 0 }}
-              transition={{ duration: 0.8 }}
+              strokeWidth="1.9"
+              transition={{ duration: 0.78, delay: index * 0.04, ease: 'easeOut' }}
             />
           </g>
         ))}
-
-      {[
-        'M 1056 512 C 1170 468, 1262 386, 1340 256',
-        'M 1056 512 C 1198 512, 1276 512, 1384 522',
-        'M 1056 512 C 1170 556, 1260 640, 1334 764',
-      ].map((path) => (
-        <g key={path}>
-          <motion.path
-            d={path}
-            stroke="url(#stage-branch)"
-            strokeLinecap="round"
-            strokeWidth="13"
-            animate={{ opacity: sceneState.showActionOutputs ? (safeStepIndex === 4 ? 0.08 : 0.26) : 0 }}
-            style={{ filter: 'blur(10px)' }}
-            transition={{ duration: 0.8 }}
-          />
-          <motion.path
-            d={path}
-            stroke="url(#stage-branch)"
-            strokeLinecap="round"
-            strokeWidth="2.8"
-            animate={{ opacity: sceneState.showActionOutputs ? (safeStepIndex === 4 ? 0.18 : 0.88) : 0 }}
-            transition={{ duration: 0.8 }}
-          />
-        </g>
-      ))}
       </svg>
 
+      {ambientNodes.map((node, index) => (
+        <motion.div
+          key={`${node.left}-${node.top}-${node.tone}`}
+          animate={{
+            opacity: sceneState.isDetectionShot ? 0.38 + (index % 4) * 0.08 : 0.55 + (index % 4) * 0.08,
+            scale: sceneState.isMemoryMergeShot && index % 3 === 0 ? 1.24 : 1,
+            y: isFrozen ? 0 : [0, (index % 2 === 0 ? -4 : 4), 0],
+          }}
+          className={`absolute rounded-full ${nodeClasses(node.tone)}`}
+          style={{
+            height: node.size,
+            left: node.left,
+            top: node.top,
+            width: node.size,
+          }}
+          transition={{
+            duration: isFrozen ? 0.2 : 5 + (index % 5) * 0.4,
+            ease: 'easeInOut',
+            repeat: isFrozen ? 0 : Number.POSITIVE_INFINITY,
+          }}
+        />
+      ))}
+
       <motion.div
-        className="absolute left-[73.3%] top-1/2 h-[154px] w-[154px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-orange-300/16 bg-orange-300/[0.05]"
         animate={{
-          opacity: sceneState.showMemoryCore ? 1 : 0,
-          scale: sceneState.showMemoryCore ? (safeStepIndex === 4 ? (isFrozen ? 0.82 : 0.88) : 1) : 0.72,
-          boxShadow: sceneState.showMemoryCore ? '0 0 120px rgba(251,146,60,0.28)' : '0 0 0 rgba(0,0,0,0)',
+          opacity: sceneState.showMemoryCore ? 1 : 0.42,
+          scale: coreGlowScale,
         }}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
+        className="absolute left-1/2 top-1/2 h-[19rem] w-[19rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.4),rgba(196,181,253,0.18)_26%,rgba(96,165,250,0.08)_42%,rgba(2,5,10,0)_68%)] blur-[2px]"
+        transition={{ duration: 0.82, ease: 'easeOut' }}
       >
         <motion.div
-          className="absolute inset-[12px] rounded-full border border-white/12"
-          animate={{ rotate: sceneState.showMemoryCore ? (isFrozen ? 84 : 120) : 0 }}
-          transition={{ duration: isFrozen ? 0.52 : 12, repeat: isFrozen ? 0 : Number.POSITIVE_INFINITY, ease: 'linear' }}
+          animate={{ rotate: sceneState.showMemoryCore ? (isFrozen ? 36 : 360) : 0 }}
+          className="absolute inset-[20%] rounded-full border border-white/16"
+          transition={{ duration: isFrozen ? 0.24 : 14, ease: 'linear', repeat: isFrozen ? 0 : Number.POSITIVE_INFINITY }}
         />
         <motion.div
-          className="absolute inset-[28px] rounded-full border border-white/10"
-          animate={{ rotate: sceneState.showMemoryCore ? (isFrozen ? -132 : -180) : 0 }}
-          transition={{ duration: isFrozen ? 0.52 : 10, repeat: isFrozen ? 0 : Number.POSITIVE_INFINITY, ease: 'linear' }}
+          animate={{ rotate: sceneState.showMemoryCore ? (isFrozen ? -42 : -360) : 0 }}
+          className="absolute inset-[34%] rounded-full border border-violet-200/22"
+          transition={{ duration: isFrozen ? 0.24 : 10, ease: 'linear', repeat: isFrozen ? 0 : Number.POSITIVE_INFINITY }}
         />
-        <div className="absolute inset-[44px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.92),rgba(251,146,60,0.82),rgba(251,146,60,0))]" />
-      </motion.div>
-
-      {DIAGNOSIS_CHANNEL_LABELS.map((label, index) => (
-        <motion.div
-          key={label}
-          className="absolute rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-slate-100 backdrop-blur-xl"
-          style={branchLabels[index]}
-          animate={sceneState.showSignalBranches ? { opacity: 0.96, x: 0, y: 0 } : { opacity: 0, x: 18, y: 0 }}
-          transition={{ duration: 0.45, ease: 'easeOut', delay: index * 0.05 }}
-        >
-          {label}
-        </motion.div>
-      ))}
-
-      {sceneState.showMemoryCore ? (
-        <motion.div
-          className="absolute left-[71.4%] top-[30%] rounded-full border border-orange-300/16 bg-orange-300/[0.08] px-3 py-1.5 text-[11px] font-semibold text-orange-50 backdrop-blur-xl"
-          animate={{ opacity: 0.96, y: 0 }}
-          initial={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.5 }}
-        >
-          고객 기억 코어
-        </motion.div>
-      ) : null}
-
-      {DIAGNOSIS_ACTION_LABELS.map((label, index) => (
-        <motion.div
-          key={label}
-          className="absolute rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-slate-100 backdrop-blur-xl"
-          style={actionLabels[index]}
-          animate={sceneState.showActionOutputs ? { opacity: 0.94, x: 0, y: 0 } : { opacity: 0, x: 18, y: 0 }}
-          transition={{ duration: 0.45, ease: 'easeOut', delay: index * 0.06 }}
-        >
-          {label}
-        </motion.div>
-      ))}
-
-      <motion.div
-        className="absolute left-[26%] top-[17%] rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-200"
-        animate={{ opacity: sceneState.showStoreContext ? 0.9 : 0.4 }}
-        transition={{ duration: 0.6 }}
-      >
-        공개 스토어 신호
+        <div className="absolute inset-[42%] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.98),rgba(255,255,255,0.28)_42%,rgba(2,5,10,0)_72%)]" />
       </motion.div>
 
       <motion.div
-        className="absolute left-[56%] top-[23%] h-[32rem] w-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(251,146,60,0.12),rgba(251,146,60,0))] blur-3xl"
-        animate={{ opacity: sceneState.showMemoryCore ? 0.9 : 0.4, scale: sceneState.showGeneratedStore ? 1.08 : 1 }}
-        transition={{ duration: 0.8 }}
+        animate={{
+          opacity: sceneState.showMemoryCore ? 0.96 : 0.22,
+          scale: sceneState.isMemoryMergeShot ? 1.18 : 1,
+        }}
+        className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,1),rgba(255,255,255,0.18)_46%,rgba(2,5,10,0)_74%)] shadow-[0_0_56px_rgba(255,255,255,0.85)]"
+        transition={{ duration: 0.82, ease: 'easeOut' }}
       />
 
+      <AnimatePresence initial={false}>
+        {pulseSeed > 0 ? (
+          <motion.div
+            key={`diagnosis-stage-pulse-${pulseSeed}`}
+            animate={{ opacity: [0, 0.82, 0], scale: [0.42, 1.18, 1.42] }}
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[18rem] w-[18rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-orange-200/30 bg-[radial-gradient(circle,rgba(255,255,255,0.92),rgba(251,146,60,0.36)_18%,rgba(251,146,60,0.04)_36%,rgba(2,5,10,0)_68%)] mix-blend-screen"
+            initial={{ opacity: 0, scale: 0.32 }}
+            transition={{ duration: 0.74, ease: 'easeOut' }}
+          />
+        ) : null}
+      </AnimatePresence>
+
       <motion.div
-        className="absolute left-[38%] top-[56%] h-[18rem] w-[14rem] rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(6,11,18,0.8),rgba(3,6,10,0.36))] shadow-[0_0_80px_rgba(251,146,60,0.16)]"
         animate={{
-          opacity: sceneState.showGeneratedStore ? 0.86 : 0,
+          opacity: sceneState.showGeneratedStore ? 0.92 : 0,
           scale: sceneState.showGeneratedStore ? 1 : 0.72,
-          rotateX: sceneState.showGeneratedStore ? 0 : 10,
+          x: sceneState.showGeneratedStore ? 0 : -24,
           y: sceneState.showGeneratedStore ? 0 : 24,
         }}
-        style={{ transformPerspective: 1200 }}
-        transition={{ delay: sceneState.showGeneratedStore ? 0.34 : 0, duration: 0.9, ease: 'easeOut' }}
+        className="absolute inset-0"
+        transition={{ duration: 0.86, ease: 'easeOut' }}
       >
-        <div className="absolute inset-x-5 top-5 h-2 rounded-full bg-white/10" />
-        <div className="absolute inset-x-5 top-12 h-24 rounded-[1.4rem] border border-white/10 bg-white/[0.04]" />
-        <div className="absolute inset-x-5 bottom-8 h-14 rounded-[1.2rem] border border-orange-300/16 bg-orange-300/[0.05]" />
+        {storeShellSegments.map((segment, index) => (
+          <div
+            key={`${segment.left}-${segment.top}`}
+            className={`absolute rounded-[1.8rem] border border-white/14 bg-white/[0.02] ${index === 1 ? 'border-orange-200/18 bg-orange-300/[0.05]' : ''}`}
+            style={segment}
+          />
+        ))}
       </motion.div>
 
       <motion.div
-        className="absolute left-[68%] top-[54%] h-[16rem] w-[22rem] rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,13,22,0.92),rgba(4,7,12,0.68))] shadow-[0_0_120px_rgba(96,165,250,0.18)]"
         animate={{
-          opacity: sceneState.showDashboardPayoff ? 0.94 : 0,
-          scale: sceneState.showDashboardPayoff ? 1 : 0.76,
-          y: sceneState.showDashboardPayoff ? 0 : 28,
+          opacity: sceneState.showDashboardPayoff ? 0.96 : 0,
+          scale: sceneState.showDashboardPayoff ? 1 : 0.78,
+          x: sceneState.showDashboardPayoff ? 0 : 28,
+          y: sceneState.showDashboardPayoff ? 0 : 20,
         }}
-        transition={{ duration: 0.96, ease: 'easeOut', delay: sceneState.showDashboardPayoff ? 1.08 : 0 }}
+        className="absolute inset-0"
+        transition={{ duration: 0.92, ease: 'easeOut', delay: sceneState.showDashboardPayoff ? 0.18 : 0 }}
       >
-        <div className="absolute inset-x-5 top-5 flex items-center gap-2">
-          <div className="h-2.5 w-2.5 rounded-full bg-orange-300" />
-          <div className="h-2.5 w-2.5 rounded-full bg-sky-300/70" />
-          <div className="h-2.5 w-2.5 rounded-full bg-white/30" />
-        </div>
-        <div className="absolute inset-x-5 top-12 h-20 rounded-[1.4rem] border border-white/10 bg-white/[0.04]" />
-        <div className="absolute left-5 top-[9.2rem] h-16 w-[7.2rem] rounded-[1.1rem] border border-white/10 bg-white/[0.04]" />
-        <div className="absolute right-5 top-[9.2rem] h-16 w-[7.6rem] rounded-[1.1rem] border border-white/10 bg-white/[0.04]" />
+        {dashboardSegments.map((segment, index) => (
+          <div
+            key={`${segment.left}-${segment.top}`}
+            className={`absolute rounded-[1.6rem] border ${index === 0 ? 'border-white/14 bg-white/[0.03]' : 'border-sky-200/18 bg-sky-300/[0.05]'}`}
+            style={segment}
+          />
+        ))}
       </motion.div>
     </div>
   );

@@ -1,14 +1,18 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 import { DiagnosisCinemaStage } from '@/shared/components/DiagnosisCinemaStage';
 import {
-  DIAGNOSIS_AUTOPLAY_STEP_DURATIONS_MS,
-  DIAGNOSIS_AUTOPLAY_TOTAL_DURATION_MS,
+  DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS,
   DIAGNOSIS_CORRIDOR_LAST_INDEX,
   DIAGNOSIS_CORRIDOR_STEPS,
+  DIAGNOSIS_FINAL_CTA_DELAY_MS,
+  DIAGNOSIS_STEP_FLASH_MS,
+  DIAGNOSIS_STEP_MORPH_MS,
   getDiagnosisCorridorStep,
   getDiagnosisSceneState,
+  getNextDiagnosisCorridorStepIndex,
+  isDiagnosisCorridorFinalStep,
 } from '@/shared/lib/diagnosisCorridor';
 
 const DiagnosisCinemaWorld = lazy(async () => {
@@ -17,7 +21,10 @@ const DiagnosisCinemaWorld = lazy(async () => {
   return { default: module.DiagnosisCinemaWorld };
 });
 
-type DiagnosisCinemaPlaybackState = 'intro' | 'playing' | 'complete';
+function clearTimers(timeoutsRef: MutableRefObject<number[]>) {
+  timeoutsRef.current.forEach((timeout) => window.clearTimeout(timeout));
+  timeoutsRef.current = [];
+}
 
 export function DiagnosisCinemaShell({
   forceReducedMotion = false,
@@ -36,205 +43,243 @@ export function DiagnosisCinemaShell({
 }) {
   const prefersReducedMotion = useReducedMotion() ?? false;
   const useReducedScene = forceReducedMotion || prefersReducedMotion;
+  const timersRef = useRef<number[]>([]);
+  const playbackRestartKey = useMemo(() => `${playbackSeed}:${startCompleted ? 'final' : 'play'}`, [playbackSeed, startCompleted]);
+
   const [currentStepIndex, setCurrentStepIndex] = useState(() => (startCompleted ? DIAGNOSIS_CORRIDOR_LAST_INDEX : 0));
-  const [playbackState, setPlaybackState] = useState<DiagnosisCinemaPlaybackState>(() =>
-    startCompleted ? 'complete' : showEntryTransition ? 'intro' : 'playing',
-  );
-  const [replayCount, setReplayCount] = useState(0);
-  const activeStep = getDiagnosisCorridorStep(currentStepIndex);
-  const sceneState = getDiagnosisSceneState(currentStepIndex);
-  const showFinalControls = playbackState === 'complete';
-  const playbackRestartKey = `${playbackSeed}:${replayCount}`;
+  const [flashSeed, setFlashSeed] = useState(0);
+  const [flashVisible, setFlashVisible] = useState(false);
+  const [isMorphing, setIsMorphing] = useState(false);
+  const [isFinalCtaVisible, setIsFinalCtaVisible] = useState(() => startCompleted);
+  const [showIntroVeil, setShowIntroVeil] = useState(() => showEntryTransition && !startCompleted);
 
   useEffect(() => {
-    if (startCompleted) {
-      setCurrentStepIndex(DIAGNOSIS_CORRIDOR_LAST_INDEX);
-      setPlaybackState('complete');
+    clearTimers(timersRef);
+
+    setCurrentStepIndex(startCompleted ? DIAGNOSIS_CORRIDOR_LAST_INDEX : 0);
+    setFlashVisible(false);
+    setIsMorphing(false);
+    setIsFinalCtaVisible(startCompleted);
+    setShowIntroVeil(showEntryTransition && !startCompleted);
+
+    if (!showEntryTransition || startCompleted) {
       return;
     }
 
-    setCurrentStepIndex(0);
-    setPlaybackState(showEntryTransition ? 'intro' : 'playing');
-  }, [playbackRestartKey, showEntryTransition, startCompleted]);
+    const timeout = window.setTimeout(() => {
+      setShowIntroVeil(false);
+    }, DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS);
 
-  useEffect(() => {
-    if (startCompleted || showEntryTransition) {
-      return;
-    }
-
-    setPlaybackState('playing');
-
-    const timeouts: number[] = [];
-    let elapsedMs = 0;
-
-    for (let index = 0; index < DIAGNOSIS_AUTOPLAY_STEP_DURATIONS_MS.length - 1; index += 1) {
-      elapsedMs += DIAGNOSIS_AUTOPLAY_STEP_DURATIONS_MS[index];
-      const nextStepIndex = index + 1;
-
-      timeouts.push(
-        window.setTimeout(() => {
-          setCurrentStepIndex(nextStepIndex);
-        }, elapsedMs),
-      );
-    }
-
-    timeouts.push(
-      window.setTimeout(() => {
-        setCurrentStepIndex(DIAGNOSIS_CORRIDOR_LAST_INDEX);
-        setPlaybackState('complete');
-      }, DIAGNOSIS_AUTOPLAY_TOTAL_DURATION_MS),
-    );
+    timersRef.current.push(timeout);
 
     return () => {
-      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+      clearTimers(timersRef);
     };
   }, [playbackRestartKey, showEntryTransition, startCompleted]);
+
+  useEffect(() => {
+    return () => {
+      clearTimers(timersRef);
+    };
+  }, []);
+
+  const activeStep = getDiagnosisCorridorStep(currentStepIndex);
+  const sceneState = getDiagnosisSceneState(currentStepIndex);
+  const isFinalStep = isDiagnosisCorridorFinalStep(currentStepIndex);
+  const isFrozen = isFinalStep && isFinalCtaVisible;
+
+  function triggerFlash(nextStepIndex: number) {
+    setFlashSeed((current) => current + 1);
+    setFlashVisible(true);
+    setIsMorphing(true);
+    setIsFinalCtaVisible(false);
+
+    timersRef.current.push(
+      window.setTimeout(() => {
+        setFlashVisible(false);
+      }, DIAGNOSIS_STEP_FLASH_MS),
+    );
+
+    timersRef.current.push(
+      window.setTimeout(() => {
+        setCurrentStepIndex(nextStepIndex);
+      }, Math.round(DIAGNOSIS_STEP_FLASH_MS * 0.45)),
+    );
+
+    timersRef.current.push(
+      window.setTimeout(() => {
+        setIsMorphing(false);
+        if (nextStepIndex === DIAGNOSIS_CORRIDOR_LAST_INDEX) {
+          setIsFinalCtaVisible(true);
+        }
+      }, nextStepIndex === DIAGNOSIS_CORRIDOR_LAST_INDEX ? DIAGNOSIS_FINAL_CTA_DELAY_MS : DIAGNOSIS_STEP_MORPH_MS),
+    );
+  }
+
+  function handlePrimaryAction() {
+    if (isMorphing) {
+      return;
+    }
+
+    if (isFinalStep) {
+      if (isFinalCtaVisible) {
+        onContinue();
+      }
+      return;
+    }
+
+    clearTimers(timersRef);
+    triggerFlash(getNextDiagnosisCorridorStepIndex(currentStepIndex));
+  }
+
+  const primaryLabel = isMorphing ? '재구성 중' : isFinalStep ? (isFinalCtaVisible ? '스토어 설정 계속' : '정착 중') : '다음';
 
   return (
     <section
       className="relative min-h-[calc(100svh-84px)] overflow-hidden border-b border-white/10 bg-[#02050a]"
-      data-diagnosis-autoplay="true"
-      data-diagnosis-autoplay-state={playbackState}
       data-diagnosis-current-step={activeStep.id}
+      data-diagnosis-interaction="manual"
+      data-diagnosis-morphing={isMorphing}
       data-diagnosis-shell="cinema"
     >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(129,140,248,0.12),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(96,165,250,0.08),transparent_22%),radial-gradient(circle_at_84%_24%,rgba(255,255,255,0.07),transparent_18%),linear-gradient(180deg,#02050a_0%,#030711_52%,#02050a_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,5,10,0)_0%,rgba(2,5,10,0.18)_35%,rgba(2,5,10,0.84)_100%)]" />
+
       <AnimatePresence initial={false}>
-        {showEntryTransition ? (
+        {showIntroVeil ? (
           <motion.div
-            className="pointer-events-none absolute inset-0 z-[40] flex items-center justify-center bg-[#02050a]/92 backdrop-blur-xl"
+            key="diagnosis-intro-veil"
+            animate={{ opacity: 1 }}
+            className="pointer-events-none absolute inset-0 z-[45] bg-[#02050a]/94 backdrop-blur-xl"
             exit={{ opacity: 0 }}
             initial={{ opacity: 1 }}
-            transition={{ duration: 0.28, ease: 'easeOut' }}
+            transition={{ duration: 0.32, ease: 'easeOut' }}
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(236,91,19,0.18),transparent_24%),radial-gradient(circle_at_80%_18%,rgba(96,165,250,0.14),transparent_22%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.12),transparent_18%),radial-gradient(circle_at_52%_48%,rgba(251,146,60,0.18),transparent_12%)]" />
             <motion.div
-              className="absolute left-[14%] right-[14%] top-1/2 h-px bg-[linear-gradient(90deg,rgba(251,146,60,0),rgba(251,146,60,0.96),rgba(129,140,248,0.82))]"
-              initial={{ scaleX: 0.18 }}
-              style={{ originX: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="absolute left-1/2 top-1/2 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full border border-orange-300/26 bg-orange-300/[0.06]"
+              initial={{ scale: 0.56, opacity: 0.2 }}
               transition={{ duration: 0.56, ease: [0.22, 1, 0.36, 1] }}
-              animate={{ scaleX: 1 }}
             />
             <motion.p
-              className="relative text-[11px] font-semibold uppercase tracking-[0.24em] text-orange-100"
-              initial={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.22, delay: 0.06, ease: 'easeOut' }}
               animate={{ opacity: 1, y: 0 }}
+              className="absolute left-1/2 top-[58%] -translate-x-1/2 text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-200"
+              initial={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.28, delay: 0.08, ease: 'easeOut' }}
             >
-              MyBiz Diagnosis Cinema
+              MyBiz Crystal Network
             </motion.p>
           </motion.div>
         ) : null}
       </AnimatePresence>
 
+      <AnimatePresence initial={false}>
+        {flashVisible ? (
+          <motion.div
+            key={`diagnosis-flash-${flashSeed}`}
+            animate={{ opacity: [0, 1, 0] }}
+            className="pointer-events-none absolute inset-0 z-[35] bg-[radial-gradient(circle_at_50%_48%,rgba(255,255,255,0.88),rgba(255,255,255,0.08)_18%,rgba(2,5,10,0)_36%)] mix-blend-screen"
+            initial={{ opacity: 0 }}
+            transition={{ duration: 0.34, ease: 'easeOut' }}
+          />
+        ) : null}
+      </AnimatePresence>
+
       <div className="absolute inset-0">
-        <Suspense fallback={<DiagnosisCinemaStage renderMode="fallback" stepIndex={currentStepIndex} />}>
+        <Suspense fallback={<DiagnosisCinemaStage isFrozen={isFrozen} pulseSeed={flashSeed} renderMode="fallback" stepIndex={currentStepIndex} />}>
           {useReducedScene ? (
-            <DiagnosisCinemaStage isFrozen={showFinalControls} renderMode="reduced" stepIndex={currentStepIndex} />
+            <DiagnosisCinemaStage isFrozen={isFrozen} pulseSeed={flashSeed} renderMode="reduced" stepIndex={currentStepIndex} />
           ) : (
-            <DiagnosisCinemaWorld isFrozen={showFinalControls} stepIndex={currentStepIndex} />
+            <DiagnosisCinemaWorld isFrozen={isFrozen} pulseSeed={flashSeed} stepIndex={currentStepIndex} />
           )}
         </Suspense>
       </div>
 
       <div className="pointer-events-none relative z-20 flex min-h-[calc(100svh-84px)] flex-col justify-between px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
-        <div className="mx-auto flex w-full max-w-[1200px] items-start justify-between gap-4">
-          <div className="max-w-[28rem] flex-1">
-            <div className="relative pt-3">
-              <div className="absolute inset-x-0 top-3 h-px bg-white/10" />
-              <motion.div
-                aria-hidden="true"
-                className="absolute left-0 top-3 h-px bg-[linear-gradient(90deg,rgba(251,146,60,0),rgba(251,146,60,0.96),rgba(129,140,248,0.8))]"
-                animate={{ width: `${((currentStepIndex + 1) / DIAGNOSIS_CORRIDOR_STEPS.length) * 100}%` }}
-                transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
-              />
-              <div className="grid grid-cols-5 gap-2 sm:gap-3">
-                {DIAGNOSIS_CORRIDOR_STEPS.map((step, index) => {
-                  const active = index === currentStepIndex;
+        <div className="mx-auto flex w-full max-w-[1320px] items-start justify-between gap-4">
+          <div className="max-w-[20rem] flex-1">
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 backdrop-blur-xl">
+              {DIAGNOSIS_CORRIDOR_STEPS.map((step, index) => {
+                const active = index === currentStepIndex;
 
-                  return (
-                    <div key={step.id} aria-label={`${step.number} ${step.label}`} className="pt-5 text-left">
-                      <div
-                        className={[
-                          'mb-2 h-2 w-2 rounded-full border transition',
-                          active
-                            ? 'border-orange-200/50 bg-orange-300 shadow-[0_0_18px_rgba(251,146,60,0.9)]'
-                            : index < currentStepIndex
-                              ? 'border-white/20 bg-white/30'
-                              : 'border-white/10 bg-[#07090d]',
-                        ].join(' ')}
-                      />
-                      <p className={`text-[10px] font-semibold tracking-[0.18em] ${active ? 'text-orange-100' : 'text-slate-500'}`}>
-                        {step.number}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
+                return (
+                  <div key={step.id} className="flex items-center gap-2">
+                    <div
+                      className={[
+                        'h-1.5 rounded-full transition-all duration-500',
+                        active
+                          ? 'w-8 bg-orange-200 shadow-[0_0_24px_rgba(251,146,60,0.78)]'
+                          : index < currentStepIndex
+                            ? 'w-4 bg-white/55'
+                            : 'w-4 bg-white/16',
+                      ].join(' ')}
+                    />
+                    <span className={`text-[10px] font-semibold tracking-[0.18em] ${active ? 'text-white' : 'text-slate-500'}`}>
+                      {step.number}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {!showFinalControls ? (
+          {!isFinalStep ? (
             <button
-              className="pointer-events-auto rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-white/88 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.08]"
+              className="pointer-events-auto rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-white/84 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.08]"
               data-diagnosis-skip="true"
               onClick={onSkip}
               type="button"
             >
-              건너뛰고 바로 시작
+              건너뛰기
             </button>
           ) : (
             <div className="h-9" />
           )}
         </div>
 
-        <div className="mx-auto flex w-full max-w-[1200px] items-end justify-between gap-6">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeStep.id}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              className="max-w-[17rem] text-white sm:max-w-[19rem]"
-              initial={{ opacity: 0, y: 18, filter: 'blur(10px)' }}
-              exit={{ opacity: 0, y: -14, filter: 'blur(10px)' }}
+              className="max-w-[18rem] text-white sm:max-w-[22rem]"
+              exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
+              initial={{ opacity: 0, y: 18, filter: 'blur(14px)' }}
               transition={{ duration: 0.34, ease: 'easeOut' }}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-100">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
                 {activeStep.number} {activeStep.label}
               </p>
-              <h1 className="mt-3 break-keep text-balance font-display text-[2rem] font-black leading-[0.96] tracking-[-0.05em] text-white sm:text-[2.7rem]">
+              <h1 className="mt-3 break-keep text-balance font-display text-[2rem] font-black leading-[0.94] tracking-[-0.06em] text-white sm:text-[2.9rem]">
                 {activeStep.headlineLines.map((line) => (
                   <span key={`${activeStep.id}-${line}`} className="block">
                     {line}
                   </span>
                 ))}
               </h1>
-              <p className="mt-3 break-keep text-sm leading-6 text-slate-300">{activeStep.supportLine}</p>
+              <p className="mt-3 max-w-[26ch] break-keep text-sm leading-6 text-slate-300">{activeStep.supportLine}</p>
             </motion.div>
           </AnimatePresence>
 
-          <AnimatePresence initial={false}>
-            {showFinalControls ? (
-              <motion.div
-                animate={{ opacity: 1, y: 0 }}
-                className="pointer-events-auto flex items-center gap-3 self-end"
-                initial={{ opacity: 0, y: 18 }}
-                transition={{ duration: 0.38, ease: 'easeOut' }}
-              >
-                <button
-                  className="rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-white/88 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.08]"
-                  data-diagnosis-replay="true"
-                  onClick={() => {
-                    setReplayCount((current) => current + 1);
-                  }}
-                  type="button"
-                >
-                  다시 보기
-                </button>
-                <button className="btn-primary" data-diagnosis-final-cta="true" onClick={onContinue} type="button">
-                  스토어 설정 계속
-                </button>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          <div className="pointer-events-auto flex items-center justify-start sm:justify-end">
+            <button
+              className={[
+                'rounded-full px-6 py-3 text-sm font-semibold tracking-[0.04em] text-white transition duration-200',
+                'shadow-[0_24px_80px_-34px_rgba(251,146,60,0.8)]',
+                isMorphing || (isFinalStep && !isFinalCtaVisible)
+                  ? 'cursor-not-allowed bg-white/10 text-white/55'
+                  : 'bg-[linear-gradient(135deg,#ff8a2b,#ec5b13)] hover:scale-[1.02] hover:shadow-[0_32px_96px_-36px_rgba(251,146,60,0.88)]',
+              ].join(' ')}
+              data-diagnosis-final-cta={isFinalStep && isFinalCtaVisible}
+              data-diagnosis-next={!isFinalStep}
+              disabled={isMorphing || (isFinalStep && !isFinalCtaVisible)}
+              onClick={handlePrimaryAction}
+              type="button"
+            >
+              {primaryLabel}
+            </button>
+          </div>
         </div>
       </div>
 
