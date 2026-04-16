@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { DiagnosisCinemaContinuation } from '@/shared/components/DiagnosisCinemaContinuation';
 import { DiagnosisCinemaShell } from '@/shared/components/DiagnosisCinemaShell';
 import { DiagnosisLoadingPanel } from '@/shared/components/DiagnosisLoadingPanel';
 import { Panel } from '@/shared/components/Panel';
@@ -343,6 +344,7 @@ export function OnboardingPage() {
   const [message, setMessage] = useState<MessageState | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
   const redirectHandledRef = useRef(false);
+  const postCinemaRef = useRef<HTMLDivElement | null>(null);
   const setupFlowRef = useRef<HTMLDivElement | null>(null);
   const shouldStartInSetupFlow =
     Boolean(searchParams.get('portone') || searchParams.get('paymentId') || searchParams.get('code')) ||
@@ -353,9 +355,12 @@ export function OnboardingPage() {
   const [showEntryTransition, setShowEntryTransition] = useState(
     Boolean((location.state as { corridorEntry?: boolean } | null)?.corridorEntry),
   );
+  const [showPostCinema, setShowPostCinema] = useState(() => shouldStartInSetupFlow);
   const [showSetupFlow, setShowSetupFlow] = useState(() => shouldStartInSetupFlow);
 
   usePageMeta('스토어 AI 진단 신청', 'AI 진단, 생성 요청, 결제, 승인, 대시보드 진입까지 이어지는 MyBizLab 온보딩입니다.');
+
+  usePageMeta('MyBiz | 공개 스토어 진단', 'MyBiz의 진단 시네마와 스토어 생성 흐름을 이어 주는 공개 온보딩 화면입니다.');
 
   const existingSlugs = useMemo(() => (storesQuery.data || []).map((store) => store.slug), [storesQuery.data]);
   const existingSlugSet = useMemo(() => new Set(existingSlugs.map((slug) => normalizeStoreSlug(slug))), [existingSlugs]);
@@ -766,9 +771,22 @@ export function OnboardingPage() {
     );
   }
 
+  function openPostCinema() {
+    setDiagnosisCinemaStepIndex(4);
+    startTransition(() => {
+      setShowPostCinema(true);
+    });
+    window.requestAnimationFrame(() => {
+      postCinemaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function openSetupFlow() {
     setDiagnosisCinemaStepIndex(4);
-    setShowSetupFlow(true);
+    startTransition(() => {
+      setShowPostCinema(true);
+      setShowSetupFlow(true);
+    });
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('setup', '1');
@@ -777,6 +795,27 @@ export function OnboardingPage() {
     window.requestAnimationFrame(() => {
       setupFlowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  }
+
+  function resetCinemaFlow() {
+    clearOnboardingFlowState();
+    setFlow(createInitialOnboardingFlowState());
+    setMessage(null);
+    setRequestErrors({});
+    startTransition(() => {
+      setDiagnosisCinemaStepIndex(0);
+      setShowPostCinema(false);
+      setShowSetupFlow(false);
+    });
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('setup');
+      next.delete('portone');
+      next.delete('paymentId');
+      next.delete('code');
+      return next;
+    });
+    window.scrollTo({ behavior: 'smooth', top: 0 });
   }
 
   const selectedIndustryLabel = getIndustryLabel(flow.diagnosisInput.industryType);
@@ -801,16 +840,22 @@ export function OnboardingPage() {
       <DiagnosisCinemaShell
         currentStepIndex={diagnosisCinemaStepIndex}
         onBack={() => moveDiagnosisCinema(-1)}
-        onContinue={openSetupFlow}
+        onContinue={openPostCinema}
         onEntryTransitionComplete={() => setShowEntryTransition(false)}
         onNext={() => moveDiagnosisCinema(1)}
         showEntryTransition={showEntryTransition}
       />
 
+      {showPostCinema ? (
+        <div ref={postCinemaRef}>
+          <DiagnosisCinemaContinuation onOpenSetupFlow={openSetupFlow} onResetCinema={resetCinemaFlow} />
+        </div>
+      ) : null}
+
       {showSetupFlow ? (
         <div ref={setupFlowRef} className="page-shell space-y-8 py-10 sm:py-14">
           <section
-            className="relative overflow-hidden rounded-[40px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,15,23,0.98),rgba(4,7,12,0.94))] px-6 py-7 text-white shadow-[0_40px_120px_-74px_rgba(0,0,0,0.98)] sm:px-8 sm:py-8"
+            className="hidden overflow-hidden rounded-[40px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,15,23,0.98),rgba(4,7,12,0.94))] px-6 py-7 text-white shadow-[0_40px_120px_-74px_rgba(0,0,0,0.98)] sm:px-8 sm:py-8"
             data-onboarding-world="cinema-bridge"
           >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_16%,rgba(236,91,19,0.16),transparent_24%),radial-gradient(circle_at_84%_18%,rgba(96,165,250,0.12),transparent_20%)]" />

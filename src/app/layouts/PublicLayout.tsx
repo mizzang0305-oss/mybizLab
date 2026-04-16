@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AppFooter } from '@/shared/components/AppFooter';
 import { Icons } from '@/shared/components/Icons';
 import { DIAGNOSIS_CORRIDOR_LINK_STATE, isDiagnosisShellPath } from '@/shared/lib/diagnosisCorridor';
-import { SITE_NAME, SERVICE_TAGLINE, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
+import { SERVICE_TAGLINE, SITE_NAME, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const navigationLinks = [
   { label: '소개', href: '/' },
@@ -21,7 +21,7 @@ export function PublicLayout() {
 
   return (
     <div
-      className={`flex min-h-screen flex-col ${isDiagnosisShell ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea]'}`}
+      className={`flex min-h-screen flex-col ${isDiagnosisShell ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea] text-slate-900'}`}
       data-public-shell-theme={isDiagnosisShell ? 'diagnosis' : 'default'}
     >
       <header
@@ -43,7 +43,7 @@ export function PublicLayout() {
             </Link>
 
             <div className="flex flex-col gap-3 lg:items-end">
-              {isLandingPage ? (
+              {isOnboardingPage ? null : isLandingPage ? (
                 <nav className="hidden items-center gap-2 text-sm font-semibold text-slate-400 lg:flex">
                   <NavLink
                     className={({ isActive }) =>
@@ -84,19 +84,17 @@ export function PublicLayout() {
                 <Link
                   className={
                     isDiagnosisShell
-                      ? 'btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
+                      ? `btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white ${
+                          isOnboardingPage ? '!px-3 !py-2 text-sm' : ''
+                        }`
                       : 'btn-secondary'
                   }
                   to={isOnboardingPage ? '/' : '/login'}
                 >
-                  {isOnboardingPage ? '진단 시네마로 돌아가기' : '관리자 로그인'}
+                  {isOnboardingPage ? '티저로 돌아가기' : '관리자 로그인'}
                 </Link>
 
-                {isOnboardingPage ? (
-                  <Link className="btn-primary" to="/pricing">
-                    플랜 비교 보기
-                  </Link>
-                ) : (
+                {isOnboardingPage ? null : (
                   <Link className="btn-primary" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
                     공개 스토어 진단 생성
                   </Link>
