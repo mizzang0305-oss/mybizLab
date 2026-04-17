@@ -24,16 +24,16 @@ function renderRoute(pathname: string) {
 }
 
 describe('public diagnosis surfaces', () => {
-  it('renders the landing page as a teaser-only dark entry', () => {
+  it('renders the landing page as a fullscreen hero-world entry', () => {
     const html = renderRoute('/');
 
-    expect(html).toContain('data-landing-mode="teaser"');
-    expect(html).toContain('Crystal network');
-    expect(html).toContain('FREE / PRO / VIP');
+    expect(html).toContain('data-landing-mode="hero-engine"');
+    expect(html).toContain('공개 스토어 진단 생성');
+    expect(html).toContain('data-diagnosis-world-shell="active"');
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
   });
 
-  it('mounts /onboarding through the real router without a DiagnosisCinemaStage runtime reference error', () => {
+  it('mounts /onboarding with the persistent world split layout', () => {
     let html = '';
 
     expect(() => {
@@ -41,12 +41,11 @@ describe('public diagnosis surfaces', () => {
     }).not.toThrow();
 
     expect(html).toContain('data-public-shell-theme="diagnosis"');
-    expect(html).toContain('data-diagnosis-shell="cinema"');
-    expect(html).toContain('data-diagnosis-interaction="manual"');
-    expect(html).toContain('data-diagnosis-skip="true"');
-    expect(html).toContain('data-diagnosis-next="true"');
-    expect(html).toContain('01 신호 감지');
-    expect(html).not.toContain('data-diagnosis-back=');
+    expect(html).toContain('data-onboarding-layout="persistent-world-split"');
+    expect(html).toContain('data-diagnosis-world-shell="active"');
+    expect(html).toContain('data-diagnosis-world-panel="sticky"');
+    expect(html).toContain('World sync');
+    expect(html).not.toContain('data-diagnosis-shell="cinema"');
     expect(html).not.toContain('data-diagnosis-post-cinema="true"');
     expect(html).not.toContain('data-diagnosis-pricing-ladder="true"');
   });
@@ -57,6 +56,6 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('FREE');
     expect(html).toContain('PRO');
     expect(html).toContain('VIP');
-    expect(html).toContain('대표자: 이정미');
+    expect(html).toContain('대표자: 이정민');
   });
 });

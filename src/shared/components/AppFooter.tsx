@@ -70,7 +70,7 @@ export function AppFooter() {
             <p>주소: {BUSINESS_INFO.address}</p>
             <p>고객센터: {BUSINESS_INFO.customerCenter}</p>
             <p>
-              이메일:{' '}
+              이메일{' '}
               <a
                 className={isDiagnosisShell ? 'font-semibold text-orange-300 transition hover:text-orange-200' : 'font-semibold text-orange-700 transition hover:text-orange-800'}
                 href={`mailto:${BUSINESS_INFO.email}`}

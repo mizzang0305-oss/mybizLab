@@ -1,11 +1,10 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { DiagnosisCinemaContinuation } from '@/shared/components/DiagnosisCinemaContinuation';
-import { DiagnosisCinemaShell } from '@/shared/components/DiagnosisCinemaShell';
 import { DiagnosisLoadingPanel } from '@/shared/components/DiagnosisLoadingPanel';
 import { Panel } from '@/shared/components/Panel';
+import { usePersistentDiagnosisWorldSurface } from '@/shared/components/PersistentDiagnosisWorldShell';
 import { useAccessibleStores } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { createDemoAdminSession, useAdminSessionStore } from '@/shared/lib/adminSession';
@@ -26,7 +25,7 @@ import {
   type DiagnosisAvailableDataKey,
 } from '@/shared/lib/diagnosisBlueprint';
 import { persistDiagnosisSession } from '@/shared/lib/diagnosisSessions';
-import { DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS } from '@/shared/lib/diagnosisCorridor';
+import { getDiagnosisCorridorStep } from '@/shared/lib/diagnosisCorridor';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
 import {
   DIAGNOSIS_LOADING_STAGES,
@@ -341,24 +340,9 @@ export function OnboardingPage() {
   const [message, setMessage] = useState<MessageState | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
   const redirectHandledRef = useRef(false);
-  const postCinemaRef = useRef<HTMLDivElement | null>(null);
-  const setupFlowRef = useRef<HTMLDivElement | null>(null);
-  const shouldStartInSetupFlow =
-    Boolean(searchParams.get('portone') || searchParams.get('paymentId') || searchParams.get('code')) ||
-    flow.step !== 'diagnosis' ||
-    Boolean(flow.requestId) ||
-    searchParams.get('setup') === '1';
-  const [cinemaPlaybackSeed, setCinemaPlaybackSeed] = useState(0);
-  const [showEntryTransition, setShowEntryTransition] = useState(
-    Boolean((location.state as { corridorEntry?: boolean } | null)?.corridorEntry),
-  );
-  const [showPostCinema, setShowPostCinema] = useState(() => shouldStartInSetupFlow);
-  const [showSetupFlow, setShowSetupFlow] = useState(() => shouldStartInSetupFlow);
+  const cameFromLanding = Boolean((location.state as { corridorEntry?: boolean } | null)?.corridorEntry);
 
-  usePageMeta('스토어 AI 진단 신청', 'AI 진단, 생성 요청, 결제, 승인, 대시보드 진입까지 이어지는 MyBizLab 온보딩입니다.');
-
-  usePageMeta('MyBiz | 공개 스토어 진단', 'MyBiz의 진단 시네마와 스토어 생성 흐름을 이어 주는 공개 온보딩 화면입니다.');
-  usePageMeta('MyBiz | 공개 스토어 진단', '공개 스토어 진단 시네마에서 생성 흐름까지 이어지는 MyBiz 온보딩입니다.');
+  usePageMeta('스토어 AI 진단 신청', '업로드된 neural world가 오른쪽에 살아있는 상태로 MyBiz 진단, 요청, 결제, 승인 흐름을 이어가는 온보딩 화면입니다.');
 
   const existingSlugs = useMemo(() => (storesQuery.data || []).map((store) => store.slug), [storesQuery.data]);
   const existingSlugSet = useMemo(() => new Set(existingSlugs.map((slug) => normalizeStoreSlug(slug))), [existingSlugs]);
@@ -428,20 +412,6 @@ export function OnboardingPage() {
   useEffect(() => {
     persistOnboardingFlowState(flow);
   }, [flow]);
-
-  useEffect(() => {
-    if (!showEntryTransition) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setShowEntryTransition(false);
-    }, DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [showEntryTransition]);
 
   const submitRequest = useMutation({
     mutationFn: async () => saveSetupRequest(requestPayload(flow, slugPreview), { requestedPlan: flow.selectedPlan }),
@@ -763,48 +733,19 @@ export function OnboardingPage() {
     }
   }
 
-  function openPostCinema() {
-    startTransition(() => {
-      setShowPostCinema(true);
-    });
-    window.requestAnimationFrame(() => {
-      postCinemaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
-
-  function openSetupFlow() {
-    startTransition(() => {
-      setShowPostCinema(true);
-      setShowSetupFlow(true);
-    });
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.set('setup', '1');
-      return next;
-    });
-    window.requestAnimationFrame(() => {
-      setupFlowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
-
-  function resetCinemaFlow() {
+  function resetOnboardingFlow() {
     clearOnboardingFlowState();
-    setFlow(createInitialOnboardingFlowState());
-    setMessage(null);
-    setRequestErrors({});
     startTransition(() => {
-      setCinemaPlaybackSeed((current) => current + 1);
-      setShowEntryTransition(true);
-      setShowPostCinema(false);
-      setShowSetupFlow(false);
-    });
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete('setup');
-      next.delete('portone');
-      next.delete('paymentId');
-      next.delete('code');
-      return next;
+      setFlow(createInitialOnboardingFlowState());
+      setMessage(null);
+      setRequestErrors({});
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete('portone');
+        next.delete('paymentId');
+        next.delete('code');
+        return next;
+      });
     });
     window.scrollTo({ behavior: 'smooth', top: 0 });
   }
@@ -825,74 +766,66 @@ export function OnboardingPage() {
     [flow.diagnosisResult?.recommendedModules],
   );
   const selectedFeatureLabels = featureLabels(flow.requestDraft.selectedFeatures);
+  const worldStepIndex = runDiagnosis.isPending
+    ? 2
+    : flow.step === 'result'
+      ? 2
+      : flow.step === 'request'
+        ? 3
+        : flow.step === 'payment' || flow.step === 'activation'
+          ? 4
+          : diagnosisValid
+            ? 1
+            : 0;
+  const worldStep = getDiagnosisCorridorStep(worldStepIndex);
+  const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
+    mode: 'onboarding',
+    pulseKey: worldStepIndex,
+    stepIndex: worldStepIndex,
+  });
 
   return (
-    <div className="space-y-0">
-      <DiagnosisCinemaShell
-        onContinue={openPostCinema}
-        onSkip={openSetupFlow}
-        playbackSeed={cinemaPlaybackSeed}
-        showEntryTransition={showEntryTransition}
-        startCompleted={shouldStartInSetupFlow}
-      />
+    <main className="relative overflow-hidden bg-[#02050a] text-white" data-onboarding-layout="persistent-world-split">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(125,211,252,0.1),transparent_20%),radial-gradient(circle_at_84%_18%,rgba(255,255,255,0.08),transparent_18%),linear-gradient(180deg,#02050a_0%,#050913_44%,#0b1320_100%)]" />
 
-      {showPostCinema ? (
-        <div ref={postCinemaRef}>
-          <DiagnosisCinemaContinuation onOpenSetupFlow={openSetupFlow} onResetCinema={resetCinemaFlow} />
-        </div>
-      ) : null}
-
-      {showSetupFlow ? (
-        <div ref={setupFlowRef} className="page-shell space-y-8 py-10 sm:py-14">
-          <section
-            className="hidden overflow-hidden rounded-[40px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,15,23,0.98),rgba(4,7,12,0.94))] px-6 py-7 text-white shadow-[0_40px_120px_-74px_rgba(0,0,0,0.98)] sm:px-8 sm:py-8"
-            data-onboarding-world="cinema-bridge"
-          >
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_16%,rgba(236,91,19,0.16),transparent_24%),radial-gradient(circle_at_84%_18%,rgba(96,165,250,0.12),transparent_20%)]" />
-            <div className="pointer-events-none absolute inset-0 opacity-12 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:42px_42px]" />
-
-            <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.78fr)] lg:items-center">
-              <div className="space-y-5">
-                <span className="inline-flex rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">
-                  Diagnosis to setup bridge
+      <div className="page-shell relative space-y-8 py-8 sm:space-y-10 sm:py-10 lg:py-12">
+        <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.84),rgba(5,8,13,0.62))] px-6 py-6 shadow-[0_36px_120px_-74px_rgba(0,0,0,0.94)] backdrop-blur-xl sm:px-8 sm:py-7">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+                <span>{cameFromLanding ? 'World carried over' : 'Persistent world'}</span>
+                <span className="h-px w-10 bg-white/14" />
+                <span>
+                  {worldStep.number} {worldStep.label}
                 </span>
-                <div className="space-y-3">
-                  <h1 className="max-w-[14ch] text-balance font-display text-[2.15rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-white sm:text-[2.8rem]">
-                    진단 시네마의 같은 dark world 안에서 실제 스토어 설정으로 이어집니다.
-                  </h1>
-                  <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-base">
-                    위에서 본 공개 스토어 유입, 문의·예약·웨이팅 capture, customer memory 결합, next action, dashboard payoff의 흐름을 유지한 채
-                    아래에서 실제 생성 요청과 결제를 진행합니다.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Link
-                    className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                    to="/pricing"
-                  >
-                    플랜 자세히 보기
-                  </Link>
-                  <button
-                    className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                    onClick={resetCinemaFlow}
-                    type="button"
-                  >
-                    처음부터 다시
-                  </button>
-                </div>
               </div>
-
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">World continuity</p>
-                <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-                  <p>공개 스토어는 무료 acquisition 입구입니다.</p>
-                  <p>문의, 예약, 웨이팅은 customer-input channels입니다.</p>
-                  <p>customer memory와 timeline이 중심이고, 대시보드는 마지막 payoff로만 등장합니다.</p>
-                  <p>FREE / PRO / VIP는 같은 business truth 위에서 이어집니다.</p>
-                </div>
+              <div className="space-y-3">
+                <h1 className="max-w-[16ch] break-keep font-display text-[2rem] font-black leading-[0.96] tracking-[-0.05em] text-white sm:text-[2.9rem]">
+                  같은 hero world가 오른쪽에 살아있는 채로 진단 흐름이 이어집니다
+                </h1>
+                <p className="max-w-3xl break-keep text-sm leading-7 text-slate-300 sm:text-base">
+                  왼쪽에서는 기존 MyBiz 진단과 생성 흐름을 그대로 진행하고, 오른쪽에서는 같은 세계가 단계에 맞춰 맥동하고 결정화되며 반응합니다.
+                </p>
               </div>
             </div>
-          </section>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                to="/pricing"
+              >
+                요금제 보기
+              </Link>
+              <button
+                className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                onClick={resetOnboardingFlow}
+                type="button"
+              >
+                처음부터 다시
+              </button>
+            </div>
+          </div>
+        </section>
 
           <Panel title="온보딩 진행 단계" subtitle="현재 단계와 다음 단계가 자연스럽게 이어지도록 구성했습니다.">
         <div className="grid gap-3 md:grid-cols-5">
@@ -1737,6 +1670,28 @@ export function OnboardingPage() {
         </div>
 
         <div className="space-y-6">
+          <section
+            className="sticky top-6 overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.86),rgba(5,8,13,0.7))] shadow-[0_36px_120px_-70px_rgba(0,0,0,0.94)] backdrop-blur-xl"
+            data-diagnosis-world-panel="sticky"
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
+              <span>World sync</span>
+              <span>
+                {worldStep.number} {worldStep.label}
+              </span>
+            </div>
+
+            <div ref={worldSurfaceRef} className="min-h-[26rem] sm:min-h-[32rem]" />
+
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 space-y-3 bg-[linear-gradient(180deg,rgba(2,5,10,0)_0%,rgba(2,5,10,0.44)_35%,rgba(2,5,10,0.88)_100%)] px-5 pb-5 pt-14">
+              <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
+                <span>Live</span>
+                <span>drag / click / pulse</span>
+              </div>
+              <p className="max-w-[22rem] break-keep text-sm leading-6 text-slate-100">{worldStep.supportLine}</p>
+            </div>
+          </section>
+
           <Panel title="현재 요약" subtitle="진단 결과와 신청 정보를 오른쪽에서 바로 확인할 수 있습니다.">
             <div className="space-y-4">
               <div className="rounded-3xl bg-slate-950 p-5 text-white">
@@ -1820,8 +1775,7 @@ export function OnboardingPage() {
           </Panel>
         </div>
       </div>
-        </div>
-      ) : null}
-    </div>
+      </div>
+    </main>
   );
 }
