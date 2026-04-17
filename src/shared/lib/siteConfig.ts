@@ -9,10 +9,10 @@ export const SUBSCRIPTION_START_PATH = '/onboarding';
 
 export const BUSINESS_INFO = {
   companyName: '마이비즈랩',
-  representative: '이정미',
+  representative: '이정민',
   businessRegistrationNumber: '741-01-03857',
   ecommerceRegistrationNumber: '2026-인천남동구-0346',
-  address: '인천광역시 남동구 만수서로 101, 121-1(만수동, 유한프라자)',
+  address: '인천광역시 남동구 만수서로 101, 121-1(만수동, 현대프라자)',
   email: 'mybiz.lab3@gmail.com',
   customerCenter: SUPPORT_PHONE_NUMBER,
 } as const;
@@ -42,13 +42,13 @@ export const PRICING_PLANS: PricingPlan[] = [
     name: 'PRO',
     priceLabel: '월 79,000원',
     summary: '문의·예약·웨이팅을 고객 기억과 운영 액션으로 연결하는 추천 플랜',
-    features: ['고객 기억 타임라인', '예약·웨이팅 운영', 'AI 액션 제안'],
+    features: ['고객 기억 인프라', '예약·웨이팅 운영', 'AI 액션 제안'],
     highlighted: true,
   },
   {
     name: 'VIP',
     priceLabel: '월 149,000원',
-    summary: '반복 매출 회복과 운영 자동화를 깊게 확장하는 상위 플랜',
+    summary: '반복 매출 루프와 운영 자동화를 깊게 확장하는 상위 플랜',
     features: ['고급 리포트', '확장 운영 자동화', '브랜드 맞춤 지원'],
   },
 ] as const;

@@ -24,21 +24,21 @@ function renderShell({ startCompleted = false }: { startCompleted?: boolean } = 
 }
 
 describe('diagnosis cinema manual shell', () => {
-  it('uses the rebuilt five-step editorial sequence', () => {
+  it('uses the new five-step synced world sequence', () => {
     expect(DIAGNOSIS_CORRIDOR_STEPS.map((step) => `${step.number} ${step.label}`)).toEqual([
-      '01 신호 감지',
-      '02 3채널 분기',
-      '03 기억 결합',
-      '04 출력 정렬',
-      '05 운영 착지',
+      '01 스토어 확인',
+      '02 신호 수집',
+      '03 고객 기억 결합',
+      '04 실행안 도출',
+      '05 운영 대시보드',
     ]);
 
     expect(DIAGNOSIS_CORRIDOR_STEPS.map((step) => step.headlineLines)).toEqual([
-      ['희미한 반응이', '한 점의 빛으로', '깨어납니다'],
-      ['문의와 예약, 웨이팅이', '세 갈래 결로', '갈라집니다'],
-      ['흩어진 반응이', '고객 기억의 중심으로', '끌려듭니다'],
-      ['필요한 액션만', '가늘고 길게', '뻗어 나갑니다'],
-      ['스토어 쉘이 뜨고', '대시보드가 내려와', '멈춰 섭니다'],
+      ['스토어의 바깥을', '첫 번째 신호로', '불러옵니다'],
+      ['문의와 예약, 웨이팅이', '세 갈래 신호로', '갈라집니다'],
+      ['흩어지던 반응이', '고객 기억 코어로', '강하게 모입니다'],
+      ['실행해야 할 액션이', '광선처럼 뽑혀 나와', '선명해집니다'],
+      ['스토어 쉘이 결정되고', '대시보드가 옆에 자리 잡으며', '운영 세계가 완성됩니다'],
     ]);
   });
 
