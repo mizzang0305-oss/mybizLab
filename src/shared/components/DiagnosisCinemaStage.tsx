@@ -74,7 +74,7 @@ function nodeClasses(tone: 'sky' | 'violet' | 'white') {
   return 'bg-white shadow-[0_0_20px_rgba(255,255,255,0.82)]';
 }
 
-export function DiagnosisCinemaStage({
+export default function DiagnosisCinemaStage({
   className = '',
   isFrozen = false,
   pulseSeed = 0,

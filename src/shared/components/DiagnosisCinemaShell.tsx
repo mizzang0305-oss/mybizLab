@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
-import { DiagnosisCinemaStage } from '@/shared/components/DiagnosisCinemaStage';
+import DiagnosisCinemaStage from '@/shared/components/DiagnosisCinemaStage';
 import {
   DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS,
   DIAGNOSIS_CORRIDOR_LAST_INDEX,

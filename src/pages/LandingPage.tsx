@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 
+import DiagnosisCinemaStage from '@/shared/components/DiagnosisCinemaStage';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { DIAGNOSIS_CORRIDOR_LINK_STATE } from '@/shared/lib/diagnosisCorridor';
 import { SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
