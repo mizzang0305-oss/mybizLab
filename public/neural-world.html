@@ -1436,9 +1436,9 @@
                 button.classList.toggle('active', Number(button.dataset.theme) === config.activePaletteIndex);
             });
         }
-        function applyStoryMode(mode, stepIndex, pulseKey) {
+        function applyStoryMode(layoutMode, stepIndex, pulseKey, companionMode = layoutMode === 'hero' ? 'hero' : 'floating-guide') {
             const clampedStep = Math.max(0, Math.min(stepProfiles.length - 1, stepIndex));
-            const profile = mode === 'landing'
+            const baseProfile = layoutMode === 'hero'
                 ? {
                     autoRotateSpeed: 0.2,
                     cameraPosition: landingCameraPosition,
@@ -1453,11 +1453,40 @@
                     sparkle: 0.18
                 }
                 : stepProfiles[clampedStep];
+            const profile = {
+                ...baseProfile
+            };
+            if (companionMode === 'listening') {
+                profile.memory = Math.max(profile.memory, 0.28);
+                profile.signal += 0.08;
+                profile.sparkle += 0.08;
+            } else if (companionMode === 'thinking') {
+                profile.memory = Math.max(profile.memory, 0.44);
+                profile.paletteIndex = 0;
+                profile.signal += 0.12;
+                profile.sparkle += 0.22;
+                profile.autoRotateSpeed += 0.04;
+            } else if (companionMode === 'speaking') {
+                profile.output = Math.max(profile.output, 0.24);
+                profile.signal += 0.06;
+                profile.sparkle += 0.14;
+            } else if (companionMode === 'alert') {
+                profile.memory = Math.max(profile.memory, 0.22);
+                profile.output = Math.max(profile.output, 0.2);
+                profile.paletteIndex = 1;
+                profile.signal += 0.18;
+                profile.sparkle += 0.18;
+            } else if (companionMode === 'floating-guide') {
+                profile.signal += 0.06;
+                profile.sparkle += 0.05;
+            }
             const paletteChanged = profile.paletteIndex !== config.activePaletteIndex;
             const needsRebuild =
                 profile.formation !== config.currentFormation ||
                 Math.abs(profile.densityFactor - config.densityFactor) > 0.001;
-            storyState.mode = mode;
+            const previousCompanionMode = storyState.companionMode;
+            storyState.mode = layoutMode;
+            storyState.companionMode = companionMode;
             storyState.stepIndex = clampedStep;
             storyState.targetCameraPosition.copy(profile.cameraPosition);
             storyState.targetCameraTarget.copy(profile.cameraTarget);
@@ -1477,10 +1506,15 @@
                 updateTheme(config.activePaletteIndex);
             }
             applyHiddenControlState();
-            document.body.dataset.worldMode = mode;
-            if (mode === 'onboarding' && pulseKey !== storyState.pulseKey) {
+            document.body.dataset.worldMode = layoutMode;
+            document.body.dataset.companionMode = companionMode;
+            if (layoutMode === 'floating' && pulseKey !== storyState.pulseKey) {
                 storyState.pulseKey = pulseKey;
                 triggerStepBurst(clampedStep);
+            } else if (companionMode !== previousCompanionMode) {
+                triggerScriptedPulse(profile.cameraTarget.clone(), colorPalettes[profile.paletteIndex][0]);
+                storyState.burst = Math.min(1.05, storyState.burst + 0.18);
+                storyState.pulseKey = pulseKey;
             } else {
                 storyState.pulseKey = pulseKey;
             }
@@ -1567,13 +1601,56 @@
             controls.autoRotate = false;
             setTimeout(() => { controls.autoRotate = true; }, 2000);
         });
+        function applyMybiCommand(command, payload = {}) {
+            if (command === 'nextFormation') {
+                changeFormationBtn.click();
+                return;
+            }
+            if (command === 'togglePause') {
+                pausePlayBtn.click();
+                return;
+            }
+            if (command === 'resetScene') {
+                resetCameraBtn.click();
+                return;
+            }
+            if (command === 'setTheme') {
+                const nextThemeIndex = THREE.MathUtils.clamp(parseInt(payload.themeIndex, 10) || 0, 0, colorPalettes.length - 1);
+                updateTheme(nextThemeIndex);
+                applyHiddenControlState();
+                return;
+            }
+            if (command === 'setDensity') {
+                const nextDensity = THREE.MathUtils.clamp(parseInt(payload.density, 10) || 100, 40, 140);
+                config.densityFactor = nextDensity / 100;
+                densitySlider.value = String(nextDensity);
+                densityValue.textContent = `${nextDensity}%`;
+                createNetworkVisualization(config.currentFormation, config.densityFactor);
+                applyHiddenControlState();
+                return;
+            }
+            if (command === 'setAutoRotate') {
+                controls.autoRotate = payload.enabled !== false && !config.paused;
+                return;
+            }
+            if (command === 'pulse') {
+                const palette = colorPalettes[config.activePaletteIndex];
+                storyState.burst = Math.min(1.15, storyState.burst + 0.32);
+                triggerScriptedPulse(controls.target.clone(), palette[Math.floor(Math.random() * palette.length)]);
+            }
+        }
         window.addEventListener('message', (event) => {
             if (event.origin !== window.location.origin) return;
-            if (event.data?.type !== 'mybiz-world:update') return;
-            const nextMode = event.data.payload?.mode === 'onboarding' ? 'onboarding' : 'landing';
+            if (event.data?.type === 'mybi-world:command') {
+                applyMybiCommand(event.data.payload?.command, event.data.payload || {});
+                return;
+            }
+            if (event.data?.type !== 'mybiz-world:update' && event.data?.type !== 'mybi-world:update') return;
+            const nextLayoutMode = event.data.payload?.layoutMode === 'hero' || event.data.payload?.mode === 'landing' ? 'hero' : 'floating';
+            const nextCompanionMode = typeof event.data.payload?.companionMode === 'string' ? event.data.payload.companionMode : nextLayoutMode === 'hero' ? 'hero' : 'floating-guide';
             const nextStepIndex = Number.isFinite(event.data.payload?.stepIndex) ? event.data.payload.stepIndex : 0;
             const nextPulseKey = Number.isFinite(event.data.payload?.pulseKey) ? event.data.payload.pulseKey : 0;
-            applyStoryMode(nextMode, nextStepIndex, nextPulseKey);
+            applyStoryMode(nextLayoutMode, nextStepIndex, nextPulseKey, nextCompanionMode);
         });
         const clock = new THREE.Clock();
         function animate() {
@@ -1625,7 +1702,7 @@
         function init() {
             createNetworkVisualization(config.currentFormation, config.densityFactor);
             applyHiddenControlState();
-            applyStoryMode('landing', 0, 0);
+            applyStoryMode('hero', 0, 0, 'hero');
             storyState.loaded = true;
             animate();
         }

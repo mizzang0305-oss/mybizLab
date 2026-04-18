@@ -778,18 +778,32 @@ export function OnboardingPage() {
             ? 1
             : 0;
   const worldStep = getDiagnosisCorridorStep(worldStepIndex);
+  const mybiCompanionMode =
+    message?.tone === 'error'
+      ? 'alert'
+      : runDiagnosis.isPending
+        ? 'thinking'
+        : flow.step === 'request'
+          ? 'speaking'
+          : flow.step === 'diagnosis'
+            ? 'listening'
+            : 'floating-guide';
   const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
-    mode: 'onboarding',
+    changedAfterInput: message?.text,
+    companionMode: mybiCompanionMode,
+    layoutMode: 'floating',
+    nextAction: worldStep.supportLine,
     pulseKey: worldStepIndex,
     stepIndex: worldStepIndex,
+    title: `${worldStep.number} ${worldStep.label}`,
   });
 
   return (
-    <main className="relative overflow-hidden bg-[#02050a] text-white" data-onboarding-layout="persistent-world-split">
+    <main className="relative overflow-hidden bg-[#02050a] text-white" data-onboarding-layout="mybi-floating-flow">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(125,211,252,0.1),transparent_20%),radial-gradient(circle_at_84%_18%,rgba(255,255,255,0.08),transparent_18%),linear-gradient(180deg,#02050a_0%,#050913_44%,#0b1320_100%)]" />
 
-      <div className="page-shell relative space-y-8 py-8 sm:space-y-10 sm:py-10 lg:py-12">
-        <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.84),rgba(5,8,13,0.62))] px-6 py-6 shadow-[0_36px_120px_-74px_rgba(0,0,0,0.94)] backdrop-blur-xl sm:px-8 sm:py-7">
+      <div className="page-shell relative space-y-8 py-8 sm:space-y-10 sm:py-10 lg:py-12" ref={worldSurfaceRef}>
+        <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.84),rgba(5,8,13,0.62))] px-6 py-6 shadow-[0_36px_120px_-74px_rgba(0,0,0,0.94)] backdrop-blur-xl sm:px-8 sm:py-7" data-mybi-anchor="onboarding-overview">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
@@ -827,26 +841,28 @@ export function OnboardingPage() {
           </div>
         </section>
 
+        <div data-mybi-anchor="onboarding-progress">
           <Panel title="온보딩 진행 단계" subtitle="현재 단계와 다음 단계가 자연스럽게 이어지도록 구성했습니다.">
-        <div className="grid gap-3 md:grid-cols-5">
-          {steps.map((step, index) => {
-            const done = index < currentIndex;
-            const current = index === currentIndex;
-            return (
-              <div key={step.key} className={`rounded-3xl border p-4 ${done ? 'border-emerald-200 bg-emerald-50' : current ? 'border-orange-200 bg-orange-50' : 'border-slate-200 bg-white'}`}>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">0{index + 1}</p>
-                <p className="mt-3 font-semibold text-slate-900">{step.label}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">{step.desc}</p>
-              </div>
-            );
-          })}
+            <div className="grid gap-3 md:grid-cols-5">
+              {steps.map((step, index) => {
+                const done = index < currentIndex;
+                const current = index === currentIndex;
+                return (
+                  <div key={step.key} className={`rounded-3xl border p-4 ${done ? 'border-emerald-200 bg-emerald-50' : current ? 'border-orange-200 bg-orange-50' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">0{index + 1}</p>
+                    <p className="mt-3 font-semibold text-slate-900">{step.label}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">{step.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
         </div>
-      </Panel>
 
       {message ? <p className={messageClassName(message.tone)}>{message.text}</p> : null}
 
       <div className="grid gap-8 xl:grid-cols-[1.18fr_0.82fr]">
-        <div className="space-y-6">
+        <div className="space-y-6" data-mybi-anchor="onboarding-active-flow">
           {flow.step === 'diagnosis' && !runDiagnosis.isPending ? (
             <Panel
               title="1. 스토어 AI 진단"
@@ -1669,26 +1685,19 @@ export function OnboardingPage() {
           ) : null}
         </div>
 
-        <div className="space-y-6">
-          <section
-            className="sticky top-6 overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.86),rgba(5,8,13,0.7))] shadow-[0_36px_120px_-70px_rgba(0,0,0,0.94)] backdrop-blur-xl"
-            data-diagnosis-world-panel="sticky"
-          >
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
-              <span>World sync</span>
+        <div className="space-y-6" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
+          <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.86),rgba(5,8,13,0.7))] p-6 shadow-[0_36px_120px_-70px_rgba(0,0,0,0.94)] backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
+              <span>MYBI sync</span>
               <span>
                 {worldStep.number} {worldStep.label}
               </span>
             </div>
-
-            <div ref={worldSurfaceRef} className="min-h-[26rem] sm:min-h-[32rem]" />
-
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 space-y-3 bg-[linear-gradient(180deg,rgba(2,5,10,0)_0%,rgba(2,5,10,0.44)_35%,rgba(2,5,10,0.88)_100%)] px-5 pb-5 pt-14">
-              <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
-                <span>Live</span>
-                <span>drag / click / pulse</span>
-              </div>
-              <p className="max-w-[22rem] break-keep text-sm leading-6 text-slate-100">{worldStep.supportLine}</p>
+            <p className="mt-4 text-sm leading-7 text-slate-100">
+              MYBI는 지금 읽고 있는 섹션 근처를 떠다니며 같은 neural world를 계속 유지합니다. 우측 고정 박스 대신 scroll과 섹션에 맞춰 움직이면서 drag / click / pulse 상호작용을 그대로 이어갑니다.
+            </p>
+            <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-7 text-slate-300">
+              {worldStep.supportLine}
             </div>
           </section>
 

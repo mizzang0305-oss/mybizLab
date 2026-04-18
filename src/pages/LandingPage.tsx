@@ -13,19 +13,23 @@ export function LandingPage() {
   usePageMeta('MyBiz | 공개 스토어 진단', landingDescription);
 
   const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
-    mode: 'landing',
+    companionMode: 'hero',
+    layoutMode: 'hero',
+    meaning: 'MYBI is the customer-memory revenue system companion for public acquisition, capture, memory merge, and next action.',
+    nextAction: '공개 스토어 진단 생성으로 들어가면 같은 world가 floating companion으로 이어집니다.',
     pulseKey: 0,
     stepIndex: 0,
+    title: 'MYBI Hero',
   });
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#02050a] text-white" data-landing-mode="hero-engine">
-      <section className="relative min-h-screen overflow-hidden">
+      <section className="relative min-h-screen overflow-hidden" data-mybi-anchor="landing-hero">
         <div ref={worldSurfaceRef} aria-hidden className="absolute inset-0" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(125,211,252,0.08),transparent_22%),radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.08),transparent_18%),linear-gradient(180deg,rgba(2,5,10,0.08)_0%,rgba(2,5,10,0.14)_48%,rgba(2,5,10,0.76)_100%)]" />
 
-        <div className="relative z-40 flex min-h-screen flex-col justify-between px-5 py-5 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-          <div className="flex items-center gap-3">
+        <div className="pointer-events-none relative z-40 flex min-h-screen flex-col justify-between px-5 py-5 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
+          <div className="pointer-events-auto flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.08] text-white shadow-[0_24px_80px_-52px_rgba(255,255,255,0.4)] backdrop-blur-xl">
               <Icons.Store size={20} />
             </div>
@@ -35,7 +39,7 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="max-w-[30rem] space-y-6 pb-4 sm:pb-10 lg:pb-14">
+          <div className="pointer-events-auto max-w-[30rem] space-y-6 pb-4 sm:pb-10 lg:pb-14">
             <div className="space-y-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300">Interactive hero</p>
               <h1 className="max-w-[10ch] break-keep font-display text-[3.35rem] font-black leading-[0.88] tracking-[-0.08em] text-white sm:text-[4.9rem]">
