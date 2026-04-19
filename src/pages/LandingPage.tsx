@@ -7,19 +7,25 @@ import { DIAGNOSIS_CORRIDOR_LINK_STATE } from '@/shared/lib/diagnosisCorridor';
 import { SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const landingDescription =
-  '몰입형 neural world를 메인 히어로로 사용하고, 진단이 시작되면 같은 세계가 오른쪽으로 이동해 MyBiz 진단 흐름과 이어집니다.';
+  '업로드한 neural world를 메인 히어로로 유지하고, 진단을 시작하면 같은 세계가 MYBI 동반자로 이어지는 공개 스토어 진단 화면입니다.';
 
 export function LandingPage() {
   usePageMeta('MyBiz | 공개 스토어 진단', landingDescription);
 
   const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
     companionMode: 'hero',
+    contextSummary: '무료 공개 유입이 들어오면 문의, 예약, 대기 같은 입력 채널로 이어지고 그 신호가 고객 기억 축을 만듭니다.',
     layoutMode: 'hero',
-    meaning: 'MYBI is the customer-memory revenue system companion for public acquisition, capture, memory merge, and next action.',
-    nextAction: '공개 스토어 진단 생성으로 들어가면 같은 world가 floating companion으로 이어집니다.',
+    meaning: 'MYBI는 공개 유입, 고객 기억, AI 운영 제안을 한 화면에서 이어 주는 실시간 동반자입니다.',
+    memoryNote: '고객과 타임라인이 핵심 기억 축을 만들고, AI는 그 위에서 요약, 분류, 추천, 리포트를 수행합니다.',
+    nextAction: '공개 스토어 진단을 시작하면 같은 세계가 축소되지 않고 살아 있는 MYBI 동반자로 이어집니다.',
+    planLabel: '진단 시작 전',
     pulseKey: 0,
+    routeLabel: '랜딩 히어로',
+    selectedHighlights: ['공개 유입', '고객 기억 축', 'AI 운영 레이어'],
     stepIndex: 0,
-    title: 'MYBI Hero',
+    stepLabel: '01 스토어 / 공개 유입',
+    title: 'MYBI 히어로',
   });
 
   return (
@@ -35,18 +41,18 @@ export function LandingPage() {
             </div>
             <div>
               <p className="font-display text-xl font-black tracking-[-0.04em] text-white">MyBiz</p>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Live diagnosis world</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Living neural companion</p>
             </div>
           </div>
 
           <div className="pointer-events-auto max-w-[30rem] space-y-6 pb-4 sm:pb-10 lg:pb-14">
             <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300">Interactive hero</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300">공개 유입 히어로</p>
               <h1 className="max-w-[10ch] break-keep font-display text-[3.35rem] font-black leading-[0.88] tracking-[-0.08em] text-white sm:text-[4.9rem]">
-                스토어 진단은 살아있는 세계로 시작합니다
+                고객 기억이 살아 있는 세계로 시작합니다
               </h1>
               <p className="max-w-[24rem] break-keep text-sm leading-6 text-slate-300 sm:text-base sm:leading-7">
-                드래그하고 클릭해 맥동을 보내면 같은 세계가 그대로 오른쪽 패널로 이어지며 진단 흐름을 시작합니다.
+                직접 움직이고 눌러 보세요. 같은 세계가 그대로 살아 있는 상태로 진단 흐름과 MYBI 안내 모드까지 이어집니다.
               </p>
             </div>
 

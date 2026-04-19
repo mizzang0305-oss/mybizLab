@@ -766,6 +766,7 @@ export function OnboardingPage() {
     [flow.diagnosisResult?.recommendedModules],
   );
   const selectedFeatureLabels = featureLabels(flow.requestDraft.selectedFeatures);
+  const currentStoreLabel = flow.requestDraft.storeName || flow.requestDraft.brandName || '새 스토어 초안';
   const worldStepIndex = runDiagnosis.isPending
     ? 2
     : flow.step === 'result'
@@ -785,16 +786,40 @@ export function OnboardingPage() {
         ? 'thinking'
         : flow.step === 'request'
           ? 'speaking'
-          : flow.step === 'diagnosis'
-            ? 'listening'
-            : 'floating-guide';
+        : flow.step === 'diagnosis'
+          ? 'listening'
+          : 'floating-guide';
+  const mybiHighlights = [
+    selectedIndustryLabel,
+    selectedStoreModeLabel,
+    selectedConcernLabel,
+    selectedDesiredOutcomeLabel,
+    ...selectedAvailableDataLabels.slice(0, 2),
+    ...selectedFeatureLabels.slice(0, 3),
+  ].filter(Boolean);
+  const mybiContextSummary =
+    flow.step === 'diagnosis'
+      ? `${selectedIndustryLabel} 업종의 공개 유입과 입력 채널 구조를 정리하는 단계입니다.`
+      : flow.step === 'result'
+        ? `진단 결과를 고객 기억 축으로 묶어 운영 액션과 권장 플랜을 해석하는 단계입니다.`
+        : flow.step === 'request'
+          ? `${currentStoreLabel}에 들어갈 공개 문구, 운영 모드, 데이터 모드, 앱 구성을 구체화하는 단계입니다.`
+          : flow.step === 'payment'
+            ? `${currentPlanTitle} 플랜을 기준으로 결제 후 생성과 승인까지 이어지는 단계입니다.`
+            : `${currentStoreLabel}의 스토어 쉘과 대시보드가 정착하는 payoff 단계입니다.`;
   const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
     changedAfterInput: message?.text,
     companionMode: mybiCompanionMode,
+    contextSummary: mybiContextSummary,
     layoutMode: 'floating',
     nextAction: worldStep.supportLine,
+    planLabel: currentPlanTitle,
     pulseKey: worldStepIndex,
+    routeLabel: '스토어 진단 온보딩',
+    selectedHighlights: mybiHighlights,
+    stepLabel: `${worldStep.number} ${worldStep.label}`,
     stepIndex: worldStepIndex,
+    storeLabel: currentStoreLabel,
     title: `${worldStep.number} ${worldStep.label}`,
   });
 
@@ -807,7 +832,7 @@ export function OnboardingPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-                <span>{cameFromLanding ? 'World carried over' : 'Persistent world'}</span>
+                <span>{cameFromLanding ? '히어로에서 이어짐' : 'MYBI 동반자'}</span>
                 <span className="h-px w-10 bg-white/14" />
                 <span>
                   {worldStep.number} {worldStep.label}
@@ -1688,7 +1713,7 @@ export function OnboardingPage() {
         <div className="space-y-6" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
           <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.86),rgba(5,8,13,0.7))] p-6 shadow-[0_36px_120px_-70px_rgba(0,0,0,0.94)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
-              <span>MYBI sync</span>
+              <span>MYBI 동기화</span>
               <span>
                 {worldStep.number} {worldStep.label}
               </span>

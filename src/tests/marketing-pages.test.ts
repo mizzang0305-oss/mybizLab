@@ -42,7 +42,7 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('data-public-shell-theme="diagnosis"');
     expect(html).toContain('data-onboarding-layout="mybi-floating-flow"');
     expect(html).toContain('data-mybi-shell="active"');
-    expect(html).toContain('MYBI sync');
+    expect(html).toContain('MYBI 동기화');
     expect(html).toContain('data-mybi-anchor="onboarding-active-flow"');
     expect(html).not.toContain('data-diagnosis-world-panel="sticky"');
   });
