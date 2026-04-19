@@ -92,33 +92,54 @@ export function AdminLoginPage() {
     const normalizedPassword = password.trim();
 
     if (!normalizedEmail || !normalizedPassword) {
-      setMessage({
-        tone: 'error',
-        text: '이메일과 비밀번호를 입력해 주세요.',
-      });
+      setMessage({ tone: 'error', text: '이메일과 비밀번호를 입력해 주세요.' });
       return;
     }
 
-    if (!demoPasswordLoginEnabled || !DEMO_ADMIN_CREDENTIALS.password) {
-      setMessage({
-        tone: 'error',
-        text: '이메일/비밀번호 체험 로그인은 현재 비활성화 상태입니다. 데모 대시보드 또는 Google 체험 로그인을 사용해 주세요.',
-      });
-      return;
-    }
+    setPendingMethod('email');
+    setMessage({ tone: 'info', text: '로그인 중입니다...' });
 
-    if (
-      normalizedEmail !== DEMO_ADMIN_CREDENTIALS.email ||
-      normalizedPassword !== DEMO_ADMIN_CREDENTIALS.password
-    ) {
-      setMessage({
-        tone: 'error',
-        text: `체험 환경에서는 ${DEMO_ADMIN_CREDENTIALS.email} 계정과 설정된 데모 비밀번호를 사용해 주세요.`,
-      });
-      return;
-    }
+    try {
+      // Supabase Auth 실 로그인 시도
+      const { supabase } = await import('@/integrations/supabase/client');
+      if (supabase) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password: normalizedPassword,
+        });
 
-    await signInWithDemoAccess('email', { email: normalizedEmail });
+        if (error) {
+          // Supabase 로그인 실패 → 데모 fallback
+          if (demoPasswordLoginEnabled && normalizedEmail === DEMO_ADMIN_CREDENTIALS.email && normalizedPassword === DEMO_ADMIN_CREDENTIALS.password) {
+            await signInWithDemoAccess('email', { email: normalizedEmail });
+            return;
+          }
+          setMessage({ tone: 'error', text: '이메일 또는 비밀번호가 올바르지 않습니다.' });
+          setPendingMethod(null);
+          return;
+        }
+
+        if (data.user) {
+          await signInWithDemoAccess('email', {
+            email: data.user.email || normalizedEmail,
+            fullName: data.user.user_metadata?.full_name as string | undefined,
+          });
+          return;
+        }
+      }
+
+      // Supabase 미연결 → 데모 fallback
+      if (demoPasswordLoginEnabled && normalizedEmail === DEMO_ADMIN_CREDENTIALS.email && normalizedPassword === DEMO_ADMIN_CREDENTIALS.password) {
+        await signInWithDemoAccess('email', { email: normalizedEmail });
+        return;
+      }
+
+      setMessage({ tone: 'error', text: '이메일 또는 비밀번호가 올바르지 않습니다.' });
+    } catch {
+      setMessage({ tone: 'error', text: '로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.' });
+    } finally {
+      setPendingMethod(null);
+    }
   }
 
   return (
@@ -170,32 +191,7 @@ export function AdminLoginPage() {
             {message ? <p className={getMessageClassName(message.tone)}>{message.text}</p> : null}
 
             <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-                    <Icons.Globe size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900">Google 체험 로그인</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      가장 빠르게 관리자 대시보드를 체험할 수 있는 진입 방식입니다.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs leading-5 text-slate-500">
-                    체험 환경에서는 Google 선택 후 데모 관리자 계정으로 연결됩니다.
-                  </p>
-                  <button
-                    className="btn-secondary justify-center"
-                    disabled={pendingMethod !== null}
-                    onClick={() => void signInWithDemoAccess('google', { email: DEMO_ADMIN_CREDENTIALS.email })}
-                    type="button"
-                  >
-                    Google로 로그인
-                  </button>
-                </div>
-              </div>
+
 
               <form className="rounded-3xl border border-slate-200 bg-white p-5" onSubmit={(event) => void handleEmailSignIn(event)}>
                 <div className="flex items-start gap-4">
@@ -229,35 +225,29 @@ export function AdminLoginPage() {
                     <input
                       autoComplete="current-password"
                       className="input-base"
-                      disabled={!demoPasswordLoginEnabled}
+                      
                       onChange={(event) => setPassword(event.target.value)}
-                      placeholder={
-                        demoPasswordLoginEnabled
-                          ? '비밀번호를 입력해 주세요.'
-                          : '비밀번호 로그인은 현재 비활성화되어 있습니다.'
-                      }
+                      placeholder='비밀번호를 입력해 주세요.'
                       type="password"
                       value={password}
                     />
                   </label>
                 </div>
 
-                <div className="mt-4 rounded-3xl bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1 text-sm text-slate-600">
-                      <p className="font-semibold text-slate-900">체험용 이메일 로그인</p>
-                      <p>이메일: {DEMO_ADMIN_CREDENTIALS.email}</p>
-                      <p>비밀번호: {demoPasswordLoginEnabled ? 'env로 설정됨' : '미설정'}</p>
+                {demoPasswordLoginEnabled ? (
+                  <div className="mt-4 rounded-xl bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-slate-500">체험 계정으로 빠르게 확인하려면</p>
+                      <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300" onClick={fillDemoCredentials} type="button">
+                        데모 계정 채우기
+                      </button>
                     </div>
-                    <button className="btn-secondary !px-4 !py-2" onClick={fillDemoCredentials} type="button">
-                      데모 계정 채우기
-                    </button>
                   </div>
-                </div>
+                ) : null}
 
                 <button
                   className="btn-primary mt-4 w-full justify-center"
-                  disabled={pendingMethod !== null || !demoPasswordLoginEnabled}
+                  disabled={pendingMethod !== null}
                   type="submit"
                 >
                   이메일로 로그인

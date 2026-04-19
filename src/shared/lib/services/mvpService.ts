@@ -398,44 +398,38 @@ async function createStoreViaSupabaseRpc(
   input: SetupRequestInput,
   plan: SubscriptionPlan,
 ): Promise<CreateStoreWithOwnerRpcRow> {
-  if (!supabase) {
-    throw new Error('Supabase client is not configured.');
-  }
-
-  await getAuthenticatedSupabaseUserId();
-
-  const { data, error } = await supabase.rpc('create_store_with_owner', {
-    p_store_name: input.business_name,
-    p_owner_name: input.owner_name,
-    p_business_number: input.business_number,
-    p_phone: input.phone,
-    p_email: input.email,
-    p_address: input.address,
-    p_business_type: input.business_type,
-    p_requested_slug: input.requested_slug || input.business_name,
-    p_plan: plan,
+  // 서버사이드 API 통해 service_role로 RPC 호출 (클라이언트 Auth 불필요)
+  const response = await fetch('/api/stores/provision', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      business_name: input.business_name,
+      owner_name: input.owner_name,
+      business_number: input.business_number,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      business_type: input.business_type,
+      requested_slug: input.requested_slug || input.business_name,
+      plan,
+    }),
   });
 
-  if (error) {
-    throw new Error(`create_store_with_owner RPC failed: ${error.message}`);
-  }
+  const result = (await response.json()) as {
+    ok: boolean;
+    error?: string;
+    store?: { id: string; store_id: string; slug: string; name: string; plan: string };
+  };
 
-  const row = (Array.isArray(data) ? data[0] : data) as CreateStoreWithOwnerRpcRow | null;
-
-  if (!row) {
-    throw new Error('create_store_with_owner RPC did not return a store row.');
-  }
-
-  const resolvedStoreId = row.store_id ?? row.id;
-
-  if (!resolvedStoreId || !row.slug) {
-    throw new Error('create_store_with_owner RPC did not return store_id/id and slug.');
+  if (!result.ok || !result.store) {
+    throw new Error(result.error || '스토어 생성 API가 실패했습니다.');
   }
 
   return {
-    ...row,
-    store_id: resolvedStoreId,
-  };
+    id: result.store.id,
+    store_id: result.store.id,
+    slug: result.store.slug,
+  } as CreateStoreWithOwnerRpcRow;
 }
 
 export type AiReportRange = 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -2001,9 +1995,39 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
     updated_at: timestamp,
   };
 
+  // 로컬 mockDb에도 저장 (데모 fallback)
   updateDatabase((database) => {
     database.store_requests.unshift(request);
   });
+
+  // Supabase 연결 시 store_setup_requests 테이블에도 저장
+  if (shouldUseSupabaseStoreProvisioning() && supabase) {
+    try {
+      await supabase.from('store_setup_requests').insert({
+        id: request.id,
+        business_name: request.business_name,
+        owner_name: request.owner_name,
+        business_number: request.business_number,
+        phone: request.phone,
+        email: request.email,
+        address: request.address,
+        business_type: request.business_type,
+        requested_slug: request.requested_slug,
+        requested_plan: request.requested_plan,
+        brand_name: request.brand_name,
+        tagline: request.tagline,
+        description: request.description,
+        status: request.status,
+        selected_features: request.selected_features,
+        store_mode: request.store_mode,
+        data_mode: request.data_mode,
+        created_at: request.created_at,
+        updated_at: request.updated_at,
+      });
+    } catch (err) {
+      console.warn('[saveSetupRequest] Supabase 저장 실패 (로컬 저장은 완료):', err);
+    }
+  }
 
   return request;
 }

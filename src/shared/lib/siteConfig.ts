@@ -1,8 +1,8 @@
 export const SITE_NAME = 'MyBiz';
 export const SERVICE_DOMAIN = 'mybiz.ai.kr';
-export const SERVICE_TAGLINE = '고객 기억으로 반복 매출을 만드는 매장 운영 SaaS';
+export const SERVICE_TAGLINE = 'AI 디지털 점장 — 소상공인 매장 운영 자동화';
 export const SERVICE_DESCRIPTION =
-  'MyBiz는 공개 스토어 유입, 문의·예약·웨이팅 캡처, 고객 기억 결합, 다음 행동 제안, 운영 대시보드까지 이어지는 customer-memory revenue system입니다.';
+  'MyBiz는 문의·예약·대기·주문을 한 곳에서 관리하고, AI가 고객 패턴을 분석해 매출을 끌어올리는 소상공인 AI 운영 플랫폼입니다. QR 주문, 고객 CRM, AI 리포트를 무료로 시작하세요.';
 export const POLICY_UPDATED_AT = '2026년 3월 14일';
 export const SUPPORT_PHONE_NUMBER = '032-214-5757';
 export const SUBSCRIPTION_START_PATH = '/onboarding';

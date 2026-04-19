@@ -23,6 +23,7 @@ import {
   type MybiCompanionMode,
   type MybiSceneState,
 } from '@/shared/lib/mybiCompanion';
+import { sendMybiMessage, type MybiChatMessage } from '@/shared/lib/mybiChatClient';
 
 type MybiPanelTab = 'controls' | 'guide' | 'issue';
 type MybiMessageRole = 'assistant' | 'user';
@@ -659,22 +660,57 @@ export function PersistentDiagnosisWorldProvider({
 
       clearResponseTimers();
       pushRecentActivity(`질문: ${trimmed}`);
-      setMessages((current) => [...current, createMessage(nextMessageId(), 'user', trimmed)]);
+
+      // 새 user 메시지 추가
+      const userMsg = createMessage(nextMessageId(), 'user', trimmed);
+      setMessages((current) => [...current, userMsg]);
       setConversationInput('');
       setPanelOpen(true);
       setPanelTab('guide');
       runTimedMode('thinking', 720);
+
+      // 실제 AI API 호출 (OpenAI → Gemini → fallback 순)
+      const callAI = async () => {
+        try {
+          // messages state의 최신 값은 closure에 없으므로 ref 대신 직접 구성
+          const currentMessages: MybiChatMessage[] = [];
+
+          // 이전 메시지 히스토리 (최대 10개)
+          setMessages((current) => {
+            const history = current.slice(-10).map((m) => ({
+              role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+              content: m.content,
+            }));
+            currentMessages.push(...history);
+            return current; // state 변경 없음, 읽기만
+          });
+
+          // 현재 질문 추가
+          currentMessages.push({ role: 'user', content: trimmed });
+
+          // 현재 화면 컨텍스트
+          const sceneContext = [
+            resolvedScene.routeLabel && `화면: ${resolvedScene.routeLabel}`,
+            resolvedScene.stepLabel && `단계: ${resolvedScene.stepLabel}`,
+            resolvedScene.contextSummary,
+          ]
+            .filter(Boolean)
+            .join(' / ');
+
+          const reply = await sendMybiMessage(currentMessages, sceneContext);
+          streamAssistantReply(reply);
+        } catch {
+          // 완전 실패 시 로컬 키워드 매칭
+          streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
+        }
+      };
 
       if (typeof window === 'undefined') {
         streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
         return;
       }
 
-      const delayTimer = window.setTimeout(() => {
-        streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
-      }, 260);
-
-      responseTimersRef.current.push(delayTimer);
+      void callAI();
     },
     [clearResponseTimers, nextMessageId, pushRecentActivity, resolvedScene, runTimedMode, streamAssistantReply],
   );
@@ -1014,7 +1050,7 @@ export function PersistentDiagnosisWorldProvider({
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-slate-200">
-                      <p className="text-xs font-semibold tracking-[0.22em] text-slate-400">고객 기억 축</p>
+                      <p className="text-xs font-semibold tracking-[0.22em] text-slate-400">AI 운영 분석</p>
                       <p className="mt-2">{resolvedScene.memoryNote}</p>
                       <p className="mt-3 text-slate-300">다음 액션: {resolvedScene.nextAction}</p>
                       <p className="mt-2 text-slate-400">최근 액션: {recentActivity[0] || '아직 기록된 최근 액션이 없습니다.'}</p>

@@ -72,8 +72,8 @@ const steps: Array<{ key: OnboardingStep; label: string; desc: string }> = [
 
 const requestWizardSteps: Array<{ key: StoreSetupWizardStep; label: string; desc: string }> = [
   { key: 'basic', label: '기본 정보', desc: '스토어와 대표 기본값' },
-  { key: 'storeMode', label: 'Store Mode', desc: '운영 흐름 선택' },
-  { key: 'dataMode', label: 'Data Mode', desc: '데이터 수집 방식' },
+  { key: 'storeMode', label: '운영 방식', desc: '운영 흐름 선택' },
+  { key: 'dataMode', label: '데이터 수집', desc: '수집 방식 선택' },
   { key: 'modules', label: '앱 선택', desc: '포함 모듈 결정' },
   { key: 'public', label: '공개 화면', desc: '대표 문구와 CTA' },
   { key: 'summary', label: '요약', desc: '생성 전 최종 확인' },
@@ -198,18 +198,20 @@ function InsightCard({
   title: string;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
-      <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <div className="mt-4 space-y-3">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 px-5 py-3.5">
+        <p className="text-sm font-semibold text-slate-700">{title}</p>
+      </div>
+      <div className="divide-y divide-slate-100">
         {items.map((item, index) => (
           <div
             key={`${title}-${index}-${item.slice(0, 16)}`}
-            className={[
-              'rounded-2xl px-4 py-3.5 text-[15px] leading-7 break-words',
-              accentClassName || 'bg-slate-50 text-slate-700',
-            ].join(' ')}
+            className="flex items-start gap-3 px-5 py-3.5"
           >
-            {item}
+            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${accentClassName || 'bg-slate-100 text-slate-600'}`}>
+              {index + 1}
+            </span>
+            <p className="text-[14px] leading-6 text-slate-700">{item}</p>
           </div>
         ))}
       </div>
@@ -233,17 +235,22 @@ function DiagnosisChoiceCard({
   return (
     <button
       className={[
-        'w-full rounded-3xl border p-4 text-left transition',
+        'group relative w-full overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200',
         active
-          ? 'border-orange-300 bg-orange-50 shadow-[0_16px_40px_-32px_rgba(236,91,19,0.5)]'
-          : 'border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/40',
+          ? 'border-[#ec5b13] bg-gradient-to-br from-orange-50 to-white shadow-[0_8px_32px_-12px_rgba(236,91,19,0.35)]'
+          : 'border-slate-200 bg-white hover:border-orange-200 hover:shadow-[0_4px_16px_-8px_rgba(0,0,0,0.1)]',
       ].join(' ')}
       onClick={onClick}
       type="button"
     >
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{caption}</p>
-      <p className="mt-3 text-base font-semibold text-slate-900">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+      {active && (
+        <span className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full bg-[#ec5b13] text-white">
+          <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </span>
+      )}
+      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${active ? 'text-orange-500' : 'text-slate-400'}`}>{caption}</p>
+      <p className={`mt-2.5 text-[15px] font-semibold leading-snug ${active ? 'text-[#ec5b13]' : 'text-slate-900'}`}>{title}</p>
+      <p className="mt-1.5 text-[13px] leading-5 text-slate-500">{description}</p>
     </button>
   );
 }
@@ -260,12 +267,17 @@ function DiagnosisToggleChip({
   return (
     <button
       className={[
-        'rounded-full border px-4 py-2.5 text-sm font-semibold transition',
-        active ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+        'inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-150',
+        active
+          ? 'border-slate-900 bg-slate-900 text-white shadow-[0_4px_12px_-4px_rgba(0,0,0,0.3)]'
+          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50',
       ].join(' ')}
       onClick={onClick}
       type="button"
     >
+      {active && (
+        <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      )}
       {label}
     </button>
   );
@@ -342,7 +354,7 @@ export function OnboardingPage() {
   const redirectHandledRef = useRef(false);
   const cameFromLanding = Boolean((location.state as { corridorEntry?: boolean } | null)?.corridorEntry);
 
-  usePageMeta('스토어 AI 진단 신청', '업로드된 neural world가 오른쪽에 살아있는 상태로 MyBiz 진단, 요청, 결제, 승인 흐름을 이어가는 온보딩 화면입니다.');
+  usePageMeta('스토어 AI 진단 신청', 'AI 진단을 통해 매장에 맞는 운영 전략과 플랜을 추천받고, 스토어를 생성하는 과정입니다.');
 
   const existingSlugs = useMemo(() => (storesQuery.data || []).map((store) => store.slug), [storesQuery.data]);
   const existingSlugSet = useMemo(() => new Set(existingSlugs.map((slug) => normalizeStoreSlug(slug))), [existingSlugs]);
@@ -824,74 +836,105 @@ export function OnboardingPage() {
   });
 
   return (
-    <main className="relative overflow-hidden bg-[#02050a] text-white" data-onboarding-layout="mybi-floating-flow">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(125,211,252,0.1),transparent_20%),radial-gradient(circle_at_84%_18%,rgba(255,255,255,0.08),transparent_18%),linear-gradient(180deg,#02050a_0%,#050913_44%,#0b1320_100%)]" />
+    <main className="relative min-h-screen bg-[#f6f2ea]" data-onboarding-layout="mybi-flow">
+      <div ref={worldSurfaceRef} className="pointer-events-none absolute inset-0" aria-hidden />
 
-      <div className="page-shell relative space-y-8 py-8 sm:space-y-10 sm:py-10 lg:py-12" ref={worldSurfaceRef}>
-        <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.84),rgba(5,8,13,0.62))] px-6 py-6 shadow-[0_36px_120px_-74px_rgba(0,0,0,0.94)] backdrop-blur-xl sm:px-8 sm:py-7" data-mybi-anchor="onboarding-overview">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-                <span>{cameFromLanding ? '히어로에서 이어짐' : 'MYBI 동반자'}</span>
-                <span className="h-px w-10 bg-white/14" />
-                <span>
-                  {worldStep.number} {worldStep.label}
-                </span>
-              </div>
-              <div className="space-y-3">
-                <h1 className="max-w-[16ch] break-keep font-display text-[2rem] font-black leading-[0.96] tracking-[-0.05em] text-white sm:text-[2.9rem]">
-                  같은 hero world가 오른쪽에 살아있는 채로 진단 흐름이 이어집니다
-                </h1>
-                <p className="max-w-3xl break-keep text-sm leading-7 text-slate-300 sm:text-base">
-                  왼쪽에서는 기존 MyBiz 진단과 생성 흐름을 그대로 진행하고, 오른쪽에서는 같은 세계가 단계에 맞춰 맥동하고 결정화되며 반응합니다.
-                </p>
-              </div>
-            </div>
+      <div className="page-shell relative space-y-7 py-8 sm:py-10 lg:py-12">
 
-            <div className="flex flex-wrap gap-3">
-              <Link
-                className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                to="/pricing"
-              >
-                요금제 보기
-              </Link>
-              <button
-                className="btn-secondary border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                onClick={resetOnboardingFlow}
-                type="button"
-              >
-                처음부터 다시
-              </button>
-            </div>
+        {/* ── 헤더 ── */}
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between" data-mybi-anchor="onboarding-overview">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-orange-500">AI 매장 진단 · 무료 시작</p>
+            <h1 className="mt-2 break-keep font-display text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
+              {flow.step === 'diagnosis' && '매장 정보를 입력해 주세요'}
+              {flow.step === 'result' && 'AI 진단 결과를 확인하세요'}
+              {flow.step === 'request' && '스토어 기본 정보를 입력해 주세요'}
+              {flow.step === 'payment' && '플랜을 선택하고 시작하세요'}
+              {flow.step === 'activation' && '스토어 생성이 완료되었습니다'}
+            </h1>
+            <p className="mt-1.5 max-w-xl break-keep text-sm leading-relaxed text-slate-500">
+              {flow.step === 'diagnosis' && '5가지 질문에 답하면 AI가 매장에 맞는 운영 전략과 추천 플랜을 분석합니다.'}
+              {flow.step === 'result' && '운영 점수, 핵심 병목, 즉시 실행 액션을 확인하고 스토어 생성을 이어가세요.'}
+              {flow.step === 'request' && '기본 정보를 입력하면 AI 진단 결과가 자동으로 채워집니다.'}
+              {flow.step === 'payment' && '결제가 완료되면 스토어가 즉시 활성화되고 대시보드로 이동합니다.'}
+              {flow.step === 'activation' && '대시보드에서 매장 운영을 시작하세요.'}
+            </p>
           </div>
-        </section>
+          <div className="flex shrink-0 flex-wrap gap-2 sm:mt-1">
+            <Link className="btn-secondary !py-2 !text-sm" to="/pricing">요금제 보기</Link>
+            <button className="btn-ghost !py-2 !text-sm" onClick={resetOnboardingFlow} type="button">처음부터</button>
+          </div>
+        </header>
 
-        <div data-mybi-anchor="onboarding-progress">
-          <Panel title="온보딩 진행 단계" subtitle="현재 단계와 다음 단계가 자연스럽게 이어지도록 구성했습니다.">
-            <div className="grid gap-3 md:grid-cols-5">
-              {steps.map((step, index) => {
-                const done = index < currentIndex;
-                const current = index === currentIndex;
-                return (
-                  <div key={step.key} className={`rounded-3xl border p-4 ${done ? 'border-emerald-200 bg-emerald-50' : current ? 'border-orange-200 bg-orange-50' : 'border-slate-200 bg-white'}`}>
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">0{index + 1}</p>
-                    <p className="mt-3 font-semibold text-slate-900">{step.label}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">{step.desc}</p>
+        {/* ── 스텝 인디케이터 ── */}
+        <div className="section-card bg-white px-6 py-5" data-mybi-anchor="onboarding-progress">
+          <div className="flex items-start">
+            {steps.map((step, index) => {
+              const done = index < currentIndex;
+              const current = index === currentIndex;
+              const isLast = index === steps.length - 1;
+              return (
+                <div key={step.key} className="flex flex-1 items-start">
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    {/* 원형 번호 */}
+                    <div className={[
+                      'flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all duration-300',
+                      done
+                        ? 'bg-emerald-500 text-white'
+                        : current
+                          ? 'bg-[#ec5b13] text-white shadow-[0_4px_14px_-2px_rgba(236,91,19,0.55)]'
+                          : 'bg-slate-100 text-slate-400',
+                    ].join(' ')}>
+                      {done ? (
+                        <svg width="12" height="9" viewBox="0 0 12 9" fill="none">
+                          <path d="M1 4.5L4.5 8L11 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      ) : (
+                        <span>{index + 1}</span>
+                      )}
+                    </div>
+                    {/* 라벨 */}
+                    <div className="min-w-0 max-w-[72px] sm:max-w-[100px]">
+                      <p className={[
+                        'break-keep text-[11px] font-semibold leading-tight',
+                        current ? 'text-slate-900' : done ? 'text-emerald-600' : 'text-slate-400',
+                      ].join(' ')}>
+                        {step.label}
+                      </p>
+                      <p className={`mt-0.5 hidden text-[10px] leading-tight sm:block ${current ? 'text-slate-400' : 'text-slate-300'}`}>
+                        {step.desc}
+                      </p>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          </Panel>
+                  {/* 구분선 */}
+                  {!isLast && (
+                    <div className={`mx-2 mt-4 h-px flex-1 ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-
-      {message ? <p className={messageClassName(message.tone)}>{message.text}</p> : null}
+      {message ? (
+        <div className={[
+          'flex items-start gap-3 rounded-2xl border px-5 py-4 text-sm font-medium',
+          message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' :
+          message.tone === 'error' ? 'border-rose-200 bg-rose-50 text-rose-800' :
+          'border-blue-200 bg-blue-50 text-blue-800',
+        ].join(' ')}>
+          <span className="mt-0.5 shrink-0 text-base">
+            {message.tone === 'success' ? '✓' : message.tone === 'error' ? '!' : 'ℹ'}
+          </span>
+          <p className="leading-relaxed">{message.text}</p>
+        </div>
+      ) : null}
 
       <div className="grid gap-8 xl:grid-cols-[1.18fr_0.82fr]">
         <div className="space-y-6" data-mybi-anchor="onboarding-active-flow">
           {flow.step === 'diagnosis' && !runDiagnosis.isPending ? (
             <Panel
-              title="1. 스토어 AI 진단"
-              subtitle="점주가 이해하기 쉬운 5단계 선택형 진단입니다. 업종, 운영 방식, 현재 고민, 보유 데이터, 원하는 결과를 고르면 추천 운영 구조를 바로 보여줍니다."
+              title="AI 매장 진단"
+              subtitle="업종, 운영 방식, 현재 고민, 보유 데이터, 원하는 결과 — 5가지를 선택하면 AI가 맞춤 운영 전략을 분석합니다."
             >
               <div className="space-y-5">
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
@@ -903,25 +946,37 @@ export function OnboardingPage() {
                       placeholder="예: 서울 성수동"
                       value={flow.diagnosisInput.region}
                     />
-                    <p className="mt-2 text-sm leading-6 text-slate-500">같은 업종이어도 지역 상권에 따라 추천 모드와 질문이 달라집니다.</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">지역 상권에 따라 AI 추천 전략이 달라집니다.</p>
                   </label>
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">현재 선택 요약</p>
-                    <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                      <p>업종: {selectedIndustryLabel}</p>
-                      <p>운영 방식: {selectedStoreModeLabel}</p>
-                      <p>현재 고민: {selectedConcernLabel}</p>
-                      <p>원하는 결과: {selectedDesiredOutcomeLabel}</p>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-500">선택 현황</p>
+                    <div className="mt-3 space-y-2.5 text-sm text-slate-700">
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">업종</span>
+                        <span className="font-medium">{selectedIndustryLabel}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">운영</span>
+                        <span className="font-medium">{selectedStoreModeLabel}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">고민</span>
+                        <span className="font-medium">{selectedConcernLabel}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">목표</span>
+                        <span className="font-medium">{selectedDesiredOutcomeLabel}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <section className="rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Step 1</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 1</p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-900">어떤 업종인가요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">점주가 가장 먼저 공감할 업종 시나리오를 고릅니다.</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">업종을 선택하면 그에 맞는 운영 전략을 분석합니다.</p>
                     </div>
                     <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">필수</span>
                   </div>
@@ -942,9 +997,9 @@ export function OnboardingPage() {
                 <section className="rounded-3xl border border-slate-200 bg-white p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Step 2</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">지금 운영 방식은 어디에 가깝나요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">주문형인지, 설문형인지, 아직 모르겠는지도 그대로 선택하면 됩니다.</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 2</p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-900">현재 운영 방식은 어떻게 되나요?</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">주문 중심인지, 예약 중심인지, 아직 모르겠어도 괜찮습니다.</p>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -964,9 +1019,9 @@ export function OnboardingPage() {
                 <section className="rounded-3xl border border-slate-200 bg-white p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Step 3</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">가장 먼저 해결하고 싶은 고민은 무엇인가요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">대시보드가 무엇을 먼저 보여줘야 하는지 결정하는 질문입니다.</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 3</p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-900">가장 급한 고민이 무엇인가요?</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">선택하신 고민을 기준으로 AI가 우선 개선 방향을 제안합니다.</p>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -986,9 +1041,9 @@ export function OnboardingPage() {
                 <section className="rounded-3xl border border-slate-200 bg-white p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Step 4</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">지금 보유한 데이터는 무엇인가요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">복수 선택 가능합니다. 아직 없는 데이터도 솔직하게 선택해 주세요.</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 4</p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-900">현재 갖고 있는 데이터가 있나요?</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">복수 선택 가능합니다. 아직 없어도 괜찮아요.</p>
                     </div>
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">복수 선택</span>
                   </div>
@@ -1010,9 +1065,9 @@ export function OnboardingPage() {
                 <section className="rounded-3xl border border-slate-200 bg-white p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Step 5</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">이번 도입으로 가장 얻고 싶은 결과는 무엇인가요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">추천 질문과 추천 모듈은 이 목표를 기준으로 달라집니다.</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 5</p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-900">어떤 결과를 원하시나요?</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">목표에 따라 AI가 추천하는 기능과 전략이 달라집니다.</p>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -1033,7 +1088,7 @@ export function OnboardingPage() {
                 <button className="btn-primary" disabled={!diagnosisValid} onClick={() => void submitDiagnosis()} type="button">
                   AI 진단 결과 보기
                 </button>
-                <p className="text-sm leading-6 text-slate-500">결과 화면에서는 추천 스토어 모드, 추천 데이터 모드, 추천 모듈, 추천 질문 4개를 바로 확인할 수 있습니다.</p>
+                <p className="text-sm leading-6 text-slate-500">운영 점수, 핵심 병목, 즉시 실행 액션, 추천 플랜을 바로 확인할 수 있습니다.</p>
               </div>
             </Panel>
           ) : null}
@@ -1049,50 +1104,52 @@ export function OnboardingPage() {
 
           {flow.step === 'result' && flow.diagnosisResult ? (
             <Panel
-              title="2. 스토어 AI 진단 결과"
-              subtitle="운영 점수, 핵심 병목, 매출 개선 포인트, 바로 실행할 액션을 한 번에 정리했습니다. 실시간 외부 데이터가 연결되지 않았더라도 입력 정보를 기반으로 구조화된 진단을 제공합니다."
+              title="AI 진단 결과"
+              subtitle="운영 점수, 핵심 병목, 매출 개선 포인트, 즉시 실행 액션을 한 번에 확인하세요."
             >
               <div className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
                 <div className="space-y-4">
-                  <div className="rounded-[32px] bg-slate-950 p-6 text-white">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="overflow-hidden rounded-2xl bg-slate-950 text-white">
+                    <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
                       <div>
-                        <p className="text-sm font-semibold text-orange-200">운영 점수</p>
-                        <p className="mt-3 font-display text-4xl font-black leading-none sm:text-5xl">{flow.diagnosisResult.score}점</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-300">AI 운영 점수</p>
+                        <p className="mt-2 font-display text-5xl font-black leading-none">{flow.diagnosisResult.score}<span className="ml-1 text-2xl text-slate-400">점</span></p>
                       </div>
-                      <span className={`rounded-full border px-3 py-1 text-xs font-bold ${analysisToneClasses(flow.diagnosisResult.analysisSource)}`}>
+                      <span className={`rounded-full border px-3 py-1.5 text-xs font-bold ${analysisToneClasses(flow.diagnosisResult.analysisSource)}`}>
                         {diagnosisSourceLabel(flow.diagnosisResult.analysisSource)}
                       </span>
                     </div>
-                    <p className="mt-5 max-w-2xl break-words text-pretty text-[15px] leading-7 text-slate-200 sm:text-base sm:leading-8">{flow.diagnosisResult.summary}</p>
-                    <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.07] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">리포트 요약</p>
-                      <p className="mt-2 break-words text-[15px] leading-7 text-slate-200">{flow.diagnosisResult.reportSummary}</p>
+                    <div className="border-t border-white/10 px-6 py-4">
+                      <p className="break-words text-sm leading-7 text-slate-300">{flow.diagnosisResult.summary}</p>
+                    </div>
+                    <div className="border-t border-white/10 px-6 py-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">AI 리포트 요약</p>
+                      <p className="mt-2 break-words text-sm leading-6 text-slate-300">{flow.diagnosisResult.reportSummary}</p>
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                      <p className="text-sm font-semibold text-slate-500">핵심 병목 수</p>
-                      <p className="mt-3 font-display text-3xl font-black text-slate-900">{flow.diagnosisResult.coreBottlenecks.length}개</p>
-                      <p className="mt-2 text-[15px] leading-7 text-slate-500">가장 먼저 손봐야 할 운영 병목을 우선순위 순서대로 정리했습니다.</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">핵심 병목</p>
+                      <p className="mt-3 font-display text-4xl font-black text-slate-900">{flow.diagnosisResult.coreBottlenecks.length}<span className="ml-1 text-xl font-semibold text-slate-400">개</span></p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">가장 먼저 해결해야 할 운영 병목입니다.</p>
                     </div>
-                    <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                      <p className="text-sm font-semibold text-slate-500">추천 플랜</p>
-                      <p className="mt-3 font-display text-3xl font-black text-slate-900">{currentPlanTitle}</p>
-                      <p className="mt-2 text-[15px] leading-7 text-slate-500">현재 진단 결과에서 필요한 기능 구성을 기준으로 권장했습니다.</p>
+                    <div className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-500">추천 플랜</p>
+                      <p className="mt-3 font-display text-4xl font-black text-slate-900">{currentPlanTitle}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">진단 결과 기준 최적 플랜입니다.</p>
                     </div>
-                    <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                      <p className="text-sm font-semibold text-slate-500">즉시 실행 액션</p>
-                      <p className="mt-3 font-display text-3xl font-black text-slate-900">{flow.diagnosisResult.immediateActions.length}개</p>
-                      <p className="mt-2 text-[15px] leading-7 text-slate-500">오늘 바로 시작할 수 있는 액션만 추려 운영 부담을 줄였습니다.</p>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">즉시 액션</p>
+                      <p className="mt-3 font-display text-4xl font-black text-slate-900">{flow.diagnosisResult.immediateActions.length}<span className="ml-1 text-xl font-semibold text-slate-400">개</span></p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">오늘 바로 실행할 수 있는 액션입니다.</p>
                     </div>
                   </div>
 
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-slate-500">추천 운영 구조</p>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">T03 핵심 결과</span>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">AI 추천</span>
                     </div>
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <div className="rounded-2xl bg-slate-50 p-4">
@@ -1195,10 +1252,10 @@ export function OnboardingPage() {
                   onClick={() => setFlow((current) => ({ ...current, requestWizardStep: 'basic', step: 'request' }))}
                   type="button"
                 >
-                  스토어 생성 요청 계속
+                  다음 단계로 계속
                 </button>
                 <button className="btn-secondary" onClick={() => setFlow((current) => ({ ...current, step: 'diagnosis' }))} type="button">
-                  진단 내용 수정
+                  이전으로
                 </button>
               </div>
             </Panel>
@@ -1206,8 +1263,8 @@ export function OnboardingPage() {
 
           {flow.step === 'request' ? (
             <Panel
-              title="3. 스토어 생성 마법사"
-              subtitle="AI 진단 결과를 초기값으로 넣고, 점주가 이해하기 쉬운 운영 구조와 공개 화면 기본값을 단계별로 정리합니다."
+              title="스토어 생성"
+              subtitle="기본 정보, 운영 모드, 앱 선택, 공개 화면 설정을 단계별로 입력합니다. AI 진단 결과가 기본값으로 채워져 있습니다."
             >
               <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
                 {requestWizardSteps.map((step, index) => {
@@ -1243,9 +1300,9 @@ export function OnboardingPage() {
               <div className="mt-6 rounded-3xl border border-orange-200 bg-orange-50 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-orange-700">AI 진단 추천값 반영</p>
+                    <p className="text-sm font-semibold text-orange-700">AI가 채운 기본값</p>
                     <p className="mt-1 text-sm leading-6 text-orange-900">
-                      현재 진단 결과 기준으로 Store Mode, Data Mode, 추천 앱, 공개 화면 CTA 기본값을 먼저 채워두었습니다.
+                      AI 진단 결과를 기반으로 운영 방식, 데이터 수집, 추천 앱이 자동으로 입력되었습니다. 필요하면 수정하세요.
                     </p>
                   </div>
                   {flow.diagnosisResult ? (
@@ -1561,8 +1618,8 @@ export function OnboardingPage() {
                       <div className="rounded-3xl border border-slate-200 bg-white p-5">
                         <p className="text-sm font-semibold text-slate-500">운영 구조</p>
                         <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm leading-6 text-slate-700">
-                          <p>Store Mode: {getRecommendedStoreModeLabel(flow.requestDraft.storeMode)}</p>
-                          <p>Data Mode: {getRecommendedDataModeLabel(flow.requestDraft.dataMode)}</p>
+                          <p>운영 방식: {getRecommendedStoreModeLabel(flow.requestDraft.storeMode)}</p>
+                          <p>데이터 수집: {getRecommendedDataModeLabel(flow.requestDraft.dataMode)}</p>
                           <p>공개 상태: {flow.requestDraft.publicStatus === 'public' ? '공개로 시작' : '비공개로 시작'}</p>
                           <p>모바일 첫 CTA: {STORE_SETUP_PREVIEW_TARGET_OPTIONS.find((option) => option.value === flow.requestDraft.previewTarget)?.label}</p>
                         </div>
@@ -1710,85 +1767,94 @@ export function OnboardingPage() {
           ) : null}
         </div>
 
-        <div className="space-y-6" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
-          <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(7,11,18,0.86),rgba(5,8,13,0.7))] p-6 shadow-[0_36px_120px_-70px_rgba(0,0,0,0.94)] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-200">
-              <span>MYBI 동기화</span>
-              <span>
-                {worldStep.number} {worldStep.label}
+        <div className="space-y-5" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
+
+          {/* AI 상태 카드 */}
+          <div className="section-card bg-white p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
+                  <span className="text-sm">🤖</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-500">MyBiz AI</p>
+                  <p className="text-[11px] text-slate-400">{worldStep.number} {worldStep.label}</p>
+                </div>
+              </div>
+              <span className={[
+                'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase',
+                mybiCompanionMode === 'thinking' ? 'bg-violet-100 text-violet-700' :
+                mybiCompanionMode === 'listening' ? 'bg-blue-100 text-blue-700' :
+                mybiCompanionMode === 'alert' ? 'bg-red-100 text-red-700' :
+                'bg-slate-100 text-slate-600',
+              ].join(' ')}>
+                {mybiCompanionMode === 'thinking' ? '분석 중' :
+                 mybiCompanionMode === 'listening' ? '입력 대기' :
+                 mybiCompanionMode === 'alert' ? '오류' : '안내 중'}
               </span>
             </div>
-            <p className="mt-4 text-sm leading-7 text-slate-100">
-              MYBI는 지금 읽고 있는 섹션 근처를 떠다니며 같은 neural world를 계속 유지합니다. 우측 고정 박스 대신 scroll과 섹션에 맞춰 움직이면서 drag / click / pulse 상호작용을 그대로 이어갑니다.
-            </p>
-            <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-7 text-slate-300">
-              {worldStep.supportLine}
+            <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3">
+              <p className="text-sm leading-6 text-slate-600">{worldStep.supportLine}</p>
             </div>
-          </section>
+          </div>
 
-          <Panel title="현재 요약" subtitle="진단 결과와 신청 정보를 오른쪽에서 바로 확인할 수 있습니다.">
-            <div className="space-y-4">
-              <div className="rounded-3xl bg-slate-950 p-5 text-white">
-                <p className="text-sm font-semibold text-orange-200">권장 플랜</p>
-                <p className="mt-2 font-display text-3xl font-black">{currentPlanTitle}</p>
-                <p className="mt-2 text-sm leading-7 text-slate-300">
-                  {runDiagnosis.isPending
-                    ? '새 진단 결과를 계산하는 동안 요약과 추천 기능을 다시 정리하고 있습니다.'
-                    : flow.diagnosisResult
-                      ? 'AI 진단 기준으로 가장 적합한 플랜을 선택했습니다.'
-                      : 'AI 진단 결과를 기준으로 권장 플랜이 자동 제안됩니다.'}
+          {/* 진단 요약 */}
+          <Panel title="진단 요약" subtitle="현재까지 입력한 정보를 확인하세요.">
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-slate-950 p-4 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-300">추천 플랜</p>
+                <p className="mt-1.5 font-display text-2xl font-black">{currentPlanTitle}</p>
+                <p className="mt-1.5 text-xs leading-5 text-slate-400">
+                  {flow.diagnosisResult ? 'AI 진단 기준 최적 플랜' : '진단 완료 후 자동 추천'}
                 </p>
               </div>
-              <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <p className="text-sm font-semibold text-slate-500">진단 입력</p>
-                <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                  <p>업종: {selectedIndustryLabel}</p>
-                  <p>지역: {flow.diagnosisInput.region}</p>
-                  <p>운영 방식: {selectedStoreModeLabel}</p>
-                  <p>현재 고민: {selectedConcernLabel}</p>
-                  <p>원하는 결과: {selectedDesiredOutcomeLabel}</p>
-                  <p>보유 데이터: {selectedAvailableDataLabels.join(', ')}</p>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">입력 현황</p>
+                <div className="mt-3 space-y-2">
+                  {[
+                    { label: '업종', value: selectedIndustryLabel },
+                    { label: '지역', value: flow.diagnosisInput.region || '미입력' },
+                    { label: '고민', value: selectedConcernLabel },
+                    { label: '목표', value: selectedDesiredOutcomeLabel },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-center gap-2 text-sm">
+                      <span className="w-10 shrink-0 text-[11px] font-semibold text-slate-400">{label}</span>
+                      <span className="truncate text-slate-700">{value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <p className="text-sm font-semibold text-slate-500">스토어 생성 준비</p>
-                <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                  <p>스토어명: {flow.requestDraft.storeName || '아직 입력 전'}</p>
-                  <p>브랜드명: {flow.requestDraft.brandName || '아직 입력 전'}</p>
-                  <p>관리자 이메일: {flow.requestDraft.email || '아직 입력 전'}</p>
-                  <p>스토어 주소: /{slugPreview}</p>
-                  <p>Store Mode: {getRecommendedStoreModeLabel(flow.requestDraft.storeMode)}</p>
-                  <p>Data Mode: {getRecommendedDataModeLabel(flow.requestDraft.dataMode)}</p>
-                </div>
-              </div>
+
               {flow.diagnosisResult && !runDiagnosis.isPending ? (
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-500">진단 메모</p>
-                    <span className={`rounded-full border px-3 py-1 text-xs font-bold ${analysisToneClasses(flow.diagnosisResult.analysisSource)}`}>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">AI 분석 요약</p>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${analysisToneClasses(flow.diagnosisResult.analysisSource)}`}>
                       {diagnosisSourceLabel(flow.diagnosisResult.analysisSource)}
                     </span>
                   </div>
-                  <p className="mt-3 break-words text-[15px] leading-7 text-slate-700">{flow.diagnosisResult.reportSummary}</p>
+                  <p className="mt-2.5 text-sm leading-6 text-slate-600">{flow.diagnosisResult.reportSummary}</p>
                 </div>
               ) : null}
-              {flow.diagnosisResult && !runDiagnosis.isPending ? (
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-500">스토어 마법사 요약</p>
-                  <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-                    <p>선택 앱: {selectedFeatureLabels.length ? `${selectedFeatureLabels.slice(0, 3).join(', ')}${selectedFeatureLabels.length > 3 ? ` 외 ${selectedFeatureLabels.length - 3}개` : ''}` : '아직 선택 전'}</p>
-                    <p>공개 상태: {flow.requestDraft.publicStatus === 'public' ? '공개로 시작' : '비공개로 시작'}</p>
-                    <p>테마: {STORE_SETUP_THEME_OPTIONS.find((option) => option.value === flow.requestDraft.themePreset)?.label}</p>
-                    <p>모바일 CTA: {flow.requestDraft.mobileCtaLabel}</p>
+
+              {flow.requestDraft.storeName ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">스토어 정보</p>
+                  <div className="mt-3 space-y-1.5 text-sm text-slate-700">
+                    <div className="flex gap-2"><span className="w-12 shrink-0 text-slate-400">이름</span><span className="font-medium">{flow.requestDraft.storeName}</span></div>
+                    <div className="flex gap-2"><span className="w-12 shrink-0 text-slate-400">주소</span><span className="font-mono text-xs text-slate-600">/{slugPreview}</span></div>
+                    <div className="flex gap-2"><span className="w-12 shrink-0 text-slate-400">운영</span><span>{getRecommendedStoreModeLabel(flow.requestDraft.storeMode)}</span></div>
                   </div>
                 </div>
               ) : null}
+
               {suggestionLabels.length && !runDiagnosis.isPending ? (
-                <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-500">AI 추천 기능</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">AI 추천 기능</p>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {suggestionLabels.map((item) => (
-                      <span key={item} className="rounded-full bg-orange-100 px-3 py-2 text-xs font-semibold text-orange-700">
+                      <span key={item} className="rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700">
                         {item}
                       </span>
                     ))}
@@ -1797,14 +1863,16 @@ export function OnboardingPage() {
               ) : null}
             </div>
           </Panel>
-          <Panel title="다음 단계 안내" subtitle="지금 단계에서 무엇이 이어지는지 짧게 안내합니다.">
-            <div className="space-y-3 text-sm leading-7 text-slate-600">
-              {flow.step === 'diagnosis' && !runDiagnosis.isPending ? <p>운영 고민을 입력하면 AI가 운영 점수, 핵심 병목, 실행 액션, 추천 플랜을 구조화해 정리합니다.</p> : null}
-              {flow.step === 'diagnosis' && runDiagnosis.isPending ? <p>현재 AI가 입력값을 분석 중입니다. 결과는 단계별 분석 후 한 번에 정리되어 표시됩니다.</p> : null}
-              {flow.step === 'result' ? <p>진단 결과를 확인한 뒤 스토어 생성 요청을 제출하면 결제로 이어집니다.</p> : null}
-              {flow.step === 'request' ? <p>기본 정보, 운영 모드, 데이터 모드, 앱 구성, 공개 문구를 단계별로 확인한 뒤 요약 화면에서 요청을 제출합니다.</p> : null}
-              {flow.step === 'payment' ? <p>결제가 완료되면 승인, 스토어 생성, 관리자 대시보드 연결이 자동으로 이어집니다.</p> : null}
-              {flow.step === 'activation' ? <p>승인과 생성이 완료되면 생성된 demo storeId 기준 스토어 상세 화면으로 자동 이동합니다.</p> : null}
+
+          {/* 다음 단계 안내 */}
+          <Panel title="다음 단계" subtitle="현재 단계에서 이어질 내용을 안내합니다.">
+            <div className="rounded-xl bg-slate-50 px-4 py-3.5 text-sm leading-7 text-slate-600">
+              {flow.step === 'diagnosis' && !runDiagnosis.isPending && <p>5가지 질문을 모두 선택하고 <strong>AI 진단 결과 보기</strong>를 누르세요.</p>}
+              {flow.step === 'diagnosis' && runDiagnosis.isPending && <p>AI가 입력값을 분석 중입니다. 잠시만 기다려주세요.</p>}
+              {flow.step === 'result' && <p>결과 확인 후 <strong>다음 단계로 계속</strong>을 누르면 스토어 생성 단계로 이동합니다.</p>}
+              {flow.step === 'request' && <p>모든 단계를 완료하고 <strong>요청 제출</strong>을 누르면 결제 단계로 이동합니다.</p>}
+              {flow.step === 'payment' && <p>플랜을 선택하고 결제하면 스토어가 즉시 생성됩니다.</p>}
+              {flow.step === 'activation' && <p>대시보드로 이동하여 매장 운영을 시작하세요.</p>}
             </div>
           </Panel>
         </div>

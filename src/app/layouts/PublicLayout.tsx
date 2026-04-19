@@ -75,7 +75,7 @@ export function PublicLayout() {
                     </Link>
 
                     <Link className="btn-primary" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
-                      공개 스토어 진단 생성
+                      무료로 시작하기
                     </Link>
                   </div>
                 </div>
