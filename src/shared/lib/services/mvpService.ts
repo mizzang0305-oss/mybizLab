@@ -1086,14 +1086,33 @@ function hasEnabledFeature(features: StoreFeature[], key: StoreFeature['feature_
   return features.some((feature) => feature.feature_key === key && feature.enabled);
 }
 
-function assertAvailableStoreSlug(candidate: string, options?: { excludeStoreId?: string }) {
+async function assertAvailableStoreSlug(candidate: string, options?: { excludeStoreId?: string }) {
   const normalized = normalizeStoreSlug(candidate);
-  const database = getDatabase();
 
   if (isReservedSlug(normalized)) {
     throw new Error('이미 사용 중이거나 예약된 스토어 주소입니다.');
   }
 
+  if (shouldUseSupabaseStoreProvisioning()) {
+    const repository = getCanonicalMyBizRepository();
+    const [existingStore, existingPublicPage] = await Promise.all([
+      repository.findStoreBySlug(normalized),
+      getCanonicalStorePublicPageBySlug(normalized),
+    ]);
+    const existingStoreId = existingStore?.store_id || existingStore?.id || null;
+    const publicPageStoreId = existingPublicPage?.store_id || null;
+
+    if (
+      (existingStoreId && existingStoreId !== options?.excludeStoreId) ||
+      (publicPageStoreId && publicPageStoreId !== options?.excludeStoreId)
+    ) {
+      throw new Error('?대? ?ъ슜 以묒씤 ?ㅽ넗??二쇱냼?낅땲??');
+    }
+
+    return normalized;
+  }
+
+  const database = getDatabase();
   const duplicated = database.stores.some(
     (store) => store.id !== options?.excludeStoreId && normalizeStoreSlug(store.slug) === normalized,
   );
@@ -1950,7 +1969,7 @@ export async function listSetupRequests() {
 export async function saveSetupRequest(input: SetupRequestInput, options?: SaveSetupRequestOptions) {
   const timestamp = nowIso();
   const requestedPlan = options?.requestedPlan ?? 'free';
-  const requestedSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
+  const requestedSlug = await assertAvailableStoreSlug(input.requested_slug || input.business_name);
   const brandName = input.brand_name?.trim() || input.business_name;
   const tagline = input.tagline?.trim() || `${brandName} 오픈 준비 중`;
   const description = input.description?.trim() || `${brandName} 스토어 오픈을 위한 기본 요청서입니다.`;
@@ -1996,6 +2015,36 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
   };
 
   // 로컬 mockDb에도 저장 (데모 fallback)
+  if (shouldUseSupabaseStoreProvisioning() && supabase) {
+    const { error } = await supabase.from('store_setup_requests').insert({
+      id: request.id,
+      business_name: request.business_name,
+      owner_name: request.owner_name,
+      business_number: request.business_number,
+      phone: request.phone,
+      email: request.email,
+      address: request.address,
+      business_type: request.business_type,
+      requested_slug: request.requested_slug,
+      requested_plan: request.requested_plan,
+      brand_name: request.brand_name,
+      tagline: request.tagline,
+      description: request.description,
+      status: request.status,
+      selected_features: request.selected_features,
+      store_mode: request.store_mode,
+      data_mode: request.data_mode,
+      created_at: request.created_at,
+      updated_at: request.updated_at,
+    });
+
+    if (error) {
+      throw new Error(`스토어 생성 요청을 저장하지 못했습니다: ${error.message}`);
+    }
+
+    return request;
+  }
+
   updateDatabase((database) => {
     database.store_requests.unshift(request);
   });
@@ -2076,7 +2125,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
 
   assertLocalStoreProvisioningAllowed();
 
-  const uniqueSlug = assertAvailableStoreSlug(input.requested_slug || input.business_name);
+  const uniqueSlug = await assertAvailableStoreSlug(input.requested_slug || input.business_name);
   const timestamp = nowIso();
   const storeId = createId('store');
   const requestStatus = options?.requestStatus ?? 'approved';
@@ -3440,7 +3489,7 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
 
 export async function updateStoreSettings(storeId: string, input: UpdateStoreSettingsInput) {
   const repository = getCanonicalMyBizRepository();
-  const normalizedSlug = assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
+  const normalizedSlug = await assertAvailableStoreSlug(input.slug || input.storeName, { excludeStoreId: storeId });
   const currentStore = await repository.findStoreById(storeId);
 
   if (currentStore) {

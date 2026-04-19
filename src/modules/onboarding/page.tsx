@@ -433,9 +433,17 @@ export function OnboardingPage() {
       setMessage({ tone: 'success', text: '스토어 생성 요청이 접수되었습니다. 이제 구독 결제를 진행하면 승인과 스토어 생성이 이어집니다.' });
     },
     onError: (error) => {
+      const isInternalRuntimeError =
+        error instanceof Error &&
+        ['Mock database access is disabled outside explicit demo runtime.', 'Canonical MyBiz repository is unavailable.'].some((message) =>
+          error.message.includes(message),
+        );
       setMessage({
         tone: 'error',
-        text: error instanceof Error ? error.message : '스토어 생성 요청을 저장하는 중 문제가 발생했습니다.',
+        text:
+          error instanceof Error && !isInternalRuntimeError
+            ? error.message
+            : '스토어 생성 요청을 저장하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
       });
     },
   });
