@@ -1,0 +1,100 @@
+{
+  "product": {
+    "name": "MyBiz",
+    "category": "customer-memory revenue system",
+    "summary_ko": "공개 스토어, 문의, 예약, 웨이팅, 주문, 설문에서 들어오는 고객 신호를 고객 기억으로 통합하고 AI가 실행안과 리포트로 바꾸는 소상공인 운영서비스",
+    "core_truth": [
+      "공개 페이지는 무료 유입 엔진이다",
+      "문의/예약/웨이팅은 핵심 고객 입력 채널이다",
+      "고객+타임라인은 메모리 스파인이다",
+      "AI는 기억 위에서 요약/분류/추천/리포트를 수행한다"
+    ]
+  },
+  "repo": {
+    "remote": "https://github.com/mizzang0305-oss/mybizLab.git",
+    "repository_full_name": "mizzang0305-oss/mybizLab",
+    "default_branch": "main",
+    "visibility": "private",
+    "local_contributor_count": 1
+  },
+  "stack": [
+    "React 19",
+    "Vite 6",
+    "Tailwind 4",
+    "React Router 7",
+    "TanStack Query 5",
+    "Three.js",
+    "Supabase",
+    "PortOne",
+    "Google GenAI SDK",
+    "Vitest"
+  ],
+  "confirmed_modules": [
+    "AI manager",
+    "AI business report",
+    "customer management",
+    "reservation management",
+    "schedule management",
+    "surveys",
+    "brand management",
+    "sales analysis",
+    "order management",
+    "waiting board",
+    "contracts",
+    "QR table order"
+  ],
+  "memory_entities": [
+    "Customer",
+    "CustomerContact",
+    "CustomerPreference",
+    "CustomerTimelineEvent",
+    "ConversationSession",
+    "ConversationMessage",
+    "VisitorSession"
+  ],
+  "channel_entities": [
+    "Inquiry",
+    "Reservation",
+    "WaitingEntry",
+    "Order",
+    "SurveyResponse"
+  ],
+  "recent_github_evidence": [
+    {
+      "date": "2026-04-19",
+      "label": "Codex/persistent diagnosis world (#43)",
+      "summary": "고객 기억 스파인 정렬, 공개 채널 퍼시스턴스, public API 안정화, MYBI 고도화 흐름 확인"
+    },
+    {
+      "date": "2026-04-17",
+      "label": "feat: persist the uploaded diagnosis world through onboarding (#42)",
+      "summary": "업로드된 neural world 유지, 온보딩과 공용 셸 연결, Vercel preview ready 확인"
+    },
+    {
+      "date": "2026-04-15",
+      "label": "feat(marketing): rebuild landing as diagnosis corridor (#35)",
+      "summary": "공개 유입과 온보딩을 고객 기억 진단 흐름으로 재구성"
+    }
+  ],
+  "contest": {
+    "target_program": "강한 소상공인 성장지원사업",
+    "recommended_positioning": "소상공인의 고객 관계를 기억 자산으로 바꾸는 운영서비스",
+    "fit_risk": "순수 B2B SaaS로 보이면 트랙 적합성이 약해질 수 있음",
+    "best_submission_mode": "대표 매장 또는 대표 업종 사례 중심의 실증형 제출"
+  },
+  "official_sources": [
+    "https://www.mss.go.kr/site/chungbuk/ex/bbs/View.do?bcIdx=1056187&cbIdx=180",
+    "https://www.mss.go.kr/site/smba/ex/bbs/View.do?bcIdx=1056775&cbIdx=86&parentSeq=1056775",
+    "https://www.mss.go.kr/site/smba/ex/bbs/View.do?bcIdx=1058478&cbIdx=86",
+    "https://m.mss.go.kr/site/jeonbuk/ex/bbs/View.do?bcIdx=1064975&cbIdx=250",
+    "https://m.mss.go.kr/site/gyeonggi/ex/bbs/View.do?bcIdx=1064400&cbIdx=166"
+  ],
+  "manual_fill_required": [
+    "대표 매장명",
+    "대표자 소개",
+    "실제 유입 수치",
+    "문의/예약/웨이팅 수치",
+    "재방문/매출 개선 수치",
+    "점주 후기"
+  ]
+}
