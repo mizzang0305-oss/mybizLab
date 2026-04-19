@@ -73,6 +73,8 @@ const MAX_RECENT_ACTIVITY = 6;
 const MOBILE_PANEL_BREAKPOINT = 900;
 const THEME_COUNT = 3;
 const DRAG_THRESHOLD = 10;
+const FLOATING_RIGHT_SWIM_RATIO = 0.76;
+const FLOATING_TOP_SWIM_RATIO = 0.2;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -207,6 +209,24 @@ function getFloatingRect({ focusedElement, manualHome, targetElement }: Floating
   const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-mybi-anchor]'));
   const sourceElements = anchors.length ? anchors : [targetElement].filter((element): element is HTMLElement => Boolean(element));
   const { avoidRects, focusedRect } = collectAvoidRects(viewport, focusedElement);
+  const swimLane = clampRectToSafeZone(
+    {
+      height: size,
+      left: viewport.width * FLOATING_RIGHT_SWIM_RATIO - size / 2,
+      top: viewport.height * FLOATING_TOP_SWIM_RATIO - size / 2,
+      width: size,
+    },
+    safeZone,
+  );
+  const topSwimZone = clampRectToSafeZone(
+    {
+      height: size,
+      left: viewport.width * 0.62 - size / 2,
+      top: viewport.height * 0.16 - size / 2,
+      width: size,
+    },
+    safeZone,
+  );
 
   const anchorRect =
     sourceElements
@@ -225,44 +245,59 @@ function getFloatingRect({ focusedElement, manualHome, targetElement }: Floating
     : clampRectToSafeZone(
         {
           height: size,
-          left: anchorRect.left + anchorRect.width - size * 0.16,
-          top: anchorRect.top - size * 0.08,
+          left: Math.max(anchorRect.left + anchorRect.width - size * 0.1, swimLane.left),
+          top: Math.min(anchorRect.top - size * 0.2, swimLane.top),
           width: size,
         },
         safeZone,
       );
 
+  const ambientCandidates = [
+    preferred,
+    swimLane,
+    topSwimZone,
+    { ...swimLane, left: swimLane.left + 22, top: swimLane.top + 10 },
+    { ...swimLane, left: swimLane.left - 18, top: swimLane.top + 18 },
+    { ...swimLane, left: swimLane.left + 12, top: swimLane.top - 14 },
+    { ...topSwimZone, left: topSwimZone.left + 26, top: topSwimZone.top + 12 },
+    { ...topSwimZone, left: topSwimZone.left - 20, top: topSwimZone.top + 18 },
+  ];
+
+  const contextualCandidates = [
+    ...ambientCandidates,
+    { ...preferred, left: preferred.left + 34, top: preferred.top - 22 },
+    { ...preferred, left: preferred.left - 42, top: preferred.top + 16 },
+    { ...preferred, left: preferred.left + 14, top: preferred.top + 36 },
+    {
+      height: size,
+      left: anchorRect.left + anchorRect.width + 18,
+      top: anchorRect.top + anchorRect.height * 0.08,
+      width: size,
+    },
+    {
+      height: size,
+      left: anchorRect.left - size - 18,
+      top: anchorRect.top + anchorRect.height * 0.08,
+      width: size,
+    },
+    {
+      height: size,
+      left: anchorRect.left + anchorRect.width - size * 0.22,
+      top: anchorRect.top + anchorRect.height - size * 0.32,
+      width: size,
+    },
+    {
+      height: size,
+      left: viewport.width * (viewport.width < MOBILE_PANEL_BREAKPOINT ? 0.56 : 0.72) - size / 2,
+      top: viewport.height * 0.42 - size / 2,
+      width: size,
+    },
+  ];
+
   const candidateRects = uniqueRects(
-    [
-      preferred,
-      { ...preferred, left: preferred.left + 34, top: preferred.top - 22 },
-      { ...preferred, left: preferred.left - 42, top: preferred.top + 16 },
-      { ...preferred, left: preferred.left + 14, top: preferred.top + 36 },
-      {
-        height: size,
-        left: anchorRect.left + anchorRect.width + 18,
-        top: anchorRect.top + anchorRect.height * 0.08,
-        width: size,
-      },
-      {
-        height: size,
-        left: anchorRect.left - size - 18,
-        top: anchorRect.top + anchorRect.height * 0.08,
-        width: size,
-      },
-      {
-        height: size,
-        left: anchorRect.left + anchorRect.width - size * 0.22,
-        top: anchorRect.top + anchorRect.height - size * 0.32,
-        width: size,
-      },
-      {
-        height: size,
-        left: viewport.width * (viewport.width < MOBILE_PANEL_BREAKPOINT ? 0.56 : 0.72) - size / 2,
-        top: viewport.height * 0.42 - size / 2,
-        width: size,
-      },
-    ].map((candidate) => clampRectToSafeZone(candidate, safeZone)),
+    (manualHome || focusedRect ? contextualCandidates : ambientCandidates).map((candidate) =>
+      clampRectToSafeZone(candidate, safeZone),
+    ),
   );
 
   const scored = candidateRects.map((candidate) => {
@@ -271,10 +306,24 @@ function getFloatingRect({ focusedElement, manualHome, targetElement }: Floating
     const preferredPenalty = rectCenterDistance(candidate, preferred) * (manualHome ? 0.55 : 0.22);
     const anchorPenalty = rectCenterDistance(candidate, anchorRect) * 0.08;
     const directFocusHit = focusedRect && intersectionArea(candidate, focusedRect) > 0 ? 200_000 : 0;
+    const swimLanePenalty = manualHome ? 0 : rectCenterDistance(candidate, swimLane) * 0.18;
+    const topSwimPenalty = manualHome ? 0 : rectCenterDistance(candidate, topSwimZone) * 0.2;
+    const leftDriftPenalty =
+      manualHome ? 0 : Math.max(0, viewport.width * 0.6 - (candidate.left + candidate.width / 2)) * 0.9;
+    const lowerBandPenalty = manualHome ? 0 : Math.max(0, candidate.top - viewport.height * 0.28) * 0.8;
 
     return {
       rect: candidate,
-      score: overlapPenalty + focusedPenalty + preferredPenalty + anchorPenalty + directFocusHit,
+      score:
+        overlapPenalty +
+        focusedPenalty +
+        preferredPenalty +
+        anchorPenalty +
+        directFocusHit +
+        swimLanePenalty +
+        topSwimPenalty +
+        leftDriftPenalty +
+        lowerBandPenalty,
     };
   });
 
@@ -301,6 +350,7 @@ export function PersistentDiagnosisWorldProvider({
   const activityRef = useRef<string[]>([]);
   const manualThemeAtRef = useRef(0);
   const messageIndexRef = useRef(0);
+  const messagesRef = useRef<ConversationMessage[]>([]);
   const dragStateRef = useRef<{
     initialRect: RectState;
     moved: boolean;
@@ -324,6 +374,7 @@ export function PersistentDiagnosisWorldProvider({
     const initialScene = buildSceneFallback(pathname);
     return [createMessage('intro-0', 'assistant', buildMybiConversationIntro(initialScene))];
   });
+  const [isResponding, setIsResponding] = useState(false);
   const [recentActivity, setRecentActivity] = useState<string[]>([]);
   const [browserErrors, setBrowserErrors] = useState<string[]>([]);
   const [reporterEmail, setReporterEmail] = useState('');
@@ -359,6 +410,10 @@ export function PersistentDiagnosisWorldProvider({
   }, []);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
     const nextScene = buildSceneFallback(pathname);
     setSceneState(nextScene);
     setMessages((current) => {
@@ -369,6 +424,7 @@ export function PersistentDiagnosisWorldProvider({
     setPanelTab('guide');
     setConversationInput('');
     setModeOverride(null);
+    setIsResponding(false);
     setIssueConfirmed(false);
     if (pathname === '/') {
       setManualHome(null);
@@ -447,6 +503,22 @@ export function PersistentDiagnosisWorldProvider({
         return;
       }
 
+      const viewport = buildViewportRect();
+      const focusRect =
+        focusedElement && focusedElement.isConnected ? expandRect(rectFromElement(focusedElement), 28) : null;
+
+      if (viewport && focusRect && rect && !manualHome) {
+        const currentCenterX = rect.left + rect.width / 2;
+        const currentSafelyFloating =
+          intersectionArea(rect, focusRect) === 0 &&
+          rect.top < viewport.height * 0.34 &&
+          currentCenterX > viewport.width * 0.46;
+
+        if (currentSafelyFloating) {
+          return;
+        }
+      }
+
       const nextRect = getFloatingRect({ focusedElement, manualHome, targetElement });
       if (nextRect) {
         setRect(nextRect.rect);
@@ -473,7 +545,7 @@ export function PersistentDiagnosisWorldProvider({
       window.removeEventListener('resize', requestMeasure);
       window.removeEventListener('scroll', requestMeasure, true);
     };
-  }, [active, focusedElement, manualHome, resolvedScene.layoutMode, setRect, targetElement]);
+  }, [active, focusedElement, manualHome, rect, resolvedScene.layoutMode, setRect, targetElement]);
 
   useEffect(() => {
     if (!active || typeof window === 'undefined') return;
@@ -620,6 +692,7 @@ export function PersistentDiagnosisWorldProvider({
 
   const streamAssistantReply = useCallback(
     (content: string) => {
+      setIsResponding(false);
       const messageId = nextMessageId();
       const characters = [...content];
       setMessages((current) => [...current, createMessage(messageId, 'assistant', '')]);
@@ -656,63 +729,49 @@ export function PersistentDiagnosisWorldProvider({
   const submitConversation = useCallback(
     (question: string) => {
       const trimmed = question.trim();
-      if (!trimmed) return;
+      if (!trimmed || isResponding) return;
 
       clearResponseTimers();
       pushRecentActivity(`질문: ${trimmed}`);
 
       // 새 user 메시지 추가
       const userMsg = createMessage(nextMessageId(), 'user', trimmed);
-      setMessages((current) => [...current, userMsg]);
+      const nextHistory = [...messagesRef.current, userMsg];
+      messagesRef.current = nextHistory;
+      setMessages(nextHistory);
       setConversationInput('');
       setPanelOpen(true);
       setPanelTab('guide');
+      setIsResponding(true);
       runTimedMode('thinking', 720);
-
-      // 실제 AI API 호출 (OpenAI → Gemini → fallback 순)
-      const callAI = async () => {
-        try {
-          // messages state의 최신 값은 closure에 없으므로 ref 대신 직접 구성
-          const currentMessages: MybiChatMessage[] = [];
-
-          // 이전 메시지 히스토리 (최대 10개)
-          setMessages((current) => {
-            const history = current.slice(-10).map((m) => ({
-              role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-              content: m.content,
-            }));
-            currentMessages.push(...history);
-            return current; // state 변경 없음, 읽기만
-          });
-
-          // 현재 질문 추가
-          currentMessages.push({ role: 'user', content: trimmed });
-
-          // 현재 화면 컨텍스트
-          const sceneContext = [
-            resolvedScene.routeLabel && `화면: ${resolvedScene.routeLabel}`,
-            resolvedScene.stepLabel && `단계: ${resolvedScene.stepLabel}`,
-            resolvedScene.contextSummary,
-          ]
-            .filter(Boolean)
-            .join(' / ');
-
-          const reply = await sendMybiMessage(currentMessages, sceneContext);
-          streamAssistantReply(reply);
-        } catch {
-          // 완전 실패 시 로컬 키워드 매칭
-          streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
-        }
-      };
+      const requestMessages: MybiChatMessage[] = nextHistory.slice(-10).map((message) => ({
+        role: message.role === 'assistant' ? 'assistant' : 'user',
+        content: message.content,
+      }));
+      const requestSceneContext = [
+        resolvedScene.routeLabel ? `화면: ${resolvedScene.routeLabel}` : null,
+        resolvedScene.stepLabel ? `단계: ${resolvedScene.stepLabel}` : null,
+        resolvedScene.contextSummary,
+      ]
+        .filter(Boolean)
+        .join(' / ');
 
       if (typeof window === 'undefined') {
+        setIsResponding(false);
         streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
         return;
       }
 
-      void callAI();
+      void (async () => {
+        try {
+          const reply = await sendMybiMessage(requestMessages, requestSceneContext);
+          streamAssistantReply(reply);
+        } catch {
+          streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
+        }
+      })();
     },
-    [clearResponseTimers, nextMessageId, pushRecentActivity, resolvedScene, runTimedMode, streamAssistantReply],
+    [clearResponseTimers, isResponding, nextMessageId, pushRecentActivity, resolvedScene, runTimedMode, streamAssistantReply],
   );
 
   const handleConversationSubmit = useCallback(
@@ -1047,6 +1106,12 @@ export function PersistentDiagnosisWorldProvider({
                           <p>{message.content || '...'}</p>
                         </div>
                       ))}
+                      {isResponding ? (
+                        <div className="rounded-3xl border border-cyan-200/15 bg-cyan-200/[0.06] px-4 py-3 text-sm leading-7 text-cyan-50">
+                          <p className="mb-1 text-[10px] font-semibold tracking-[0.2em] text-cyan-200/80">MYBI</p>
+                          <p>답변 정리 중...</p>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-slate-200">
@@ -1072,8 +1137,12 @@ export function PersistentDiagnosisWorldProvider({
                         <p className="text-xs leading-6 text-slate-400">
                           {resolvedScene.storeLabel ? `${resolvedScene.storeLabel} 기준으로 답변합니다.` : '현재 화면 맥락 기준으로 답변합니다.'}
                         </p>
-                        <button className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-950" type="submit">
-                          보내기
+                        <button
+                          className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+                          disabled={isResponding || !conversationInput.trim()}
+                          type="submit"
+                        >
+                          {isResponding ? '응답 중...' : '보내기'}
                         </button>
                       </div>
                     </form>
