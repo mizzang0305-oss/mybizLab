@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        (
+          request.auth.token.admin == true ||
+          request.auth.token.role == 'platform_owner' ||
+          request.auth.token.role == 'platform_admin'
+        );
+    }
+
+    function notSoftDeleted(data) {
+      return !data.keys().hasAny(['is_deleted']) || data.is_deleted == false;
+    }
+
+    function hasNoPublicContactFields(data) {
+      return !data.keys().hasAny([
+        'contact_email',
+        'contact_phone',
+        'email',
+        'owner_email',
+        'owner_phone',
+        'phone',
+        'reporter_email',
+      ]);
+    }
+
+    function isStoreOwner(storeId) {
+      return isAdmin() ||
+        (
+          isSignedIn() &&
+          request.auth.token.store_ids is list &&
+          storeId in request.auth.token.store_ids
+        );
+    }
+
+    match /consultations/{docId} {
+      allow create: if notSoftDeleted(request.resource.data);
+      allow get, list, update, delete: if isAdmin();
+    }
+
+    match /chat_sessions/{sessionId} {
+      // NOTE:
+      // Firestore rules cannot securely verify a browser localStorage/sessionStorage value.
+      // This rule therefore relies on an unguessable UUID document ID, denies listing,
+      // and only permits direct document access when the stored session_id matches the path.
+      allow list: if false;
+      allow create: if
+        sessionId.size() >= 20 &&
+        request.resource.data.session_id == sessionId &&
+        notSoftDeleted(request.resource.data) &&
+        hasNoPublicContactFields(request.resource.data);
+      allow get: if
+        sessionId.size() >= 20 &&
+        resource.data.session_id == sessionId &&
+        notSoftDeleted(resource.data);
+      allow update: if
+        sessionId.size() >= 20 &&
+        resource.data.session_id == sessionId &&
+        request.resource.data.session_id == sessionId &&
+        notSoftDeleted(request.resource.data) &&
+        hasNoPublicContactFields(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /admin_settings/{docId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if isAdmin() && notSoftDeleted(request.resource.data);
+    }
+
+    match /menu_items/{docId} {
+      // NOTE:
+      // To enforce "valid store_id only" on public reads more strictly, prefer
+      // moving menu items under /stores/{storeId}/menu_items/{itemId} or using
+      // a Cloud Function / server API that validates store_id before returning data.
+      allow get, list: if
+        resource.data.store_id is string &&
+        resource.data.store_id.size() > 0 &&
+        notSoftDeleted(resource.data) &&
+        hasNoPublicContactFields(resource.data);
+      allow create: if
+        request.resource.data.store_id is string &&
+        request.resource.data.store_id.size() > 0 &&
+        isStoreOwner(request.resource.data.store_id) &&
+        notSoftDeleted(request.resource.data);
+      allow update, delete: if
+        resource.data.store_id is string &&
+        resource.data.store_id.size() > 0 &&
+        isStoreOwner(resource.data.store_id);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// Rate limiting note:
+// Firestore rules do not support true request-rate limiting.
+// For consultation forms and public chat writes, route requests through a Cloud Function or
+// server API protected by Firebase App Check and store recent IP/session counters in Redis or
+// a dedicated write-throttle collection before allowing the write.

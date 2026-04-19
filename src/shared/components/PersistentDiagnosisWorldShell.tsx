@@ -14,7 +14,6 @@ import {
 import { motion } from 'motion/react';
 
 import {
-  buildGuideReply,
   buildMybiConversationIntro,
   buildMybiMailDraft,
   buildSceneFallback,
@@ -23,9 +22,18 @@ import {
   type MybiCompanionMode,
   type MybiSceneState,
 } from '@/shared/lib/mybiCompanion';
+import {
+  MYBI_CONTEXT_RETRY_TRIM,
+  buildMybiApiMessages,
+  buildMybiFallbackReply,
+  compactMybiConversationHistory,
+  createMybiConversationMessage,
+  type MybiConversationMessage,
+} from '@/shared/lib/mybiChat';
+import { getOrCreateMybiSessionId, loadMybiChatSession, saveMybiChatSession } from '@/shared/lib/mybiSessionStore';
 
 type MybiPanelTab = 'controls' | 'guide' | 'issue';
-type MybiMessageRole = 'assistant' | 'user';
+type MybiMessageRole = MybiConversationMessage['role'];
 
 interface PersistentDiagnosisWorldProviderProps {
   active: boolean;
@@ -37,11 +45,7 @@ interface PersistentDiagnosisWorldContextValue {
   updateSceneState: (state: MybiSceneState) => void;
 }
 
-interface ConversationMessage {
-  content: string;
-  id: string;
-  role: MybiMessageRole;
-}
+type ConversationMessage = MybiConversationMessage;
 
 interface PointState {
   left: number;
@@ -286,7 +290,11 @@ function postToWorld(iframe: HTMLIFrameElement | null, type: string, payload: un
 }
 
 function createMessage(id: string, role: MybiMessageRole, content: string): ConversationMessage {
-  return { content, id, role };
+  return createMybiConversationMessage(id, role, content);
+}
+
+function isIntroMessage(message: ConversationMessage) {
+  return message.id.startsWith('intro-');
 }
 
 export function PersistentDiagnosisWorldProvider({
@@ -300,6 +308,10 @@ export function PersistentDiagnosisWorldProvider({
   const activityRef = useRef<string[]>([]);
   const manualThemeAtRef = useRef(0);
   const messageIndexRef = useRef(0);
+  const persistTimerRef = useRef<number | null>(null);
+  const sessionHydratedRef = useRef(false);
+  const sessionIdRef = useRef<string | null>(null);
+  const summaryRef = useRef<string | null>(null);
   const dragStateRef = useRef<{
     initialRect: RectState;
     moved: boolean;
@@ -323,6 +335,7 @@ export function PersistentDiagnosisWorldProvider({
     const initialScene = buildSceneFallback(pathname);
     return [createMessage('intro-0', 'assistant', buildMybiConversationIntro(initialScene))];
   });
+  const [conversationSummary, setConversationSummary] = useState<string | null>(null);
   const [recentActivity, setRecentActivity] = useState<string[]>([]);
   const [browserErrors, setBrowserErrors] = useState<string[]>([]);
   const [reporterEmail, setReporterEmail] = useState('');
@@ -357,6 +370,25 @@ export function PersistentDiagnosisWorldProvider({
     setRecentActivity(nextItems);
   }, []);
 
+  const applyConversationState = useCallback(
+    (nextConversationMessages: ConversationMessage[], nextSummary: string | null) => {
+      summaryRef.current = nextSummary;
+      setConversationSummary(nextSummary);
+      setMessages((current) => {
+        const introMessage =
+          current.find(isIntroMessage) ||
+          createMessage(
+            `intro-${messageIndexRef.current}`,
+            'assistant',
+            buildMybiConversationIntro(buildSceneFallback(pathname)),
+          );
+
+        return [introMessage, ...nextConversationMessages];
+      });
+    },
+    [pathname],
+  );
+
   useEffect(() => {
     const nextScene = buildSceneFallback(pathname);
     setSceneState(nextScene);
@@ -385,6 +417,9 @@ export function PersistentDiagnosisWorldProvider({
       if (typeof window !== 'undefined' && timerRef.current) {
         window.clearTimeout(timerRef.current);
       }
+      if (typeof window !== 'undefined' && persistTimerRef.current) {
+        window.clearTimeout(persistTimerRef.current);
+      }
       clearResponseTimers();
     },
     [clearResponseTimers],
@@ -409,7 +444,68 @@ export function PersistentDiagnosisWorldProvider({
     [conversationInput, modeOverride, panelOpen, panelTab, pathname, sceneState],
   );
 
+  const conversationMessages = useMemo(() => messages.filter((message) => !isIntroMessage(message)), [messages]);
   const tone = getMybiModeTone(resolvedScene.companionMode);
+
+  useEffect(() => {
+    if (!active || sessionHydratedRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    sessionIdRef.current = getOrCreateMybiSessionId();
+
+    void loadMybiChatSession()
+      .then((snapshot) => {
+        if (cancelled) {
+          return;
+        }
+
+        sessionIdRef.current = snapshot.sessionId;
+        applyConversationState(snapshot.messages, snapshot.summary);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          sessionHydratedRef.current = true;
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active, applyConversationState]);
+
+  useEffect(() => {
+    summaryRef.current = conversationSummary;
+  }, [conversationSummary]);
+
+  useEffect(() => {
+    if (!active || !sessionHydratedRef.current || typeof window === 'undefined') {
+      return;
+    }
+
+    if (persistTimerRef.current) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = window.setTimeout(() => {
+      const sessionId = sessionIdRef.current || getOrCreateMybiSessionId();
+      sessionIdRef.current = sessionId;
+      void saveMybiChatSession({
+        messages: conversationMessages,
+        pathname,
+        sessionId,
+        summary: conversationSummary,
+      });
+    }, 320);
+
+    return () => {
+      if (persistTimerRef.current) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+    };
+  }, [active, conversationMessages, conversationSummary, pathname]);
 
   useEffect(() => {
     const introContent = buildMybiConversationIntro(resolvedScene);
@@ -618,17 +714,19 @@ export function PersistentDiagnosisWorldProvider({
   );
 
   const streamAssistantReply = useCallback(
-    (content: string) => {
-      const messageId = nextMessageId();
+    (content: string, baseConversationMessages: ConversationMessage[], baseSummary: string | null) => {
+      const pendingMessage = createMessage(nextMessageId(), 'assistant', '');
       const characters = [...content];
-      setMessages((current) => [...current, createMessage(messageId, 'assistant', '')]);
+      setMessages((current) => [...current, pendingMessage]);
       sendCommand('pulse');
       runTimedMode('speaking', 1_600);
 
       if (typeof window === 'undefined') {
-        setMessages((current) =>
-          current.map((message) => (message.id === messageId ? { ...message, content } : message)),
+        const nextConversation = compactMybiConversationHistory(
+          [...baseConversationMessages, { ...pendingMessage, content }],
+          baseSummary,
         );
+        applyConversationState(nextConversation.messages, nextConversation.summary);
         return;
       }
 
@@ -637,19 +735,94 @@ export function PersistentDiagnosisWorldProvider({
         index = Math.min(characters.length, index + Math.max(1, Math.ceil(characters.length / 26)));
         const partial = characters.slice(0, index).join('');
         setMessages((current) =>
-          current.map((message) => (message.id === messageId ? { ...message, content: partial } : message)),
+          current.map((message) => (message.id === pendingMessage.id ? { ...message, content: partial } : message)),
         );
 
         if (index >= characters.length) {
           window.clearInterval(typingTimer);
           responseTimersRef.current = responseTimersRef.current.filter((timer) => timer !== typingTimer);
+          const nextConversation = compactMybiConversationHistory(
+            [...baseConversationMessages, { ...pendingMessage, content }],
+            baseSummary,
+          );
+          applyConversationState(nextConversation.messages, nextConversation.summary);
           sendCommand('pulse');
         }
       }, 24);
 
       responseTimersRef.current.push(typingTimer);
     },
-    [nextMessageId, runTimedMode, sendCommand],
+    [applyConversationState, nextMessageId, runTimedMode, sendCommand],
+  );
+
+  const requestAssistantReply = useCallback(
+    async (question: string, baseConversationMessages: ConversationMessage[], baseSummary: string | null) => {
+      const performRequest = async (
+        workingMessages: ConversationMessage[],
+        workingSummary: string | null,
+        contextRetried: boolean,
+      ): Promise<void> => {
+        if (typeof window === 'undefined') {
+          streamAssistantReply(
+            buildMybiFallbackReply(question, resolvedScene, activityRef.current),
+            workingMessages,
+            workingSummary,
+          );
+          return;
+        }
+
+        const requestPayload = buildMybiApiMessages({
+          messages: workingMessages,
+          recentActivity: activityRef.current,
+          sceneState: resolvedScene,
+          summary: workingSummary,
+        });
+
+        try {
+          const response = await fetch('/api/ai/mybi-chat', {
+            body: JSON.stringify({
+              messages: requestPayload.apiMessages,
+              question,
+              recentActivity: activityRef.current,
+              sceneState: resolvedScene,
+              summary: requestPayload.summary,
+            }),
+            headers: {
+              'content-type': 'application/json; charset=utf-8',
+            },
+            method: 'POST',
+          });
+
+          const payload = (await response.json()) as {
+            code?: string;
+            ok?: boolean;
+            reply?: string;
+            summary?: string | null;
+          };
+
+          if (!response.ok || !payload.ok || !payload.reply) {
+            if (!contextRetried && response.status === 400 && payload.code === 'CONTEXT_LENGTH_EXCEEDED') {
+              const trimmedConversation = compactMybiConversationHistory(
+                workingMessages.slice(MYBI_CONTEXT_RETRY_TRIM),
+                requestPayload.summary,
+              );
+              applyConversationState(trimmedConversation.messages, trimmedConversation.summary);
+              await performRequest(trimmedConversation.messages, trimmedConversation.summary, true);
+              return;
+            }
+
+            throw new Error(payload.code || 'TEMPORARY_CHAT_FAILURE');
+          }
+
+          streamAssistantReply(payload.reply, workingMessages, payload.summary ?? requestPayload.summary);
+        } catch {
+          streamAssistantReply('잠시 후 다시 시도해주세요.', workingMessages, workingSummary);
+        }
+      };
+
+      await performRequest(baseConversationMessages, baseSummary, false);
+    },
+    [applyConversationState, resolvedScene, streamAssistantReply],
   );
 
   const submitConversation = useCallback(
@@ -659,24 +832,27 @@ export function PersistentDiagnosisWorldProvider({
 
       clearResponseTimers();
       pushRecentActivity(`질문: ${trimmed}`);
-      setMessages((current) => [...current, createMessage(nextMessageId(), 'user', trimmed)]);
+      const userMessage = createMessage(nextMessageId(), 'user', trimmed);
+      const nextConversation = compactMybiConversationHistory(
+        [...conversationMessages, userMessage],
+        summaryRef.current,
+      );
+      applyConversationState(nextConversation.messages, nextConversation.summary);
       setConversationInput('');
       setPanelOpen(true);
       setPanelTab('guide');
       runTimedMode('thinking', 720);
-
-      if (typeof window === 'undefined') {
-        streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
-        return;
-      }
-
-      const delayTimer = window.setTimeout(() => {
-        streamAssistantReply(buildGuideReply(trimmed, resolvedScene, activityRef.current));
-      }, 260);
-
-      responseTimersRef.current.push(delayTimer);
+      void requestAssistantReply(trimmed, nextConversation.messages, nextConversation.summary);
     },
-    [clearResponseTimers, nextMessageId, pushRecentActivity, resolvedScene, runTimedMode, streamAssistantReply],
+    [
+      applyConversationState,
+      clearResponseTimers,
+      conversationMessages,
+      nextMessageId,
+      pushRecentActivity,
+      requestAssistantReply,
+      runTimedMode,
+    ],
   );
 
   const handleConversationSubmit = useCallback(
