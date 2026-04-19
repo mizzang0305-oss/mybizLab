@@ -18,9 +18,10 @@ export function PublicLayout() {
   const location = useLocation();
   const isLandingPage = location.pathname === '/';
   const isDiagnosisShell = isDiagnosisShellPath(location.pathname);
+  const hasMybiCompanion = !location.pathname.startsWith('/login');
 
   return (
-    <PersistentDiagnosisWorldProvider active={isDiagnosisShell}>
+    <PersistentDiagnosisWorldProvider active={hasMybiCompanion} pathname={location.pathname}>
       <div
         className={`flex min-h-screen flex-col ${isDiagnosisShell ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea] text-slate-900'}`}
         data-public-shell-theme={isDiagnosisShell ? 'diagnosis' : 'default'}

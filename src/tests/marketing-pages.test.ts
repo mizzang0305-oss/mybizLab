@@ -28,12 +28,11 @@ describe('public diagnosis surfaces', () => {
     const html = renderRoute('/');
 
     expect(html).toContain('data-landing-mode="hero-engine"');
-    expect(html).toContain('공개 스토어 진단 생성');
-    expect(html).toContain('data-diagnosis-world-shell="active"');
+    expect(html).toContain('data-mybi-shell="active"');
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
   });
 
-  it('mounts /onboarding with the persistent world split layout', () => {
+  it('mounts /onboarding with the floating MYBI layout', () => {
     let html = '';
 
     expect(() => {
@@ -41,21 +40,19 @@ describe('public diagnosis surfaces', () => {
     }).not.toThrow();
 
     expect(html).toContain('data-public-shell-theme="diagnosis"');
-    expect(html).toContain('data-onboarding-layout="persistent-world-split"');
-    expect(html).toContain('data-diagnosis-world-shell="active"');
-    expect(html).toContain('data-diagnosis-world-panel="sticky"');
-    expect(html).toContain('World sync');
-    expect(html).not.toContain('data-diagnosis-shell="cinema"');
-    expect(html).not.toContain('data-diagnosis-post-cinema="true"');
-    expect(html).not.toContain('data-diagnosis-pricing-ladder="true"');
+    expect(html).toContain('data-onboarding-layout="mybi-floating-flow"');
+    expect(html).toContain('data-mybi-shell="active"');
+    expect(html).toContain('MYBI 동기화');
+    expect(html).toContain('data-mybi-anchor="onboarding-active-flow"');
+    expect(html).not.toContain('data-diagnosis-world-panel="sticky"');
   });
 
-  it('keeps the pricing route reachable and the footer business representative correct', () => {
+  it('keeps pricing reachable while preserving MYBI', () => {
     const html = renderRoute('/pricing');
 
     expect(html).toContain('FREE');
     expect(html).toContain('PRO');
     expect(html).toContain('VIP');
-    expect(html).toContain('대표자: 이정민');
+    expect(html).toContain('data-mybi-shell="active"');
   });
 });
