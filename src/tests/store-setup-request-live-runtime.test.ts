@@ -87,17 +87,39 @@ describe('saveSetupRequest in live runtime', () => {
 
   it('stores the request through Supabase without touching the mock database', async () => {
     const savedRequest = await saveSetupRequest(requestInput, { requestedPlan: 'pro' });
+    const persistedPayload = insert.mock.calls[0]?.[0];
 
     expect(findStoreBySlug).toHaveBeenCalledWith('live-request-store');
     expect(getCanonicalStorePublicPageBySlug).toHaveBeenCalledWith('live-request-store');
     expect(from).toHaveBeenCalledWith('store_setup_requests');
-    expect(insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requested_plan: 'pro',
-        requested_slug: 'live-request-store',
-      }),
-    );
+    expect(persistedPayload).toMatchObject({
+      business_name: 'Live Request Store',
+      business_number: '123-45-67890',
+      requested_slug: 'live-request-store',
+      selected_features: ['ai_manager', 'sales_analysis'],
+      status: 'submitted',
+    });
+    expect(persistedPayload.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(persistedPayload).not.toHaveProperty('brand_name');
+    expect(persistedPayload).not.toHaveProperty('requested_plan');
+    expect(persistedPayload).not.toHaveProperty('tagline');
     expect(updateDatabase).not.toHaveBeenCalled();
+    expect(savedRequest.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(savedRequest.requested_plan).toBe('pro');
     expect(savedRequest.requested_slug).toBe('live-request-store');
+  });
+
+  it('surfaces the live Supabase insert error without falling back to mock data', async () => {
+    insert.mockResolvedValue({
+      error: {
+        message: 'permission denied for table store_setup_requests',
+      },
+    });
+
+    await expect(saveSetupRequest(requestInput, { requestedPlan: 'pro' })).rejects.toThrow(
+      '스토어 생성 요청을 저장하지 못했습니다: permission denied for table store_setup_requests',
+    );
+
+    expect(updateDatabase).not.toHaveBeenCalled();
   });
 });

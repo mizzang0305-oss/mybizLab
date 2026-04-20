@@ -570,6 +570,14 @@ export function createInitialOnboardingFlowState(): OnboardingFlowState {
   };
 }
 
+export function applyOnboardingSetupRequestSaved(state: OnboardingFlowState, requestId: string): OnboardingFlowState {
+  return {
+    ...state,
+    requestId,
+    step: 'payment',
+  };
+}
+
 export function buildDiagnosisResult(
   input: DiagnosisInput,
   analysisSource: DiagnosisAnalysisSource = 'fallback',

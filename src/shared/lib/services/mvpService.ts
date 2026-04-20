@@ -5,7 +5,7 @@ import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePriorityS
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
 import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
-import { createId } from '@/shared/lib/ids';
+import { createId, createUuid } from '@/shared/lib/ids';
 import {
   customerContactSchema,
   normalizeInquiryTags,
@@ -58,6 +58,7 @@ import type {
   CartItemInput,
   Contract,
   Customer,
+  FeatureKey,
   Inquiry,
   KitchenTicket,
   MenuCategory,
@@ -129,6 +130,22 @@ interface CreateStoreWithOwnerRpcRow {
   store_id: string;
   id?: string;
   slug: string;
+}
+
+interface LiveStoreSetupRequestInsertPayload {
+  id: string;
+  business_name: string;
+  owner_name: string;
+  business_number: string;
+  phone: string;
+  email: string;
+  address: string;
+  business_type: string;
+  requested_slug: string;
+  selected_features: FeatureKey[];
+  status: 'submitted';
+  created_at: string;
+  updated_at: string;
 }
 
 interface LiveStoreRow {
@@ -290,6 +307,38 @@ async function fetchLiveStoreById(storeId: string) {
 
   const existingStore = getDatabase().stores.find((store) => store.id === storeId) || null;
   return mapLiveStoreToAppStore(data as LiveStoreRow, existingStore);
+}
+
+function buildLiveStoreSetupRequestInsertPayload(request: {
+  id: string;
+  business_name: string;
+  owner_name: string;
+  business_number: string;
+  phone: string;
+  email: string;
+  address: string;
+  business_type: string;
+  requested_slug: string;
+  selected_features: FeatureKey[];
+  status: 'submitted';
+  created_at: string;
+  updated_at: string;
+}): LiveStoreSetupRequestInsertPayload {
+  return {
+    id: request.id,
+    business_name: request.business_name,
+    owner_name: request.owner_name,
+    business_number: request.business_number,
+    phone: request.phone,
+    email: request.email,
+    address: request.address,
+    business_type: request.business_type,
+    requested_slug: request.requested_slug,
+    selected_features: request.selected_features,
+    status: request.status,
+    created_at: request.created_at,
+    updated_at: request.updated_at,
+  };
 }
 
 async function fetchPrioritySettingsRows(storeIds: string[]) {
@@ -1970,7 +2019,7 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
   const tagline = input.tagline?.trim() || `${brandName} 오픈 준비 중`;
   const description = input.description?.trim() || `${brandName} 스토어 오픈을 위한 기본 요청서입니다.`;
   const request = {
-    id: createId('setup_request'),
+    id: createUuid(),
     ...input,
     requested_slug: requestedSlug,
     requested_plan: requestedPlan,
@@ -2010,29 +2059,10 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
     updated_at: timestamp,
   };
 
-  // 로컬 mockDb에도 저장 (데모 fallback)
   if (shouldUseSupabaseStoreProvisioning() && supabase) {
-    const { error } = await supabase.from('store_setup_requests').insert({
-      id: request.id,
-      business_name: request.business_name,
-      owner_name: request.owner_name,
-      business_number: request.business_number,
-      phone: request.phone,
-      email: request.email,
-      address: request.address,
-      business_type: request.business_type,
-      requested_slug: request.requested_slug,
-      requested_plan: request.requested_plan,
-      brand_name: request.brand_name,
-      tagline: request.tagline,
-      description: request.description,
-      status: request.status,
-      selected_features: request.selected_features,
-      store_mode: request.store_mode,
-      data_mode: request.data_mode,
-      created_at: request.created_at,
-      updated_at: request.updated_at,
-    });
+    const { error } = await supabase
+      .from('store_setup_requests')
+      .insert(buildLiveStoreSetupRequestInsertPayload(request));
 
     if (error) {
       throw new Error(`스토어 생성 요청을 저장하지 못했습니다: ${error.message}`);
@@ -2044,35 +2074,6 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
   updateDatabase((database) => {
     database.store_requests.unshift(request);
   });
-
-  // Supabase 연결 시 store_setup_requests 테이블에도 저장
-  if (shouldUseSupabaseStoreProvisioning() && supabase) {
-    try {
-      await supabase.from('store_setup_requests').insert({
-        id: request.id,
-        business_name: request.business_name,
-        owner_name: request.owner_name,
-        business_number: request.business_number,
-        phone: request.phone,
-        email: request.email,
-        address: request.address,
-        business_type: request.business_type,
-        requested_slug: request.requested_slug,
-        requested_plan: request.requested_plan,
-        brand_name: request.brand_name,
-        tagline: request.tagline,
-        description: request.description,
-        status: request.status,
-        selected_features: request.selected_features,
-        store_mode: request.store_mode,
-        data_mode: request.data_mode,
-        created_at: request.created_at,
-        updated_at: request.updated_at,
-      });
-    } catch (err) {
-      console.warn('[saveSetupRequest] Supabase 저장 실패 (로컬 저장은 완료):', err);
-    }
-  }
 
   return request;
 }
