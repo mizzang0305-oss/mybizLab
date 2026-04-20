@@ -792,8 +792,6 @@ export function OnboardingPage() {
       ? 'alert'
       : runDiagnosis.isPending
         ? 'thinking'
-        : flow.step === 'request'
-          ? 'speaking'
         : flow.step === 'diagnosis'
           ? 'listening'
           : 'floating-guide';
@@ -823,11 +821,13 @@ export function OnboardingPage() {
     nextAction: worldStep.supportLine,
     planLabel: currentPlanTitle,
     pulseKey: worldStepIndex,
+    quietMode: true,
     routeLabel: '스토어 진단 온보딩',
     selectedHighlights: mybiHighlights,
     stepLabel: `${worldStep.number} ${worldStep.label}`,
     stepIndex: worldStepIndex,
     storeLabel: currentStoreLabel,
+    surfaceMode: 'compact',
     title: `${worldStep.number} ${worldStep.label}`,
   });
 
@@ -863,7 +863,7 @@ export function OnboardingPage() {
         </header>
 
         {/* ── 스텝 인디케이터 ── */}
-        <div className="section-card bg-white px-6 py-5" data-mybi-anchor="onboarding-progress">
+        <div className="section-card bg-white px-6 py-5" data-mybi-anchor="onboarding-progress" data-mybi-avoid data-mybi-stepper>
           <div className="flex items-start">
             {steps.map((step, index) => {
               const done = index < currentIndex;
@@ -917,7 +917,11 @@ export function OnboardingPage() {
           message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' :
           message.tone === 'error' ? 'border-rose-200 bg-rose-50 text-rose-800' :
           'border-blue-200 bg-blue-50 text-blue-800',
-        ].join(' ')}>
+        ].join(' ')}
+          data-mybi-avoid
+          data-mybi-error={message.tone === 'error' ? 'true' : undefined}
+          data-mybi-important={message.tone === 'error' ? 'true' : undefined}
+          role={message.tone === 'error' ? 'alert' : 'status'}>
           <span className="mt-0.5 shrink-0 text-base">
             {message.tone === 'success' ? '✓' : message.tone === 'error' ? '!' : 'ℹ'}
           </span>
@@ -926,7 +930,7 @@ export function OnboardingPage() {
       ) : null}
 
       <div className="grid gap-8 xl:grid-cols-[1.18fr_0.82fr]">
-        <div className="space-y-6" data-mybi-anchor="onboarding-active-flow">
+        <div className="space-y-6" data-mybi-anchor="onboarding-active-flow" data-mybi-avoid>
           {flow.step === 'diagnosis' && !runDiagnosis.isPending ? (
             <Panel
               title="AI 매장 진단"
@@ -1763,7 +1767,7 @@ export function OnboardingPage() {
           ) : null}
         </div>
 
-        <div className="space-y-5" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
+        <div className="space-y-5" data-mybi-anchor="onboarding-sidebar">
 
           {/* AI 상태 카드 */}
           <div className="section-card bg-white p-5">

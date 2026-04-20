@@ -1,6 +1,7 @@
 import { BUSINESS_INFO } from '@/shared/lib/siteConfig';
 
 export type MybiLayoutMode = 'floating' | 'hero';
+export type MybiSurfaceMode = 'compact' | 'default' | 'expressive';
 export type MybiCompanionMode =
   | 'alert'
   | 'floating-guide'
@@ -19,11 +20,13 @@ export interface MybiSceneState {
   nextAction?: string;
   planLabel?: string;
   pulseKey: number;
+  quietMode?: boolean;
   routeLabel?: string;
   selectedHighlights?: string[];
   stepIndex: number;
   stepLabel?: string;
   storeLabel?: string;
+  surfaceMode?: MybiSurfaceMode;
   title?: string;
 }
 
@@ -65,6 +68,16 @@ function contextLine(sceneState: MybiSceneState) {
   return parts.length ? parts.join(' · ') : null;
 }
 
+function isFormHeavyPath(pathname: string) {
+  return (
+    pathname === '/onboarding' ||
+    pathname === '/billing' ||
+    /^\/s\/[^/]+\/(?:inquiry|reservation|waiting)(?:\/|$)/.test(pathname) ||
+    /^\/s\/[^/]+\/survey\/[^/]+(?:\/|$)/.test(pathname) ||
+    /^\/(?:store\/[^/]+|[^/]+)\/order(?:\/|$)/.test(pathname)
+  );
+}
+
 export function buildSceneFallback(pathname: string): MybiSceneState {
   if (pathname === '/') {
     return {
@@ -76,8 +89,10 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
       nextAction: '무료 진단을 시작하면 같은 세계가 MYBI 동반자 모드로 이어지면서 현재 단계에 맞게 반응합니다.',
       planLabel: '무료 진단',
       pulseKey: 0,
+      quietMode: false,
       routeLabel: '랜딩 히어로',
       selectedHighlights: ['공개 유입', '고객 기억 축', 'AI 운영 제안'],
+      surfaceMode: 'expressive',
       stepIndex: 0,
       stepLabel: '01 스토어 / 공개 유입',
       title: 'MYBI 히어로',
@@ -96,9 +111,30 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
       pulseKey: 0,
       routeLabel: '요금제',
       selectedHighlights: ['공개 유입', '고객 기억 축', '운영 리포트'],
+      surfaceMode: 'default',
       stepIndex: 3,
       stepLabel: '04 다음 액션 제안',
       title: 'MYBI 플랜 안내',
+    };
+  }
+
+  if (isFormHeavyPath(pathname)) {
+    return {
+      companionMode: 'floating-guide',
+      contextSummary: '입력 흐름을 가리지 않게 MYBI가 작은 orb 상태로 대기하고, 필요할 때만 눌러서 도움을 여는 화면입니다.',
+      layoutMode: 'floating',
+      meaning: 'MYBI는 지금 가리기보다 입력 흐름을 지켜보는 보조 모드로 조용히 대기하고 있습니다.',
+      memoryNote: '활성 입력 필드, CTA, 오류 배너를 피해 조용히 옆에 머물다가, 클릭하거나 물어보면 바로 도와드립니다.',
+      nextAction: '도움이 필요하면 MYBI를 눌러 대화를 열고, 지금은 입력 흐름을 그대로 이어가면 됩니다.',
+      planLabel: '입력 보조',
+      pulseKey: 0,
+      quietMode: true,
+      routeLabel: '입력 / 설정 화면',
+      selectedHighlights: ['입력 흐름', 'CTA', '오류 대응'],
+      surfaceMode: 'compact',
+      stepIndex: 0,
+      stepLabel: '01 입력 보조',
+      title: 'MYBI 컴팩트',
     };
   }
 
@@ -111,8 +147,10 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
     nextAction: '현재 단계에서 어떤 입력이 쌓이고 다음에 무엇을 해야 하는지 함께 확인해보세요.',
     planLabel: '안내 중',
     pulseKey: 0,
+    quietMode: false,
     routeLabel: '공개 화면',
     selectedHighlights: ['고객 기억 축'],
+    surfaceMode: 'default',
     stepIndex: 0,
     stepLabel: '01 현재 컨텍스트',
     title: 'MYBI',
@@ -200,11 +238,18 @@ export function normalizeMybiScene(pathname: string, sceneState: MybiSceneState)
 }
 
 export function buildMybiConversationIntro(sceneState: MybiSceneState) {
+  const quietHelpLine =
+    sceneState.surfaceMode === 'compact'
+      ? sceneState.companionMode === 'alert'
+        ? '지금은 오류를 같이 보되, 입력 흐름을 가리지 않도록 조용히 옆에서 대기하고 있습니다. 필요하면 눌러서 바로 도움을 받아보세요.'
+        : '입력 흐름을 가리지 않도록 작은 orb 상태로 대기하고 있습니다. 필요하면 눌러서 바로 도와드릴게요.'
+      : null;
   const lines = [
     `MYBI입니다. ${sceneState.title ? `${sceneState.title} 맥락을 같이 보고 있겠습니다.` : '지금 화면 맥락을 같이 보고 있겠습니다.'}`,
     sceneState.contextSummary || sceneState.meaning || '현재 입력 흐름을 기준으로 짧고 정확하게 안내드릴게요.',
     contextLine(sceneState),
     highlightLine(sceneState),
+    quietHelpLine,
     sceneState.nextAction ? `바로 이어지는 일은 ${sceneState.nextAction}` : null,
   ].filter(Boolean);
 
@@ -270,6 +315,16 @@ export function buildGuideReply(question: string, sceneState: MybiSceneState, re
   }
 
   if (includesAny(normalized, ['문제', '오류', 'issue', 'error', 'bug'])) {
+    if (sceneState.companionMode === 'alert' || sceneState.surfaceMode === 'compact') {
+      return [
+        '지금은 오류 문구와 현재 단계 기준으로 먼저 원인을 같이 좁혀볼게요.',
+        '입력 흐름을 막지 않도록 조용히 대기하다가, 원하시면 문제 제보 탭까지 바로 이어드릴 수 있습니다.',
+        sceneState.nextAction,
+      ]
+        .filter(Boolean)
+        .join(' ');
+    }
+
     return '문제 제보 탭에서는 현재 경로, 단계, 최근 액션, 브라우저 오류, 스크린샷 여부를 함께 검토하고 확인 후 직접 보내도록 도와드립니다.';
   }
 

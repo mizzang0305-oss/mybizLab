@@ -29,6 +29,7 @@ describe('public diagnosis surfaces', () => {
 
     expect(html).toContain('data-landing-mode="hero-engine"');
     expect(html).toContain('data-mybi-shell="active"');
+    expect(html).toContain('data-mybi-surface-mode="expressive"');
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
   });
 
@@ -42,8 +43,11 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('data-public-shell-theme="diagnosis"');
     expect(html).toContain('data-onboarding-layout="mybi-flow"');
     expect(html).toContain('data-mybi-shell="active"');
+    expect(html).toContain('data-mybi-surface-mode="compact"');
+    expect(html).toContain('data-mybi-quiet="true"');
     expect(html).toContain('data-mybi-trigger="orb-handle"');
     expect(html).toContain('data-mybi-anchor="onboarding-active-flow"');
+    expect(html).not.toContain('data-mybi-panel="open"');
     expect(html).not.toContain('data-diagnosis-world-panel="sticky"');
   });
 
@@ -54,5 +58,6 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('PRO');
     expect(html).toContain('VIP');
     expect(html).toContain('data-mybi-shell="active"');
+    expect(html).toContain('data-mybi-surface-mode="default"');
   });
 });
