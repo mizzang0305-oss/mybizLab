@@ -1,6 +1,6 @@
-import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans.js';
-import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../../src/shared/lib/checkoutCustomData.js';
-import { BUSINESS_INFO } from '../../src/shared/lib/siteConfig.js';
+import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../shared/lib/billingPlans.js';
+import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData.js';
+import { BUSINESS_INFO } from '../shared/lib/siteConfig.js';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const SERVER_ENV_HINT =

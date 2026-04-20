@@ -1,13 +1,13 @@
 ﻿import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import checkoutHandler from '../../api/billing/checkout';
+import billingHandler from '../../api/billing/[action]';
 import {
   createCheckoutPaymentId,
   type CheckoutCustomerPayload,
   type CheckoutSessionPayload,
   type InvalidCheckoutSessionDetails,
   validateCheckoutSessionPayload,
-} from '../../api/billing/_billingCheckout';
+} from '../../src/server/billingCheckout';
 
 function createValidCheckoutCustomer(
   overrides: Partial<CheckoutCustomerPayload> = {},
@@ -99,7 +99,7 @@ describe('/api/billing/checkout', () => {
   });
 
   it('returns JSON 405 for non-POST requests', async () => {
-    const response = await checkoutHandler(
+    const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         method: 'GET',
       }),
@@ -119,7 +119,7 @@ describe('/api/billing/checkout', () => {
     delete process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
     delete process.env.VITE_PORTONE_STORE_ID;
 
-    const response = await checkoutHandler(
+    const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
@@ -140,7 +140,7 @@ describe('/api/billing/checkout', () => {
     delete process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
 
-    const response = await checkoutHandler(
+    const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
@@ -161,7 +161,7 @@ describe('/api/billing/checkout', () => {
     delete process.env.NEXT_PUBLIC_APP_BASE_URL;
     delete process.env.VITE_APP_BASE_URL;
 
-    const response = await checkoutHandler(
+    const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
@@ -343,7 +343,7 @@ describe('/api/billing/checkout', () => {
   });
 
   it('does not require PORTONE_API_SECRET for checkout success', async () => {
-    const response = await checkoutHandler(
+    const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
@@ -383,7 +383,7 @@ describe('/api/billing/checkout', () => {
   });
 
   it('accepts a node-style parsed body object without request.text()', async () => {
-    const response = await checkoutHandler({
+    const response = await billingHandler({
       body: {
         browserContext: {
           appBaseUrl: 'https://example.com',
@@ -428,7 +428,7 @@ describe('/api/billing/checkout', () => {
       },
     };
 
-    await checkoutHandler(
+    await billingHandler(
       {
         body: { plan: 'pro' },
         headers: { host: 'example.com' },
@@ -452,7 +452,7 @@ describe('/api/billing/checkout', () => {
     const rawCustomerType = '\uC9C1\uC7A5\uC778 \uC810\uC2EC \uACE0\uAC1D';
     const rawSlug = '\uC131\uC218 \uBE0C\uB7F0\uCE58 \uD558\uC6B0\uC2A4';
 
-    const response = await checkoutHandler(
+    const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({
           customData: {
