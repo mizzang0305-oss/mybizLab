@@ -18,7 +18,7 @@ import type {
   VisitorSession,
   WaitingEntry,
 } from '@/shared/types/models';
-import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
+import type { CanonicalMyBizRepository, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
 import { getStoreBrandConfig, mapLiveStoreToAppStore } from '@/shared/lib/storeData';
 import { getCustomerRecordId, normalizeCustomerRecord } from '@/shared/lib/domain/customerMemory';
 

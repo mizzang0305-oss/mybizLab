@@ -8,9 +8,7 @@ import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
 import { createId } from '@/shared/lib/ids';
 import {
   customerContactSchema,
-  inquiryOwnerUpdateSchema,
   normalizeInquiryTags,
-  publicInquirySchema,
 } from '@/shared/lib/inquirySchema';
 import { manualMetricFormSchema, type ManualMetricFormInput } from '@/shared/lib/manualMetricSchema';
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
@@ -31,14 +29,12 @@ import {
   getCanonicalStorePublicPageBySlug,
   resolvePublicPageCapabilities,
   saveCanonicalStorePublicPage,
-  type StorePublicPageUpsertInput,
 } from '@/shared/lib/services/publicPageService';
 import {
   listStoreReservations,
   saveStoreReservation,
   updateStoreReservationStatus,
 } from '@/shared/lib/services/reservationService';
-import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
 import {
   listStoreWaitingEntries,
   saveStoreWaitingEntry,
@@ -600,7 +596,7 @@ function mergeMissingById<T extends { id: string }>(current: T[], seeded: T[]) {
   return changed;
 }
 
-function getStoreMembersStores(database = getDatabase()) {
+function _getStoreMembersStores(database = getDatabase()) {
   const memberships = database.store_members.filter((member) => member.profile_id === DEMO_PROFILE_ID);
   const storeIdSet = new Set(memberships.map((member) => member.store_id));
   return database.stores.filter((store) => storeIdSet.has(store.id));
@@ -1124,7 +1120,7 @@ async function assertAvailableStoreSlug(candidate: string, options?: { excludeSt
   return normalized;
 }
 
-function buildStoreCapabilityFlags(store: Store, features: StoreFeature[]) {
+function _buildStoreCapabilityFlags(store: Store, features: StoreFeature[]) {
   return {
     homepageVisible: store.homepage_visible ?? store.public_status === 'public',
     consultationEnabled: store.consultation_enabled ?? true,
@@ -2756,7 +2752,7 @@ function findCustomerByContact(
   );
 }
 
-function sortInquiriesByRecent(inquiries: Inquiry[]) {
+function _sortInquiriesByRecent(inquiries: Inquiry[]) {
   return inquiries
     .slice()
     .sort((left, right) => (right.updated_at || right.created_at).localeCompare(left.updated_at || left.created_at));
@@ -2782,7 +2778,7 @@ export async function upsertCustomer(
   return memoryRecord.customer;
 }
 
-function upsertInquiryCustomer(
+function _upsertInquiryCustomer(
   database: MvpDatabase,
   input: {
     storeId: string;
@@ -3271,6 +3267,86 @@ export async function submitPublicInquiry(input: {
     summary: buildPublicInquirySummary(getStoreScopedData(input.storeId).inquiries),
   };
   */
+}
+
+export async function submitPublicReservation(input: {
+  storeId: string;
+  customerName: string;
+  phone: string;
+  partySize: number;
+  reservedAt: string;
+  note?: string;
+  visitorSessionId?: string;
+  visitorToken?: string;
+  visitorPath?: string;
+  referrer?: string;
+}): Promise<{
+  reservation: Reservation;
+  visitorSessionId?: string;
+}> {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<{
+      reservation: Reservation;
+      visitorSessionId?: string;
+    }>('/api/public/reservation', {
+      body: input,
+      method: 'POST',
+    });
+  }
+
+  const reservation = await saveStoreReservation(input.storeId, {
+    customer_name: input.customerName,
+    note: input.note?.trim() || undefined,
+    party_size: input.partySize,
+    phone: input.phone,
+    reserved_at: input.reservedAt,
+    status: 'booked',
+    visitor_session_id: input.visitorSessionId,
+  });
+
+  return {
+    reservation,
+    visitorSessionId: input.visitorSessionId,
+  };
+}
+
+export async function submitPublicWaitingEntry(input: {
+  storeId: string;
+  customerName: string;
+  phone: string;
+  partySize: number;
+  quotedWaitMinutes?: number;
+  visitorSessionId?: string;
+  visitorToken?: string;
+  visitorPath?: string;
+  referrer?: string;
+}): Promise<{
+  waitingEntry: WaitingEntry;
+  visitorSessionId?: string;
+}> {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<{
+      waitingEntry: WaitingEntry;
+      visitorSessionId?: string;
+    }>('/api/public/waiting', {
+      body: input,
+      method: 'POST',
+    });
+  }
+
+  const waitingEntry = await saveStoreWaitingEntry(input.storeId, {
+    customer_name: input.customerName,
+    party_size: input.partySize,
+    phone: input.phone,
+    quoted_wait_minutes: input.quotedWaitMinutes ?? 0,
+    status: 'waiting',
+    visitor_session_id: input.visitorSessionId,
+  });
+
+  return {
+    waitingEntry,
+    visitorSessionId: input.visitorSessionId,
+  };
 }
 
 export async function getBrandProfile(storeId: string) {
@@ -4628,7 +4704,6 @@ export async function getPublicStoreById(storeId: string) {
 async function getPublicStoreSnapshot(store: Store) {
   const surveys = await listSurveys(store.id);
   const scoped = getStoreScopedData(store.id);
-  const repository = getCanonicalMyBizRepository();
   const menu = await listMenu(store.id);
   const tables = await listStoreTables(store.id);
   const canonicalPage =

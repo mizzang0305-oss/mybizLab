@@ -15,29 +15,29 @@ interface SendMybiMessageOptions {
 const DEFAULT_TIMEOUT_MS = 12_000;
 
 function buildLocalFallback(lastMessage: string) {
-  const q = lastMessage.toLowerCase();
+  const question = lastMessage.toLowerCase();
 
-  if (q.includes('가격') || q.includes('요금') || q.includes('얼마')) {
-    return '요금은 스토어 운영 방식과 필요한 기능에 따라 달라져서, 상담을 통해 가장 맞는 플랜으로 안내드리고 있어요.';
+  if (question.includes('가격') || question.includes('요금') || question.includes('얼마')) {
+    return '요금은 매장 운영 방식과 필요한 채널 구성이 달라서, 상담을 통해 가장 맞는 플랜으로 안내드리고 있어요.';
   }
 
-  if (q.includes('qr') || q.includes('주문')) {
-    return 'MYBI는 QR 주문 흐름과 운영 데이터를 함께 보면서, 주문이 고객 기억으로 이어지도록 돕는 쪽에 강점이 있어요.';
+  if (question.includes('qr') || question.includes('주문')) {
+    return 'MyBiz는 QR 주문을 단순 주문 도구로 보지 않고, 고객 입력이 고객 기억 축으로 이어지는 채널로 다룹니다.';
   }
 
-  if (q.includes('예약') || q.includes('웨이팅') || q.includes('대기')) {
-    return '예약과 웨이팅은 단순 접수가 아니라 고객 입력 채널이에요. 누가 언제 왜 들어왔는지가 쌓여야 다음 운영 액션이 더 정확해집니다.';
+  if (question.includes('예약') || question.includes('웨이팅') || question.includes('대기')) {
+    return '예약과 웨이팅은 고객이 방문 의도를 남기는 핵심 입력 채널입니다. 이 정보가 쌓여야 다음 운영 액션과 재방문 설계가 더 정확해집니다.';
   }
 
-  if (q.includes('문의') || q.includes('상담')) {
-    return '문의는 가장 빠른 고객 의도 신호예요. 어떤 질문이 반복되는지 쌓이면, 응대 문구와 다음 제안까지 훨씬 선명해집니다.';
+  if (question.includes('문의') || question.includes('상담')) {
+    return '문의는 가장 빠른 관심 신호입니다. 어떤 질문이 반복되는지 쌓이면 후속 응대와 공개 페이지 문구까지 더 정교하게 바꿀 수 있어요.';
   }
 
-  if (q.includes('다음') || q.includes('무엇') || q.includes('어떻게')) {
-    return '지금 단계에서는 입력된 정보가 고객 기억 축으로 어떻게 이어지는지 먼저 확인하고, 그다음 액션 하나만 선명하게 정하는 쪽이 좋습니다.';
+  if (question.includes('다음') || question.includes('무엇') || question.includes('어떻게')) {
+    return '지금 단계에서는 입력 채널 우선순위와 고객 기억 축에 어떤 정보가 남는지 먼저 확인한 뒤, 다음 액션을 한 가지씩 정하는 방식이 가장 안전합니다.';
   }
 
-  return '지금 화면 맥락 기준으로 답해드릴게요. 질문을 조금만 더 구체적으로 주시면 단계 의미, 다음 액션, 고객 기억 흐름까지 바로 정리해드릴 수 있어요.';
+  return '지금 화면 맥락 기준으로 도와드릴게요. 질문을 조금만 더 구체적으로 주시면 현재 단계, 다음 액션, 고객 기억 흐름까지 바로 정리해드릴 수 있어요.';
 }
 
 export async function sendMybiMessage(
@@ -53,18 +53,18 @@ export async function sendMybiMessage(
       : null;
 
   try {
-    const res = await fetch('/api/ai/chat', {
+    const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, sceneContext }),
       signal: controller?.signal,
     });
 
-    if (!res.ok) {
-      throw new Error(`Chat API returned ${res.status}`);
+    if (!response.ok) {
+      throw new Error(`Chat API returned ${response.status}`);
     }
 
-    const data = (await res.json()) as ChatApiResponse;
+    const data = (await response.json()) as ChatApiResponse;
 
     if (data.ok && data.reply?.trim()) {
       return data.reply.trim();

@@ -423,6 +423,35 @@
             numFormations: 3,
             densityFactor: 1
         };
+        const reducedMotionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const renderState = {
+            contextLost: false,
+            hidden: document.hidden,
+            lowPower: Number(navigator.deviceMemory || 8) <= 4 || Number(navigator.hardwareConcurrency || 8) <= 4,
+            rafId: 0,
+            reducedMotion: reducedMotionMedia.matches
+        };
+        function getMaxPixelRatio() {
+            if (renderState.lowPower) {
+                return 1.1;
+            }
+            if (renderState.reducedMotion) {
+                return 1.25;
+            }
+            return 1.5;
+        }
+        function resolveAutoRotateSpeed(speed) {
+            if (renderState.reducedMotion) {
+                return Math.min(speed, 0.05);
+            }
+            if (renderState.lowPower) {
+                return Math.min(speed, 0.09);
+            }
+            return speed;
+        }
+        function shouldUsePostProcessing() {
+            return !renderState.lowPower && !renderState.reducedMotion;
+        }
         const colorPalettes = [
             [
                 new THREE.Color(0x667eea),
@@ -538,15 +567,15 @@
         const canvasElement = document.getElementById('neural-network-canvas');
         const renderer = new THREE.WebGLRenderer({
             canvas: canvasElement,
-            antialias: true,
-            powerPreference: "high-performance"
+            antialias: !renderState.lowPower,
+            powerPreference: renderState.lowPower ? "default" : "high-performance"
         });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, getMaxPixelRatio()));
         renderer.setClearColor(0x000000);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         function createStarfield() {
-            const count = 8000;
+            const count = renderState.lowPower ? 4200 : renderState.reducedMotion ? 5200 : 8000;
             const positions = [];
             const colors = [];
             const sizes = [];
@@ -615,7 +644,7 @@
         controls.minDistance = 8;
         controls.maxDistance = 80;
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.2;
+        controls.autoRotateSpeed = resolveAutoRotateSpeed(0.2);
         controls.enablePan = false;
         const composer = new EffectComposer(renderer);
         composer.addPass(new RenderPass(scene, camera));
@@ -627,6 +656,27 @@
         );
         composer.addPass(bloomPass);
         composer.addPass(new OutputPass());
+        function renderFrame() {
+            if (shouldUsePostProcessing()) {
+                composer.render();
+                return;
+            }
+            renderer.render(scene, camera);
+        }
+        function applyRuntimeQualityProfile(rebuildScene = false) {
+            const maxDensityFactor = renderState.lowPower ? 0.82 : renderState.reducedMotion ? 0.9 : 1.15;
+            const nextDensityFactor = THREE.MathUtils.clamp(config.densityFactor, 0.42, maxDensityFactor);
+            const densityChanged = Math.abs(nextDensityFactor - config.densityFactor) > 0.001;
+            config.densityFactor = nextDensityFactor;
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, getMaxPixelRatio()));
+            controls.enableDamping = !renderState.reducedMotion;
+            controls.dampingFactor = renderState.reducedMotion ? 0.03 : 0.05;
+            bloomPass.radius = shouldUsePostProcessing() ? 0.6 : 0.18;
+            bloomPass.threshold = shouldUsePostProcessing() ? 0.7 : 0.92;
+            if (densityChanged && storyState.loaded && rebuildScene) {
+                createNetworkVisualization(config.currentFormation, config.densityFactor);
+            }
+        }
         const signalGroup = new THREE.Group();
         const signalMaterial = new THREE.LineBasicMaterial({
             color: 0x8bd8ff,
@@ -1499,12 +1549,13 @@
             config.currentFormation = profile.formation;
             config.densityFactor = profile.densityFactor;
             controls.autoRotate = true;
-            controls.autoRotateSpeed = profile.autoRotateSpeed;
+            controls.autoRotateSpeed = resolveAutoRotateSpeed(profile.autoRotateSpeed);
             if (needsRebuild) {
                 createNetworkVisualization(config.currentFormation, config.densityFactor);
             } else if (paletteChanged) {
                 updateTheme(config.activePaletteIndex);
             }
+            applyRuntimeQualityProfile(false);
             applyHiddenControlState();
             document.body.dataset.worldMode = layoutMode;
             document.body.dataset.companionMode = companionMode;
@@ -1637,6 +1688,12 @@
                 const palette = colorPalettes[config.activePaletteIndex];
                 storyState.burst = Math.min(1.15, storyState.burst + 0.32);
                 triggerScriptedPulse(controls.target.clone(), palette[Math.floor(Math.random() * palette.length)]);
+                return;
+            }
+            if (command === 'setRenderProfile') {
+                renderState.reducedMotion = Boolean(payload.reducedMotion);
+                renderState.lowPower = Boolean(payload.lowPower ?? renderState.lowPower);
+                applyRuntimeQualityProfile(true);
             }
         }
         window.addEventListener('message', (event) => {
@@ -1654,8 +1711,11 @@
         });
         const clock = new THREE.Clock();
         function animate() {
-            requestAnimationFrame(animate);
-            const delta = Math.min(clock.getDelta(), 0.05);
+            renderState.rafId = requestAnimationFrame(animate);
+            if (renderState.contextLost || renderState.hidden) {
+                return;
+            }
+            const delta = Math.min(clock.getDelta(), renderState.lowPower ? 0.04 : 0.05);
             const t = clock.elapsedTime;
             if (!config.paused) {
                 if (nodesMesh) {
@@ -1691,16 +1751,23 @@
             payoffGroup.scale.lerp(payoffScaleVector, 1 - Math.exp(-delta * 4.4));
             payoffGroup.position.y = damp(payoffGroup.position.y, storyState.targetPayoff > 0 ? 0 : 0.8, 4.4, delta);
             storyState.burst = Math.max(0, storyState.burst - delta * 0.7);
-            bloomPass.strength = damp(bloomPass.strength, 1.75 + storyState.sparkle + storyState.burst * 0.6, 3.8, delta);
+            const sparkleFactor = renderState.reducedMotion ? 0.35 : renderState.lowPower ? 0.65 : 1;
+            bloomPass.strength = damp(
+                bloomPass.strength,
+                (shouldUsePostProcessing() ? 1.75 : 0.55) + storyState.sparkle * sparkleFactor + storyState.burst * 0.35,
+                3.8,
+                delta
+            );
             camera.position.lerp(storyState.targetCameraPosition, 1 - Math.exp(-delta * 2.8));
             controls.target.lerp(storyState.targetCameraTarget, 1 - Math.exp(-delta * 3.2));
-            starField.rotation.y += 0.0002 + storyState.sparkle * 0.0007 + storyState.burst * 0.0012;
+            starField.rotation.y += 0.0002 + storyState.sparkle * 0.0007 * sparkleFactor + storyState.burst * 0.0008;
             starField.material.uniforms.uTime.value = t;
             controls.update();
-            composer.render();
+            renderFrame();
         }
         function init() {
             createNetworkVisualization(config.currentFormation, config.densityFactor);
+            applyRuntimeQualityProfile(false);
             applyHiddenControlState();
             applyStoryMode('hero', 0, 0, 'hero');
             storyState.loaded = true;
@@ -1710,10 +1777,33 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, getMaxPixelRatio()));
             composer.setSize(window.innerWidth, window.innerHeight);
             bloomPass.resolution.set(window.innerWidth, window.innerHeight);
         }
 
+        document.addEventListener('visibilitychange', () => {
+            renderState.hidden = document.hidden;
+            if (!renderState.hidden) {
+                clock.getDelta();
+                onWindowResize();
+            }
+        });
+        reducedMotionMedia.addEventListener('change', (event) => {
+            renderState.reducedMotion = event.matches;
+            applyRuntimeQualityProfile(true);
+        });
+        canvasElement.addEventListener('webglcontextlost', (event) => {
+            event.preventDefault();
+            renderState.contextLost = true;
+            if (renderState.rafId) {
+                cancelAnimationFrame(renderState.rafId);
+                renderState.rafId = 0;
+            }
+        });
+        canvasElement.addEventListener('webglcontextrestored', () => {
+            window.location.reload();
+        });
         window.addEventListener('resize', onWindowResize);
         init();
     </script>

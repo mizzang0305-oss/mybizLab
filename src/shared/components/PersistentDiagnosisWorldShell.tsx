@@ -11,7 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type PropsWithChildren,
 } from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 
 import {
   buildGuideReply,
@@ -344,6 +344,7 @@ export function PersistentDiagnosisWorldProvider({
   children,
   pathname,
 }: PropsWithChildren<PersistentDiagnosisWorldProviderProps>) {
+  const prefersReducedMotion = useReducedMotion();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const responseTimersRef = useRef<number[]>([]);
@@ -386,6 +387,9 @@ export function PersistentDiagnosisWorldProvider({
   const [paused, setPaused] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
   const [hovered, setHovered] = useState(false);
+  const [compactViewport, setCompactViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < MOBILE_PANEL_BREAKPOINT || window.innerHeight < 760 : false,
+  );
 
   const setRect = useCallback((nextRect: RectState) => {
     setRectState((current) => (sameRect(current, nextRect) ? current : nextRect));
@@ -467,6 +471,17 @@ export function PersistentDiagnosisWorldProvider({
   );
 
   const tone = getMybiModeTone(resolvedScene.companionMode);
+  const allowShellDrift =
+    resolvedScene.layoutMode === 'floating' &&
+    !isDragging &&
+    !panelOpen &&
+    !hovered &&
+    !prefersReducedMotion;
+  const allowInnerBreathing =
+    resolvedScene.layoutMode !== 'hero' &&
+    !panelOpen &&
+    !hovered &&
+    !prefersReducedMotion;
 
   useEffect(() => {
     const introContent = buildMybiConversationIntro(resolvedScene);
@@ -591,7 +606,16 @@ export function PersistentDiagnosisWorldProvider({
   }, [active, ready, resolvedScene]);
 
   useEffect(() => {
-    if (!active || typeof window === 'undefined' || resolvedScene.layoutMode !== 'floating') return;
+    if (!active || !ready) return;
+    postToWorld(iframeRef.current, 'mybi-world:command', {
+      command: 'setRenderProfile',
+      lowPower: compactViewport,
+      reducedMotion: Boolean(prefersReducedMotion),
+    });
+  }, [active, compactViewport, prefersReducedMotion, ready]);
+
+  useEffect(() => {
+    if (!active || typeof window === 'undefined' || resolvedScene.layoutMode !== 'floating' || prefersReducedMotion) return;
     const interval = window.setInterval(() => {
       if (Date.now() - manualThemeAtRef.current < 45_000) return;
       setThemeIndex((current) => {
@@ -601,7 +625,22 @@ export function PersistentDiagnosisWorldProvider({
       });
     }, 28_000);
     return () => window.clearInterval(interval);
-  }, [active, resolvedScene.layoutMode]);
+  }, [active, prefersReducedMotion, resolvedScene.layoutMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateViewportState = () => {
+      setCompactViewport(window.innerWidth < MOBILE_PANEL_BREAKPOINT || window.innerHeight < 760);
+    };
+
+    updateViewportState();
+    window.addEventListener('resize', updateViewportState);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportState);
+    };
+  }, []);
 
   const runTimedMode = useCallback((nextMode: MybiCompanionMode, durationMs: number) => {
     if (typeof window === 'undefined') return;
@@ -917,8 +956,8 @@ export function PersistentDiagnosisWorldProvider({
                     opacity: 1,
                     top: rect.top,
                     width: rect.width,
-                    x: resolvedScene.layoutMode === 'floating' && !isDragging ? [0, 10, -8, 0] : 0,
-                    y: resolvedScene.layoutMode === 'floating' && !isDragging ? [0, -10, 6, 0] : 0,
+                    x: allowShellDrift ? [0, 8, -6, 0] : 0,
+                    y: allowShellDrift ? [0, -8, 4, 0] : 0,
                   }
                 : { opacity: 0 }
             }
@@ -932,26 +971,24 @@ export function PersistentDiagnosisWorldProvider({
               borderRadius: { duration: 0.38, ease: [0.22, 1, 0.36, 1] },
               default: { damping: 32, mass: 0.92, stiffness: 280, type: 'spring' },
               opacity: { duration: 0.18, ease: 'easeOut' },
-              x:
-                resolvedScene.layoutMode === 'floating'
-                  ? { duration: 16, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' }
-                  : { duration: 0.18 },
-              y:
-                resolvedScene.layoutMode === 'floating'
-                  ? { duration: 17, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' }
-                  : { duration: 0.18 },
+              x: allowShellDrift ? { duration: 18, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' } : { duration: 0.18 },
+              y: allowShellDrift ? { duration: 19, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' } : { duration: 0.18 },
             }}
           >
             <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
               <motion.div
-                animate={resolvedScene.layoutMode === 'hero' ? { rotate: 0, scale: 1 } : { rotate: [0, 1.3, -1.1, 0], scale: [1, 1.014, 0.992, 1] }}
+                animate={
+                  !allowInnerBreathing
+                    ? { rotate: 0, scale: 1 }
+                    : { rotate: [0, 1.3, -1.1, 0], scale: [1, 1.014, 0.992, 1] }
+                }
                 className={[
                   'relative h-full w-full overflow-hidden border bg-[#02050a]',
                   hovered && resolvedScene.layoutMode === 'floating' ? 'border-white/18' : 'border-white/10',
                   tone.shellGlow,
                 ].join(' ')}
                 transition={
-                  resolvedScene.layoutMode === 'hero'
+                  !allowInnerBreathing
                     ? { duration: 0.2 }
                     : { duration: 14, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' }
                 }

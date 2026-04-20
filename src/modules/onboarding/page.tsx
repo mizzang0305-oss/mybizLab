@@ -1,6 +1,6 @@
 ﻿import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { DiagnosisLoadingPanel } from '@/shared/components/DiagnosisLoadingPanel';
 import { Panel } from '@/shared/components/Panel';
@@ -110,12 +110,6 @@ const planCards = [
   },
 ];
 
-function messageClassName(tone: MessageTone) {
-  if (tone === 'success') return 'rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700';
-  if (tone === 'error') return 'rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700';
-  return 'rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700';
-}
-
 function businessNumber(seed: string) {
   const hash = Array.from(seed).reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 1_000_000_000, 13);
   const digits = String(100_000_000 + hash).padStart(10, '0').slice(0, 10);
@@ -168,14 +162,6 @@ function reviewNotes(flow: OnboardingFlowState) {
     `요약: ${flow.diagnosisResult.summary}`,
     ...flow.diagnosisResult.recommendedStrategies,
   ].join('\n');
-}
-
-function allowDemoFallback(error: unknown) {
-  if (!(import.meta.env.DEV || import.meta.env.MODE === 'test')) return false;
-  if (error instanceof PortOneCheckoutError) {
-    return ['PORTONE_BROWSER_ENV_MISSING', 'PORTONE_BROWSER_ENV_INVALID', 'SERVER_MISCONFIGURED', 'FUNCTION_INVOCATION_FAILED'].includes(error.code || '');
-  }
-  return error instanceof TypeError;
 }
 
 function diagnosisSourceLabel(source: DiagnosisAnalysisSource) {
@@ -341,7 +327,6 @@ function FeatureSelectionCard({
 }
 
 export function OnboardingPage() {
-  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -352,7 +337,6 @@ export function OnboardingPage() {
   const [message, setMessage] = useState<MessageState | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
   const redirectHandledRef = useRef(false);
-  const cameFromLanding = Boolean((location.state as { corridorEntry?: boolean } | null)?.corridorEntry);
 
   usePageMeta('스토어 AI 진단 신청', 'AI 진단을 통해 매장에 맞는 운영 전략과 플랜을 추천받고, 스토어를 생성하는 과정입니다.');
 
@@ -744,12 +728,16 @@ export function OnboardingPage() {
       }
       await finalizeActivation(payment.paymentId, false, 'browser');
     } catch (error) {
-      if (allowDemoFallback(error)) {
-        await finalizeActivation(`demo_${Date.now()}`, true, 'demo');
-        return;
-      }
       setFlow((current) => ({ ...current, paymentStatus: 'failed', step: 'payment' }));
-      setMessage({ tone: 'error', text: error instanceof Error ? error.message : '결제 연결 중 문제가 발생했습니다.' });
+      setMessage({
+        tone: 'error',
+        text:
+          error instanceof PortOneCheckoutError
+            ? error.code === 'PORTONE_BROWSER_ENV_MISSING' || error.code === 'PORTONE_BROWSER_ENV_INVALID'
+              ? '결제 환경 구성이 아직 완료되지 않았습니다. 관리자 설정을 확인한 뒤 다시 시도해 주세요.'
+              : error.message
+            : '결제 연결 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      });
     }
   }
 

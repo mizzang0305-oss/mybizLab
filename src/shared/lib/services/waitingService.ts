@@ -6,6 +6,10 @@ import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryServic
 import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
 import type { WaitingEntry, WaitingStatus } from '@/shared/types/models';
 
+interface WaitingServiceOptions {
+  repository?: CanonicalMyBizRepository;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -36,9 +40,9 @@ async function syncWaitingVisitorSession(
   });
 }
 
-export async function listStoreWaitingEntries(storeId: string) {
+export async function listStoreWaitingEntries(storeId: string, options?: WaitingServiceOptions) {
   await assertStoreEntitlement(storeId, 'waiting_board');
-  const repository = getCanonicalMyBizRepository();
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const entries = await repository.listWaitingEntries(storeId);
 
   return entries
@@ -49,9 +53,10 @@ export async function listStoreWaitingEntries(storeId: string) {
 export async function saveStoreWaitingEntry(
   storeId: string,
   input: Omit<WaitingEntry, 'id' | 'store_id' | 'created_at'> & { id?: string; created_at?: string },
+  options?: WaitingServiceOptions,
 ) {
   await assertStoreEntitlement(storeId, 'waiting_board');
-  const repository = getCanonicalMyBizRepository();
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const timestamp = nowIso();
   const existing = input.id
     ? (await repository.listWaitingEntries(storeId)).find((entry) => entry.id === input.id) || null
@@ -91,15 +96,24 @@ export async function saveStoreWaitingEntry(
   return savedEntry;
 }
 
-export async function updateStoreWaitingStatus(storeId: string, waitingId: string, status: WaitingStatus) {
-  const repository = getCanonicalMyBizRepository();
+export async function updateStoreWaitingStatus(
+  storeId: string,
+  waitingId: string,
+  status: WaitingStatus,
+  options?: WaitingServiceOptions,
+) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const current = (await repository.listWaitingEntries(storeId)).find((entry) => entry.id === waitingId) || null;
   if (!current) {
     throw new Error('Waiting entry could not be found for this store.');
   }
 
-  return saveStoreWaitingEntry(storeId, {
-    ...current,
-    status,
-  });
+  return saveStoreWaitingEntry(
+    storeId,
+    {
+      ...current,
+      status,
+    },
+    { repository },
+  );
 }

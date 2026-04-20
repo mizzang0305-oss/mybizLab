@@ -2,14 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   createSupabaseRepository,
+  getCanonicalStorePublicPage,
   getPublicInquiryFormSnapshot,
   getSupabaseAdminClient,
+  resolvePublicPageCapabilities,
+  saveStoreReservation,
+  saveStoreWaitingEntry,
   submitCanonicalPublicInquiry,
   touchVisitorSession,
 } = vi.hoisted(() => ({
   createSupabaseRepository: vi.fn(),
+  getCanonicalStorePublicPage: vi.fn(),
   getPublicInquiryFormSnapshot: vi.fn(),
   getSupabaseAdminClient: vi.fn(),
+  resolvePublicPageCapabilities: vi.fn(),
+  saveStoreReservation: vi.fn(),
+  saveStoreWaitingEntry: vi.fn(),
   submitCanonicalPublicInquiry: vi.fn(),
   touchVisitorSession: vi.fn(),
 }));
@@ -24,7 +32,8 @@ vi.mock('../shared/lib/repositories/supabaseRepository.js', () => ({
 
 vi.mock('../shared/lib/services/publicPageService.js', () => ({
   buildDefaultStorePublicPage: vi.fn(),
-  resolvePublicPageCapabilities: vi.fn(),
+  getCanonicalStorePublicPage,
+  resolvePublicPageCapabilities,
   touchVisitorSession,
 }));
 
@@ -34,23 +43,43 @@ vi.mock('../shared/lib/services/inquiryService.js', () => ({
   submitCanonicalPublicInquiry,
 }));
 
+vi.mock('../shared/lib/services/reservationService.js', () => ({
+  saveStoreReservation,
+}));
+
+vi.mock('../shared/lib/services/waitingService.js', () => ({
+  saveStoreWaitingEntry,
+}));
+
 import {
   handlePublicInquiryFormRequest,
   handlePublicInquiryRequest,
+  handlePublicReservationRequest,
   handlePublicStoreRequest,
   handlePublicVisitorSessionRequest,
+  handlePublicWaitingRequest,
 } from '../server/publicApi';
 
 describe('public API node runtime compatibility', () => {
   beforeEach(() => {
     getSupabaseAdminClient.mockReset();
     createSupabaseRepository.mockReset();
+    getCanonicalStorePublicPage.mockReset();
     touchVisitorSession.mockReset();
     submitCanonicalPublicInquiry.mockReset();
     getPublicInquiryFormSnapshot.mockReset();
+    resolvePublicPageCapabilities.mockReset();
+    saveStoreReservation.mockReset();
+    saveStoreWaitingEntry.mockReset();
 
     getSupabaseAdminClient.mockReturnValue({});
     createSupabaseRepository.mockReturnValue({});
+    resolvePublicPageCapabilities.mockResolvedValue({
+      inquiryEnabled: true,
+      publicPageEnabled: true,
+      reservationEnabled: true,
+      waitingEnabled: true,
+    });
   });
 
   it('parses relative node-style URLs for store requests', async () => {
@@ -188,6 +217,115 @@ describe('public API node runtime compatibility', () => {
       expect.objectContaining({
         customerName: 'Node Visitor',
         storeId: 'store-live',
+      }),
+      expect.objectContaining({
+        repository: {},
+      }),
+    );
+  });
+
+  it('accepts raw JSON bodies for reservation writes', async () => {
+    getCanonicalStorePublicPage.mockResolvedValue({
+      id: 'public_page_live',
+      store_id: 'store-live',
+    });
+    saveStoreReservation.mockResolvedValue({
+      id: 'reservation_live',
+      reserved_at: '2026-04-20T19:00:00.000Z',
+      status: 'booked',
+      store_id: 'store-live',
+    });
+
+    const response = await handlePublicReservationRequest({
+      headers: {
+        host: 'example.com',
+      },
+      method: 'POST',
+      rawBody: Buffer.from(
+        JSON.stringify({
+          customerName: '예약 손님',
+          partySize: 2,
+          phone: '010-1111-2222',
+          reservedAt: '2026-04-20T19:00:00.000Z',
+          storeId: 'store-live',
+          visitorSessionId: 'visitor_session_live',
+        }),
+      ),
+      url: '/api/public/reservation',
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        reservation: {
+          id: 'reservation_live',
+        },
+        visitorSessionId: 'visitor_session_live',
+      },
+    });
+    expect(saveStoreReservation).toHaveBeenCalledWith(
+      'store-live',
+      expect.objectContaining({
+        customer_name: '예약 손님',
+        party_size: 2,
+        phone: '010-1111-2222',
+        reserved_at: '2026-04-20T19:00:00.000Z',
+        visitor_session_id: 'visitor_session_live',
+      }),
+      expect.objectContaining({
+        repository: {},
+      }),
+    );
+  });
+
+  it('accepts raw JSON bodies for waiting writes', async () => {
+    getCanonicalStorePublicPage.mockResolvedValue({
+      id: 'public_page_live',
+      store_id: 'store-live',
+    });
+    saveStoreWaitingEntry.mockResolvedValue({
+      id: 'waiting_live',
+      status: 'waiting',
+      store_id: 'store-live',
+    });
+
+    const response = await handlePublicWaitingRequest({
+      headers: {
+        host: 'example.com',
+      },
+      method: 'POST',
+      rawBody: Buffer.from(
+        JSON.stringify({
+          customerName: '현장 대기 손님',
+          partySize: 3,
+          phone: '010-3333-4444',
+          quotedWaitMinutes: 18,
+          storeId: 'store-live',
+          visitorSessionId: 'visitor_session_live',
+        }),
+      ),
+      url: '/api/public/waiting',
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        waitingEntry: {
+          id: 'waiting_live',
+        },
+        visitorSessionId: 'visitor_session_live',
+      },
+    });
+    expect(saveStoreWaitingEntry).toHaveBeenCalledWith(
+      'store-live',
+      expect.objectContaining({
+        customer_name: '현장 대기 손님',
+        party_size: 3,
+        phone: '010-3333-4444',
+        quoted_wait_minutes: 18,
+        visitor_session_id: 'visitor_session_live',
       }),
       expect.objectContaining({
         repository: {},

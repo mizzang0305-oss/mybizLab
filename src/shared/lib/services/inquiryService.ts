@@ -13,7 +13,7 @@ import {
   touchVisitorSession,
 } from '@/shared/lib/services/publicPageService';
 import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
-import type { Customer, Inquiry } from '@/shared/types/models';
+import type { Inquiry } from '@/shared/types/models';
 
 function nowIso() {
   return new Date().toISOString();
