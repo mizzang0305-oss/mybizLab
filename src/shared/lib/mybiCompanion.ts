@@ -51,7 +51,7 @@ function highlightLine(sceneState: MybiSceneState) {
     return null;
   }
 
-  return `지금 입력 흐름에서 중요한 축은 ${highlights.join(', ')}입니다.`;
+  return `지금 입력 흐름에서 중요하게 보고 있는 축은 ${highlights.join(', ')}입니다.`;
 }
 
 function contextLine(sceneState: MybiSceneState) {
@@ -69,15 +69,15 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
   if (pathname === '/') {
     return {
       companionMode: 'hero',
-      contextSummary: '공개 유입이 들어오면 inquiry, reservation, waiting 같은 입력 채널로 이어지고 그 신호가 고객 기억 축으로 쌓입니다.',
+      contextSummary: '공개 유입이 들어오면 문의, 예약, 웨이팅, 주문 같은 채널을 따라 고객 기억 축이 형성됩니다.',
       layoutMode: 'hero',
-      meaning: '지금 보이는 세계는 MyBiz의 공개 유입, 고객 기억, AI 운영 제안 구조를 한 장면으로 보여주는 메인 엔진입니다.',
-      memoryNote: '고객과 타임라인이 고객 기억 축을 만들고, AI는 그 위에서 요약, 분류, 추천, 리포트를 얹습니다.',
-      nextAction: '공개 스토어 진단을 시작하면 같은 세계가 계속 살아 있는 상태로 MYBI 동반자로 이어집니다.',
-      planLabel: '진단 전',
+      meaning: '지금 보이는 월드는 MyBiz의 공개 유입, 고객 기억, AI 운영 제안 구조를 한 화면으로 보여주는 메인 엔진입니다.',
+      memoryNote: '방문 이력, 문의 내용, 예약 상태, 주문 흐름이 고객 타임라인으로 쌓이고 AI는 그 위에서 요약, 분류, 추천, 리포트를 만듭니다.',
+      nextAction: '무료 진단을 시작하면 같은 세계가 MYBI 동반자 모드로 이어지면서 현재 단계에 맞게 반응합니다.',
+      planLabel: '무료 진단',
       pulseKey: 0,
       routeLabel: '랜딩 히어로',
-      selectedHighlights: ['공개 유입', '고객 기억 축', 'AI 운영 레이어'],
+      selectedHighlights: ['공개 유입', '고객 기억 축', 'AI 운영 제안'],
       stepIndex: 0,
       stepLabel: '01 스토어 / 공개 유입',
       title: 'MYBI 히어로',
@@ -87,11 +87,11 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
   if (pathname === '/pricing') {
     return {
       companionMode: 'floating-guide',
-      contextSummary: '플랜 비교에서는 유입 채널의 깊이, 고객 기억 축의 밀도, AI 운영 레이어의 범위를 함께 판단합니다.',
+      contextSummary: '플랜 비교는 단순 가격표가 아니라 어떤 입력 채널과 고객 기억 깊이를 쓸지 결정하는 단계입니다.',
       layoutMode: 'floating',
-      meaning: '요금제 화면은 어떤 채널과 어떤 운영 깊이를 선택할지 정리하는 단계입니다.',
-      memoryNote: 'MyBiz는 일반 챗봇이 아니라 공개 유입, 입력 채널, 고객 기억 축, 운영 액션이 이어지는 시스템입니다.',
-      nextAction: '현재 스토어에 필요한 입력 채널과 기억 축 깊이에 맞는 플랜을 고르세요.',
+      meaning: '요금 화면에서는 FREE, PRO, VIP가 고객 입력 채널과 운영 깊이에 따라 어떻게 달라지는지 정리합니다.',
+      memoryNote: 'MyBiz는 일반 챗봇이 아니라 고객 기억 축을 기반으로 움직이는 운영 시스템입니다.',
+      nextAction: '지금 필요한 채널이 공개 유입인지, 문의·예약·웨이팅인지, 더 깊은 운영 리포트인지 먼저 정해주세요.',
       planLabel: '플랜 비교',
       pulseKey: 0,
       routeLabel: '요금제',
@@ -104,11 +104,11 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
 
   return {
     companionMode: 'floating-guide',
-    contextSummary: 'MYBI는 현재 화면의 입력과 반응을 따라다니며, 무엇이 고객 기억으로 쌓이는지 계속 설명합니다.',
+    contextSummary: 'MYBI는 현재 화면과 최근 입력을 기준으로 어떤 정보가 고객 기억으로 쌓이는지 설명합니다.',
     layoutMode: 'floating',
-    meaning: 'MYBI는 현재 맥락 근처를 떠다니며 살아 있는 neural world를 유지합니다.',
-    memoryNote: '고객과 타임라인이 핵심 기억 축을 만들고, AI는 그 위에서 요약과 추천을 수행합니다.',
-    nextAction: '현재 단계에서 어떤 입력이 고객 기억으로 바뀌는지 확인해 보세요.',
+    meaning: 'MYBI는 현재 맥락 가까이에서 계속 살아 있는 운영 동반자입니다.',
+    memoryNote: '문의, 예약, 웨이팅, 주문이 고객 기억 축을 만들고 AI는 그 위에서 다음 행동을 제안합니다.',
+    nextAction: '현재 단계에서 어떤 입력이 쌓이고 다음에 무엇을 해야 하는지 함께 확인해보세요.',
     planLabel: '안내 중',
     pulseKey: 0,
     routeLabel: '공개 화면',
@@ -123,51 +123,51 @@ export function describeMybiStep(stepIndex: number): Partial<MybiSceneState> {
   switch (stepIndex) {
     case 0:
       return {
-        changedAfterInput: '첫 공개 유입 신호가 들어와 MYBI가 스토어의 시작점을 붙잡았습니다.',
-        contextSummary: '지금은 스토어와 공개 유입이 연결되는 시작 단계입니다.',
-        meaning: '01단계는 스토어와 공개 유입을 확인하는 단계입니다. 무료 유입이 고객 기억 축으로 들어오는 입구를 여는 순간입니다.',
-        memoryNote: '아직 고객 기억 축은 성기지만, 첫 신호가 어떤 채널로 들어오는지 확인하면 이후 분기 품질이 달라집니다.',
-        nextAction: '스토어 맥락을 분명히 잡아 inquiry, reservation, waiting이 올바르게 갈라지게 하세요.',
+        changedAfterInput: '첫 공개 유입 신호가 들어오면 스토어의 시작점이 잡힙니다.',
+        contextSummary: '지금은 스토어와 공개 유입을 확인하는 시작 단계입니다.',
+        meaning: '01단계는 스토어와 공개 유입을 점검하는 단계입니다. 무료 유입이 고객 기억 축으로 들어오는 입구를 여는 시간입니다.',
+        memoryNote: '아직 고객 기억 축이 짧더라도 첫 유입 경로를 정확히 잡아야 이후 채널 분기와 운영 판단이 선명해집니다.',
+        nextAction: '스토어 맥락을 분명히 하고 inquiry, reservation, waiting, order 중 핵심 채널을 먼저 정하세요.',
         stepLabel: '01 스토어 / 공개 유입',
         title: '01 스토어 / 공개 유입',
       };
     case 1:
       return {
-        changedAfterInput: '문의, 예약, 대기 신호가 서로 다른 입력 채널로 갈라지기 시작했습니다.',
-        contextSummary: '지금 단계에서는 각 입력 채널의 의도 차이를 드러냅니다.',
-        meaning: '02단계는 inquiry, reservation, waiting 신호를 수집하고 채널별 의도를 구분하는 단계입니다.',
-        memoryNote: '같은 고객 접점이라도 문의와 예약, 대기는 의도와 긴급도가 달라서 이후 기억 결합 구조가 달라집니다.',
-        nextAction: '현재 스토어에서 어떤 채널이 가장 중요한지 정리하면 이후 제안의 정확도가 올라갑니다.',
+        changedAfterInput: '문의, 예약, 웨이팅 같은 채널이 서로 다른 입력 경로로 갈라지기 시작합니다.',
+        contextSummary: '지금 단계에서는 각 입력 채널의 역할을 구분하는 것이 중요합니다.',
+        meaning: '02단계는 inquiry, reservation, waiting, order 신호를 수집하고 채널별 목적을 구분하는 단계입니다.',
+        memoryNote: '같은 고객 접점이라도 채널에 따라 관심도와 긴급도가 달라지고, 그 차이가 이후 기억 결합 품질을 바꿉니다.',
+        nextAction: '어떤 채널이 가장 중요한지 먼저 정리하면 다음 제안이 훨씬 정확해집니다.',
         stepLabel: '02 신호 수집',
         title: '02 신호 수집',
       };
     case 2:
       return {
-        changedAfterInput: '퍼져 있던 신호가 고객 기억 코어 안으로 강하게 수렴하고 있습니다.',
-        contextSummary: '지금이 MYBI의 시그니처 장면이며, 분산된 입력이 고객 기억 축으로 합쳐집니다.',
-        meaning: '03단계는 고객 기억 결합 단계입니다. 여러 입력 채널과 타임라인이 하나의 기억 축으로 묶입니다.',
-        memoryNote: '고객과 타임라인이 이 단계에서 가장 선명한 운영 기억으로 바뀌며, AI는 그 위에서만 의미 있는 추천을 할 수 있습니다.',
-        nextAction: '가장 강하게 합쳐진 신호를 기준으로 다음 운영 액션을 뽑아내면 됩니다.',
+        changedAfterInput: '분산된 신호가 고객 기억 코어 쪽으로 강하게 모이기 시작했습니다.',
+        contextSummary: '지금이 MYBI의 시그니처 장면입니다. 흩어진 입력이 고객 기억 축으로 결합됩니다.',
+        meaning: '03단계는 고객 기억 결합 단계입니다. 여러 채널과 타임라인이 하나의 고객 기억 축으로 모입니다.',
+        memoryNote: '이 단계가 강해야 AI가 단발성 답변이 아니라 다음 매출 행동으로 이어지는 운영 제안을 만들 수 있습니다.',
+        nextAction: '가장 강하게 결합된 신호를 기준으로 다음 공개 액션이나 운영 액션을 하나 선택하세요.',
         stepLabel: '03 고객 기억 결합',
         title: '03 고객 기억 결합',
       };
     case 3:
       return {
-        changedAfterInput: '결합된 기억에서 다음 액션과 운영 제안이 추출되기 시작했습니다.',
-        contextSummary: '지금은 고객 기억 축 위에 AI 제안이 얹히는 단계입니다.',
-        meaning: '04단계는 다음 액션 제안 단계입니다. 기억 축에서 실행안, 추천, 메시지가 뽑혀 나옵니다.',
-        memoryNote: '기억 축이 충분히 만들어져야만 AI가 표면적인 답이 아니라 운영 가능한 제안을 줄 수 있습니다.',
-        nextAction: '다음 공개 액션, 운영 메시지, 생성 요청 중 무엇을 먼저 실행할지 고르세요.',
+        changedAfterInput: '기억 축 위에서 다음 액션과 운영 제안이 추출되기 시작했습니다.',
+        contextSummary: '지금은 고객 기억 축 위에 AI 제안이 덧입는 단계입니다.',
+        meaning: '04단계는 다음 액션 제안 단계입니다. 고객 기억 축을 바탕으로 실행 가능한 운영 제안이 나옵니다.',
+        memoryNote: '기억 축이 충분히 쌓여야 추천이 단순한 자동 문구가 아니라 실제 운영 판단으로 연결됩니다.',
+        nextAction: '다음 공개 액션, 후속 메시지, 스토어 생성 요청 중 무엇을 먼저 실행할지 고르세요.',
         stepLabel: '04 다음 액션 제안',
         title: '04 다음 액션 제안',
       };
     default:
       return {
-        changedAfterInput: '스토어 쉘과 운영 대시보드가 안정적으로 자리 잡으며 payoff가 완성되고 있습니다.',
-        contextSummary: '입력, 고객 기억, 운영 화면이 하나의 시스템으로 정착하는 단계입니다.',
-        meaning: '05단계는 운영 대시보드 payoff입니다. 스토어 쉘과 대시보드가 고객 기억 축 위에 정착합니다.',
-        memoryNote: '이제 공개 유입, 입력 채널, 고객 기억 축, AI 운영 레이어가 하나의 구조로 연결됩니다.',
-        nextAction: '생성된 스토어나 대시보드를 열고 실제 운영 루프를 이어가세요.',
+        changedAfterInput: '스토어 셸과 운영 대시보드가 하나의 운영 시스템으로 안정되기 시작했습니다.',
+        contextSummary: '입력 채널, 고객 기억, 대시보드가 한 구조로 정착되는 단계입니다.',
+        meaning: '05단계는 운영 대시보드 payoff입니다. 스토어 셸과 대시보드가 고객 기억 축 위에 정착합니다.',
+        memoryNote: '이제 공개 유입, 입력 채널, 고객 타임라인, AI 운영 레이어가 하나의 시스템으로 연결됩니다.',
+        nextAction: '생성된 스토어와 대시보드에서 실제 운영 루프를 시작해보세요.',
         stepLabel: '05 운영 대시보드',
         title: '05 운영 대시보드',
       };
@@ -201,11 +201,11 @@ export function normalizeMybiScene(pathname: string, sceneState: MybiSceneState)
 
 export function buildMybiConversationIntro(sceneState: MybiSceneState) {
   const lines = [
-    `MYBI입니다. ${sceneState.title ? `${sceneState.title} 흐름을 같이 붙잡고 있겠습니다.` : '지금 보고 있는 흐름을 같이 붙잡고 있겠습니다.'}`,
-    sceneState.contextSummary || sceneState.meaning || '현재 입력 맥락을 기준으로 안내드릴게요.',
+    `MYBI입니다. ${sceneState.title ? `${sceneState.title} 맥락을 같이 보고 있겠습니다.` : '지금 화면 맥락을 같이 보고 있겠습니다.'}`,
+    sceneState.contextSummary || sceneState.meaning || '현재 입력 흐름을 기준으로 짧고 정확하게 안내드릴게요.',
     contextLine(sceneState),
     highlightLine(sceneState),
-    sceneState.nextAction ? `바로 이어질 일은 ${sceneState.nextAction}` : null,
+    sceneState.nextAction ? `바로 이어지는 일은 ${sceneState.nextAction}` : null,
   ].filter(Boolean);
 
   return lines.join(' ');
@@ -215,7 +215,7 @@ export function buildGuideReply(question: string, sceneState: MybiSceneState, re
   const normalized = question.trim().toLowerCase();
 
   if (!normalized) {
-    return sceneState.meaning || '현재 단계의 의미부터 차분히 짚어드릴게요.';
+    return sceneState.meaning || '현재 단계에서 하는 일을 먼저 짧게 정리해드릴게요.';
   }
 
   if (includesAny(normalized, ['지금 단계', '현재 단계', 'step', '이 단계'])) {
@@ -228,9 +228,9 @@ export function buildGuideReply(question: string, sceneState: MybiSceneState, re
       .join(' ');
   }
 
-  if (includesAny(normalized, ['왜', '이 질문', '왜 묻', '필요', '이유'])) {
+  if (includesAny(normalized, ['왜', '질문', '필요', '이유'])) {
     return [
-      '이 질문을 하는 이유는 입력 하나가 단순 폼 값이 아니라 고객 기억 축의 품질을 바꾸기 때문입니다.',
+      '이 질문을 하는 이유는 입력 하나가 단순한 값이 아니라 고객 기억 축의 품질을 바꾸기 때문입니다.',
       highlightLine(sceneState),
       sceneState.memoryNote,
     ]
@@ -238,9 +238,9 @@ export function buildGuideReply(question: string, sceneState: MybiSceneState, re
       .join(' ');
   }
 
-  if (includesAny(normalized, ['다음', 'next', '무엇', '뭐 하면', '해야', '진행'])) {
+  if (includesAny(normalized, ['다음', 'next', '무엇', '해야', '진행'])) {
     return [
-      sceneState.nextAction || '다음 액션을 정리해 드릴게요.',
+      sceneState.nextAction || '다음 액션을 짧게 정리해드릴게요.',
       sceneState.planLabel ? `${sceneState.planLabel} 기준으로 이어지는 흐름도 함께 보고 있습니다.` : null,
     ]
       .filter(Boolean)
@@ -249,7 +249,7 @@ export function buildGuideReply(question: string, sceneState: MybiSceneState, re
 
   if (includesAny(normalized, ['기억', 'memory', 'timeline', '고객'])) {
     return [
-      sceneState.memoryNote || '고객과 타임라인이 고객 기억 축을 만듭니다.',
+      sceneState.memoryNote || '고객과 타임라인 정보가 고객 기억 축을 만듭니다.',
       sceneState.changedAfterInput,
       highlightLine(sceneState),
     ]
@@ -258,25 +258,25 @@ export function buildGuideReply(question: string, sceneState: MybiSceneState, re
   }
 
   if (includesAny(normalized, ['문의', 'inquiry'])) {
-    return '문의는 가장 빠르게 의도를 드러내는 채널입니다. 초기 관심 신호를 고객 기억 축에 기록해 이후 예약 전환과 운영 응대를 정교하게 만듭니다.';
+    return '문의는 가장 빠르게 관심도를 보여주는 채널입니다. 첫 관심 신호를 고객 기억 축에 남기고 후속 응대의 기준을 만들 수 있습니다.';
   }
 
   if (includesAny(normalized, ['예약', 'reservation'])) {
-    return '예약은 구매 의도가 가장 진한 채널이라 타임라인 정확도와 실행 우선순위를 함께 끌어올립니다.';
+    return '예약은 구매 의도가 더 또렷한 채널입니다. 날짜와 인원, 방문 의도를 함께 받아야 다음 운영 판단이 정확해집니다.';
   }
 
-  if (includesAny(normalized, ['대기', 'waiting'])) {
-    return '대기 신호는 미뤄진 수요를 보여줍니다. 놓친 타이밍이 매출 손실로 이어지는 지점을 찾는 데 중요합니다.';
+  if (includesAny(normalized, ['웨이팅', 'waiting', '대기'])) {
+    return '웨이팅은 현장 수요와 이탈 위험을 동시에 보여주는 채널입니다. 대기 흐름을 고객 기억에 남겨야 반복 방문 설계가 쉬워집니다.';
   }
 
   if (includesAny(normalized, ['문제', '오류', 'issue', 'error', 'bug'])) {
-    return '문제 제보 탭에서 현재 경로, 단계, 최근 액션, 브라우저 오류, 스크린샷을 함께 검토한 뒤 초안을 열 수 있습니다. 자동 전송은 하지 않습니다.';
+    return '문제 제보 탭에서는 현재 경로, 단계, 최근 액션, 브라우저 오류, 스크린샷 여부를 함께 검토하고 확인 후 직접 보내도록 도와드립니다.';
   }
 
   return [
-    sceneState.contextSummary || sceneState.meaning || '현재 맥락을 기준으로 답변드릴게요.',
+    sceneState.contextSummary || sceneState.meaning || '현재 맥락 기준으로 답변드릴게요.',
     contextLine(sceneState),
-    recentActivity[0] ? `최근 사용자가 건드린 항목은 "${recentActivity[0]}"입니다.` : null,
+    recentActivity[0] ? `최근 액션은 "${recentActivity[0]}" 입니다.` : null,
     highlightLine(sceneState),
     sceneState.nextAction,
   ]
@@ -313,7 +313,7 @@ export function buildMybiMailDraft({
     '[고객 기억 축 메모]',
     sceneState.memoryNote || '없음',
     '',
-    '[방금 바뀐 내용]',
+    '[방금 반영된 내용]',
     sceneState.changedAfterInput || '없음',
     '',
     '[다음 액션]',

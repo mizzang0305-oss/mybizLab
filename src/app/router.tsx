@@ -1,7 +1,8 @@
 import { Suspense, lazy, type ComponentType, type ElementType } from 'react';
-import { createBrowserRouter, RouterProvider, type RouteObject } from 'react-router-dom';
+import { Navigate, createBrowserRouter, RouterProvider, type RouteObject } from 'react-router-dom';
 
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
+import { PublicCompanionLayout } from '@/app/layouts/PublicCompanionLayout';
 import { DashboardLayout } from '@/app/layouts/DashboardLayout';
 import { PublicLayout } from '@/app/layouts/PublicLayout';
 import { StorePublicLayout } from '@/app/layouts/StorePublicLayout';
@@ -55,10 +56,15 @@ const NotFoundPage = lazyPage(() => import('@/pages/NotFoundPage'), 'NotFoundPag
 const OrdersPage = lazyPage(() => import('@/modules/orders/page'), 'OrdersPage');
 const PrivacyPage = lazyPage(() => import('@/pages/PrivacyPage'), 'PrivacyPage');
 const PublicInquiryPage = lazyPage(() => import('@/modules/inquiries/public-page'), 'PublicInquiryPage');
+const PublicReservationPage = lazyPage(
+  () => import('@/modules/reservations/public-page'),
+  'PublicReservationPage',
+);
 const PublicSurveyResponsePage = lazyPage(
   () => import('@/modules/surveys/public-response-page'),
   'PublicSurveyResponsePage',
 );
+const PublicWaitingPage = lazyPage(() => import('@/modules/waiting/public-page'), 'PublicWaitingPage');
 const RefundPage = lazyPage(() => import('@/pages/RefundPage'), 'RefundPage');
 const ReservationsPage = lazyPage(() => import('@/modules/reservations/page'), 'ReservationsPage');
 const SalesPage = lazyPage(() => import('@/modules/sales/page'), 'SalesPage');
@@ -98,6 +104,10 @@ export const appRoutes: RouteObject[] = [
       {
         path: '/pricing',
         element: <PricingPage />,
+      },
+      {
+        path: '/billing',
+        element: <Navigate replace to="/pricing" />,
       },
       {
         path: '/dev/ui',
@@ -213,46 +223,59 @@ export const appRoutes: RouteObject[] = [
     ],
   },
   {
-    path: '/s/:storeId/survey/:formId',
-    element: routeElement(PublicSurveyResponsePage),
-  },
-  {
-    path: '/s/:storeId/inquiry',
-    element: routeElement(PublicInquiryPage),
-  },
-  {
-    path: '/:storeSlug',
-    element: <StorePublicLayout />,
+    element: <PublicCompanionLayout />,
     children: [
       {
-        index: true,
-        element: routeElement(StoreHomePage),
+        path: '/s/:storeId/survey/:formId',
+        element: routeElement(PublicSurveyResponsePage),
       },
       {
-        path: 'menu',
-        element: routeElement(StoreMenuPage),
+        path: '/s/:storeId/inquiry',
+        element: routeElement(PublicInquiryPage),
       },
       {
-        path: 'order',
-        element: routeElement(StoreOrderPage),
-      },
-    ],
-  },
-  {
-    path: '/store/:storeId',
-    element: <StorePublicLayout />,
-    children: [
-      {
-        index: true,
-        element: routeElement(StoreHomePage),
+        path: '/s/:storeId/reservation',
+        element: routeElement(PublicReservationPage),
       },
       {
-        path: 'menu',
-        element: routeElement(StoreMenuPage),
+        path: '/s/:storeId/waiting',
+        element: routeElement(PublicWaitingPage),
       },
       {
-        path: 'order',
-        element: routeElement(StoreOrderPage),
+        path: '/:storeSlug',
+        element: <StorePublicLayout />,
+        children: [
+          {
+            index: true,
+            element: routeElement(StoreHomePage),
+          },
+          {
+            path: 'menu',
+            element: routeElement(StoreMenuPage),
+          },
+          {
+            path: 'order',
+            element: routeElement(StoreOrderPage),
+          },
+        ],
+      },
+      {
+        path: '/store/:storeId',
+        element: <StorePublicLayout />,
+        children: [
+          {
+            index: true,
+            element: routeElement(StoreHomePage),
+          },
+          {
+            path: 'menu',
+            element: routeElement(StoreMenuPage),
+          },
+          {
+            path: 'order',
+            element: routeElement(StoreOrderPage),
+          },
+        ],
       },
     ],
   },

@@ -11,7 +11,7 @@ import {
 } from '@/shared/lib/domain/customerMemory';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import type { CanonicalCustomerMemoryRepository } from '@/shared/lib/repositories';
-import type { Customer, CustomerContact, CustomerPreference, CustomerTimelineEvent } from '@/shared/types/models';
+import type { Customer, CustomerContact, CustomerPreference } from '@/shared/types/models';
 import type { CustomerMemoryRecord, CustomerMemoryUpsertInput } from '@/shared/lib/repositories/contracts';
 
 function nowIso() {

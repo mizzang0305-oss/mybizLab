@@ -6,6 +6,10 @@ import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryServic
 import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
 import type { Reservation, ReservationStatus } from '@/shared/types/models';
 
+interface ReservationServiceOptions {
+  repository?: CanonicalMyBizRepository;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -36,9 +40,9 @@ async function syncReservationVisitorSession(
   });
 }
 
-export async function listStoreReservations(storeId: string) {
+export async function listStoreReservations(storeId: string, options?: ReservationServiceOptions) {
   await assertStoreEntitlement(storeId, 'reservations');
-  const repository = getCanonicalMyBizRepository();
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const reservations = await repository.listReservations(storeId);
 
   return reservations.slice().sort((left, right) => left.reserved_at.localeCompare(right.reserved_at));
@@ -47,9 +51,10 @@ export async function listStoreReservations(storeId: string) {
 export async function saveStoreReservation(
   storeId: string,
   input: Omit<Reservation, 'id' | 'store_id'> & { id?: string },
+  options?: ReservationServiceOptions,
 ) {
   await assertStoreEntitlement(storeId, 'reservations');
-  const repository = getCanonicalMyBizRepository();
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const timestamp = nowIso();
   const existing = input.id
     ? (await repository.listReservations(storeId)).find((reservation) => reservation.id === input.id) || null
@@ -88,15 +93,24 @@ export async function saveStoreReservation(
   return savedReservation;
 }
 
-export async function updateStoreReservationStatus(storeId: string, reservationId: string, status: ReservationStatus) {
-  const repository = getCanonicalMyBizRepository();
+export async function updateStoreReservationStatus(
+  storeId: string,
+  reservationId: string,
+  status: ReservationStatus,
+  options?: ReservationServiceOptions,
+) {
+  const repository = options?.repository || getCanonicalMyBizRepository();
   const current = (await repository.listReservations(storeId)).find((reservation) => reservation.id === reservationId) || null;
   if (!current) {
     throw new Error('Reservation could not be found for this store.');
   }
 
-  return saveStoreReservation(storeId, {
+  return saveStoreReservation(
+    storeId,
+    {
     ...current,
     status,
-  });
+    },
+    { repository },
+  );
 }

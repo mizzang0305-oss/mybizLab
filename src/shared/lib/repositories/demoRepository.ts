@@ -1,21 +1,8 @@
 import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createId } from '@/shared/lib/ids';
 import type {
-  ConversationMessage,
-  ConversationSession,
-  Customer,
-  CustomerContact,
-  CustomerPreference,
-  CustomerTimelineEvent,
-  Inquiry,
   Profile,
-  Reservation,
-  Store,
   StoreMember,
-  StorePublicPage,
-  StoreSubscription,
-  VisitorSession,
-  WaitingEntry,
 } from '@/shared/types/models';
 import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
 

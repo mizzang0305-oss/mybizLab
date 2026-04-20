@@ -12,12 +12,14 @@ describe('app routing', () => {
     expect(matchedPaths('/')).toContain('/');
     expect(matchedPaths('/login')).toContain('/login');
     expect(matchedPaths('/pricing')).toContain('/pricing');
+    expect(matchedPaths('/billing')).toContain('/billing');
     expect(matchedPaths('/dev/ui')).toContain('/dev/ui');
     expect(matchedPaths('/terms')).toContain('/terms');
     expect(matchedPaths('/privacy')).toContain('/privacy');
     expect(matchedPaths('/refund')).toContain('/refund');
 
     expect(matchedPaths('/pricing')).not.toContain('/:storeSlug');
+    expect(matchedPaths('/billing')).not.toContain('/:storeSlug');
     expect(matchedPaths('/dev/ui')).not.toContain('/:storeSlug');
     expect(matchedPaths('/terms')).not.toContain('/:storeSlug');
   });
@@ -73,5 +75,10 @@ describe('app routing', () => {
 
   it('resolves the public inquiry route by store id', () => {
     expect(matchedPaths('/s/store_golden_coffee/inquiry')).toContain('/s/:storeId/inquiry');
+  });
+
+  it('resolves the public reservation and waiting routes by store id', () => {
+    expect(matchedPaths('/s/store_golden_coffee/reservation')).toContain('/s/:storeId/reservation');
+    expect(matchedPaths('/s/store_golden_coffee/waiting')).toContain('/s/:storeId/waiting');
   });
 });

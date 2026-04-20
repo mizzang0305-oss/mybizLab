@@ -58,7 +58,7 @@ function hasEnabledFeature(features: StoreFeature[] | undefined, key: StoreFeatu
   return (features || []).some((feature) => feature.feature_key === key && feature.enabled);
 }
 
-function buildMedia(storeId: string, input: StorePublicPageUpsertInput, timestamp: string): StoreMedia[] {
+function buildMedia(storeId: string, input: StorePublicPageUpsertInput, _timestamp: string): StoreMedia[] {
   return [
     {
       id: createId('store_media'),

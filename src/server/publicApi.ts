@@ -5,9 +5,12 @@ import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRep
 import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '../shared/lib/services/inquiryService.js';
 import {
   buildDefaultStorePublicPage,
+  getCanonicalStorePublicPage,
   resolvePublicPageCapabilities,
   touchVisitorSession,
 } from '../shared/lib/services/publicPageService.js';
+import { saveStoreReservation } from '../shared/lib/services/reservationService.js';
+import { saveStoreWaitingEntry } from '../shared/lib/services/waitingService.js';
 import { getStoreBrandConfig, getStoreRecordId, normalizeStoreRecord } from '../shared/lib/storeData.js';
 import type {
   Inquiry,
@@ -20,11 +23,9 @@ import type {
   StoreLocation,
   StoreMedia,
   StoreNotice,
-  StorePublicPage,
   StoreTable,
   Survey,
   SurveyResponse,
-  VisitorSession,
 } from '../shared/types/models.js';
 
 function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?: Record<string, string>) {
@@ -550,6 +551,105 @@ export async function handlePublicInquiryRequest(request: PublicApiRequestLike) 
     const body = await parseJsonBody<Parameters<typeof submitCanonicalPublicInquiry>[0]>(request);
     const result = await submitCanonicalPublicInquiry(body, { repository });
     return responseJson({ ok: true, data: result });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+export async function handlePublicReservationRequest(request: PublicApiRequestLike) {
+  try {
+    const repository = createSupabaseRepository(getSupabaseAdminClient());
+    const body = await parseJsonBody<{
+      customerName: string;
+      note?: string;
+      partySize: number;
+      phone: string;
+      reservedAt: string;
+      storeId: string;
+      visitorSessionId?: string;
+    }>(request);
+
+    if (!body.storeId) {
+      return createPublicApiErrorResponse(new Error('storeId is required.'), 400);
+    }
+
+    const publicPage = await getCanonicalStorePublicPage(body.storeId, { repository });
+    if (!publicPage) {
+      return createPublicApiErrorResponse(new Error('Reservation is not available for this store.'), 404);
+    }
+
+    const capabilities = await resolvePublicPageCapabilities(body.storeId, publicPage, { repository });
+    if (!capabilities.reservationEnabled) {
+      return createPublicApiErrorResponse(new Error('Reservation is not enabled for this store.'), 403);
+    }
+
+    const reservation = await saveStoreReservation(
+      body.storeId,
+      {
+        customer_name: body.customerName,
+        note: body.note?.trim() || undefined,
+        party_size: body.partySize,
+        phone: body.phone,
+        reserved_at: body.reservedAt,
+        status: 'booked',
+        visitor_session_id: body.visitorSessionId,
+      },
+      { repository },
+    );
+
+    return responseJson({
+      ok: true,
+      data: {
+        reservation,
+        visitorSessionId: body.visitorSessionId,
+      },
+    });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+export async function handlePublicWaitingRequest(request: PublicApiRequestLike) {
+  try {
+    const repository = createSupabaseRepository(getSupabaseAdminClient());
+    const body = await parseJsonBody<{
+      customerName: string;
+      partySize: number;
+      phone: string;
+      quotedWaitMinutes?: number;
+      storeId: string;
+      visitorSessionId?: string;
+    }>(request);
+
+    if (!body.storeId) {
+      return createPublicApiErrorResponse(new Error('storeId is required.'), 400);
+    }
+
+    const publicPage = await getCanonicalStorePublicPage(body.storeId, { repository });
+    if (!publicPage) {
+      return createPublicApiErrorResponse(new Error('Waiting is not available for this store.'), 404);
+    }
+
+    const waitingEntry = await saveStoreWaitingEntry(
+      body.storeId,
+      {
+        customer_name: body.customerName,
+        party_size: body.partySize,
+        phone: body.phone,
+        quoted_wait_minutes: body.quotedWaitMinutes ?? 0,
+        status: 'waiting',
+        visitor_session_id: body.visitorSessionId,
+      },
+      { repository },
+    );
+
+    return responseJson({
+      ok: true,
+      data: {
+        visitorSessionId: body.visitorSessionId,
+        waitingEntry,
+      },
+    });
   } catch (error) {
     return createPublicApiErrorResponse(error);
   }

@@ -1,48 +1,114 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import { EmptyState } from '@/shared/components/EmptyState';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { useAccessibleStores, useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
-import { formatDateTime, formatNumber } from '@/shared/lib/format';
-import { getFeatureLabel, SYSTEM_STATUS_LABELS } from '@/shared/lib/platformConsole';
-import { queryKeys } from '@/shared/lib/queryKeys';
-import { getInternalAppAccessSnapshot, listStoreProvisioningLogs, listSystemStatus } from '@/shared/lib/services/platformConsoleService';
+import {
+  APP_RUNTIME_MODE,
+  DATA_PROVIDER,
+  IS_DEMO_RUNTIME,
+  IS_LIVE_RUNTIME,
+  PUBLIC_RUNTIME_CONFIG,
+  isFirebaseConfigured,
+  isSupabaseConfigured,
+} from '@/shared/lib/appConfig';
+
+function buildSystemChecks(accessibleStoreCount: number) {
+  return [
+    {
+      description: IS_LIVE_RUNTIME
+        ? '브라우저는 live 모드로 동작 중이며, 공개 플로우는 서버 API와 canonical repository를 우선 사용합니다.'
+        : '현재는 demo 모드입니다. merchant onboarding 전에는 live 모드 전환이 필요합니다.',
+      label: '런타임 모드',
+      status: IS_LIVE_RUNTIME ? 'active' : 'warning',
+      value: APP_RUNTIME_MODE,
+    },
+    {
+      description: isSupabaseConfigured()
+        ? '브라우저에서 Supabase anon 연결값이 확인됩니다.'
+        : '브라우저용 Supabase anon 설정이 비어 있습니다.',
+      label: 'Supabase 브라우저 연결',
+      status: isSupabaseConfigured() ? 'ready' : 'warning',
+      value: isSupabaseConfigured() ? 'configured' : 'missing',
+    },
+    {
+      description: PUBLIC_RUNTIME_CONFIG.portone.storeId && PUBLIC_RUNTIME_CONFIG.portone.channelKey
+        ? '결제 진입에 필요한 공개 storeId / channelKey가 준비되어 있습니다.'
+        : '결제 진입 공개값이 비어 있어 checkout 시작 전 보완이 필요합니다.',
+      label: '결제 공개값',
+      status: PUBLIC_RUNTIME_CONFIG.portone.storeId && PUBLIC_RUNTIME_CONFIG.portone.channelKey ? 'ready' : 'warning',
+      value: PUBLIC_RUNTIME_CONFIG.portone.storeId && PUBLIC_RUNTIME_CONFIG.portone.channelKey ? 'ready' : 'missing',
+    },
+    {
+      description:
+        accessibleStoreCount > 0
+          ? `${accessibleStoreCount}개 스토어가 현재 접근 컨텍스트에 연결되어 있습니다.`
+          : '접근 가능한 스토어가 없어서 운영 화면 대부분이 비어 있을 수 있습니다.',
+      label: '스토어 접근 컨텍스트',
+      status: accessibleStoreCount > 0 ? 'active' : 'warning',
+      value: `${accessibleStoreCount} stores`,
+    },
+    {
+      description:
+        isFirebaseConfigured() || DATA_PROVIDER === 'supabase'
+          ? '실데이터 공급자 기준으로 동작할 수 있는 설정이 일부 확인됩니다.'
+          : 'data provider가 local/demo 성격으로 남아 있을 수 있습니다.',
+      label: '데이터 공급자',
+      status: DATA_PROVIDER === 'supabase' ? 'active' : DATA_PROVIDER === 'firebase' ? 'ready' : 'warning',
+      value: DATA_PROVIDER,
+    },
+  ];
+}
 
 export function SystemPage() {
-  usePageMeta('시스템 상태', 'mock 데이터 소스, Gemini fallback, PortOne 연동 준비 상태, 보호 라우트, 최근 시드/프로비저닝 상태를 확인하는 운영 페이지입니다.');
+  const accessibleStoresQuery = useAccessibleStores();
+  const { currentStore } = useCurrentStore();
 
-  const systemStatusQuery = useQuery({
-    queryKey: queryKeys.systemStatus,
-    queryFn: listSystemStatus,
-  });
+  usePageMeta(
+    '시스템 상태',
+    '브라우저 런타임, 데이터 공급자, 공개 결제 진입값, 스토어 접근 컨텍스트를 확인하는 운영 페이지입니다.',
+  );
 
-  const provisioningLogsQuery = useQuery({
-    queryKey: queryKeys.provisioningLogs,
-    queryFn: () => listStoreProvisioningLogs(),
-  });
+  const systemChecks = useMemo(
+    () => buildSystemChecks(accessibleStoresQuery.data?.length || 0),
+    [accessibleStoresQuery.data?.length],
+  );
 
-  const appAccessQuery = useQuery({
-    queryKey: ['internal-app-access'],
-    queryFn: getInternalAppAccessSnapshot,
-  });
+  if (accessibleStoresQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="System"
+          title="런타임 상태를 확인하는 중입니다"
+          description="실데이터 연결과 공개 경로 상태를 불러오는 동안 잠시만 기다려 주세요."
+        />
+      </div>
+    );
+  }
 
-  const statuses = systemStatusQuery.data || [];
-  const logs = provisioningLogsQuery.data?.slice(0, 8) || [];
-  const accessSnapshot = appAccessQuery.data || [];
+  if (accessibleStoresQuery.isError) {
+    return (
+      <EmptyState
+        title="시스템 상태를 불러오지 못했습니다"
+        description="현재 로그인/스토어 접근 상태 또는 런타임 설정을 확인한 뒤 다시 시도해 주세요."
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="System readiness"
-        title="시스템 상태"
-        description="현재 데이터 소스, Gemini 상태, PortOne 연동 준비 상태, 공개 페이지와 보호 라우트 상태를 운영 관점에서 확인합니다."
+        eyebrow="System"
+        title="실행 환경 / 연결 상태"
+        description="mock 운영 보드 대신, 지금 브라우저에서 실제로 확인 가능한 런타임 조건만 정리한 시스템 상태 화면입니다."
       />
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {statuses.map((item) => (
-          <div key={item.id} className="section-card p-5">
+        {systemChecks.map((item) => (
+          <div key={item.label} className="section-card p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">{item.label}</p>
@@ -51,74 +117,69 @@ export function SystemPage() {
               <StatusBadge status={item.status} />
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-500">{item.description}</p>
-            <p className="mt-3 text-xs text-slate-400">업데이트 {formatDateTime(item.updated_at)} · {SYSTEM_STATUS_LABELS[item.status]}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[1fr_1fr]">
-        <Panel title="접근 규칙" subtitle="현재 코드 구조에서 공개 라우트와 보호 라우트가 어떻게 분리되어 있는지 운영 기준으로 정리했습니다.">
+      <div className="grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
+        <Panel title="경로 / 접근 규칙" subtitle="공개 경로와 보호 경로의 역할을 현재 제품 전략 기준으로 정리했습니다.">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
-              <p className="font-semibold text-emerald-900">공개 접근</p>
-              <p className="mt-2 text-sm leading-6 text-emerald-800">
-                홈페이지, pricing, 약관/개인정보/환불, 공개 스토어 홈, 메뉴, 주문은 누구나 접근할 수 있습니다.
+              <p className="font-semibold text-emerald-950">공개 경로</p>
+              <p className="mt-2 text-sm leading-7 text-emerald-900">
+                홈, 온보딩, 요금제, 공개 스토어, 문의, 예약, 웨이팅은 merchant acquisition 및 customer-input 채널입니다.
               </p>
             </div>
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-              <p className="font-semibold text-slate-900">보호 접근</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
-                <code>/login</code> 은 관리자 로그인, <code>/dashboard</code> 이하 경로는 dev 관리자 콘솔 보호 라우트입니다.
+              <p className="font-semibold text-slate-900">운영 경로</p>
+              <p className="mt-2 text-sm leading-7 text-slate-700">
+                <code>/dashboard</code> 아래는 점주/운영자용 관리 화면입니다. 고객 기억 축과 결제 상태는 이 영역에서 확인합니다.
               </p>
             </div>
           </div>
         </Panel>
 
-        <Panel title="스토어별 앱 접근 현황" subtitle="AI 점장, 주문, 매출, 고객관리 같은 내부 앱의 활성화 개수와 대상 스토어를 빠르게 점검합니다.">
-          {accessSnapshot.length ? (
+        <Panel title="현재 스토어 컨텍스트" subtitle="운영 화면이 무엇을 기준으로 동작하는지 보여줍니다.">
+          {currentStore ? (
             <div className="space-y-3">
-              {accessSnapshot.map((entry) => (
-                <div key={entry.store.id} className="rounded-3xl border border-slate-200 bg-white p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-900">{entry.store.name}</p>
-                      <p className="mt-1 text-sm text-slate-500">활성 기능 {formatNumber(entry.enabledFeatures.length)}개</p>
-                    </div>
-                    <StatusBadge status={entry.store.public_status} />
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    {entry.enabledFeatures.length
-                      ? entry.enabledFeatures.map((feature) => getFeatureLabel(feature.feature_key)).join(', ')
-                      : '활성화된 기능이 없습니다.'}
-                  </p>
-                </div>
-              ))}
+              <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                <p className="text-sm font-semibold text-slate-500">선택된 스토어</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{currentStore.name}</p>
+                <p className="mt-2 text-sm text-slate-500">/{currentStore.slug}</p>
+              </div>
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">
+                <p>
+                  현재 스토어는 <span className="font-semibold text-slate-900">{currentStore.business_type || '업종 미설정'}</span>{' '}
+                  기준으로 운영되며, 플랜은 <span className="font-semibold text-slate-900">{currentStore.plan || currentStore.subscription_plan || 'free'}</span>
+                  입니다.
+                </p>
+              </div>
             </div>
           ) : (
-            <EmptyState title="앱 접근 정보가 없습니다" description="스토어별 feature 정보가 생성되면 내부 앱 접근 상태를 이 영역에서 확인할 수 있습니다." />
+            <EmptyState
+              title="현재 선택된 스토어가 없습니다"
+              description="스토어 접근 권한이 연결되면 이 영역에 현재 컨텍스트가 표시됩니다."
+            />
           )}
         </Panel>
       </div>
 
-      <Panel title="최근 프로비저닝 로그" subtitle="스토어 요청 승인, 스토어 생성, billing 생성, owner 연결 등 최근 운영 작업의 로그를 보여줍니다.">
-        {logs.length ? (
-          <div className="space-y-3">
-            {logs.map((log) => (
-              <div key={log.id} className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status={log.level === 'success' ? 'active' : log.level === 'warning' ? 'warning' : 'pending'} />
-                    <p className="font-semibold text-slate-900">{log.action.replace(/_/g, ' ')}</p>
-                  </div>
-                  <p className="text-sm text-slate-600">{log.message}</p>
-                </div>
-                <p className="text-sm text-slate-500">{formatDateTime(log.created_at)}</p>
-              </div>
-            ))}
+      <Panel title="운영 주의 사항" subtitle="이번 안정화 기준에서 아직 별도 확인이 필요한 영역입니다.">
+        <div className="space-y-3">
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-7 text-amber-900">
+            서버 시크릿, 웹훅 비밀키, service role key는 보안상 브라우저에 노출하지 않습니다. 이 화면은 공개 가능한 연결 상태만 보여줍니다.
           </div>
-        ) : (
-          <EmptyState title="프로비저닝 로그가 없습니다" description="스토어 생성 요청이 접수되고 승인되면 최근 로그가 이 영역에 표시됩니다." />
-        )}
+          {IS_DEMO_RUNTIME ? (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-7 text-amber-900">
+              현재 앱이 demo 모드에 머물러 있습니다. merchant onboarding 전에는 live 모드 전환과 실제 데이터 공급자 확인이 필요합니다.
+            </div>
+          ) : null}
+          {PUBLIC_RUNTIME_CONFIG.warnings.length ? (
+            <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm leading-7 text-rose-800">
+              런타임 경고: {PUBLIC_RUNTIME_CONFIG.warnings.join(' / ')}
+            </div>
+          ) : null}
+        </div>
       </Panel>
     </div>
   );

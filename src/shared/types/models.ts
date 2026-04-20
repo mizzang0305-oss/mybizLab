@@ -47,7 +47,7 @@ export type CustomerPreferredChannel = 'sms' | 'phone' | 'email';
 export type ConversationChannel = 'public_inquiry' | 'ai_chat' | 'dashboard_manual';
 export type ConversationSessionStatus = 'open' | 'closed';
 export type ConversationMessageSender = 'customer' | 'assistant' | 'staff' | 'system';
-export type VisitorSessionChannel = 'home' | 'menu' | 'order' | 'survey' | 'inquiry';
+export type VisitorSessionChannel = 'home' | 'menu' | 'order' | 'survey' | 'inquiry' | 'reservation' | 'waiting';
 export type CustomerTimelineEventType =
   | 'customer_created'
   | 'contact_captured'
