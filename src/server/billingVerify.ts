@@ -8,7 +8,7 @@ import {
   parseJsonBody,
   responseJson,
   validateBillingEnv,
-} from '../../src/server/billingApiRuntime';
+} from './billingApiRuntime';
 
 const ENDPOINT = '/api/billing/verify';
 
@@ -25,7 +25,7 @@ function readPaymentId(body: Record<string, unknown>) {
   });
 }
 
-async function handleRequest(request: Request) {
+export async function handleBillingVerifyRequest(request: Request) {
   logBillingStage(ENDPOINT, 'request received', {
     method: request.method,
     url: request.url,
@@ -95,9 +95,3 @@ async function handleRequest(request: Request) {
     return createBillingApiErrorResponse(ENDPOINT, error);
   }
 }
-
-export default {
-  async fetch(request: Request) {
-    return handleRequest(request);
-  },
-};
