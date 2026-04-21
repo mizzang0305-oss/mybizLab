@@ -1,14 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildStoreSetupRequestRecord } from '@/shared/lib/setupRequestPersistence';
 import type { SetupRequestInput } from '@/shared/types/models';
 
-const { findStoreBySlug, getCanonicalStorePublicPageBySlug, from, insert, updateDatabase } = vi.hoisted(() => ({
-  findStoreBySlug: vi.fn(),
-  getCanonicalStorePublicPageBySlug: vi.fn(),
-  insert: vi.fn(),
-  from: vi.fn(() => ({
-    insert: vi.fn((payload: unknown) => insert(payload)),
-  })),
+const { requestPublicApi, updateDatabase } = vi.hoisted(() => ({
+  requestPublicApi: vi.fn(),
   updateDatabase: vi.fn(() => {
     throw new Error('updateDatabase should not be called in live runtime');
   }),
@@ -20,32 +16,18 @@ vi.mock('@/shared/lib/appConfig', async () => {
     ...actual,
     DATA_PROVIDER: 'supabase',
     IS_DEMO_RUNTIME: false,
+    IS_LIVE_RUNTIME: true,
     IS_PRODUCTION_RUNTIME: true,
   };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    from,
-  },
+  supabase: {},
 }));
 
-vi.mock('@/shared/lib/repositories', () => ({
-  getCanonicalMyBizRepository: () => ({
-    findStoreBySlug,
-  }),
+vi.mock('@/shared/lib/publicApiClient', () => ({
+  requestPublicApi,
 }));
-
-vi.mock('@/shared/lib/services/publicPageService', async () => {
-  const actual = await vi.importActual<typeof import('@/shared/lib/services/publicPageService')>(
-    '@/shared/lib/services/publicPageService',
-  );
-
-  return {
-    ...actual,
-    getCanonicalStorePublicPageBySlug,
-  };
-});
 
 vi.mock('@/shared/lib/mockDb', async () => {
   const actual = await vi.importActual<typeof import('@/shared/lib/mockDb')>('@/shared/lib/mockDb');
@@ -73,51 +55,61 @@ const requestInput: SetupRequestInput = {
 };
 
 describe('saveSetupRequest in live runtime', () => {
+  const originalWindow = globalThis.window;
+
   beforeEach(() => {
-    findStoreBySlug.mockReset();
-    getCanonicalStorePublicPageBySlug.mockReset();
-    from.mockClear();
-    insert.mockReset();
+    requestPublicApi.mockReset();
     updateDatabase.mockClear();
 
-    findStoreBySlug.mockResolvedValue(null);
-    getCanonicalStorePublicPageBySlug.mockResolvedValue(null);
-    insert.mockResolvedValue({ error: null });
+    vi.stubGlobal(
+      'window',
+      {
+        location: {
+          origin: 'https://example.com',
+        },
+      } as Window & typeof globalThis,
+    );
   });
 
-  it('stores the request through Supabase without touching the mock database', async () => {
-    const savedRequest = await saveSetupRequest(requestInput, { requestedPlan: 'pro' });
-    const persistedPayload = insert.mock.calls[0]?.[0];
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalWindow) {
+      vi.stubGlobal('window', originalWindow);
+    }
+  });
 
-    expect(findStoreBySlug).toHaveBeenCalledWith('live-request-store');
-    expect(getCanonicalStorePublicPageBySlug).toHaveBeenCalledWith('live-request-store');
-    expect(from).toHaveBeenCalledWith('store_setup_requests');
-    expect(persistedPayload).toMatchObject({
-      business_name: 'Live Request Store',
-      business_number: '123-45-67890',
-      requested_slug: 'live-request-store',
-      selected_features: ['ai_manager', 'sales_analysis'],
-      status: 'submitted',
+  it('submits the request through the onboarding server route without touching the mock database', async () => {
+    const savedRequest = buildStoreSetupRequestRecord(requestInput, {
+      requestedPlan: 'pro',
+      requestedSlug: 'live-request-store',
     });
-    expect(persistedPayload.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-    expect(persistedPayload).not.toHaveProperty('brand_name');
-    expect(persistedPayload).not.toHaveProperty('requested_plan');
-    expect(persistedPayload).not.toHaveProperty('tagline');
-    expect(updateDatabase).not.toHaveBeenCalled();
-    expect(savedRequest.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-    expect(savedRequest.requested_plan).toBe('pro');
-    expect(savedRequest.requested_slug).toBe('live-request-store');
-  });
+    requestPublicApi.mockResolvedValue({
+      request: savedRequest,
+    });
 
-  it('surfaces the live Supabase insert error without falling back to mock data', async () => {
-    insert.mockResolvedValue({
-      error: {
-        message: 'permission denied for table store_setup_requests',
+    const result = await saveSetupRequest(requestInput, { requestedPlan: 'pro' });
+
+    expect(requestPublicApi).toHaveBeenCalledWith('/api/onboarding/setup-request', {
+      method: 'POST',
+      body: {
+        input: {
+          ...requestInput,
+          requested_slug: 'live-request-store',
+        },
+        requestedPlan: 'pro',
       },
     });
+    expect(updateDatabase).not.toHaveBeenCalled();
+    expect(result.id).toBe(savedRequest.id);
+    expect(result.requested_plan).toBe('pro');
+    expect(result.requested_slug).toBe('live-request-store');
+  });
+
+  it('surfaces the live server save error without falling back to mock data', async () => {
+    requestPublicApi.mockRejectedValue(new Error('동일한 이메일로 짧은 시간 안에 너무 많은 요청이 들어왔습니다. 잠시 후 다시 시도해 주세요.'));
 
     await expect(saveSetupRequest(requestInput, { requestedPlan: 'pro' })).rejects.toThrow(
-      '스토어 생성 요청을 저장하지 못했습니다: permission denied for table store_setup_requests',
+      '동일한 이메일로 짧은 시간 안에 너무 많은 요청이 들어왔습니다. 잠시 후 다시 시도해 주세요.',
     );
 
     expect(updateDatabase).not.toHaveBeenCalled();

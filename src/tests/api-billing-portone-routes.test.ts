@@ -1,6 +1,7 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import billingHandler from '../../api/billing/[action]';
+import checkoutHandler from '../../api/billing/checkout';
+import verifyHandler from '../../api/billing/verify';
 
 describe('/api/billing checkout and verify handlers', () => {
   const originalApiSecret = process.env.PORTONE_API_SECRET;
@@ -44,7 +45,7 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns 405 with a clear message for GET /api/billing/checkout', async () => {
-    const response = await billingHandler(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         method: 'GET',
       }),
@@ -69,7 +70,7 @@ describe('/api/billing checkout and verify handlers', () => {
     delete process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
 
-    const response = await billingHandler(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
@@ -87,7 +88,7 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns 400 from checkout when the plan is missing', async () => {
-    const response = await billingHandler(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({}),
         method: 'POST',
@@ -105,7 +106,7 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns a PortOne checkout session for a valid subscription plan', async () => {
-    const response = await billingHandler(
+    const response = await checkoutHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({ plan: 'pro' }),
         method: 'POST',
@@ -127,7 +128,7 @@ describe('/api/billing checkout and verify handlers', () => {
           fullName: expect.any(String),
           phoneNumber: expect.any(String),
         },
-        orderName: 'PRO \uad6c\ub3c5',
+        orderName: 'PRO 구독',
         payMethod: 'CARD',
         plan: 'pro',
         storeId: 'store-v2-test',
@@ -140,7 +141,7 @@ describe('/api/billing checkout and verify handlers', () => {
   });
 
   it('returns 400 from verify when paymentId is missing', async () => {
-    const response = await billingHandler(
+    const response = await verifyHandler(
       new Request('https://example.com/api/billing/verify', {
         body: JSON.stringify({}),
         method: 'POST',
@@ -165,7 +166,7 @@ describe('/api/billing checkout and verify handlers', () => {
       }),
     ) as typeof fetch;
 
-    const response = await billingHandler(
+    const response = await verifyHandler(
       new Request('https://example.com/api/billing/verify', {
         body: JSON.stringify({ paymentId: 'payment-123' }),
         method: 'POST',
@@ -184,5 +185,3 @@ describe('/api/billing checkout and verify handlers', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
-
-

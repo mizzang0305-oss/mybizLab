@@ -7,6 +7,10 @@
 
 import { getSupabaseAdminClient } from '../../src/server/supabaseAdmin.js';
 
+export const config = {
+  runtime: 'nodejs',
+};
+
 interface ProvisionRequestBody {
   business_name: string;
   owner_name: string;

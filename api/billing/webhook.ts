@@ -10,8 +10,13 @@ import {
   parseJsonBody,
   validateBillingEnv,
 } from '../../src/server/billingApiRuntime';
+import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
 
 const ENDPOINT = '/api/billing/webhook';
+
+export const config = {
+  runtime: 'nodejs',
+};
 
 async function handleRequest(request: Request) {
   logBillingStage(ENDPOINT, 'request received', {
@@ -50,8 +55,8 @@ async function handleRequest(request: Request) {
   }
 }
 
-export default {
-  async fetch(request: Request) {
-    return handleRequest(request);
-  },
-};
+export default async function handler(request: Request, response?: NodeResponseLike) {
+  const result = await handleRequest(request);
+  await sendNodeResponse(result, response);
+  return result;
+}

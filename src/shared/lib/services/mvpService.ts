@@ -26,7 +26,6 @@ import {
 import {
   buildDefaultStorePublicPage,
   getCanonicalStorePublicPage,
-  getCanonicalStorePublicPageBySlug,
   resolvePublicPageCapabilities,
   saveCanonicalStorePublicPage,
 } from '@/shared/lib/services/publicPageService';
@@ -50,6 +49,7 @@ import {
   withStoreBrandConfig,
   withStorePriorityWeights,
 } from '@/shared/lib/storeData';
+import { buildLiveStoreSetupRequestInsertPayload } from '@/shared/lib/setupRequestPersistence';
 import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
 import type {
   AIReport,
@@ -74,6 +74,7 @@ import type {
   SetupPaymentStatus,
   SetupRequestInput,
   StoreRequestStatus,
+  StoreRequest,
   Store,
   StoreAnalyticsProfile,
   StoreDailyMetric,
@@ -130,22 +131,6 @@ interface CreateStoreWithOwnerRpcRow {
   store_id: string;
   id?: string;
   slug: string;
-}
-
-interface LiveStoreSetupRequestInsertPayload {
-  id: string;
-  business_name: string;
-  owner_name: string;
-  business_number: string;
-  phone: string;
-  email: string;
-  address: string;
-  business_type: string;
-  requested_slug: string;
-  selected_features: FeatureKey[];
-  status: 'submitted';
-  created_at: string;
-  updated_at: string;
 }
 
 interface LiveStoreRow {
@@ -307,38 +292,6 @@ async function fetchLiveStoreById(storeId: string) {
 
   const existingStore = getDatabase().stores.find((store) => store.id === storeId) || null;
   return mapLiveStoreToAppStore(data as LiveStoreRow, existingStore);
-}
-
-function buildLiveStoreSetupRequestInsertPayload(request: {
-  id: string;
-  business_name: string;
-  owner_name: string;
-  business_number: string;
-  phone: string;
-  email: string;
-  address: string;
-  business_type: string;
-  requested_slug: string;
-  selected_features: FeatureKey[];
-  status: 'submitted';
-  created_at: string;
-  updated_at: string;
-}): LiveStoreSetupRequestInsertPayload {
-  return {
-    id: request.id,
-    business_name: request.business_name,
-    owner_name: request.owner_name,
-    business_number: request.business_number,
-    phone: request.phone,
-    email: request.email,
-    address: request.address,
-    business_type: request.business_type,
-    requested_slug: request.requested_slug,
-    selected_features: request.selected_features,
-    status: request.status,
-    created_at: request.created_at,
-    updated_at: request.updated_at,
-  };
 }
 
 async function fetchPrioritySettingsRows(storeIds: string[]) {
@@ -1140,17 +1093,10 @@ async function assertAvailableStoreSlug(candidate: string, options?: { excludeSt
 
   if (shouldUseSupabaseStoreProvisioning()) {
     const repository = getCanonicalMyBizRepository();
-    const [existingStore, existingPublicPage] = await Promise.all([
-      repository.findStoreBySlug(normalized),
-      getCanonicalStorePublicPageBySlug(normalized),
-    ]);
+    const existingStore = await repository.findStoreBySlug(normalized);
     const existingStoreId = existingStore?.store_id || existingStore?.id || null;
-    const publicPageStoreId = existingPublicPage?.store_id || null;
 
-    if (
-      (existingStoreId && existingStoreId !== options?.excludeStoreId) ||
-      (publicPageStoreId && publicPageStoreId !== options?.excludeStoreId)
-    ) {
+    if (existingStoreId && existingStoreId !== options?.excludeStoreId) {
       throw new Error('?대? ?ъ슜 以묒씤 ?ㅽ넗??二쇱냼?낅땲??');
     }
 
@@ -2014,7 +1960,29 @@ export async function listSetupRequests() {
 export async function saveSetupRequest(input: SetupRequestInput, options?: SaveSetupRequestOptions) {
   const timestamp = nowIso();
   const requestedPlan = options?.requestedPlan ?? 'free';
-  const requestedSlug = await assertAvailableStoreSlug(input.requested_slug || input.business_name);
+  const normalizedRequestedSlug = normalizeStoreSlug(input.requested_slug || input.business_name);
+
+  if (isReservedSlug(normalizedRequestedSlug)) {
+    throw new Error('?대? ?ъ슜 以묒씠嫄곕굹 ?덉빟???ㅽ넗??二쇱냼?낅땲??');
+  }
+
+  if (typeof window !== 'undefined' && shouldUseSupabaseStoreProvisioning()) {
+    const result = await requestPublicApi<{ request: StoreRequest }>('/api/onboarding/setup-request', {
+      method: 'POST',
+      body: {
+        input: {
+          ...input,
+          requested_slug: normalizedRequestedSlug,
+        },
+        requestedPlan,
+      },
+    });
+
+    return result.request;
+  }
+
+  const requestedSlug = await assertAvailableStoreSlug(normalizedRequestedSlug);
+
   const brandName = input.brand_name?.trim() || input.business_name;
   const tagline = input.tagline?.trim() || `${brandName} 오픈 준비 중`;
   const description = input.description?.trim() || `${brandName} 스토어 오픈을 위한 기본 요청서입니다.`;
