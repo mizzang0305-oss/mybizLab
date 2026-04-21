@@ -180,7 +180,40 @@ describe('/api/billing checkout and verify handlers', () => {
       endpoint: '/api/billing/verify',
       ok: true,
       paymentId: 'payment-123',
+      paymentStatus: 'PAID',
       portoneStatus: 200,
+      verifiedPaid: true,
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a node-style request object for verify', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'payment-node-123', status: 'PAID' }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200,
+      }),
+    ) as typeof fetch;
+
+    const response = await verifyHandler({
+      body: JSON.stringify({ paymentId: 'payment-node-123' }),
+      headers: {
+        'content-type': 'application/json',
+      },
+      method: 'POST',
+      url: 'https://example.com/api/billing/verify',
+    });
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      endpoint: '/api/billing/verify',
+      ok: true,
+      paymentId: 'payment-node-123',
+      paymentStatus: 'PAID',
+      portoneStatus: 200,
+      verifiedPaid: true,
     });
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });

@@ -14,7 +14,7 @@ vi.mock('@/shared/lib/appConfig', async () => {
   const actual = await vi.importActual<typeof import('@/shared/lib/appConfig')>('@/shared/lib/appConfig');
   return {
     ...actual,
-    DATA_PROVIDER: 'supabase',
+    DATA_PROVIDER: 'mock',
     IS_DEMO_RUNTIME: false,
     IS_LIVE_RUNTIME: true,
     IS_PRODUCTION_RUNTIME: true,
@@ -78,7 +78,7 @@ describe('saveSetupRequest in live runtime', () => {
     }
   });
 
-  it('submits the request through the onboarding server route without touching the mock database', async () => {
+  it('submits the request through the onboarding server route even when legacy dataProvider is mock', async () => {
     const savedRequest = buildStoreSetupRequestRecord(requestInput, {
       requestedPlan: 'pro',
       requestedSlug: 'live-request-store',

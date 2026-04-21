@@ -44,6 +44,7 @@ import {
   PortOneCheckoutError,
   getPortOnePaymentErrorMessage,
   launchPortOneCheckout,
+  verifyPortOnePayment,
 } from '@/shared/lib/portoneCheckout';
 import { getFeatureLabel } from '@/shared/lib/platformConsole';
 import { queryKeys } from '@/shared/lib/queryKeys';
@@ -536,6 +537,37 @@ export function OnboardingPage() {
     await activateStore.mutateAsync(paymentId);
   }
 
+  async function verifyAndFinalizePaidActivation(paymentId: string, source: 'browser' | 'redirect') {
+    try {
+      setFlow((current) => ({
+        ...current,
+        paymentStatus: 'processing',
+        step: 'payment',
+      }));
+      setMessage({ tone: 'info', text: '결제 상태를 확인하는 중입니다. 확인이 끝나면 스토어 생성이 이어집니다.' });
+      await verifyPortOnePayment(paymentId);
+      await finalizeActivation(paymentId, false, source);
+    } catch (error) {
+      setFlow((current) => ({
+        ...current,
+        activationStatus: 'idle',
+        paymentStatus: 'failed',
+        step: 'payment',
+      }));
+      setMessage({
+        tone: 'error',
+        text:
+          error instanceof PortOneCheckoutError
+            ? error.code === 'PAYMENT_NOT_COMPLETED'
+              ? error.message
+              : error.code === 'PORTONE_BROWSER_ENV_MISSING' || error.code === 'PORTONE_BROWSER_ENV_INVALID'
+                ? '결제 환경 구성이 아직 완료되지 않았습니다. 관리자 설정을 확인한 뒤 다시 시도해 주세요.'
+                : error.message
+            : '결제 확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      });
+    }
+  }
+
   useEffect(() => {
     const portone = searchParams.get('portone');
     if (portone !== 'redirect' || redirectHandledRef.current) return;
@@ -554,7 +586,7 @@ export function OnboardingPage() {
     }
 
     if (paymentId && flow.requestId) {
-      void finalizeActivation(paymentId, false, 'redirect');
+      void verifyAndFinalizePaidActivation(paymentId, 'redirect');
     }
   }, [flow.requestId, searchParams, setSearchParams]);
 
@@ -727,7 +759,7 @@ export function OnboardingPage() {
         setMessage({ tone: 'error', text: getPortOnePaymentErrorMessage(payment) });
         return;
       }
-      await finalizeActivation(payment.paymentId, false, 'browser');
+      await verifyAndFinalizePaidActivation(payment.paymentId, 'browser');
     } catch (error) {
       setFlow((current) => ({ ...current, paymentStatus: 'failed', step: 'payment' }));
       setMessage({

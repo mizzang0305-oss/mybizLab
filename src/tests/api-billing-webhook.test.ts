@@ -78,6 +78,26 @@ describe('/api/billing/webhook function', () => {
     });
   });
 
+  it('accepts a node-style request object for webhook POST validation', async () => {
+    globalThis.fetch = vi.fn() as typeof fetch;
+
+    const response = await webhookHandler({
+      body: JSON.stringify({ ok: true }),
+      headers: webhookHeaders,
+      method: 'POST',
+      url: 'https://example.com/api/billing/webhook',
+    });
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      endpoint: '/api/billing/webhook',
+      normalizedStatus: 'ignored',
+      ok: true,
+    });
+  });
+
   it('returns 500 with a clear message when PORTONE_WEBHOOK_SECRET is missing', async () => {
     delete process.env.PORTONE_WEBHOOK_SECRET;
 

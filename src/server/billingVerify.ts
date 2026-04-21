@@ -1,5 +1,6 @@
 import {
   BillingApiStageError,
+  type BillingRequestLike,
   callPortOneApi,
   createBillingApiErrorResponse,
   createBillingMethodNotAllowedResponse,
@@ -8,9 +9,25 @@ import {
   parseJsonBody,
   responseJson,
   validateBillingEnv,
-} from './billingApiRuntime';
+} from './billingApiRuntime.js';
 
 const ENDPOINT = '/api/billing/verify';
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function toStringValue(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function readPaymentStatus(payment: unknown) {
+  return toStringValue(toRecord(payment).status) ?? 'UNKNOWN';
+}
 
 function readPaymentId(body: Record<string, unknown>) {
   if (typeof body.paymentId === 'string' && body.paymentId.trim()) {
@@ -25,7 +42,7 @@ function readPaymentId(body: Record<string, unknown>) {
   });
 }
 
-export async function handleBillingVerifyRequest(request: Request) {
+export async function handleBillingVerifyRequest(request: BillingRequestLike) {
   logBillingStage(ENDPOINT, 'request received', {
     method: request.method,
     url: request.url,
@@ -71,18 +88,22 @@ export async function handleBillingVerifyRequest(request: Request) {
       status: portoneResponse.status,
     });
 
+    const paymentStatus = readPaymentStatus(portoneResponse.data);
     const payload = {
       ok: true,
       endpoint: ENDPOINT,
       paymentId,
       payment: portoneResponse.data,
+      paymentStatus,
       portoneStatus: portoneResponse.status,
       storeId: targetStoreId,
+      verifiedPaid: paymentStatus === 'PAID',
     };
 
     logBillingStage(ENDPOINT, 'final response', {
       ok: true,
       paymentId,
+      paymentStatus,
       status: portoneResponse.status,
     });
 

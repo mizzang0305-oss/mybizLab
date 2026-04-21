@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
 import { buildLiveStoreSetupRequestInsertPayload, buildStoreSetupRequestRecord } from '../shared/lib/setupRequestPersistence.js';
-import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
-import { isReservedSlug, normalizeStoreSlug } from '../shared/lib/storeSlug.js';
 import type { FeatureKey, SetupRequestInput, StoreRequest, SubscriptionPlan } from '../shared/types/models.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 
@@ -25,6 +23,18 @@ const KNOWN_FEATURE_KEYS = new Set<FeatureKey>([
   'table_order',
   'waiting_board',
 ]);
+const RESERVED_STORE_SLUGS = [
+  'admin',
+  'api',
+  'login',
+  'onboarding',
+  'dashboard',
+  'pricing',
+  'terms',
+  'privacy',
+  'refund',
+  'store',
+] as const;
 
 let requestedPlanColumnSupported: boolean | null = null;
 const ipSubmissionTimestamps = new Map<string, number[]>();
@@ -108,6 +118,25 @@ function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?
 
 function getRequestMethod(request: RequestLike) {
   return typeof request.method === 'string' && request.method.trim() ? request.method.toUpperCase() : 'GET';
+}
+
+function normalizeRequestedSlug(input: string) {
+  const normalized = input
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFC')
+    .replace(/[^\p{Script=Hangul}a-z0-9\s-]/gu, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return normalized || 'store';
+}
+
+function isReservedRequestedSlug(slug: string) {
+  return RESERVED_STORE_SLUGS.includes(normalizeRequestedSlug(slug) as (typeof RESERVED_STORE_SLUGS)[number]);
 }
 
 function getHeaderValue(request: RequestLike, name: string) {
@@ -238,9 +267,9 @@ async function assertCanonicalSlugAvailable(input: {
   adminClient: ReturnType<typeof getSupabaseAdminClient>;
   requestedSlug: string;
 }) {
-  const normalizedSlug = normalizeStoreSlug(input.requestedSlug);
+  const normalizedSlug = normalizeRequestedSlug(input.requestedSlug);
 
-  if (!normalizedSlug || isReservedSlug(normalizedSlug)) {
+  if (!normalizedSlug || isReservedRequestedSlug(normalizedSlug)) {
     throw new OnboardingSetupRequestError({
       code: 'INVALID_SLUG',
       message: '이미 사용 중이거나 예약된 스토어 주소입니다.',
@@ -248,10 +277,21 @@ async function assertCanonicalSlugAvailable(input: {
     });
   }
 
-  const repository = createSupabaseRepository(input.adminClient);
-  const existingStore = await repository.findStoreBySlug(normalizedSlug);
+  const { data: existingStore, error: storeLookupError } = await input.adminClient
+    .from('stores')
+    .select('store_id,slug')
+    .eq('slug', normalizedSlug)
+    .limit(1);
 
-  if (existingStore) {
+  if (storeLookupError) {
+    throw new OnboardingSetupRequestError({
+      code: 'STORE_LOOKUP_FAILED',
+      message: `Failed to inspect stores by slug: ${storeLookupError.message}`,
+      status: 500,
+    });
+  }
+
+  if (existingStore && existingStore.length > 0) {
     throw new OnboardingSetupRequestError({
       code: 'DUPLICATE_SLUG',
       message: '이미 접수되었거나 사용 중인 스토어 주소입니다.',
