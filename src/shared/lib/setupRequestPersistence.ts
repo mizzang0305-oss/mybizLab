@@ -1,5 +1,5 @@
-import { createId, createUuid } from '@/shared/lib/ids';
-import type { FeatureKey, SetupRequestInput, StoreRequest, SubscriptionPlan } from '@/shared/types/models';
+import { createId, createUuid } from './ids.js';
+import type { FeatureKey, SetupRequestInput, StoreRequest, SubscriptionPlan } from '../types/models.js';
 
 export interface LiveStoreSetupRequestInsertPayload {
   id: string;

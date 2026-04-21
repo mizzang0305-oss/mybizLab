@@ -198,6 +198,10 @@ function shouldUseSupabaseStoreProvisioning() {
   return DATA_PROVIDER === 'supabase' && Boolean(supabase);
 }
 
+function shouldUseServerBackedSetupRequestSave() {
+  return typeof window !== 'undefined' && !IS_DEMO_RUNTIME;
+}
+
 function assertLocalStoreProvisioningAllowed() {
   if (IS_PRODUCTION_RUNTIME) {
     throw new Error('프로덕션에서는 로컬 스토어 생성 경로를 사용할 수 없습니다. create_store_with_owner RPC만 사용해야 합니다.');
@@ -395,6 +399,10 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
 async function createStoreViaSupabaseRpc(
   input: SetupRequestInput,
   plan: SubscriptionPlan,
+  options?: {
+    paymentId?: string;
+    requestId?: string;
+  },
 ): Promise<CreateStoreWithOwnerRpcRow> {
   // 서버사이드 API 통해 service_role로 RPC 호출 (클라이언트 Auth 불필요)
   const response = await fetch('/api/stores/provision', {
@@ -410,6 +418,8 @@ async function createStoreViaSupabaseRpc(
       business_type: input.business_type,
       requested_slug: input.requested_slug || input.business_name,
       plan,
+      ...(options?.paymentId ? { payment_id: options.paymentId } : {}),
+      ...(options?.requestId ? { request_id: options.requestId } : {}),
     }),
   });
 
@@ -1966,7 +1976,7 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
     throw new Error('?대? ?ъ슜 以묒씠嫄곕굹 ?덉빟???ㅽ넗??二쇱냼?낅땲??');
   }
 
-  if (typeof window !== 'undefined' && shouldUseSupabaseStoreProvisioning()) {
+  if (shouldUseServerBackedSetupRequestSave()) {
     const result = await requestPublicApi<{ request: StoreRequest }>('/api/onboarding/setup-request', {
       method: 'POST',
       body: {
@@ -2039,6 +2049,10 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
     return request;
   }
 
+  if (!IS_DEMO_RUNTIME) {
+    throw new Error('Store setup request local fallback is disabled outside explicit demo runtime.');
+  }
+
   updateDatabase((database) => {
     database.store_requests.unshift(request);
   });
@@ -2049,7 +2063,10 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
-    const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan);
+    const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan, {
+      paymentId: options?.paymentId,
+      requestId: options?.requestId,
+    });
     const profileId = await getAuthenticatedSupabaseUserId();
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
 

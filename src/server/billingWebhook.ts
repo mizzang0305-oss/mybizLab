@@ -1,7 +1,7 @@
 import { Webhook } from '@portone/server-sdk';
 import { createClient } from '@supabase/supabase-js';
 
-import { BillingApiStageError, callPortOneApi, type BillingEnv, responseJson } from './billingApiRuntime';
+import { BillingApiStageError, callPortOneApi, type BillingEnv, responseJson } from './billingApiRuntime.js';
 
 const PORTONE_REQUIRED_HEADERS = ['webhook-id', 'webhook-signature', 'webhook-timestamp'] as const;
 const SUPABASE_WEBHOOK_EVENTS_TABLE = 'billing_webhook_events';

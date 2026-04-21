@@ -14,10 +14,7 @@ const routeMocks = vi.hoisted(() => {
     insert,
     select: vi.fn(() => queryBuilder),
   }));
-  const findStoreBySlug = vi.fn();
-
   return {
-    findStoreBySlug,
     from,
     insert,
     insertResultQueue,
@@ -32,17 +29,10 @@ vi.mock('../server/supabaseAdmin.js', () => ({
   }),
 }));
 
-vi.mock('../shared/lib/repositories/supabaseRepository.js', () => ({
-  createSupabaseRepository: () => ({
-    findStoreBySlug: routeMocks.findStoreBySlug,
-  }),
-}));
-
 import onboardingSetupRequestHandler from '../../api/onboarding/setup-request';
 
 describe('/api/onboarding/setup-request', () => {
   beforeEach(() => {
-    routeMocks.findStoreBySlug.mockReset();
     routeMocks.from.mockClear();
     routeMocks.insert.mockClear();
     routeMocks.queryBuilder.eq.mockClear();
@@ -50,11 +40,10 @@ describe('/api/onboarding/setup-request', () => {
     routeMocks.queryBuilder.limit.mockClear();
     routeMocks.selectResultQueue.length = 0;
     routeMocks.insertResultQueue.length = 0;
-    routeMocks.findStoreBySlug.mockResolvedValue(null);
   });
 
   it('saves a valid onboarding request through the server route even when requested_plan is not yet migrated', async () => {
-    routeMocks.selectResultQueue.push({ data: [], error: null }, { data: [], error: null });
+    routeMocks.selectResultQueue.push({ data: [], error: null }, { data: [], error: null }, { data: [], error: null });
     routeMocks.insertResultQueue.push(
       {
         error: {
@@ -92,7 +81,13 @@ describe('/api/onboarding/setup-request', () => {
     const payload = await response.json();
 
     expect(response.status).toBe(201);
-    expect(routeMocks.findStoreBySlug).toHaveBeenCalledWith('runtime-save-store');
+    expect(routeMocks.from.mock.calls.map((call) => call.at(0))).toEqual([
+      'stores',
+      'store_setup_requests',
+      'store_setup_requests',
+      'store_setup_requests',
+      'store_setup_requests',
+    ]);
     expect(routeMocks.insert).toHaveBeenCalledTimes(2);
     expect(routeMocks.insert.mock.calls[0]?.[0]).toMatchObject({
       requested_plan: 'pro',
@@ -115,9 +110,9 @@ describe('/api/onboarding/setup-request', () => {
   });
 
   it('rejects duplicate canonical slugs before inserting a setup request', async () => {
-    routeMocks.findStoreBySlug.mockResolvedValue({
-      id: 'store-live',
-      slug: 'runtime-save-store',
+    routeMocks.selectResultQueue.push({
+      data: [{ id: 'store-live', slug: 'runtime-save-store' }],
+      error: null,
     });
 
     const response = await onboardingSetupRequestHandler(
@@ -148,6 +143,7 @@ describe('/api/onboarding/setup-request', () => {
 
     expect(response.status).toBe(409);
     expect(routeMocks.insert).not.toHaveBeenCalled();
+    expect(routeMocks.from.mock.calls.map((call) => call.at(0))).toEqual(['stores']);
     expect(payload).toMatchObject({
       ok: false,
       code: 'DUPLICATE_SLUG',

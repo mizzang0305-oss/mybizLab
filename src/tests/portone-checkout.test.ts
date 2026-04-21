@@ -24,6 +24,7 @@ import {
   type CheckoutSessionResponse,
   createCheckoutSession,
   launchPortOneCheckout,
+  verifyPortOnePayment,
 } from '@/shared/lib/portoneCheckout';
 import { BUSINESS_INFO } from '@/shared/lib/siteConfig';
 
@@ -263,11 +264,10 @@ describe('PortOne checkout client helpers', () => {
 
     expect(requestBody.customer).toMatchObject({
       email: BUSINESS_INFO.email,
-      fullName: '이정민',
+      fullName: BUSINESS_INFO.representative,
       phoneNumber: BUSINESS_INFO.customerCenter,
     });
     expect(requestBody.customer.fullName).toBe(BUSINESS_INFO.representative);
-    expect(requestBody.customer.fullName).not.toBe('이정미');
   });
 
   it('returns a clear error when checkout API responds with JSON', async () => {
@@ -491,6 +491,73 @@ describe('PortOne checkout client helpers', () => {
       code: 'FUNCTION_INVOCATION_FAILED',
       stage: 'server-invocation',
       status: 500,
+    });
+  });
+
+  it('verifies a paid PortOne payment before onboarding activation continues', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          endpoint: '/api/billing/verify',
+          ok: true,
+          payment: {
+            id: 'payment-paid-001',
+            status: 'PAID',
+          },
+          paymentId: 'payment-paid-001',
+          paymentStatus: 'PAID',
+          portoneStatus: 200,
+          storeId: 'store-v2-test',
+          verifiedPaid: true,
+        }),
+        {
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+          status: 200,
+        },
+      ),
+    ) as typeof fetch;
+
+    await expect(verifyPortOnePayment('payment-paid-001')).resolves.toMatchObject({
+      paymentId: 'payment-paid-001',
+      paymentStatus: 'PAID',
+      verifiedPaid: true,
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/billing/verify',
+      expect.objectContaining({
+        body: JSON.stringify({ paymentId: 'payment-paid-001' }),
+        method: 'POST',
+      }),
+    );
+  });
+
+  it('throws PAYMENT_NOT_COMPLETED when verify reports a non-paid status', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          endpoint: '/api/billing/verify',
+          ok: true,
+          payment: {
+            id: 'payment-failed-001',
+            status: 'FAILED',
+          },
+          paymentId: 'payment-failed-001',
+          paymentStatus: 'FAILED',
+          portoneStatus: 200,
+          storeId: 'store-v2-test',
+          verifiedPaid: false,
+        }),
+        {
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+          status: 200,
+        },
+      ),
+    ) as typeof fetch;
+
+    await expect(verifyPortOnePayment('payment-failed-001')).rejects.toMatchObject({
+      code: 'PAYMENT_NOT_COMPLETED',
+      stage: 'payment-verify',
+      status: 409,
     });
   });
 });

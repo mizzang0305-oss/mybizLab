@@ -5,6 +5,7 @@ import { isAsciiSerializableJson } from './checkoutCustomData';
 import { BUSINESS_INFO } from './siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
+const VERIFY_ENDPOINT = '/api/billing/verify';
 const KG_INICIS_PAYMENT_ID_MAX_LENGTH = 40;
 
 interface BrowserCheckoutContext {
@@ -56,6 +57,17 @@ interface BillingApiErrorPayload {
   message?: string;
   ok?: false;
   stage?: string;
+}
+
+export interface VerifiedPaymentResponse {
+  endpoint: string;
+  ok: true;
+  payment: Record<string, unknown> | null;
+  paymentId: string;
+  paymentStatus: string;
+  portoneStatus: number;
+  storeId: string;
+  verifiedPaid: boolean;
 }
 
 type CheckoutSessionField =
@@ -598,6 +610,41 @@ export async function createCheckoutSession(plan: BillingPlanCode, options?: Che
 
   if (!response.ok || !payload || payload.ok !== true) {
     throw buildFriendlyApiError(CHECKOUT_ENDPOINT, response.status, (payload as BillingApiErrorPayload | null) ?? null, responseText);
+  }
+
+  return payload;
+}
+
+export async function verifyPortOnePayment(paymentId: string, options?: { storeId?: string }) {
+  const response = await fetch(VERIFY_ENDPOINT, {
+    body: JSON.stringify({
+      paymentId,
+      ...(options?.storeId ? { storeId: options.storeId } : {}),
+    }),
+    headers: {
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
+
+  const { payload, responseText } = await readApiResponse<VerifiedPaymentResponse | BillingApiErrorPayload>(response);
+
+  if (!response.ok || !payload || payload.ok !== true) {
+    throw buildFriendlyApiError(VERIFY_ENDPOINT, response.status, (payload as BillingApiErrorPayload | null) ?? null, responseText);
+  }
+
+  if (!payload.verifiedPaid) {
+    throw new PortOneCheckoutError({
+      code: 'PAYMENT_NOT_COMPLETED',
+      details: {
+        paymentId,
+        paymentStatus: payload.paymentStatus,
+        portoneStatus: payload.portoneStatus,
+      },
+      message: `결제 확인이 아직 완료되지 않았습니다. 현재 상태: ${payload.paymentStatus}`,
+      stage: 'payment-verify',
+      status: 409,
+    });
   }
 
   return payload;

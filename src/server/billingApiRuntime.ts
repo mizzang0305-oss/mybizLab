@@ -2,6 +2,19 @@ const PORTONE_API_BASE_URL = 'https://api.portone.io';
 const SERVER_ENV_HINT =
   'Add it to .env.local when using vercel dev, and to Vercel Project Settings > Environment Variables for Development, Preview, and Production.';
 
+export type BillingHeadersLike = Headers | Record<string, string | string[] | undefined> | undefined;
+
+export type BillingRequestLike =
+  | Request
+  | {
+      body?: unknown;
+      headers?: BillingHeadersLike;
+      method?: string;
+      rawBody?: unknown;
+      text?: () => Promise<string>;
+      url?: string;
+    };
+
 export interface BillingEnv {
   apiSecret?: string;
   webhookSecret?: string;
@@ -136,6 +149,38 @@ export function validateBillingEnv(required: BillingEnvKey[], endpoint: string, 
   return env;
 }
 
+function firstHeaderValue(value: string | string[] | undefined) {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (Array.isArray(value) && typeof value[0] === 'string') {
+    return value[0];
+  }
+
+  return undefined;
+}
+
+export function toRequestHeaders(headersLike: BillingHeadersLike) {
+  if (headersLike instanceof Headers) {
+    return headersLike;
+  }
+
+  const headers = new Headers();
+  if (!headersLike || typeof headersLike !== 'object') {
+    return headers;
+  }
+
+  Object.entries(headersLike).forEach(([name, value]) => {
+    const normalized = firstHeaderValue(value);
+    if (normalized) {
+      headers.set(name, normalized);
+    }
+  });
+
+  return headers;
+}
+
 export function logBillingStage(endpoint: string, stage: string, payload?: Record<string, unknown>) {
   console.info(`[billing] ${endpoint} :: ${stage}`, payload ?? {});
 }
@@ -206,8 +251,44 @@ export function createBillingMethodNotAllowedResponse(endpoint: string, method =
   );
 }
 
-export async function parseJsonBody(request: Request, endpoint: string, stage: string, allowEmpty = true) {
-  const rawBody = await request.text();
+async function readRequestBodyText(request: BillingRequestLike) {
+  if (request instanceof Request) {
+    return request.text();
+  }
+
+  if (typeof request.text === 'function') {
+    return request.text();
+  }
+
+  if (typeof request.rawBody === 'string') {
+    return request.rawBody;
+  }
+
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(request.rawBody)) {
+    return request.rawBody.toString('utf8');
+  }
+
+  if (typeof request.body === 'string') {
+    return request.body;
+  }
+
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(request.body)) {
+    return request.body.toString('utf8');
+  }
+
+  if (request.body instanceof Uint8Array) {
+    return new TextDecoder().decode(request.body);
+  }
+
+  if (request.body && typeof request.body === 'object') {
+    return JSON.stringify(request.body);
+  }
+
+  return '';
+}
+
+export async function parseJsonBody(request: BillingRequestLike, endpoint: string, stage: string, allowEmpty = true) {
+  const rawBody = await readRequestBodyText(request);
 
   if (!rawBody.trim()) {
     if (allowEmpty) {
