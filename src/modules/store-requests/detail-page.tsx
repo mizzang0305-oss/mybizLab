@@ -10,6 +10,7 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { getFeatureLabel, STORE_REQUEST_STATUS_LABELS, SUBSCRIPTION_PLAN_LABELS } from '@/shared/lib/platformConsole';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { deriveRequestedPlanFromSelectedFeatures } from '@/shared/lib/setupRequestPersistence';
 import {
   approveStoreRequest,
   getStoreRequestDetail,
@@ -36,6 +37,7 @@ export function StoreRequestDetailPage() {
   });
 
   const request = detailQuery.data?.request;
+  const requestedPlan = request ? request.requested_plan || deriveRequestedPlanFromSelectedFeatures(request.selected_features) : null;
 
   usePageMeta(
     request ? `${request.business_name} 생성 요청` : '스토어 요청 상세',
@@ -182,7 +184,7 @@ export function StoreRequestDetailPage() {
             </div>
             <div className="rounded-3xl bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">요청 플랜</p>
-              <p className="mt-2 font-semibold text-slate-900">{SUBSCRIPTION_PLAN_LABELS[request.requested_plan]}</p>
+              <p className="mt-2 font-semibold text-slate-900">{requestedPlan ? SUBSCRIPTION_PLAN_LABELS[requestedPlan] : '-'}</p>
             </div>
             <div className="rounded-3xl bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">현재 상태</p>
