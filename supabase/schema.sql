@@ -280,6 +280,7 @@ create table if not exists public.store_setup_requests (
   address text not null,
   business_type text not null,
   requested_slug text not null,
+  requested_plan text not null default 'free' check (requested_plan in ('free', 'pro', 'vip')),
   selected_features jsonb not null default '[]'::jsonb,
   status text not null default 'submitted' check (status in ('draft', 'submitted', 'converted')),
   created_at timestamptz not null default timezone('utc', now()),
@@ -644,9 +645,15 @@ for update
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
-create policy "setup_requests_manage_own"
+drop policy if exists "setup_requests_manage_own" on public.store_setup_requests;
+create policy "setup_requests_select_own"
 on public.store_setup_requests
-for all
+for select
+using (auth.uid() = created_by);
+
+create policy "setup_requests_update_own"
+on public.store_setup_requests
+for update
 using (auth.uid() = created_by)
 with check (auth.uid() = created_by);
 
@@ -807,6 +814,8 @@ using (public.is_store_member(store_id))
 with check (public.is_store_member(store_id));
 
 create index if not exists store_setup_requests_created_by_idx on public.store_setup_requests (created_by);
+create index if not exists store_setup_requests_requested_slug_idx on public.store_setup_requests (requested_slug);
+create index if not exists store_setup_requests_email_idx on public.store_setup_requests (email);
 create index if not exists store_members_profile_store_idx on public.store_members (profile_id, store_id);
 create index if not exists store_features_store_idx on public.store_features (store_id);
 create index if not exists store_tables_store_idx on public.store_tables (store_id);

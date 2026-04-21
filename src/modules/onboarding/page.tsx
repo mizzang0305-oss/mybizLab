@@ -29,6 +29,7 @@ import { getDiagnosisCorridorStep } from '@/shared/lib/diagnosisCorridor';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
 import {
   DIAGNOSIS_LOADING_STAGES,
+  applyOnboardingSetupRequestSaved,
   buildRequestDraftFromDiagnosis,
   clearOnboardingFlowState,
   createInitialOnboardingFlowState,
@@ -413,7 +414,7 @@ export function OnboardingPage() {
     mutationFn: async () => saveSetupRequest(requestPayload(flow, slugPreview), { requestedPlan: flow.selectedPlan }),
     onSuccess: async (request) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.setupRequests });
-      setFlow((current) => ({ ...current, requestId: request.id, step: 'payment' }));
+      setFlow((current) => applyOnboardingSetupRequestSaved(current, request.id));
       setMessage({ tone: 'success', text: '스토어 생성 요청이 접수되었습니다. 이제 구독 결제를 진행하면 승인과 스토어 생성이 이어집니다.' });
     },
     onError: (error) => {

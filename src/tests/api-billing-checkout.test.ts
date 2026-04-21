@@ -1,6 +1,6 @@
 ﻿import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import billingHandler from '../../api/billing/[action]';
+import billingHandler from '../../api/billing/checkout';
 import {
   createCheckoutPaymentId,
   type CheckoutCustomerPayload,

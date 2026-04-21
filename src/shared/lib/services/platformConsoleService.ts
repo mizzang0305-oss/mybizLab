@@ -2,6 +2,7 @@ import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { DATA_PROVIDER, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
 import { createId } from '@/shared/lib/ids';
 import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
+import { deriveRequestedPlanFromSelectedFeatures } from '@/shared/lib/setupRequestPersistence';
 import { createStoreBrandConfig } from '@/shared/lib/storeData';
 import { ensureUniqueStoreSlug } from '@/shared/lib/storeSlug';
 import type {
@@ -159,7 +160,8 @@ function appendProvisioningLog(
 }
 
 function buildBillingRecord(storeId: string, request: StoreRequest, timestamp: string): BillingRecord {
-  const setupAmount = request.requested_plan === 'vip' ? 590000 : request.requested_plan === 'pro' ? 390000 : 0;
+  const requestedPlan = request.requested_plan || deriveRequestedPlanFromSelectedFeatures(request.selected_features);
+  const setupAmount = requestedPlan === 'vip' ? 590000 : requestedPlan === 'pro' ? 390000 : 0;
 
   const event: BillingEvent = {
     id: createId('billing_event'),
@@ -176,7 +178,7 @@ function buildBillingRecord(storeId: string, request: StoreRequest, timestamp: s
     id: createId('billing_record'),
     store_id: storeId,
     admin_email: request.email,
-    plan: request.requested_plan,
+    plan: requestedPlan,
     setup_status: 'setup_pending',
     subscription_status: 'subscription_pending',
     payment_method_status: 'missing',
@@ -192,6 +194,8 @@ export interface ApproveStoreRequestResult {
 }
 
 function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest, reviewerEmail: string, reviewNotes?: string) {
+  const requestedPlan = request.requested_plan || deriveRequestedPlanFromSelectedFeatures(request.selected_features);
+
   if (request.linked_store_id) {
     const existingStore = database.stores.find((store) => store.id === request.linked_store_id);
     if (existingStore) {
@@ -242,8 +246,8 @@ function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest,
     preview_target: request.preview_target,
     public_status: request.public_status || 'private',
     homepage_visible: (request.public_status || 'private') === 'public',
-    subscription_plan: request.requested_plan,
-    plan: request.requested_plan,
+    subscription_plan: requestedPlan,
+    plan: requestedPlan,
     admin_email: brandConfig.email,
     created_from_request_id: request.id,
     created_at: timestamp,
@@ -292,7 +296,7 @@ function provisionStoreFromRequest(database: MvpDatabase, request: StoreRequest,
   database.store_subscriptions.unshift({
     id: createId('store_subscription'),
     store_id: storeId,
-    plan: request.requested_plan,
+    plan: requestedPlan,
     status: 'trialing',
     billing_provider: 'manual',
     current_period_starts_at: timestamp,

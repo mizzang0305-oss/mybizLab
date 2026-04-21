@@ -268,21 +268,12 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
   }
 
   async function getStorePublicPageBySlug(slug: string) {
-    const client = assertClient();
-    const { data, error } = await client.from('store_public_pages').select('*').eq('slug', slug).maybeSingle();
-    if (error) {
-      throw new Error(`Failed to load store public page by slug: ${error.message}`);
-    }
-    if (data) {
-      return data as StorePublicPage;
-    }
-
     const store = await findStoreBySlug(slug);
     if (!store) {
       return null;
     }
 
-    return loadLegacyStorePublicPage(store);
+    return getStorePublicPage(normalizeStoreId(store));
   }
 
   async function getStoreSubscription(storeId: string) {

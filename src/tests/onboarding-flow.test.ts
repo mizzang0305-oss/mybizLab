@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { buildDiagnosisResult } from '@/shared/lib/onboardingFlow';
+import { applyOnboardingSetupRequestSaved, buildDiagnosisResult, createInitialOnboardingFlowState } from '@/shared/lib/onboardingFlow';
 import { getDatabase, resetDatabase } from '@/shared/lib/mockDb';
 import { createStoreFromSetupRequest, saveSetupRequest } from '@/shared/lib/services/mvpService';
 import type { SetupRequestInput } from '@/shared/types/models';
@@ -46,6 +46,22 @@ describe('onboarding flow helpers', () => {
     expect(result.analysisSource).toBe('fallback');
     expect(result.limitationsNote).toContain('실시간 POS');
     expect(['free', 'pro', 'vip']).toContain(result.recommendedPlan);
+  });
+
+  it('moves the onboarding flow to payment after a save succeeds', () => {
+    const initialState = {
+      ...createInitialOnboardingFlowState(),
+      requestWizardStep: 'summary' as const,
+      selectedPlan: 'pro' as const,
+      step: 'request' as const,
+    };
+
+    const nextState = applyOnboardingSetupRequestSaved(initialState, '431ba667-6fd5-4e62-b537-ca2e99ca825c');
+
+    expect(nextState.requestId).toBe('431ba667-6fd5-4e62-b537-ca2e99ca825c');
+    expect(nextState.step).toBe('payment');
+    expect(nextState.requestWizardStep).toBe('summary');
+    expect(nextState.selectedPlan).toBe('pro');
   });
 
   it('stores the request and activates the store with paid billing state', async () => {

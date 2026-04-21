@@ -68,7 +68,7 @@ describe('/api/billing/webhook function', () => {
   });
 
   it('returns 405 for GET requests', async () => {
-    const response = await webhookHandler.fetch(new Request('https://example.com/api/billing/webhook', { method: 'GET' }));
+    const response = await webhookHandler(new Request('https://example.com/api/billing/webhook', { method: 'GET' }));
     const payload = await response.json();
 
     expect(response.status).toBe(405);
@@ -81,7 +81,7 @@ describe('/api/billing/webhook function', () => {
   it('returns 500 with a clear message when PORTONE_WEBHOOK_SECRET is missing', async () => {
     delete process.env.PORTONE_WEBHOOK_SECRET;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -102,7 +102,7 @@ describe('/api/billing/webhook function', () => {
   it('returns 400 JSON when the webhook body is not valid JSON', async () => {
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: '{"broken":',
         headers: webhookHeaders,
@@ -125,7 +125,7 @@ describe('/api/billing/webhook function', () => {
   it('returns 400 JSON when the webhook content-type is not application/json', async () => {
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: {
@@ -153,7 +153,7 @@ describe('/api/billing/webhook function', () => {
     verifyMock.mockRejectedValue(new MockWebhookVerificationError('Signature mismatch', 'INVALID_SIGNATURE'));
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -177,7 +177,7 @@ describe('/api/billing/webhook function', () => {
     verifyMock.mockRejectedValue(new Error('Unexpected verifier failure'));
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -203,7 +203,7 @@ describe('/api/billing/webhook function', () => {
     );
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -247,7 +247,7 @@ describe('/api/billing/webhook function', () => {
       ),
     ) as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -292,7 +292,7 @@ describe('/api/billing/webhook function', () => {
       ),
     ) as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -325,7 +325,7 @@ describe('/api/billing/webhook function', () => {
     });
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -356,7 +356,7 @@ describe('/api/billing/webhook function', () => {
     });
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -387,7 +387,7 @@ describe('/api/billing/webhook function', () => {
     });
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -416,7 +416,7 @@ describe('/api/billing/webhook function', () => {
     });
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
@@ -446,7 +446,7 @@ describe('/api/billing/webhook function', () => {
     });
     globalThis.fetch = vi.fn() as typeof fetch;
 
-    const response = await webhookHandler.fetch(
+    const response = await webhookHandler(
       new Request('https://example.com/api/billing/webhook', {
         body: JSON.stringify({ ok: true }),
         headers: webhookHeaders,
