@@ -110,6 +110,8 @@ import type {
 } from '@/shared/types/models';
 
 const DEMO_PROFILE_ID = 'profile_platform_owner';
+const PUBLIC_MUTATION_TIMEOUT_MS = 20000;
+const PUBLIC_AI_MUTATION_TIMEOUT_MS = 35000;
 const SETUP_FEE_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
   free: 0,
   pro: 390000,
@@ -171,6 +173,12 @@ interface LivePrioritySettingsRow {
   version: number;
 }
 
+interface LiveStoreRuntimeCache {
+  analyticsProfiles: Map<string, StoreAnalyticsProfile>;
+  prioritySettings: Map<string, StorePrioritySettings>;
+  stores: Map<string, Store>;
+}
+
 export interface StoreSettingsSnapshot {
   store: Store;
   analyticsProfile: StoreAnalyticsProfile;
@@ -207,6 +215,12 @@ export interface UpdateStoreSettingsInput {
   noticeContent: string;
 }
 
+const liveStoreRuntimeCache: LiveStoreRuntimeCache = {
+  analyticsProfiles: new Map(),
+  prioritySettings: new Map(),
+  stores: new Map(),
+};
+
 function shouldUseSupabaseStoreProvisioning() {
   return DATA_PROVIDER === 'supabase' && Boolean(supabase);
 }
@@ -219,6 +233,45 @@ function assertLocalStoreProvisioningAllowed() {
   if (IS_PRODUCTION_RUNTIME) {
     throw new Error('프로덕션에서는 로컬 스토어 생성 경로를 사용할 수 없습니다. create_store_with_owner RPC만 사용해야 합니다.');
   }
+}
+
+function canUseDemoDatabaseCache() {
+  const isVitestRuntime = typeof process !== 'undefined' && Boolean(process.env.VITEST);
+  return IS_DEMO_RUNTIME || (!shouldUseSupabaseStoreProvisioning() && isVitestRuntime);
+}
+
+function getCachedStoreById(storeId: string) {
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().stores.find((store) => store.id === storeId) || null;
+  }
+
+  return liveStoreRuntimeCache.stores.get(storeId) || null;
+}
+
+function getCachedStoreBySlug(storeSlug: string) {
+  const normalizedSlug = normalizeStoreSlug(storeSlug);
+
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().stores.find((store) => normalizeStoreSlug(store.slug) === normalizedSlug) || null;
+  }
+
+  return [...liveStoreRuntimeCache.stores.values()].find((store) => normalizeStoreSlug(store.slug) === normalizedSlug) || null;
+}
+
+function getCachedPrioritySettings(storeId: string) {
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().store_priority_settings.find((item) => item.store_id === storeId) || null;
+  }
+
+  return liveStoreRuntimeCache.prioritySettings.get(storeId) || null;
+}
+
+function getCachedAnalyticsProfile(storeId: string) {
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().store_analytics_profiles.find((item) => item.store_id === storeId) || null;
+  }
+
+  return liveStoreRuntimeCache.analyticsProfiles.get(storeId) || null;
 }
 
 async function getAuthenticatedSupabaseUserId() {
@@ -240,6 +293,33 @@ async function getAuthenticatedSupabaseUserId() {
 
 function syncStoresToLocalCache(stores: Store[], priorityRows?: LivePrioritySettingsRow[], analyticsProfiles?: StoreAnalyticsProfile[]) {
   if (!stores.length && !priorityRows?.length && !analyticsProfiles?.length) {
+    return;
+  }
+
+  if (!canUseDemoDatabaseCache()) {
+    stores.forEach((incomingStore) => {
+      const existingStore = liveStoreRuntimeCache.stores.get(incomingStore.id) || null;
+      const nextStore = normalizeStoreRecord({
+        ...(existingStore || incomingStore),
+        ...incomingStore,
+        brand_config: incomingStore.brand_config,
+        public_status: existingStore?.public_status ?? incomingStore.public_status ?? 'public',
+        subscription_plan: incomingStore.subscription_plan ?? existingStore?.subscription_plan ?? 'free',
+        plan: incomingStore.plan ?? existingStore?.plan ?? incomingStore.subscription_plan ?? 'free',
+        admin_email: incomingStore.admin_email || existingStore?.admin_email || getStoreBrandConfig(incomingStore).email,
+      });
+
+      liveStoreRuntimeCache.stores.set(nextStore.id, nextStore);
+    });
+
+    priorityRows?.forEach((row) => {
+      liveStoreRuntimeCache.prioritySettings.set(row.store_id, row);
+    });
+
+    analyticsProfiles?.forEach((profile) => {
+      liveStoreRuntimeCache.analyticsProfiles.set(profile.store_id, profile);
+    });
+
     return;
   }
 
@@ -307,7 +387,7 @@ async function fetchLiveStoreById(storeId: string) {
     return null;
   }
 
-  const existingStore = getDatabase().stores.find((store) => store.id === storeId) || null;
+  const existingStore = getCachedStoreById(storeId);
   return mapLiveStoreToAppStore(data as LiveStoreRow, existingStore);
 }
 
@@ -591,7 +671,15 @@ function nowIso() {
 }
 
 function normalizeText(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return '';
 }
 
 function normalizeNumeric(value: unknown, fallback = 0) {
@@ -627,7 +715,7 @@ function assertLiveSupabaseClient() {
 
 function mapLiveOrder(row: Record<string, unknown>): Order {
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id || row.order_id),
     store_id: normalizeText(row.store_id),
     customer_id: normalizeText(row.customer_id) || undefined,
     table_id: normalizeText(row.table_id) || undefined,
@@ -639,7 +727,7 @@ function mapLiveOrder(row: Record<string, unknown>): Order {
     payment_method: (normalizeText(row.payment_method) || undefined) as Order['payment_method'],
     payment_recorded_at: normalizeText(row.payment_recorded_at) || undefined,
     total_amount: normalizeNumeric(row.total_amount),
-    placed_at: normalizeText(row.placed_at),
+    placed_at: normalizeText(row.placed_at || row.created_at || row.submitted_at),
     completed_at: normalizeText(row.completed_at) || undefined,
     note: normalizeText(row.note) || undefined,
   };
@@ -647,11 +735,11 @@ function mapLiveOrder(row: Record<string, unknown>): Order {
 
 function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id) || `order_item_${normalizeText(row.order_id)}_${normalizeText(row.menu_item_id || row.menu_id)}`,
     order_id: normalizeText(row.order_id),
     store_id: normalizeText(row.store_id),
-    menu_item_id: normalizeText(row.menu_item_id),
-    menu_name: normalizeText(row.menu_name),
+    menu_item_id: normalizeText(row.menu_item_id || row.menu_id),
+    menu_name: normalizeText(row.menu_name || row.name),
     quantity: normalizeInteger(row.quantity, 1),
     unit_price: normalizeNumeric(row.unit_price),
     line_total: normalizeNumeric(row.line_total),
@@ -660,7 +748,7 @@ function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
 
 function mapLiveKitchenTicket(row: Record<string, unknown>): KitchenTicket {
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id) || `compat_ticket_${normalizeText(row.order_id)}`,
     store_id: normalizeText(row.store_id),
     order_id: normalizeText(row.order_id),
     table_id: normalizeText(row.table_id) || undefined,
@@ -672,10 +760,11 @@ function mapLiveKitchenTicket(row: Record<string, unknown>): KitchenTicket {
 }
 
 function mapLiveStoreTable(row: Record<string, unknown>): StoreTable {
+  const tableNo = normalizeText(row.table_no);
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id || row.table_id),
     store_id: normalizeText(row.store_id),
-    table_no: normalizeText(row.table_no),
+    table_no: tableNo,
     seats: normalizeInteger(row.seats, 4),
     qr_value: normalizeText(row.qr_value),
     is_active: row.is_active !== false,
@@ -684,7 +773,7 @@ function mapLiveStoreTable(row: Record<string, unknown>): StoreTable {
 
 function mapLiveMenuCategory(row: Record<string, unknown>): MenuCategory {
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id || row.category_id),
     store_id: normalizeText(row.store_id),
     name: normalizeText(row.name),
     sort_order: normalizeInteger(row.sort_order, 1),
@@ -693,7 +782,7 @@ function mapLiveMenuCategory(row: Record<string, unknown>): MenuCategory {
 
 function mapLiveMenuItem(row: Record<string, unknown>): MenuItem {
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id || row.menu_id),
     store_id: normalizeText(row.store_id),
     category_id: normalizeText(row.category_id),
     name: normalizeText(row.name),
@@ -704,19 +793,119 @@ function mapLiveMenuItem(row: Record<string, unknown>): MenuItem {
   };
 }
 
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function isSchemaCompatError(error?: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    error?.code === 'PGRST205' ||
+    error?.code === '42703' ||
+    message.includes('does not exist') ||
+    message.includes('could not find the table') ||
+    message.includes('schema cache') ||
+    message.includes('could not find the column')
+  );
+}
+
+function buildCompatOrderItems(orderId: string, storeId: string, value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as OrderItem[];
+  }
+
+  return value
+    .map((item, index) => {
+      const row = toRecord(item);
+      const menuItemId = normalizeText(row.menu_item_id || row.menuItemId || row.menu_id);
+      const menuName = normalizeText(row.menu_name || row.menuName || row.name);
+      if (!menuItemId || !menuName) {
+        return null;
+      }
+
+      const quantity = Math.max(1, normalizeInteger(row.quantity, 1));
+      const unitPrice = normalizeNumeric(row.unit_price || row.unitPrice);
+      return {
+        id: normalizeText(row.id) || `compat_item_${orderId}_${index + 1}`,
+        order_id: orderId,
+        store_id: storeId,
+        menu_item_id: menuItemId,
+        menu_name: menuName,
+        quantity,
+        unit_price: unitPrice,
+        line_total: normalizeNumeric(row.line_total || row.lineTotal, unitPrice * quantity),
+      } satisfies OrderItem;
+    })
+    .filter((item): item is OrderItem => Boolean(item));
+}
+
+function buildLiveCompatOrderState(orderRow: Record<string, unknown>, paymentEventRows: Record<string, unknown>[], tableNoById?: Map<string, string>) {
+  const mergedRaw = paymentEventRows
+    .map((row) => toRecord(row.raw))
+    .reduce<Record<string, unknown>>((accumulator, raw) => ({ ...accumulator, ...raw }), {});
+  const order = mapLiveOrder({
+    ...orderRow,
+    customer_id: orderRow.customer_id || mergedRaw.customer_id,
+    note: orderRow.note || mergedRaw.note,
+    payment_method: orderRow.payment_method || mergedRaw.payment_method,
+    payment_recorded_at: orderRow.payment_recorded_at || mergedRaw.payment_recorded_at,
+    payment_source: orderRow.payment_source || mergedRaw.payment_source,
+    payment_status:
+      orderRow.payment_status ||
+      mergedRaw.payment_status ||
+      (paymentEventRows.some((row) => normalizeText(row.status).toLowerCase() === 'paid') ? 'paid' : 'pending'),
+    placed_at: orderRow.placed_at || mergedRaw.placed_at || orderRow.created_at || orderRow.submitted_at,
+    table_no: orderRow.table_no || mergedRaw.table_no || (tableNoById ? tableNoById.get(normalizeText(orderRow.table_id)) : undefined),
+  });
+  const items = buildCompatOrderItems(order.id, order.store_id, mergedRaw.items);
+  const ticketStatus = normalizeText(mergedRaw.kitchen_status || order.status || 'pending') as KitchenTicket['status'];
+  const ticket =
+    order.status === 'cancelled'
+      ? null
+      : {
+          id: `compat_ticket_${order.id}`,
+          store_id: order.store_id,
+          order_id: order.id,
+          table_id: order.table_id,
+          table_no: order.table_no,
+          status: ticketStatus,
+          created_at: order.placed_at,
+          updated_at: normalizeText(mergedRaw.kitchen_updated_at || mergedRaw.payment_recorded_at) || order.completed_at || order.placed_at,
+        } satisfies KitchenTicket;
+
+  return { items, order, ticket };
+}
+
 async function listLiveOrders(storeId: string) {
   const client = assertLiveSupabaseClient();
-  const [ordersResult, itemsResult, customersResult] = await Promise.all([
-    client.from('orders').select('*').eq('store_id', storeId).order('placed_at', { ascending: false }),
-    client.from('order_items').select('*').eq('store_id', storeId),
-    client.from('customers').select('*').eq('store_id', storeId),
-  ]);
+  const ordersResult = await client.from('orders').select('*').eq('store_id', storeId);
 
   if (ordersResult.error) {
     throw new Error(`Failed to load live orders: ${ordersResult.error.message}`);
   }
 
-  if (itemsResult.error) {
+  const orderRows = (ordersResult.data || []) as Record<string, unknown>[];
+  const useCompatOrderItemsOnly = orderRows.some(
+    (row) =>
+      Boolean(normalizeText(row.order_id)) &&
+      !normalizeText(row.id) &&
+      !normalizeText(row.placed_at) &&
+      Boolean(normalizeText(row.submitted_at) || normalizeText(row.created_at)),
+  );
+
+  const [itemsResult, customersResult, tablesResult] = await Promise.all([
+    useCompatOrderItemsOnly
+      ? Promise.resolve({ data: [] as Record<string, unknown>[], error: null })
+      : client.from('order_items').select('*').eq('store_id', storeId),
+    client.from('customers').select('*').eq('store_id', storeId),
+    client.from('store_tables').select('*').eq('store_id', storeId),
+  ]);
+
+  if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
     throw new Error(`Failed to load live order items: ${itemsResult.error.message}`);
   }
 
@@ -724,11 +913,22 @@ async function listLiveOrders(storeId: string) {
     throw new Error(`Failed to load live customers for orders: ${customersResult.error.message}`);
   }
 
-  const orders = ((ordersResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrder(row));
+  if (tablesResult.error && !isSchemaCompatError(tablesResult.error)) {
+    throw new Error(`Failed to load live tables for orders: ${tablesResult.error.message}`);
+  }
+
+  const orderIds = orderRows.map((row) => normalizeText(row.id || row.order_id)).filter(Boolean);
+  const paymentEventsResult = orderIds.length
+    ? await client.from('payment_events').select('*').in('order_id', orderIds)
+    : { data: [], error: null };
+  if (paymentEventsResult.error && !isSchemaCompatError(paymentEventsResult.error)) {
+    throw new Error(`Failed to load live payment events for orders: ${paymentEventsResult.error.message}`);
+  }
+
   const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
   const customers = ((customersResult.data || []) as Record<string, unknown>[]).map((row) =>
     normalizeCustomerRecord({
-      id: normalizeText(row.id),
+      id: normalizeText(row.id || row.customer_id),
       store_id: normalizeText(row.store_id),
       name: normalizeText(row.name),
       phone: normalizeText(row.phone),
@@ -741,13 +941,28 @@ async function listLiveOrders(storeId: string) {
       updated_at: normalizeText(row.updated_at) || undefined,
     }),
   );
+  const tableNoById = new Map(
+    ((tablesResult.data || []) as Record<string, unknown>[]).map((row) => [normalizeText(row.id || row.table_id), normalizeText(row.table_no)] as const),
+  );
+  const paymentEvents = (paymentEventsResult.data || []) as Record<string, unknown>[];
   const customerById = new Map(customers.map((customer) => [customer.id, customer]));
 
-  return orders.map((order) => ({
-    ...order,
-    items: items.filter((item) => item.order_id === order.id),
-    customer: order.customer_id ? customerById.get(order.customer_id) : undefined,
-  }));
+  return orderRows
+    .map((row) => {
+      const orderId = normalizeText(row.id || row.order_id);
+      const compat = buildLiveCompatOrderState(
+        row,
+        paymentEvents.filter((event) => normalizeText(event.order_id) === orderId),
+        tableNoById,
+      );
+      const canonicalItems = items.filter((item) => item.order_id === orderId);
+      return {
+        ...compat.order,
+        items: canonicalItems.length ? canonicalItems : compat.items,
+        customer: compat.order.customer_id ? customerById.get(compat.order.customer_id) : undefined,
+      };
+    })
+    .sort((left, right) => right.placed_at.localeCompare(left.placed_at));
 }
 
 async function listLiveStoreTables(storeId: string) {
@@ -758,15 +973,26 @@ async function listLiveStoreTables(storeId: string) {
     throw new Error(`Failed to load live store tables: ${error.message}`);
   }
 
-  return ((data || []) as Record<string, unknown>[]).map((row) => mapLiveStoreTable(row));
+  const store = await getStoreById(storeId);
+  return ((data || []) as Record<string, unknown>[]).map((row) => {
+    const table = mapLiveStoreTable(row);
+    return {
+      ...table,
+      qr_value: table.qr_value || `${buildStoreUrl(store?.slug || storeId)}/order?table=${encodeURIComponent(table.table_no)}`,
+    };
+  });
 }
 
 async function listLiveMenu(storeId: string) {
   const client = assertLiveSupabaseClient();
-  const [categoriesResult, itemsResult] = await Promise.all([
+  let [categoriesResult, itemsResult] = await Promise.all([
     client.from('menu_categories').select('*').eq('store_id', storeId).order('sort_order', { ascending: true }),
     client.from('menu_items').select('*').eq('store_id', storeId).order('name', { ascending: true }),
   ]);
+
+  if (categoriesResult.error && isSchemaCompatError(categoriesResult.error)) {
+    categoriesResult = await client.from('menu_categories').select('*').eq('store_id', storeId);
+  }
 
   if (categoriesResult.error) {
     throw new Error(`Failed to load live menu categories: ${categoriesResult.error.message}`);
@@ -777,7 +1003,9 @@ async function listLiveMenu(storeId: string) {
   }
 
   return {
-    categories: ((categoriesResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveMenuCategory(row)),
+    categories: ((categoriesResult.data || []) as Record<string, unknown>[])
+      .map((row) => mapLiveMenuCategory(row))
+      .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name, 'ko-KR')),
     items: ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveMenuItem(row)),
   };
 }
@@ -2766,8 +2994,7 @@ export async function getStoreById(storeId: string) {
     }
   }
 
-  const database = getDatabase();
-  return database.stores.find((store) => store.id === storeId) || null;
+  return getCachedStoreById(storeId);
 }
 
 export async function getStoreBySlug(storeSlug: string) {
@@ -2794,19 +3021,18 @@ export async function getStoreBySlug(storeSlug: string) {
     if (data) {
       const liveStore = mapLiveStoreToAppStore(
         data as LiveStoreRow,
-        getDatabase().stores.find((store) => store.id === String((data as LiveStoreRow).store_id)) || null,
+        getCachedStoreById(String((data as LiveStoreRow).store_id)),
       );
       syncStoresToLocalCache([liveStore]);
       return liveStore;
     }
   }
 
-  const database = getDatabase();
   const normalized = normalizeStoreSlug(storeSlug);
   if (isReservedSlug(normalized)) {
     return null;
   }
-  return database.stores.find((store) => store.slug === normalized) || null;
+  return getCachedStoreBySlug(normalized);
 }
 
 export function getDashboardSnapshot(storeId: string, input: DashboardSnapshotInput = { range: 'weekly' }): DashboardSnapshot {
@@ -3184,8 +3410,31 @@ export async function attachCustomerToOrder(
       .eq('id', orderId)
       .eq('store_id', storeId);
 
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to attach customer to live order: ${error.message}`);
+    }
+
+    if (error) {
+      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+      await persistLiveCompatOrderEvent({
+        amount: current?.total_amount || 0,
+        orderId,
+        paymentId: `compat-customer:${orderId}:${Date.now()}`,
+        raw: {
+          customer_id: memoryRecord.customer.id,
+          items: current?.items || [],
+          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
+          note: current?.note || null,
+          payment_method: current?.payment_method || null,
+          payment_recorded_at: current?.payment_recorded_at || null,
+          payment_source: current?.payment_source || null,
+          payment_status: current?.payment_status || 'pending',
+          placed_at: current?.placed_at || nowIso(),
+          table_id: current?.table_id || null,
+          table_no: current?.table_no || null,
+        },
+        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
+      });
     }
 
     return memoryRecord.customer;
@@ -3475,6 +3724,7 @@ export async function submitPublicConsultation(
     return requestPublicApi<Awaited<ReturnType<typeof submitPublicConsultationMessage>>>('/api/public/consultation', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_AI_MUTATION_TIMEOUT_MS,
     });
   }
 
@@ -3523,6 +3773,7 @@ export async function submitPublicInquiry(input: {
     }>('/api/public/inquiry', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
     });
   }
 
@@ -3621,6 +3872,7 @@ export async function submitPublicReservation(input: {
     }>('/api/public/reservation', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
     });
   }
 
@@ -3661,6 +3913,7 @@ export async function submitPublicWaitingEntry(input: {
     }>('/api/public/waiting', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
     });
   }
 
@@ -3728,6 +3981,10 @@ export async function getStorePrioritySettings(storeId: string) {
       syncStoresToLocalCache([], [rows[0]]);
       return rows[0];
     }
+  }
+
+  if (!canUseDemoDatabaseCache()) {
+    return getCachedPrioritySettings(storeId);
   }
 
   const data = getStoreScopedData(storeId);
@@ -3827,7 +4084,9 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
   ]);
 
   if (storeRecord && publicPage) {
-    const scoped = getStoreScopedData(storeId);
+    const analyticsProfile = getCachedAnalyticsProfile(storeId) || buildStoreAnalyticsProfile(storeRecord);
+    const prioritySettings =
+      getCachedPrioritySettings(storeId) || buildStorePrioritySettings(storeId, analyticsProfile.analytics_preset || 'seongsu_brunch_cafe');
     const mergedStore = normalizeStoreRecord({
       ...storeRecord,
       slug: publicPage.slug,
@@ -3860,7 +4119,7 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
 
     return {
       store: mergedStore,
-      analyticsProfile: scoped.analyticsProfile || buildStoreAnalyticsProfile(mergedStore),
+      analyticsProfile,
       location: {
         id: `store_public_location_${storeId}`,
         store_id: storeId,
@@ -3872,8 +4131,27 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
       },
       notices: getPublishedStoreNotices(publicPage.notices),
       media: getSortedStoreMedia(publicPage.media),
-      prioritySettings:
-        scoped.prioritySettings || buildStorePrioritySettings(storeId, scoped.analyticsProfile?.analytics_preset || 'seongsu_brunch_cafe'),
+      prioritySettings,
+    };
+  }
+
+  if (!canUseDemoDatabaseCache()) {
+    const cachedStore = getCachedStoreById(storeId);
+    if (!cachedStore) {
+      return null;
+    }
+
+    const analyticsProfile = getCachedAnalyticsProfile(storeId) || buildStoreAnalyticsProfile(cachedStore);
+    const prioritySettings =
+      getCachedPrioritySettings(storeId) || buildStorePrioritySettings(storeId, analyticsProfile.analytics_preset || 'seongsu_brunch_cafe');
+
+    return {
+      store: cachedStore,
+      analyticsProfile,
+      location: null,
+      notices: [],
+      media: [],
+      prioritySettings,
     };
   }
 
@@ -3987,6 +4265,26 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
       });
     }
 
+    syncStoresToLocalCache([
+      normalizeStoreRecord({
+        ...currentStore,
+        ...withStoreBrandConfig(currentStore, nextBrandConfig),
+        name: input.storeName.trim(),
+        slug: normalizedSlug,
+        public_status: input.publicStatus,
+        homepage_visible: input.homepageVisible,
+        consultation_enabled: input.consultationEnabled,
+        inquiry_enabled: input.inquiryEnabled,
+        reservation_enabled: input.reservationEnabled,
+        order_entry_enabled: input.orderEntryEnabled,
+        logo_url: input.logoUrl.trim(),
+        brand_color: input.brandColor.trim() || currentStore.brand_color,
+        tagline: input.tagline.trim(),
+        description: input.description.trim(),
+        updated_at: nowIso(),
+      }),
+    ]);
+
     return getStoreSettings(storeId);
   }
 
@@ -4018,6 +4316,26 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
     if (storeError) {
       throw new Error(`스토어 설정을 저장하지 못했습니다: ${storeError.message}`);
     }
+
+    syncStoresToLocalCache([
+      normalizeStoreRecord({
+        ...currentStore,
+        ...withStoreBrandConfig(currentStore, nextBrandConfig),
+        name: input.storeName.trim(),
+        slug: normalizedSlug,
+        public_status: input.publicStatus,
+        homepage_visible: input.homepageVisible,
+        consultation_enabled: input.consultationEnabled,
+        inquiry_enabled: input.inquiryEnabled,
+        reservation_enabled: input.reservationEnabled,
+        order_entry_enabled: input.orderEntryEnabled,
+        logo_url: input.logoUrl.trim(),
+        brand_color: input.brandColor.trim() || currentStore.brand_color,
+        tagline: input.tagline.trim(),
+        description: input.description.trim(),
+        updated_at: nowIso(),
+      }),
+    ]);
 
     return getStoreSettings(storeId);
   }
@@ -4838,6 +5156,30 @@ export async function getTableLiveBoard(storeId: string): Promise<TableLiveBoard
     .sort((left, right) => left.tableNo.localeCompare(right.tableNo, 'ko-KR'));
 }
 
+async function persistLiveCompatOrderEvent(input: {
+  amount: number;
+  orderId: string;
+  paymentId: string;
+  raw: Record<string, unknown>;
+  status: string;
+}) {
+  const client = assertLiveSupabaseClient();
+  const { error } = await client.from('payment_events').insert({
+    provider: 'mybiz',
+    event_id: input.paymentId,
+    order_id: input.orderId,
+    user_id: null,
+    status: input.status,
+    amount: input.amount,
+    raw: input.raw,
+    created_at: nowIso(),
+  });
+
+  if (error) {
+    throw new Error(`Failed to persist live compat order event: ${error.message}`);
+  }
+}
+
 function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {
   if (order.status === 'completed' && order.completed_at) {
     return order;
@@ -4871,11 +5213,12 @@ export async function recordOrderPayment(
 ) {
   if (shouldUseLiveOrderData()) {
     const client = assertLiveSupabaseClient();
+    const paymentRecordedAt = nowIso();
     const { data, error } = await client
       .from('orders')
       .update({
         payment_method: input.paymentMethod || (input.paymentSource === 'counter' ? 'cash' : 'card'),
-        payment_recorded_at: nowIso(),
+        payment_recorded_at: paymentRecordedAt,
         payment_source: input.paymentSource,
         payment_status: 'paid',
       })
@@ -4884,8 +5227,32 @@ export async function recordOrderPayment(
       .select('*')
       .single();
 
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to record live order payment: ${error.message}`);
+    }
+
+    if (error) {
+      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+      await persistLiveCompatOrderEvent({
+        amount: current?.total_amount || 0,
+        orderId,
+        paymentId: `compat-payment:${orderId}:${Date.now()}`,
+        raw: {
+          customer_id: current?.customer_id || null,
+          items: current?.items || [],
+          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
+          note: current?.note || null,
+          payment_method: input.paymentMethod || current?.payment_method || (input.paymentSource === 'counter' ? 'cash' : 'card'),
+          payment_recorded_at: paymentRecordedAt,
+          payment_source: input.paymentSource,
+          payment_status: 'paid',
+          placed_at: current?.placed_at || nowIso(),
+          table_id: current?.table_id || null,
+          table_no: current?.table_no || null,
+        },
+        status: 'paid',
+      });
+      return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
     }
 
     return data ? mapLiveOrder(data as Record<string, unknown>) : null;
@@ -4928,10 +5295,11 @@ export async function recordOrderPayment(
 export async function updateOrderStatus(storeId: string, orderId: string, status: OrderStatus) {
   if (shouldUseLiveOrderData()) {
     const client = assertLiveSupabaseClient();
+    const completedAt = status === 'completed' ? nowIso() : null;
     const { data, error } = await client
       .from('orders')
       .update({
-        completed_at: status === 'completed' ? nowIso() : null,
+        completed_at: completedAt,
         status,
       })
       .eq('id', orderId)
@@ -4939,12 +5307,12 @@ export async function updateOrderStatus(storeId: string, orderId: string, status
       .select('*')
       .single();
 
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to update live order status: ${error.message}`);
     }
 
     const ticketStatus = status === 'cancelled' ? null : status === 'completed' ? 'completed' : status;
-    if (ticketStatus) {
+    if (!error && ticketStatus) {
       const { error: ticketError } = await client
         .from('kitchen_tickets')
         .update({
@@ -4957,6 +5325,32 @@ export async function updateOrderStatus(storeId: string, orderId: string, status
       if (ticketError) {
         throw new Error(`Failed to sync live kitchen ticket status: ${ticketError.message}`);
       }
+    }
+
+    if (error) {
+      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+      await persistLiveCompatOrderEvent({
+        amount: current?.total_amount || 0,
+        orderId,
+        paymentId: `compat-status:${orderId}:${Date.now()}`,
+        raw: {
+          completed_at: completedAt,
+          customer_id: current?.customer_id || null,
+          items: current?.items || [],
+          kitchen_status: ticketStatus || null,
+          note: current?.note || null,
+          payment_method: current?.payment_method || null,
+          payment_recorded_at: current?.payment_recorded_at || null,
+          payment_source: current?.payment_source || null,
+          payment_status: current?.payment_status || 'pending',
+          placed_at: current?.placed_at || nowIso(),
+          status,
+          table_id: current?.table_id || null,
+          table_no: current?.table_no || null,
+        },
+        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
+      });
+      return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
     }
 
     return data ? mapLiveOrder(data as Record<string, unknown>) : null;
@@ -5006,16 +5400,33 @@ export async function listKitchenTickets(storeId: string) {
       client.from('order_items').select('*').eq('store_id', storeId),
     ]);
 
-    if (ticketsResult.error) {
+    if (ticketsResult.error && !isSchemaCompatError(ticketsResult.error)) {
       throw new Error(`Failed to load live kitchen tickets: ${ticketsResult.error.message}`);
     }
 
-    if (itemsResult.error) {
+    if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
       throw new Error(`Failed to load live order items for kitchen tickets: ${itemsResult.error.message}`);
     }
 
     const orderMap = new Map(orders.map((order) => [order.id, order]));
     const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
+
+    if (ticketsResult.error || !(ticketsResult.data || []).length) {
+      return orders
+        .filter((order) => order.status !== 'cancelled')
+        .map((order) => ({
+          created_at: order.placed_at,
+          id: `compat_ticket_${order.id}`,
+          items: order.items.length ? order.items : items.filter((item) => item.order_id === order.id),
+          order,
+          order_id: order.id,
+          status: (order.status === 'completed' ? 'completed' : order.status) as KitchenTicket['status'],
+          store_id: order.store_id,
+          table_id: order.table_id,
+          table_no: order.table_no,
+          updated_at: order.completed_at || order.payment_recorded_at || order.placed_at,
+        }));
+    }
 
     return ((ticketsResult.data || []) as Record<string, unknown>[]).map((row) => {
       const ticket = mapLiveKitchenTicket(row);
@@ -5052,11 +5463,11 @@ export async function updateKitchenTicketStatus(storeId: string, ticketId: strin
       .select('*')
       .single();
 
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to update live kitchen ticket status: ${error.message}`);
     }
 
-    const orderId = normalizeText((data as Record<string, unknown> | null)?.order_id);
+    const orderId = normalizeText((data as Record<string, unknown> | null)?.order_id) || ticketId.replace(/^compat_ticket_/, '');
     if (orderId) {
       await updateOrderStatus(storeId, orderId, status === 'completed' ? 'completed' : status);
     }
@@ -5156,8 +5567,32 @@ export async function createStoreTable(storeId: string, input: { table_no: strin
       .select('*')
       .single();
 
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to create live store table: ${error.message}`);
+    }
+
+    if (error) {
+      const legacyResult = await client
+        .from('store_tables')
+        .insert({
+          table_id: crypto.randomUUID(),
+          store_id: storeId,
+          table_no: input.table_no,
+          status: 'available',
+          status_updated_at: nowIso(),
+        })
+        .select('*')
+        .single();
+
+      if (legacyResult.error) {
+        throw new Error(`Failed to create live store table: ${legacyResult.error.message}`);
+      }
+
+      return {
+        ...mapLiveStoreTable(legacyResult.data as Record<string, unknown>),
+        qr_value: `${buildStoreUrl(store.slug)}/order?table=${encodeURIComponent(input.table_no)}`,
+        seats: input.seats,
+      };
     }
 
     return mapLiveStoreTable(data as Record<string, unknown>);
@@ -5210,8 +5645,26 @@ export async function createMenuCategory(storeId: string, name: string) {
       .select('*')
       .single();
 
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to create live menu category: ${error.message}`);
+    }
+
+    if (error) {
+      const legacyResult = await client
+        .from('menu_categories')
+        .insert({
+          category_id: crypto.randomUUID(),
+          name,
+          store_id: storeId,
+        })
+        .select('*')
+        .single();
+
+      if (legacyResult.error) {
+        throw new Error(`Failed to create live menu category: ${legacyResult.error.message}`);
+      }
+
+      return mapLiveMenuCategory(legacyResult.data as Record<string, unknown>);
     }
 
     return mapLiveMenuCategory(data as Record<string, unknown>);
@@ -5252,8 +5705,33 @@ export async function createMenuItem(
       .select('*')
       .single();
 
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to create live menu item: ${error.message}`);
+    }
+
+    if (error) {
+      const legacyResult = await client
+        .from('menu_items')
+        .insert({
+          menu_id: crypto.randomUUID(),
+          category_id: input.category_id,
+          is_active: true,
+          name: input.name,
+          price: input.price,
+          store_id: storeId,
+        })
+        .select('*')
+        .single();
+
+      if (legacyResult.error) {
+        throw new Error(`Failed to create live menu item: ${legacyResult.error.message}`);
+      }
+
+      return {
+        ...mapLiveMenuItem(legacyResult.data as Record<string, unknown>),
+        description: input.description,
+        is_popular: input.is_popular,
+      };
     }
 
     return mapLiveMenuItem(data as Record<string, unknown>);
@@ -5525,6 +6003,7 @@ export async function submitPublicOrder(input: {
     }>('/api/public/order', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
     });
   }
 
