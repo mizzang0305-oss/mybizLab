@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData.js';
+import {
+  BillingApiStageError,
+  callPortOneApi,
+  validateBillingEnv,
+} from './billingApiRuntime.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
 import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '../shared/lib/services/inquiryService.js';
@@ -18,6 +24,7 @@ import { saveStoreWaitingEntry } from '../shared/lib/services/waitingService.js'
 import { getStoreBrandConfig, getStoreRecordId, normalizeStoreRecord } from '../shared/lib/storeData.js';
 import type {
   Inquiry,
+  KitchenTicket,
   MenuCategory,
   MenuItem,
   Order,
@@ -40,6 +47,105 @@ function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?
       ...extraHeaders,
     },
   });
+}
+
+const PUBLIC_ORDER_CHECKOUT_ENDPOINT = '/api/public/order-payment-checkout';
+const PUBLIC_ORDER_PAYMENT_VERIFY_ENDPOINT = '/api/public/order-payment-verify';
+const PUBLIC_ORDER_PAYMENT_ID_MAX_LENGTH = 40;
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeInteger(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.trunc(parsed);
+    }
+  }
+
+  return fallback;
+}
+
+function normalizeNumeric(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function createPublicOrderPaymentId() {
+  const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  const paymentId = `mb_ord_${shortId}`;
+
+  if (paymentId.length > PUBLIC_ORDER_PAYMENT_ID_MAX_LENGTH) {
+    throw new Error('Failed to generate a safe payment id for public order checkout.');
+  }
+
+  return paymentId;
+}
+
+function mapOrderRecord(row: Record<string, unknown>): Order {
+  return {
+    id: normalizeText(row.id),
+    store_id: normalizeText(row.store_id),
+    customer_id: normalizeText(row.customer_id) || undefined,
+    table_id: normalizeText(row.table_id) || undefined,
+    table_no: normalizeText(row.table_no) || undefined,
+    channel: (normalizeText(row.channel) || 'walk_in') as Order['channel'],
+    status: (normalizeText(row.status) || 'pending') as Order['status'],
+    payment_status: (normalizeText(row.payment_status) || 'pending') as Order['payment_status'],
+    payment_source: (normalizeText(row.payment_source) || undefined) as Order['payment_source'],
+    payment_method: (normalizeText(row.payment_method) || undefined) as Order['payment_method'],
+    payment_recorded_at: normalizeText(row.payment_recorded_at) || undefined,
+    total_amount: normalizeNumeric(row.total_amount),
+    placed_at: normalizeText(row.placed_at),
+    completed_at: normalizeText(row.completed_at) || undefined,
+    note: normalizeText(row.note) || undefined,
+  };
+}
+
+function mapOrderItemRecord(row: Record<string, unknown>): OrderItem {
+  return {
+    id: normalizeText(row.id),
+    order_id: normalizeText(row.order_id),
+    store_id: normalizeText(row.store_id),
+    menu_item_id: normalizeText(row.menu_item_id),
+    menu_name: normalizeText(row.menu_name),
+    quantity: normalizeInteger(row.quantity, 1),
+    unit_price: normalizeNumeric(row.unit_price),
+    line_total: normalizeNumeric(row.line_total),
+  };
+}
+
+function mapKitchenTicketRecord(row: Record<string, unknown>): KitchenTicket {
+  return {
+    id: normalizeText(row.id),
+    store_id: normalizeText(row.store_id),
+    order_id: normalizeText(row.order_id),
+    table_id: normalizeText(row.table_id) || undefined,
+    table_no: normalizeText(row.table_no) || undefined,
+    status: (normalizeText(row.status) || 'pending') as KitchenTicket['status'],
+    created_at: normalizeText(row.created_at),
+    updated_at: normalizeText(row.updated_at),
+  };
 }
 
 type PublicApiRequestLike =
@@ -700,6 +806,419 @@ export async function handlePublicWaitingRequest(request: PublicApiRequestLike) 
       },
     });
   } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+export async function handlePublicOrderRequest(request: PublicApiRequestLike) {
+  try {
+    const body = await parseJsonBody<{
+      items: Array<{ menu_item_id: string; quantity: number }>;
+      note?: string;
+      paymentMethod?: Order['payment_method'];
+      paymentSource?: Order['payment_source'];
+      storeSlug: string;
+      tableNo?: string;
+    }>(request);
+
+    const storeSlug = normalizeText(body.storeSlug);
+    if (!storeSlug) {
+      return createPublicApiErrorResponse(new Error('storeSlug is required.'), 400);
+    }
+
+    if (!Array.isArray(body.items) || body.items.length === 0) {
+      return createPublicApiErrorResponse(new Error('At least one order item is required.'), 400);
+    }
+
+    const snapshot = await buildPublicStoreSnapshot({ slug: storeSlug });
+    if (!snapshot) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
+
+    if (!snapshot.capabilities.orderEntryEnabled) {
+      return createPublicApiErrorResponse(new Error('Order entry is not enabled for this store.'), 403);
+    }
+
+    const adminClient = getSupabaseAdminClient();
+    const tableNo = normalizeText(body.tableNo);
+    const table = tableNo
+      ? snapshot.tables.find((entry) => entry.table_no.toLowerCase() === tableNo.toLowerCase())
+      : undefined;
+
+    const lineItems = body.items
+      .map((item) => {
+        const menuItem = snapshot.menu.items.find((entry) => entry.id === item.menu_item_id);
+        if (!menuItem) {
+          return null;
+        }
+
+        const quantity = Math.max(1, normalizeInteger(item.quantity, 1));
+        return {
+          line_total: menuItem.price * quantity,
+          menu_item_id: menuItem.id,
+          menu_name: menuItem.name,
+          quantity,
+          store_id: snapshot.store.id,
+          unit_price: menuItem.price,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+    if (!lineItems.length) {
+      return createPublicApiErrorResponse(new Error('No valid menu items were found for this order.'), 400);
+    }
+
+    const paymentSource = body.paymentSource === 'mobile' ? 'mobile' : 'counter';
+    const paymentMethod = body.paymentMethod || (paymentSource === 'counter' ? 'cash' : 'card');
+    const totalAmount = lineItems.reduce((sum, item) => sum + item.line_total, 0);
+    const isAlreadyPaid = totalAmount === 0;
+    const placedAt = nowIso();
+
+    const { data: insertedOrder, error: orderError } = await adminClient
+      .from('orders')
+      .insert({
+        channel: table ? 'table' : 'walk_in',
+        completed_at: null,
+        note: normalizeText(body.note) || null,
+        payment_method: paymentMethod,
+        payment_recorded_at: isAlreadyPaid ? placedAt : null,
+        payment_source: paymentSource,
+        payment_status: isAlreadyPaid ? 'paid' : 'pending',
+        placed_at: placedAt,
+        status: 'pending',
+        store_id: snapshot.store.id,
+        table_id: table?.id || null,
+        table_no: table?.table_no || null,
+        total_amount: totalAmount,
+      })
+      .select('*')
+      .single();
+
+    if (orderError || !insertedOrder) {
+      throw new Error(`Failed to create public order: ${orderError?.message || 'Unknown insert error'}`);
+    }
+
+    const order = mapOrderRecord(insertedOrder as Record<string, unknown>);
+    const { data: insertedItems, error: itemsError } = await adminClient
+      .from('order_items')
+      .insert(
+        lineItems.map((item) => ({
+          ...item,
+          order_id: order.id,
+        })),
+      )
+      .select('*');
+
+    if (itemsError) {
+      throw new Error(`Failed to create order items: ${itemsError.message}`);
+    }
+
+    const { data: insertedTicket, error: ticketError } = await adminClient
+      .from('kitchen_tickets')
+      .insert({
+        created_at: placedAt,
+        order_id: order.id,
+        status: 'pending',
+        store_id: snapshot.store.id,
+        table_id: table?.id || null,
+        table_no: table?.table_no || null,
+        updated_at: placedAt,
+      })
+      .select('*')
+      .single();
+
+    if (ticketError || !insertedTicket) {
+      throw new Error(`Failed to create kitchen ticket: ${ticketError?.message || 'Unknown insert error'}`);
+    }
+
+    return responseJson({
+      ok: true,
+      data: {
+        items: ((insertedItems || []) as Record<string, unknown>[]).map((item) => mapOrderItemRecord(item)),
+        order,
+        ticket: mapKitchenTicketRecord(insertedTicket as Record<string, unknown>),
+      },
+    });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+function resolvePublicOrderRedirectUrl(input: {
+  orderId: string;
+  redirectPath?: string;
+  returnOrigin?: string;
+  storeSlug: string;
+  tableNo?: string;
+}) {
+  const rawOrigin = normalizeText(input.returnOrigin);
+  const rawPath = normalizeText(input.redirectPath);
+  const fallbackPath = `/${encodeURIComponent(input.storeSlug)}/order${input.tableNo ? `?table=${encodeURIComponent(input.tableNo)}` : ''}`;
+
+  let origin: string;
+  if (rawOrigin) {
+    origin = new URL(rawOrigin).origin;
+  } else {
+    origin = process.env.VITE_APP_BASE_URL?.trim() || process.env.APP_BASE_URL?.trim() || 'https://mybiz.ai.kr';
+  }
+
+  const safePath =
+    rawPath && rawPath.startsWith('/') && !rawPath.startsWith('//')
+      ? rawPath
+      : fallbackPath;
+
+  const url = new URL(safePath, origin);
+  url.searchParams.set('portone', 'public-order');
+  url.searchParams.set('orderId', input.orderId);
+  return url.toString();
+}
+
+function buildPublicOrderCheckoutCustomer(
+  snapshot: NonNullable<Awaited<ReturnType<typeof buildPublicStoreSnapshot>>>,
+  customer?: { email?: string; fullName?: string; phoneNumber?: string },
+) {
+  return {
+    email: normalizeText(customer?.email) || snapshot.store.email || 'orders@mybiz.ai.kr',
+    fullName: normalizeText(customer?.fullName) || `${snapshot.store.name} 주문`,
+    phoneNumber: normalizeText(customer?.phoneNumber) || snapshot.store.phone || '010-0000-0000',
+  };
+}
+
+export async function handlePublicOrderPaymentCheckoutRequest(request: PublicApiRequestLike) {
+  try {
+    const body = await parseJsonBody<{
+      customer?: {
+        email?: string;
+        fullName?: string;
+        phoneNumber?: string;
+      };
+      orderId: string;
+      redirectPath?: string;
+      returnOrigin?: string;
+      storeSlug: string;
+    }>(request);
+
+    const orderId = normalizeText(body.orderId);
+    const storeSlug = normalizeText(body.storeSlug);
+    if (!orderId || !storeSlug) {
+      return createPublicApiErrorResponse(new Error('orderId and storeSlug are required.'), 400);
+    }
+
+    const snapshot = await buildPublicStoreSnapshot({ slug: storeSlug });
+    if (!snapshot) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
+
+    const adminClient = getSupabaseAdminClient();
+    const { data: orderRow, error: orderError } = await adminClient
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .eq('store_id', snapshot.store.id)
+      .maybeSingle();
+
+    if (orderError) {
+      throw new Error(`Failed to load public order: ${orderError.message}`);
+    }
+
+    if (!orderRow) {
+      return createPublicApiErrorResponse(new Error('Order could not be found for this store.'), 404);
+    }
+
+    const order = mapOrderRecord(orderRow as Record<string, unknown>);
+    if (order.payment_status === 'paid') {
+      return createPublicApiErrorResponse(new Error('This order is already paid.'), 409);
+    }
+
+    if (order.total_amount <= 0) {
+      return createPublicApiErrorResponse(new Error('Only payable orders can enter mobile payment checkout.'), 409);
+    }
+
+    const env = validateBillingEnv(['channelKey', 'storeId'], PUBLIC_ORDER_CHECKOUT_ENDPOINT);
+    const paymentId = createPublicOrderPaymentId();
+
+    return responseJson({
+      ok: true,
+      data: {
+        checkout: {
+          channelKey: env.channelKey!,
+          currency: 'KRW',
+          customer: buildPublicOrderCheckoutCustomer(snapshot, body.customer),
+          noticeUrls: [`${getRequestUrl(request).origin}/api/billing/webhook`],
+          orderName: `${snapshot.store.name} 주문 결제`,
+          payMethod: 'CARD',
+          paymentId,
+          redirectUrl: resolvePublicOrderRedirectUrl({
+            orderId,
+            redirectPath: body.redirectPath,
+            returnOrigin: body.returnOrigin,
+            storeSlug,
+            tableNo: order.table_no,
+          }),
+          storeId: env.storeId!,
+          totalAmount: order.total_amount,
+          customData: sanitizeCheckoutCustomData({
+            kind: 'public_order',
+            orderId,
+            storeId: snapshot.store.id,
+            storeSlug,
+            tableNo: order.table_no || null,
+          }),
+        },
+        orderId,
+      },
+    });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+function readPortOnePaymentStatus(payment: Record<string, unknown>) {
+  return normalizeText(payment.status) || 'UNKNOWN';
+}
+
+function readPortOnePaymentAmount(payment: Record<string, unknown>) {
+  const amount = payment.amount;
+  if (amount && typeof amount === 'object' && !Array.isArray(amount)) {
+    return normalizeNumeric((amount as Record<string, unknown>).total);
+  }
+
+  return normalizeNumeric(amount);
+}
+
+function readPortOneCustomData(payment: Record<string, unknown>) {
+  return typeof payment.customData === 'object' && payment.customData && !Array.isArray(payment.customData)
+    ? (payment.customData as Record<string, unknown>)
+    : {};
+}
+
+export async function handlePublicOrderPaymentVerifyRequest(request: PublicApiRequestLike) {
+  try {
+    const body = await parseJsonBody<{
+      orderId: string;
+      paymentId: string;
+      storeSlug: string;
+    }>(request);
+
+    const orderId = normalizeText(body.orderId);
+    const paymentId = normalizeText(body.paymentId);
+    const storeSlug = normalizeText(body.storeSlug);
+    if (!orderId || !paymentId || !storeSlug) {
+      return createPublicApiErrorResponse(new Error('orderId, paymentId, and storeSlug are required.'), 400);
+    }
+
+    const snapshot = await buildPublicStoreSnapshot({ slug: storeSlug });
+    if (!snapshot) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
+
+    const adminClient = getSupabaseAdminClient();
+    const { data: orderRow, error: orderError } = await adminClient
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .eq('store_id', snapshot.store.id)
+      .maybeSingle();
+
+    if (orderError) {
+      throw new Error(`Failed to load public order: ${orderError.message}`);
+    }
+
+    if (!orderRow) {
+      return createPublicApiErrorResponse(new Error('Order could not be found for this store.'), 404);
+    }
+
+    const order = mapOrderRecord(orderRow as Record<string, unknown>);
+    if (order.payment_status === 'paid') {
+      return responseJson({ ok: true, data: { order } });
+    }
+
+    const env = validateBillingEnv(['apiSecret', 'storeId'], PUBLIC_ORDER_PAYMENT_VERIFY_ENDPOINT);
+    const paymentResponse = await callPortOneApi({
+      apiSecret: env.apiSecret!,
+      endpoint: PUBLIC_ORDER_PAYMENT_VERIFY_ENDPOINT,
+      method: 'GET',
+      path: `/payments/${encodeURIComponent(paymentId)}`,
+      query: {
+        storeId: env.storeId!,
+      },
+      stage: 'payment-verify',
+    });
+
+    const payment = (paymentResponse.data || {}) as Record<string, unknown>;
+    const paymentStatus = readPortOnePaymentStatus(payment);
+    if (paymentStatus !== 'PAID') {
+      throw new BillingApiStageError({
+        code: 'PAYMENT_NOT_COMPLETED',
+        details: { orderId, paymentId, paymentStatus },
+        message: `Payment ${paymentId} is not completed. Current status: ${paymentStatus}`,
+        stage: 'payment-verify',
+        status: 409,
+      });
+    }
+
+    const paymentAmount = readPortOnePaymentAmount(payment);
+    if (paymentAmount !== order.total_amount) {
+      throw new BillingApiStageError({
+        code: 'PAYMENT_AMOUNT_MISMATCH',
+        details: { orderId, paymentAmount, totalAmount: order.total_amount },
+        message: `Payment ${paymentId} amount ${paymentAmount} does not match order total ${order.total_amount}.`,
+        stage: 'payment-verify',
+        status: 409,
+      });
+    }
+
+    const customData = readPortOneCustomData(payment);
+    if (normalizeText(customData.kind) !== 'public_order' || normalizeText(customData.orderId) !== orderId) {
+      throw new BillingApiStageError({
+        code: 'PAYMENT_ORDER_MISMATCH',
+        details: { customData, orderId, paymentId },
+        message: `Payment ${paymentId} does not match public order ${orderId}.`,
+        stage: 'payment-verify',
+        status: 409,
+      });
+    }
+
+    const { data: updatedOrder, error: updateError } = await adminClient
+      .from('orders')
+      .update({
+        payment_method: 'card',
+        payment_recorded_at: nowIso(),
+        payment_source: 'mobile',
+        payment_status: 'paid',
+      })
+      .eq('id', orderId)
+      .eq('store_id', snapshot.store.id)
+      .select('*')
+      .single();
+
+    if (updateError || !updatedOrder) {
+      throw new Error(`Failed to mark public order as paid: ${updateError?.message || 'Unknown update error'}`);
+    }
+
+    return responseJson({
+      ok: true,
+      data: {
+        order: mapOrderRecord(updatedOrder as Record<string, unknown>),
+        payment: {
+          paymentId,
+          paymentStatus,
+        },
+      },
+    });
+  } catch (error) {
+    if (error instanceof BillingApiStageError) {
+      return responseJson(
+        {
+          ok: false,
+          code: error.code,
+          error: error.message,
+          details: error.details,
+        },
+        error.status,
+      );
+    }
+
     return createPublicApiErrorResponse(error);
   }
 }

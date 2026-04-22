@@ -42,6 +42,7 @@ export function StorePublicLayout() {
     queryKey: publicStoreQueryKey,
     queryFn: () => (isStoreIdRoute ? getPublicStoreById(storeId) : getPublicStore(storeSlug)),
     enabled: Boolean(storeSlug || storeId),
+    retry: false,
   });
 
   const publicStore = publicStoreQuery.data;

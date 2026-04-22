@@ -100,6 +100,14 @@ interface BillingWebhookResolvedResource {
   storeId?: string;
 }
 
+export interface BillingWebhookSideEffect {
+  kind: 'public_order_payment';
+  orderId: string;
+  paymentId: string;
+  paymentRecordedAt: string;
+  storeId: string;
+}
+
 const memoryStore: BillingWebhookPersistenceStore = {
   events: [],
   states: [],
@@ -557,20 +565,27 @@ function upsertInMemoryStore(mutation: BillingWebhookMutation) {
   }
 }
 
-async function persistToSupabase(mutation: BillingWebhookMutation) {
+function createServiceRoleSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL?.trim() || process.env.VITE_SUPABASE_URL?.trim() || undefined;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || undefined;
 
   if (!supabaseUrl || !serviceRoleKey) {
-    return false;
+    return null;
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+}
+
+async function persistToSupabase(mutation: BillingWebhookMutation) {
+  const supabase = createServiceRoleSupabaseClient();
+  if (!supabase) {
+    return false;
+  }
 
   const { error: eventError } = await supabase.from(SUPABASE_WEBHOOK_EVENTS_TABLE).upsert(
     {
@@ -619,6 +634,68 @@ async function persistToSupabase(mutation: BillingWebhookMutation) {
   }
 
   return true;
+}
+
+export function buildBillingWebhookSideEffect(
+  mutation: BillingWebhookMutation,
+  resolvedResource: BillingWebhookResolvedResource | null = null,
+) {
+  if (!resolvedResource || resolvedResource.kind !== 'payment' || mutation.nextState.paymentStatus !== 'paid') {
+    return null;
+  }
+
+  const customData = toRecord(resolvedResource.payload.customData);
+  if (toStringValue(customData.kind) !== 'public_order') {
+    return null;
+  }
+
+  const orderId = toStringValue(customData.orderId);
+  const storeId = toStringValue(customData.storeId);
+  const paymentId = mutation.eventLog.paymentId || resolvedResource.paymentId;
+
+  if (!orderId || !storeId || !paymentId) {
+    return null;
+  }
+
+  return {
+    kind: 'public_order_payment',
+    orderId,
+    paymentId,
+    paymentRecordedAt: mutation.eventLog.processedAt,
+    storeId,
+  } satisfies BillingWebhookSideEffect;
+}
+
+async function applyBillingWebhookSideEffect(effect: BillingWebhookSideEffect | null) {
+  if (!effect) {
+    return 'skipped' as const;
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  if (!supabase) {
+    return 'skipped' as const;
+  }
+
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      payment_method: 'card',
+      payment_recorded_at: effect.paymentRecordedAt,
+      payment_source: 'mobile',
+      payment_status: 'paid',
+    })
+    .eq('id', effect.orderId)
+    .eq('store_id', effect.storeId);
+
+  if (error) {
+    console.error('[billing-webhook] failed to apply side effect', {
+      effect,
+      error: error.message,
+    });
+    return 'failed' as const;
+  }
+
+  return 'applied' as const;
 }
 
 export async function persistBillingWebhookMutation(mutation: BillingWebhookMutation) {
@@ -693,9 +770,12 @@ export async function handleBillingWebhook(input: HandleBillingWebhookInput): Pr
 
   // TODO: Wire this resolved PortOne snapshot into the production billing tables when the final subscription schema is ready.
   const persistence = await persistBillingWebhookMutation(mutation);
+  const sideEffect = buildBillingWebhookSideEffect(mutation, resolvedResource);
+  const sideEffectStatus = await applyBillingWebhookSideEffect(sideEffect);
 
   input.logStage?.('response 200', {
     persistence,
+    sideEffect: sideEffect ? `${sideEffect.kind}:${sideEffectStatus}` : 'none',
     webhookId: mutation.eventLog.webhookId,
   });
 

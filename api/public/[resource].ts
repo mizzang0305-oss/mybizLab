@@ -3,6 +3,9 @@ import {
   handlePublicConsultationRequest,
   handlePublicInquiryFormRequest,
   handlePublicInquiryRequest,
+  handlePublicOrderPaymentCheckoutRequest,
+  handlePublicOrderPaymentVerifyRequest,
+  handlePublicOrderRequest,
   handlePublicReservationRequest,
   handlePublicStoreRequest,
   handlePublicVisitorSessionRequest,
@@ -54,6 +57,12 @@ async function routePublicRequest(request: PublicRequestLike) {
       return method === 'POST' ? handlePublicInquiryRequest(request) : methodNotAllowed('POST');
     case 'consultation':
       return method === 'POST' ? handlePublicConsultationRequest(request) : methodNotAllowed('POST');
+    case 'order':
+      return method === 'POST' ? handlePublicOrderRequest(request) : methodNotAllowed('POST');
+    case 'order-payment-checkout':
+      return method === 'POST' ? handlePublicOrderPaymentCheckoutRequest(request) : methodNotAllowed('POST');
+    case 'order-payment-verify':
+      return method === 'POST' ? handlePublicOrderPaymentVerifyRequest(request) : methodNotAllowed('POST');
     case 'reservation':
       return method === 'POST' ? handlePublicReservationRequest(request) : methodNotAllowed('POST');
     case 'waiting':

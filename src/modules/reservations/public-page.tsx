@@ -36,6 +36,7 @@ export function PublicReservationPage() {
     queryKey: ['public-reservation', storeId],
     queryFn: () => getPublicStoreById(storeId),
     enabled: Boolean(storeId),
+    retry: false,
   });
 
   const publicStore = publicStoreQuery.data;

@@ -66,6 +66,7 @@ export function PublicConsultationPage() {
     queryKey: queryKeys.publicConsultation(storeId),
     queryFn: () => getPublicConsultation(storeId),
     enabled: Boolean(storeId),
+    retry: false,
   });
 
   const storeName = consultationQuery.data?.store.name || '매장 AI 상담';

@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PASSWORD, IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
 import { getDatabase } from '@/shared/lib/mockDb';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
 import { useUiStore } from '@/shared/lib/uiStore';
 import type { Store, StoreMember } from '@/shared/types/models';
 
@@ -188,7 +189,7 @@ async function resolveSupabaseAccessToken() {
 }
 
 async function requestServerValidatedAdminSession(accessToken: string) {
-  const response = await fetch('/api/auth/session', {
+  const response = await fetch(resolveServerApiUrl('/api/auth/session'), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },

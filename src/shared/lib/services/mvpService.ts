@@ -16,6 +16,7 @@ import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
 import { requestPublicApi } from '@/shared/lib/publicApiClient';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
 import {
   getPublicConsultationSnapshot,
   submitPublicConsultationMessage,
@@ -56,6 +57,7 @@ import {
 } from '@/shared/lib/storeData';
 import { buildLiveStoreSetupRequestInsertPayload } from '@/shared/lib/setupRequestPersistence';
 import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
+import { normalizeCustomerRecord } from '@/shared/lib/domain/customerMemory';
 import type {
   AIReport,
   BillingEvent,
@@ -94,6 +96,7 @@ import type {
   StoreNotice,
   StorePriorityKey,
   StorePrioritySettings,
+  StoreTable,
   StorePriorityWeights,
   StoreSchedule,
   StoreVisibility,
@@ -415,7 +418,7 @@ async function createStoreViaSupabaseRpc(
   },
 ): Promise<CreateStoreWithOwnerRpcRow> {
   // 서버사이드 API 통해 service_role로 RPC 호출 (클라이언트 Auth 불필요)
-  const response = await fetch('/api/stores/provision', {
+  const response = await fetch(resolveServerApiUrl('/api/stores/provision'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -585,6 +588,198 @@ export interface DashboardSnapshot {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeNumeric(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function normalizeInteger(value: unknown, fallback = 0) {
+  return Math.trunc(normalizeNumeric(value, fallback));
+}
+
+function shouldUseLiveOrderData() {
+  return IS_LIVE_RUNTIME && typeof window !== 'undefined' && Boolean(supabase);
+}
+
+function assertLiveSupabaseClient() {
+  if (!supabase) {
+    throw new Error('Supabase browser client is not configured for live order data.');
+  }
+
+  return supabase;
+}
+
+function mapLiveOrder(row: Record<string, unknown>): Order {
+  return {
+    id: normalizeText(row.id),
+    store_id: normalizeText(row.store_id),
+    customer_id: normalizeText(row.customer_id) || undefined,
+    table_id: normalizeText(row.table_id) || undefined,
+    table_no: normalizeText(row.table_no) || undefined,
+    channel: (normalizeText(row.channel) || 'walk_in') as Order['channel'],
+    status: (normalizeText(row.status) || 'pending') as Order['status'],
+    payment_status: (normalizeText(row.payment_status) || 'pending') as Order['payment_status'],
+    payment_source: (normalizeText(row.payment_source) || undefined) as Order['payment_source'],
+    payment_method: (normalizeText(row.payment_method) || undefined) as Order['payment_method'],
+    payment_recorded_at: normalizeText(row.payment_recorded_at) || undefined,
+    total_amount: normalizeNumeric(row.total_amount),
+    placed_at: normalizeText(row.placed_at),
+    completed_at: normalizeText(row.completed_at) || undefined,
+    note: normalizeText(row.note) || undefined,
+  };
+}
+
+function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
+  return {
+    id: normalizeText(row.id),
+    order_id: normalizeText(row.order_id),
+    store_id: normalizeText(row.store_id),
+    menu_item_id: normalizeText(row.menu_item_id),
+    menu_name: normalizeText(row.menu_name),
+    quantity: normalizeInteger(row.quantity, 1),
+    unit_price: normalizeNumeric(row.unit_price),
+    line_total: normalizeNumeric(row.line_total),
+  };
+}
+
+function mapLiveKitchenTicket(row: Record<string, unknown>): KitchenTicket {
+  return {
+    id: normalizeText(row.id),
+    store_id: normalizeText(row.store_id),
+    order_id: normalizeText(row.order_id),
+    table_id: normalizeText(row.table_id) || undefined,
+    table_no: normalizeText(row.table_no) || undefined,
+    status: (normalizeText(row.status) || 'pending') as KitchenTicket['status'],
+    created_at: normalizeText(row.created_at),
+    updated_at: normalizeText(row.updated_at),
+  };
+}
+
+function mapLiveStoreTable(row: Record<string, unknown>): StoreTable {
+  return {
+    id: normalizeText(row.id),
+    store_id: normalizeText(row.store_id),
+    table_no: normalizeText(row.table_no),
+    seats: normalizeInteger(row.seats, 4),
+    qr_value: normalizeText(row.qr_value),
+    is_active: row.is_active !== false,
+  };
+}
+
+function mapLiveMenuCategory(row: Record<string, unknown>): MenuCategory {
+  return {
+    id: normalizeText(row.id),
+    store_id: normalizeText(row.store_id),
+    name: normalizeText(row.name),
+    sort_order: normalizeInteger(row.sort_order, 1),
+  };
+}
+
+function mapLiveMenuItem(row: Record<string, unknown>): MenuItem {
+  return {
+    id: normalizeText(row.id),
+    store_id: normalizeText(row.store_id),
+    category_id: normalizeText(row.category_id),
+    name: normalizeText(row.name),
+    price: normalizeNumeric(row.price),
+    description: normalizeText(row.description),
+    is_popular: row.is_popular === true,
+    is_active: row.is_active !== false,
+  };
+}
+
+async function listLiveOrders(storeId: string) {
+  const client = assertLiveSupabaseClient();
+  const [ordersResult, itemsResult, customersResult] = await Promise.all([
+    client.from('orders').select('*').eq('store_id', storeId).order('placed_at', { ascending: false }),
+    client.from('order_items').select('*').eq('store_id', storeId),
+    client.from('customers').select('*').eq('store_id', storeId),
+  ]);
+
+  if (ordersResult.error) {
+    throw new Error(`Failed to load live orders: ${ordersResult.error.message}`);
+  }
+
+  if (itemsResult.error) {
+    throw new Error(`Failed to load live order items: ${itemsResult.error.message}`);
+  }
+
+  if (customersResult.error) {
+    throw new Error(`Failed to load live customers for orders: ${customersResult.error.message}`);
+  }
+
+  const orders = ((ordersResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrder(row));
+  const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
+  const customers = ((customersResult.data || []) as Record<string, unknown>[]).map((row) =>
+    normalizeCustomerRecord({
+      id: normalizeText(row.id),
+      store_id: normalizeText(row.store_id),
+      name: normalizeText(row.name),
+      phone: normalizeText(row.phone),
+      email: normalizeText(row.email) || undefined,
+      visit_count: normalizeInteger(row.visit_count),
+      last_visit_at: normalizeText(row.last_visit_at) || undefined,
+      is_regular: row.is_regular === true,
+      marketing_opt_in: row.marketing_opt_in === true,
+      created_at: normalizeText(row.created_at),
+      updated_at: normalizeText(row.updated_at) || undefined,
+    }),
+  );
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+
+  return orders.map((order) => ({
+    ...order,
+    items: items.filter((item) => item.order_id === order.id),
+    customer: order.customer_id ? customerById.get(order.customer_id) : undefined,
+  }));
+}
+
+async function listLiveStoreTables(storeId: string) {
+  const client = assertLiveSupabaseClient();
+  const { data, error } = await client.from('store_tables').select('*').eq('store_id', storeId).order('table_no', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load live store tables: ${error.message}`);
+  }
+
+  return ((data || []) as Record<string, unknown>[]).map((row) => mapLiveStoreTable(row));
+}
+
+async function listLiveMenu(storeId: string) {
+  const client = assertLiveSupabaseClient();
+  const [categoriesResult, itemsResult] = await Promise.all([
+    client.from('menu_categories').select('*').eq('store_id', storeId).order('sort_order', { ascending: true }),
+    client.from('menu_items').select('*').eq('store_id', storeId).order('name', { ascending: true }),
+  ]);
+
+  if (categoriesResult.error) {
+    throw new Error(`Failed to load live menu categories: ${categoriesResult.error.message}`);
+  }
+
+  if (itemsResult.error) {
+    throw new Error(`Failed to load live menu items: ${itemsResult.error.message}`);
+  }
+
+  return {
+    categories: ((categoriesResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveMenuCategory(row)),
+    items: ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveMenuItem(row)),
+  };
 }
 
 function isoDaysAgo(daysAgo: number, hours = 9) {
@@ -2981,6 +3176,21 @@ export async function attachCustomerToOrder(
     visitIncrement: 1,
   });
 
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { error } = await client
+      .from('orders')
+      .update({ customer_id: memoryRecord.customer.id })
+      .eq('id', orderId)
+      .eq('store_id', storeId);
+
+    if (error) {
+      throw new Error(`Failed to attach customer to live order: ${error.message}`);
+    }
+
+    return memoryRecord.customer;
+  }
+
   updateDatabase((database) => {
     database.orders = database.orders.map((order) =>
       order.id === orderId ? { ...order, customer_id: memoryRecord.customer.id } : order,
@@ -4445,6 +4655,10 @@ export async function listSales(storeId: string) {
 }
 
 export async function listOrders(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    return listLiveOrders(storeId);
+  }
+
   const data = getStoreScopedData(storeId);
   return data.orders
     .slice()
@@ -4482,6 +4696,82 @@ export interface TableLiveBoardRow {
 }
 
 export async function getTableLiveBoard(storeId: string): Promise<TableLiveBoardRow[]> {
+  if (shouldUseLiveOrderData()) {
+    const [tables, orders, kitchenTickets, timelineEvents, customers, conversationSessions] = await Promise.all([
+      listLiveStoreTables(storeId),
+      listLiveOrders(storeId),
+      listKitchenTickets(storeId),
+      listCustomerTimelineEvents(storeId),
+      listStoreCustomers(storeId),
+      listConversationSessions(storeId),
+    ]);
+    const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+    const conversationMessagesBySession = new Map(
+      await Promise.all(
+        conversationSessions.map(async (session) => [session.id, await listConversationMessages(session.id)] as const),
+      ),
+    );
+
+    return tables
+      .map((table) => {
+        const tableOrders = orders
+          .filter((order) => order.table_id === table.id)
+          .slice()
+          .sort((left, right) => right.placed_at.localeCompare(left.placed_at))
+          .map((order) => ({
+            ...order,
+            customer: order.customer_id ? customerById.get(order.customer_id) : order.customer,
+          }));
+        const activeOrders = tableOrders.filter((order) => order.status !== 'completed' && order.status !== 'cancelled');
+        const latestTicket = kitchenTickets
+          .filter((ticket) => ticket.table_id === table.id)
+          .slice()
+          .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
+        const latestCustomerId = tableOrders.find((order) => order.customer_id)?.customer_id;
+        const recentSession = latestCustomerId
+          ? conversationSessions
+              .filter((session) => session.customer_id === latestCustomerId)
+              .slice()
+              .sort((left, right) =>
+                (right.last_message_at || right.updated_at).localeCompare(left.last_message_at || left.updated_at),
+              )[0]
+          : undefined;
+        const recentMessages = recentSession ? conversationMessagesBySession.get(recentSession.id) || [] : [];
+        const recentTimeline = latestCustomerId
+          ? timelineEvents
+              .filter((event) => event.customer_id === latestCustomerId)
+              .slice()
+              .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+              .slice(0, 3)
+          : [];
+
+        return {
+          activeOrderCount: activeOrders.length,
+          latestTicketStatus: latestTicket?.status,
+          paidOrderCount: tableOrders.filter((order) => order.payment_status === 'paid').length,
+          pendingPaymentCount: tableOrders.filter(
+            (order) => order.payment_status !== 'paid' && order.status !== 'cancelled',
+          ).length,
+          recentConversation: recentSession
+            ? {
+                channel: recentSession.channel,
+                lastAssistantReply: recentMessages.find((message) => message.sender === 'assistant')?.body,
+                lastMessageAt: recentSession.last_message_at,
+                sessionId: recentSession.id,
+                subject: recentSession.subject,
+              }
+            : null,
+          recentTimeline,
+          qrValue: table.qr_value,
+          seats: table.seats,
+          tableId: table.id,
+          tableNo: table.table_no,
+          tableOrders,
+        } satisfies TableLiveBoardRow;
+      })
+      .sort((left, right) => left.tableNo.localeCompare(right.tableNo, 'ko-KR'));
+  }
+
   const data = getStoreScopedData(storeId);
   const customerById = new Map(data.customers.map((customer) => [customer.id, customer]));
 
@@ -4579,6 +4869,28 @@ export async function recordOrderPayment(
     paymentSource: OrderPaymentSource;
   },
 ) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { data, error } = await client
+      .from('orders')
+      .update({
+        payment_method: input.paymentMethod || (input.paymentSource === 'counter' ? 'cash' : 'card'),
+        payment_recorded_at: nowIso(),
+        payment_source: input.paymentSource,
+        payment_status: 'paid',
+      })
+      .eq('id', orderId)
+      .eq('store_id', storeId)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to record live order payment: ${error.message}`);
+    }
+
+    return data ? mapLiveOrder(data as Record<string, unknown>) : null;
+  }
+
   let updatedOrder: Order | null = null;
 
   updateDatabase((database) => {
@@ -4614,6 +4926,42 @@ export async function recordOrderPayment(
 }
 
 export async function updateOrderStatus(storeId: string, orderId: string, status: OrderStatus) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { data, error } = await client
+      .from('orders')
+      .update({
+        completed_at: status === 'completed' ? nowIso() : null,
+        status,
+      })
+      .eq('id', orderId)
+      .eq('store_id', storeId)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update live order status: ${error.message}`);
+    }
+
+    const ticketStatus = status === 'cancelled' ? null : status === 'completed' ? 'completed' : status;
+    if (ticketStatus) {
+      const { error: ticketError } = await client
+        .from('kitchen_tickets')
+        .update({
+          status: ticketStatus,
+          updated_at: nowIso(),
+        })
+        .eq('order_id', orderId)
+        .eq('store_id', storeId);
+
+      if (ticketError) {
+        throw new Error(`Failed to sync live kitchen ticket status: ${ticketError.message}`);
+      }
+    }
+
+    return data ? mapLiveOrder(data as Record<string, unknown>) : null;
+  }
+
   let updatedOrder: Order | null = null;
 
   updateDatabase((database) => {
@@ -4650,6 +4998,35 @@ export async function updateOrderStatus(storeId: string, orderId: string, status
 }
 
 export async function listKitchenTickets(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const [ticketsResult, orders, itemsResult] = await Promise.all([
+      client.from('kitchen_tickets').select('*').eq('store_id', storeId).order('created_at', { ascending: false }),
+      listLiveOrders(storeId),
+      client.from('order_items').select('*').eq('store_id', storeId),
+    ]);
+
+    if (ticketsResult.error) {
+      throw new Error(`Failed to load live kitchen tickets: ${ticketsResult.error.message}`);
+    }
+
+    if (itemsResult.error) {
+      throw new Error(`Failed to load live order items for kitchen tickets: ${itemsResult.error.message}`);
+    }
+
+    const orderMap = new Map(orders.map((order) => [order.id, order]));
+    const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
+
+    return ((ticketsResult.data || []) as Record<string, unknown>[]).map((row) => {
+      const ticket = mapLiveKitchenTicket(row);
+      return {
+        ...ticket,
+        order: orderMap.get(ticket.order_id),
+        items: items.filter((item) => item.order_id === ticket.order_id),
+      };
+    });
+  }
+
   const data = getStoreScopedData(storeId);
   return data.kitchenTickets
     .slice()
@@ -4662,6 +5039,30 @@ export async function listKitchenTickets(storeId: string) {
 }
 
 export async function updateKitchenTicketStatus(storeId: string, ticketId: string, status: KitchenTicket['status']) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { data, error } = await client
+      .from('kitchen_tickets')
+      .update({
+        status,
+        updated_at: nowIso(),
+      })
+      .eq('id', ticketId)
+      .eq('store_id', storeId)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update live kitchen ticket status: ${error.message}`);
+    }
+
+    const orderId = normalizeText((data as Record<string, unknown> | null)?.order_id);
+    if (orderId) {
+      await updateOrderStatus(storeId, orderId, status === 'completed' ? 'completed' : status);
+    }
+    return;
+  }
+
   let targetOrderId = '';
 
   updateDatabase((database) => {
@@ -4728,10 +5129,40 @@ export async function saveContract(
 }
 
 export async function listStoreTables(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    return listLiveStoreTables(storeId);
+  }
+
   return getStoreScopedData(storeId).tables;
 }
 
 export async function createStoreTable(storeId: string, input: { table_no: string; seats: number }) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const store = await getStoreById(storeId);
+    if (!store) {
+      throw new Error('Store not found');
+    }
+
+    const { data, error } = await client
+      .from('store_tables')
+      .insert({
+        is_active: true,
+        qr_value: `${buildStoreUrl(store.slug)}/order?table=${encodeURIComponent(input.table_no)}`,
+        seats: input.seats,
+        store_id: storeId,
+        table_no: input.table_no,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create live store table: ${error.message}`);
+    }
+
+    return mapLiveStoreTable(data as Record<string, unknown>);
+  }
+
   const store = await getStoreById(storeId);
   if (!store) {
     throw new Error('Store not found');
@@ -4754,6 +5185,10 @@ export async function createStoreTable(storeId: string, input: { table_no: strin
 }
 
 export async function listMenu(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    return listLiveMenu(storeId);
+  }
+
   const data = getStoreScopedData(storeId);
   return {
     categories: data.menuCategories.slice().sort((left, right) => left.sort_order - right.sort_order),
@@ -4762,6 +5197,26 @@ export async function listMenu(storeId: string) {
 }
 
 export async function createMenuCategory(storeId: string, name: string) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const existingMenu = await listLiveMenu(storeId);
+    const { data, error } = await client
+      .from('menu_categories')
+      .insert({
+        name,
+        sort_order: existingMenu.categories.length + 1,
+        store_id: storeId,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create live menu category: ${error.message}`);
+    }
+
+    return mapLiveMenuCategory(data as Record<string, unknown>);
+  }
+
   const data = getStoreScopedData(storeId);
   const category: MenuCategory = {
     id: createId('menu_category'),
@@ -4781,6 +5236,29 @@ export async function createMenuItem(
   storeId: string,
   input: Pick<MenuItem, 'category_id' | 'name' | 'price' | 'description' | 'is_popular'>,
 ) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { data, error } = await client
+      .from('menu_items')
+      .insert({
+        category_id: input.category_id,
+        description: input.description,
+        is_active: true,
+        is_popular: input.is_popular,
+        name: input.name,
+        price: input.price,
+        store_id: storeId,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create live menu item: ${error.message}`);
+    }
+
+    return mapLiveMenuItem(data as Record<string, unknown>);
+  }
+
   const item: MenuItem = {
     id: createId('menu_item'),
     store_id: storeId,
@@ -5039,6 +5517,17 @@ export async function submitPublicOrder(input: {
   paymentMethod?: OrderPaymentMethod;
   paymentSource?: OrderPaymentSource;
 }) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<{
+      items: OrderItem[];
+      order: Order;
+      ticket: KitchenTicket;
+    }>('/api/public/order', {
+      body: input,
+      method: 'POST',
+    });
+  }
+
   const store = await getStoreBySlug(input.storeSlug);
 
   if (!store) {

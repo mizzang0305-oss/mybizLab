@@ -378,6 +378,10 @@ create table if not exists public.orders (
   table_no text,
   channel text not null check (channel in ('table', 'walk_in', 'delivery', 'reservation')),
   status text not null check (status in ('pending', 'accepted', 'preparing', 'ready', 'completed', 'cancelled')),
+  payment_status text not null default 'pending' check (payment_status in ('pending', 'paid', 'refunded')),
+  payment_source text check (payment_source in ('counter', 'mobile')),
+  payment_method text check (payment_method in ('cash', 'card', 'other')),
+  payment_recorded_at timestamptz,
   total_amount numeric(12, 2) not null default 0,
   placed_at timestamptz not null default timezone('utc', now()),
   completed_at timestamptz,
@@ -823,6 +827,7 @@ create index if not exists menu_categories_store_idx on public.menu_categories (
 create index if not exists menu_items_store_idx on public.menu_items (store_id);
 create index if not exists customers_store_idx on public.customers (store_id);
 create index if not exists orders_store_status_idx on public.orders (store_id, status);
+create index if not exists orders_store_payment_status_idx on public.orders (store_id, payment_status, placed_at desc);
 create index if not exists kitchen_tickets_store_status_idx on public.kitchen_tickets (store_id, status);
 create index if not exists reservations_store_reserved_at_idx on public.reservations (store_id, reserved_at);
 create index if not exists waiting_entries_store_status_idx on public.waiting_entries (store_id, status);

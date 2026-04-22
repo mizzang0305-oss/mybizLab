@@ -453,6 +453,9 @@ export function OnboardingPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.stores }),
         queryClient.invalidateQueries({ queryKey: queryKeys.setupRequests }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.billingRecords }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(result.store.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus }),
       ]);
       if (IS_DEMO_RUNTIME) {
         await createDemoAdminSession();

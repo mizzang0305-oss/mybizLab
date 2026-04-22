@@ -34,6 +34,7 @@ export function PublicWaitingPage() {
     queryKey: ['public-waiting', storeId],
     queryFn: () => getPublicStoreById(storeId),
     enabled: Boolean(storeId),
+    retry: false,
   });
 
   const publicStore = publicStoreQuery.data;
