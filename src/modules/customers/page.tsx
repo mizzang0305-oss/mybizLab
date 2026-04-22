@@ -11,7 +11,16 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from '@/shared/lib/inquirySchema';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { listCustomers, listInquiries, listOrders, updateInquiryRecord, upsertCustomer } from '@/shared/lib/services/mvpService';
+import {
+  listConversationMessages,
+  listConversationSessions,
+  listCustomerTimelineEvents,
+  listCustomers,
+  listInquiries,
+  listOrders,
+  updateInquiryRecord,
+  upsertCustomer,
+} from '@/shared/lib/services/mvpService';
 
 const initialCustomerForm = {
   id: '',
@@ -43,6 +52,12 @@ const orderChannelLabelMap: Record<string, string> = {
   walk_in: '매장 방문',
 };
 
+const conversationChannelLabelMap: Record<string, string> = {
+  ai_chat: 'AI 상담',
+  dashboard_manual: '수기 상담',
+  public_inquiry: '공개 문의',
+};
+
 export function CustomersPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
@@ -55,6 +70,7 @@ export function CustomersPage() {
   const [inquiryMemo, setInquiryMemo] = useState('');
   const [inquiryStatus, setInquiryStatus] = useState<(typeof inquiryStatusValues)[number]>('new');
   const [inquiryMessage, setInquiryMessage] = useState<string | null>(null);
+  const [selectedConversationSessionId, setSelectedConversationSessionId] = useState('');
 
   usePageMeta('고객 관리', '문의함, 응대 상태, 고객 정보, 최근 주문 흐름을 한 화면에서 보는 점주용 고객 관리 화면입니다.');
 
@@ -73,6 +89,12 @@ export function CustomersPage() {
   const inquiriesQuery = useQuery({
     queryKey: queryKeys.inquiries(currentStore?.id || ''),
     queryFn: () => listInquiries(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const conversationSessionsQuery = useQuery({
+    queryKey: queryKeys.conversationSessions(currentStore?.id || ''),
+    queryFn: () => listConversationSessions(currentStore!.id),
     enabled: Boolean(currentStore),
   });
 
@@ -113,6 +135,7 @@ export function CustomersPage() {
   const customers = customersQuery.data || [];
   const orders = ordersQuery.data || [];
   const inquiries = inquiriesQuery.data || [];
+  const conversationSessions = conversationSessionsQuery.data || [];
 
   useEffect(() => {
     if (!selectedInquiryId && inquiries[0]) {
@@ -141,8 +164,47 @@ export function CustomersPage() {
     customers[0] ||
     null;
   const relatedOrders = orders.filter((order) => order.customer?.id === selectedCustomer?.id);
+  const relatedConversationSessions = conversationSessions.filter((session) => {
+    if (selectedInquiry?.id && session.inquiry_id === selectedInquiry.id) {
+      return true;
+    }
+
+    return Boolean(selectedCustomer?.id && session.customer_id === selectedCustomer.id);
+  });
+  const selectedConversationSession =
+    relatedConversationSessions.find((session) => session.id === selectedConversationSessionId) ||
+    relatedConversationSessions[0] ||
+    null;
   const openInquiryCount = inquiries.filter((inquiry) => inquiry.status !== 'completed').length;
   const regularCustomerCount = customers.filter((customer) => customer.is_regular).length;
+
+  const conversationMessagesQuery = useQuery({
+    queryKey: queryKeys.conversationMessages(selectedConversationSession?.id || ''),
+    queryFn: () => listConversationMessages(selectedConversationSession!.id),
+    enabled: Boolean(selectedConversationSession?.id),
+  });
+
+  const customerTimelineQuery = useQuery({
+    queryKey: [...queryKeys.customers(currentStore?.id || ''), 'timeline', selectedCustomer?.id || ''],
+    queryFn: () => listCustomerTimelineEvents(currentStore!.id, selectedCustomer!.id),
+    enabled: Boolean(currentStore && selectedCustomer?.id),
+  });
+  const conversationMessages = conversationMessagesQuery.data || [];
+  const customerTimeline = customerTimelineQuery.data || [];
+
+  useEffect(() => {
+    if (!selectedConversationSessionId && relatedConversationSessions[0]) {
+      setSelectedConversationSessionId(relatedConversationSessions[0].id);
+      return;
+    }
+
+    if (
+      selectedConversationSessionId &&
+      !relatedConversationSessions.some((session) => session.id === selectedConversationSessionId)
+    ) {
+      setSelectedConversationSessionId(relatedConversationSessions[0]?.id || '');
+    }
+  }, [relatedConversationSessions, selectedConversationSessionId]);
 
   useEffect(() => {
     if (!selectedInquiry) {
@@ -496,6 +558,88 @@ export function CustomersPage() {
               </div>
             ) : (
               <EmptyState title="고객을 선택해 주세요" description="고객이나 문의 리드를 선택하면 최근 주문과 연락 맥락을 바로 확인할 수 있습니다." />
+            )}
+          </Panel>
+
+          <Panel title="AI 상담 / 고객 기억 맥락" subtitle="AI 상담과 공개 문의가 고객 메모리 축에 어떻게 쌓였는지 점주가 바로 확인할 수 있게 연결했습니다.">
+            {selectedCustomer ? (
+              <div className="space-y-4">
+                {relatedConversationSessions.length ? (
+                  <div className="grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+                    <div className="space-y-3">
+                      {relatedConversationSessions.map((session) => (
+                        <button
+                          key={session.id}
+                          className={`w-full rounded-[24px] border p-4 text-left transition ${
+                            selectedConversationSession?.id === session.id ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white'
+                          }`}
+                          onClick={() => setSelectedConversationSessionId(session.id)}
+                          type="button"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-900">{conversationChannelLabelMap[session.channel] || session.channel}</p>
+                              <p className="mt-1 text-sm text-slate-500">{session.subject}</p>
+                            </div>
+                            <StatusBadge status={session.status} />
+                          </div>
+                          <p className="mt-3 text-xs text-slate-400">{formatDateTime(session.last_message_at || session.updated_at)}</p>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="space-y-3">
+                      {selectedConversationSession ? (
+                        <div className="rounded-[28px] border border-slate-200 bg-white p-5">
+                          <p className="text-sm font-semibold text-slate-500">대화 맥락</p>
+                          <p className="mt-2 text-lg font-black text-slate-900">{selectedConversationSession.subject}</p>
+                          <div className="mt-4 space-y-3">
+                            {conversationMessages.map((message) => (
+                              <div
+                                key={message.id}
+                                className={`rounded-2xl px-4 py-3 text-sm leading-7 ${
+                                  message.sender === 'assistant'
+                                    ? 'bg-slate-900 text-white'
+                                    : 'border border-slate-200 bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+                                  {message.sender === 'assistant' ? 'AI 응답' : '고객 메시지'}
+                                </p>
+                                <p className="mt-2 whitespace-pre-wrap [word-break:keep-all]">{message.body}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                        <p className="text-sm font-semibold text-slate-500">최근 고객 타임라인</p>
+                        <div className="mt-3 space-y-3">
+                          {customerTimeline.length ? (
+                            customerTimeline.slice(0, 4).map((event) => (
+                              <div key={event.id} className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700">
+                                <p className="font-semibold text-slate-900">{event.summary}</p>
+                                <p className="mt-1 text-xs text-slate-400">{formatDateTime(event.occurred_at)}</p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500">
+                              아직 연결된 상담/타임라인 기록이 없습니다.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+                    아직 연결된 상담 세션이 없습니다. 공개 AI 상담이나 공개 문의가 들어오면 이곳에서 고객 맥락과 함께 확인할 수 있습니다.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <EmptyState title="고객을 선택해 주세요" description="고객을 선택하면 AI 상담과 고객 타임라인을 함께 볼 수 있습니다." />
             )}
           </Panel>
         </div>

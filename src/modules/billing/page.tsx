@@ -80,7 +80,7 @@ export function BillingPage() {
   }
 
   const { entitlements, subscription } = billingQuery.data;
-  const currentPlan = subscription?.plan || currentStore.plan || currentStore.subscription_plan || 'free';
+  const currentPlan = subscription?.plan || 'free';
   const publicGatewayReady = Boolean(PUBLIC_RUNTIME_CONFIG.portone.storeId && PUBLIC_RUNTIME_CONFIG.portone.channelKey);
 
   return (

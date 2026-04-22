@@ -6,9 +6,9 @@ import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { listOrders, updateOrderStatus } from '@/shared/lib/services/mvpService';
+import { listOrders, recordOrderPayment, updateOrderStatus } from '@/shared/lib/services/mvpService';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
-import type { OrderStatus } from '@/shared/types/models';
+import type { OrderPaymentMethod, OrderPaymentSource, OrderStatus } from '@/shared/types/models';
 
 const orderChannelLabelMap: Record<string, string> = {
   delivery: '배달',
@@ -26,6 +26,17 @@ const orderStatusLabelMap: Record<OrderStatus, string> = {
   ready: '준비 완료',
   completed: '완료',
   cancelled: '취소',
+};
+
+const paymentSourceLabelMap: Record<OrderPaymentSource, string> = {
+  counter: '카운터 결제',
+  mobile: '모바일 결제',
+};
+
+const paymentMethodLabelMap: Record<OrderPaymentMethod, string> = {
+  card: '카드',
+  cash: '현금',
+  other: '기타',
 };
 
 function getOrderChannelLabel(channel: string) {
@@ -50,6 +61,25 @@ export function OrdersPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.orders(currentStore!.id) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.sales(currentStore!.id) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.kitchen(currentStore!.id) });
+    },
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: ({
+      orderId,
+      paymentMethod,
+      paymentSource,
+    }: {
+      orderId: string;
+      paymentMethod?: OrderPaymentMethod;
+      paymentSource: OrderPaymentSource;
+    }) => recordOrderPayment(currentStore!.id, orderId, { paymentMethod, paymentSource }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders(currentStore!.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.sales(currentStore!.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tableLiveBoard(currentStore!.id) }),
+      ]);
     },
   });
 
@@ -107,6 +137,11 @@ export function OrdersPage() {
                 </p>
                 <p className="mt-2 text-sm text-slate-500">결제상태</p>
                 <p className="font-semibold text-slate-700">{selectedOrder.payment_status}</p>
+                <p className="mt-2 text-sm text-slate-500">결제구분</p>
+                <p className="font-semibold text-slate-700">
+                  {selectedOrder.payment_source ? paymentSourceLabelMap[selectedOrder.payment_source] : '미지정'}
+                  {selectedOrder.payment_method ? ` · ${paymentMethodLabelMap[selectedOrder.payment_method]}` : ''}
+                </p>
                 <p className="mt-2 text-sm text-slate-500">고객</p>
                 <p className="font-semibold text-slate-700">{selectedOrder.customer?.name || '미등록 고객'}</p>
               </div>
@@ -129,6 +164,32 @@ export function OrdersPage() {
                     {orderStatusLabelMap[status]}
                   </button>
                 ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="btn-secondary"
+                  disabled={paymentMutation.isPending || selectedOrder.payment_status === 'paid'}
+                  onClick={() => paymentMutation.mutate({ orderId: selectedOrder.id, paymentMethod: 'cash', paymentSource: 'counter' })}
+                  type="button"
+                >
+                  카운터 현금 완료
+                </button>
+                <button
+                  className="btn-secondary"
+                  disabled={paymentMutation.isPending || selectedOrder.payment_status === 'paid'}
+                  onClick={() => paymentMutation.mutate({ orderId: selectedOrder.id, paymentMethod: 'card', paymentSource: 'counter' })}
+                  type="button"
+                >
+                  카운터 카드 완료
+                </button>
+                <button
+                  className="btn-primary"
+                  disabled={paymentMutation.isPending || selectedOrder.payment_status === 'paid'}
+                  onClick={() => paymentMutation.mutate({ orderId: selectedOrder.id, paymentMethod: 'card', paymentSource: 'mobile' })}
+                  type="button"
+                >
+                  모바일 결제 완료
+                </button>
               </div>
             </div>
           ) : null}

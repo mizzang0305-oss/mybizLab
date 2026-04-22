@@ -36,6 +36,8 @@ export type SubscriptionStatus =
   | 'refund_requested';
 export type StoreSubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'cancelled';
 export type PaymentMethodStatus = 'ready' | 'action_required' | 'missing';
+export type OrderPaymentSource = 'counter' | 'mobile';
+export type OrderPaymentMethod = 'cash' | 'card' | 'other';
 export type BillingEventStatus = 'pending' | 'paid' | 'failed' | 'requested';
 export type AdminUserRole = 'platform_owner' | 'platform_admin' | 'store_owner' | 'store_manager';
 export type AdminUserStatus = 'active' | 'pending' | 'inactive';
@@ -379,6 +381,9 @@ export interface Order {
   channel: OrderChannel;
   status: OrderStatus;
   payment_status: PaymentStatus;
+  payment_source?: OrderPaymentSource;
+  payment_method?: OrderPaymentMethod;
+  payment_recorded_at?: string;
   total_amount: number;
   placed_at: string;
   completed_at?: string;

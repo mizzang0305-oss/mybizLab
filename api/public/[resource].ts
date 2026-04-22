@@ -1,4 +1,6 @@
 import {
+  handlePublicConsultationFormRequest,
+  handlePublicConsultationRequest,
   handlePublicInquiryFormRequest,
   handlePublicInquiryRequest,
   handlePublicReservationRequest,
@@ -7,20 +9,7 @@ import {
   handlePublicWaitingRequest,
 } from '../../src/server/publicApi.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
-
-export const config = {
-  runtime: 'nodejs',
-};
-
-type PublicRequestLike =
-  | Request
-  | {
-      body?: unknown;
-      headers?: unknown;
-      method?: string;
-      rawBody?: unknown;
-      url?: string;
-    };
+import { config, methodNotAllowed, type PublicRequestLike } from './_shared.js';
 
 function getPathname(request: PublicRequestLike) {
   const rawUrl = typeof request.url === 'string' && request.url.trim() ? request.url : '/';
@@ -30,13 +19,6 @@ function getPathname(request: PublicRequestLike) {
   } catch {
     return '/';
   }
-}
-
-function methodNotAllowed(allow: 'GET' | 'POST') {
-  return new Response('Method Not Allowed', {
-    status: 405,
-    headers: { allow },
-  });
 }
 
 function notFound() {
@@ -64,10 +46,14 @@ async function routePublicRequest(request: PublicRequestLike) {
       return method === 'GET' ? handlePublicStoreRequest(request) : methodNotAllowed('GET');
     case 'inquiry-form':
       return method === 'GET' ? handlePublicInquiryFormRequest(request) : methodNotAllowed('GET');
+    case 'consultation-form':
+      return method === 'GET' ? handlePublicConsultationFormRequest(request) : methodNotAllowed('GET');
     case 'visitor-session':
       return method === 'POST' ? handlePublicVisitorSessionRequest(request) : methodNotAllowed('POST');
     case 'inquiry':
       return method === 'POST' ? handlePublicInquiryRequest(request) : methodNotAllowed('POST');
+    case 'consultation':
+      return method === 'POST' ? handlePublicConsultationRequest(request) : methodNotAllowed('POST');
     case 'reservation':
       return method === 'POST' ? handlePublicReservationRequest(request) : methodNotAllowed('POST');
     case 'waiting':

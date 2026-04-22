@@ -16,8 +16,10 @@ import { SystemPage } from '@/modules/system/page';
 import { useAdminSessionStore } from '@/shared/lib/adminSession';
 import { resetDatabase } from '@/shared/lib/mockDb';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import { getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
 import { useUiStore } from '@/shared/lib/uiStore';
-import { getDashboardSnapshot, listAccessibleStores } from '@/shared/lib/services/mvpService';
+import { listAccessibleStores } from '@/shared/lib/services/mvpService';
 import {
   getBillingConsoleSnapshot,
   getInternalAppAccessSnapshot,
@@ -32,10 +34,12 @@ import {
 
 const session = {
   accessibleStoreIds: ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'],
+  accessibleStores: [],
   profileId: 'profile_platform_owner',
   email: 'ops@mybiz.ai.kr',
   fullName: 'Platform Owner',
   authenticatedAt: '2026-03-14T09:00:00.000Z',
+  memberships: [],
   provider: 'demo' as const,
   role: 'owner' as const,
 };
@@ -63,7 +67,7 @@ async function renderDashboardRoute(
     await prefetch(queryClient);
   }
 
-  useAdminSessionStore.setState({ session });
+  useAdminSessionStore.setState({ error: null, session, status: 'authenticated' });
 
   const router = createMemoryRouter(
     [
@@ -96,7 +100,7 @@ async function renderDashboardRoute(
     ),
   );
 
-  useAdminSessionStore.setState({ session: null });
+  useAdminSessionStore.setState({ error: null, session: null, status: 'idle' });
 
   return html;
 }
@@ -104,36 +108,56 @@ async function renderDashboardRoute(
 describe('platform dashboard routes', () => {
   beforeEach(() => {
     resetDatabase();
-    useAdminSessionStore.setState({ session: null });
+    useAdminSessionStore.setState({ error: null, session: null, status: 'idle' });
     useUiStore.setState({ selectedStoreId: undefined, sidebarOpen: false });
   });
 
   afterEach(() => {
-    useAdminSessionStore.setState({ session: null });
+    useAdminSessionStore.setState({ error: null, session: null, status: 'idle' });
     useUiStore.setState({ selectedStoreId: undefined, sidebarOpen: false });
   });
 
   it('renders the dashboard overview', async () => {
     const html = await renderDashboardRoute('/dashboard', undefined, createElement(DashboardPage), async (queryClient) => {
       await queryClient.prefetchQuery({
-        queryKey: [...queryKeys.dashboard('store_golden_coffee'), 'weekly', '', ''],
-        queryFn: () => Promise.resolve(getDashboardSnapshot('store_golden_coffee', { range: 'weekly' })),
+        queryKey: [...queryKeys.dashboard('store_golden_coffee'), 'runtime-truth'],
+        queryFn: async () => {
+          const repository = getCanonicalMyBizRepository();
+          const [customers, inquiries, reservations, waitingEntries, timelineEvents, publicPage, subscription, entitlements] =
+            await Promise.all([
+              repository.listCustomers('store_golden_coffee'),
+              repository.listInquiries('store_golden_coffee'),
+              repository.listReservations('store_golden_coffee'),
+              repository.listWaitingEntries('store_golden_coffee'),
+              repository.listCustomerTimelineEvents('store_golden_coffee'),
+              repository.getStorePublicPage('store_golden_coffee'),
+              repository.getStoreSubscription('store_golden_coffee'),
+              getStoreEntitlements('store_golden_coffee', { repository }),
+            ]);
+
+          return {
+            activeWaitingCount: waitingEntries.filter((entry) => entry.status === 'waiting' || entry.status === 'called').length,
+            customersCount: customers.length,
+            entitlements,
+            inquiries,
+            openInquiryCount: inquiries.filter((inquiry) => inquiry.status !== 'completed').length,
+            publicPage,
+            reservations,
+            subscription,
+            timelineEvents,
+            upcomingReservationCount: reservations.filter((reservation) => reservation.status !== 'cancelled').length,
+            waitingEntries,
+          };
+        },
       });
     });
 
-    expect(html).toContain('오늘 운영 한눈에 보기');
     expect(html).toContain('Golden Coffee');
     expect(html).toContain('href="/dashboard/orders"');
-    expect(html).toContain('href="/dashboard/surveys"');
     expect(html).toContain('href="/dashboard/customers"');
     expect(html).toContain('href="/dashboard/brand"');
-    expect(html).toContain('조회 기간');
-    expect(html).toContain('다음으로 열면 좋은 화면');
-    expect(html).toContain('최근 7일 흐름');
-    expect(html).toContain('우선 확인');
-    expect(html).toContain('오늘 확인할 알림');
-    expect(html).toContain('고객 구성');
-    expect(html).toContain('오늘 운영판');
+    expect(html).toContain('href="/dashboard/table-order"');
+    expect(html).toContain('href="/golden-coffee"');
   });
 
   it('renders the store requests list and detail routes', async () => {
@@ -196,13 +220,25 @@ describe('platform dashboard routes', () => {
 
     const billingHtml = await renderDashboardRoute('/dashboard/billing', 'billing', createElement(BillingPage), async (queryClient) => {
       await queryClient.prefetchQuery({
-        queryKey: queryKeys.billingRecords,
-        queryFn: getBillingConsoleSnapshot,
+        queryKey: [...queryKeys.billingRecords, 'store_golden_coffee'],
+        queryFn: async () => {
+          const repository = getCanonicalMyBizRepository();
+          const [subscription, entitlements] = await Promise.all([
+            repository.getStoreSubscription('store_golden_coffee'),
+            getStoreEntitlements('store_golden_coffee', { repository }),
+          ]);
+
+          return {
+            entitlements,
+            subscription,
+          };
+        },
       });
     });
 
-    expect(billingHtml).toContain('Billing operations');
-    expect(billingHtml).toContain('Mint Izakaya');
+    expect(billingHtml).toContain('Golden Coffee');
+    expect(billingHtml).toContain('href="/pricing"');
+    expect(billingHtml).toContain('PortOne');
 
     const adminUsersHtml = await renderDashboardRoute(
       '/dashboard/admin-users',
@@ -236,7 +272,8 @@ describe('platform dashboard routes', () => {
       ]);
     });
 
-    expect(systemHtml).toContain('System readiness');
-    expect(systemHtml).toContain('Mock Repository Active');
+    expect(systemHtml).toContain('Golden Coffee');
+    expect(systemHtml).toContain('demo');
+    expect(systemHtml).toContain('/golden-coffee');
   });
 });

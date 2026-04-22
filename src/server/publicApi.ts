@@ -4,6 +4,10 @@ import { getSupabaseAdminClient } from './supabaseAdmin.js';
 import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
 import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '../shared/lib/services/inquiryService.js';
 import {
+  getPublicConsultationSnapshot,
+  submitPublicConsultationMessage,
+} from '../shared/lib/services/consultationService.js';
+import {
   buildDefaultStorePublicPage,
   getCanonicalStorePublicPage,
   resolvePublicPageCapabilities,
@@ -186,13 +190,30 @@ function getRequestUrl(request: PublicApiRequestLike) {
   return new URL(rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`, `${protocol}://${host}`);
 }
 
+function inferPublicApiErrorStatus(error: unknown) {
+  if (!(error instanceof Error)) {
+    return 500;
+  }
+
+  if (/invalid input syntax for type uuid/i.test(error.message)) {
+    return 400;
+  }
+
+  if (/could not be found|not available for this store/i.test(error.message)) {
+    return 404;
+  }
+
+  return 500;
+}
+
 function createPublicApiErrorResponse(error: unknown, status = 500) {
+  const resolvedStatus = status === 500 ? inferPublicApiErrorStatus(error) : status;
   return responseJson(
     {
       ok: false,
       error: error instanceof Error ? error.message : 'Unknown public API error',
     },
-    status,
+    resolvedStatus,
   );
 }
 
@@ -534,6 +555,23 @@ export async function handlePublicInquiryFormRequest(request: PublicApiRequestLi
   }
 }
 
+export async function handlePublicConsultationFormRequest(request: PublicApiRequestLike) {
+  try {
+    const url = getRequestUrl(request);
+    const storeId = url.searchParams.get('storeId');
+
+    if (!storeId) {
+      return createPublicApiErrorResponse(new Error('storeId is required.'), 400);
+    }
+
+    const repository = createSupabaseRepository(getSupabaseAdminClient());
+    const snapshot = await getPublicConsultationSnapshot(storeId, { repository });
+    return responseJson({ ok: true, data: snapshot });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
 export async function handlePublicVisitorSessionRequest(request: PublicApiRequestLike) {
   try {
     const repository = createSupabaseRepository(getSupabaseAdminClient());
@@ -550,6 +588,17 @@ export async function handlePublicInquiryRequest(request: PublicApiRequestLike) 
     const repository = createSupabaseRepository(getSupabaseAdminClient());
     const body = await parseJsonBody<Parameters<typeof submitCanonicalPublicInquiry>[0]>(request);
     const result = await submitCanonicalPublicInquiry(body, { repository });
+    return responseJson({ ok: true, data: result });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+export async function handlePublicConsultationRequest(request: PublicApiRequestLike) {
+  try {
+    const repository = createSupabaseRepository(getSupabaseAdminClient());
+    const body = await parseJsonBody<Parameters<typeof submitPublicConsultationMessage>[0]>(request);
+    const result = await submitPublicConsultationMessage(body, { repository });
     return responseJson({ ok: true, data: result });
   } catch (error) {
     return createPublicApiErrorResponse(error);

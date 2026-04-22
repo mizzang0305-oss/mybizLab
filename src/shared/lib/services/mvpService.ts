@@ -1,6 +1,7 @@
 import { generateGeminiSummary } from '@/integrations/gemini/gemini';
 import { supabase } from '@/integrations/supabase/client';
 import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_LIVE_RUNTIME, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
+import { refreshAdminSession } from '@/shared/lib/adminSession';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
@@ -15,6 +16,10 @@ import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
 import { requestPublicApi } from '@/shared/lib/publicApiClient';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import {
+  getPublicConsultationSnapshot,
+  submitPublicConsultationMessage,
+} from '@/shared/lib/services/consultationService';
 import { listStoreCustomers, upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
 import {
   getPublicInquirySummary,
@@ -56,8 +61,11 @@ import type {
   BillingEvent,
   BillingEventStatus,
   CartItemInput,
+  ConversationMessage,
+  ConversationSession,
   Contract,
   Customer,
+  CustomerTimelineEvent,
   FeatureKey,
   Inquiry,
   KitchenTicket,
@@ -65,6 +73,8 @@ import type {
   MenuItem,
   MvpDatabase,
   Order,
+  OrderPaymentMethod,
+  OrderPaymentSource,
   OrderItem,
   OrderStatus,
   PaymentMethodStatus,
@@ -1059,6 +1069,9 @@ function getStoreScopedData(storeId: string) {
     menuCategories: database.menu_categories.filter((item) => item.store_id === storeId),
     menuItems: database.menu_items.filter((item) => item.store_id === storeId),
     customers: database.customers.filter((item) => item.store_id === storeId),
+    customerTimelineEvents: database.customer_timeline_events.filter((item) => item.store_id === storeId),
+    conversationMessages: database.conversation_messages.filter((item) => item.store_id === storeId),
+    conversationSessions: database.conversation_sessions.filter((item) => item.store_id === storeId),
     inquiries: database.inquiries.filter((item) => item.store_id === storeId),
     orders: database.orders.filter((item) => item.store_id === storeId),
     orderItems: database.order_items.filter((item) => item.store_id === storeId),
@@ -1874,10 +1887,14 @@ function getTodayOrders(orders: Order[]) {
   return orders.filter((order) => startOfDayKey(order.placed_at) === todayKey && order.status !== 'cancelled');
 }
 
+function isRevenueRecognizedOrder(order: Pick<Order, 'status' | 'payment_status'>) {
+  return order.status === 'completed' && order.payment_status === 'paid';
+}
+
 function getTodayCompletedOrders(orders: Order[]) {
   const todayKey = startOfDayKey(new Date());
   return orders.filter(
-    (order) => order.status === 'completed' && order.completed_at && startOfDayKey(order.completed_at) === todayKey,
+    (order) => isRevenueRecognizedOrder(order) && order.completed_at && startOfDayKey(order.completed_at) === todayKey,
   );
 }
 
@@ -1923,6 +1940,20 @@ async function generateAiNarrative(storeId: string) {
 }
 
 export async function getCurrentProfile() {
+  if (typeof window !== 'undefined' && !IS_DEMO_RUNTIME) {
+    const session = await refreshAdminSession();
+    if (!session) {
+      return null;
+    }
+
+    return {
+      created_at: session.authenticatedAt,
+      email: session.email,
+      full_name: session.fullName,
+      id: session.profileId,
+    };
+  }
+
   const repository = getCanonicalMyBizRepository();
   const access = await repository.resolveStoreAccess({
     fallbackEmail: 'ops@mybiz.ai.kr',
@@ -1934,6 +1965,25 @@ export async function getCurrentProfile() {
 }
 
 export async function listAccessibleStores() {
+  if (typeof window !== 'undefined' && !IS_DEMO_RUNTIME) {
+    const session = await refreshAdminSession();
+    if (!session?.accessibleStores.length) {
+      return [];
+    }
+
+    if (shouldUseSupabaseStoreProvisioning()) {
+      const storeIds = session.accessibleStores.map((store) => store.id);
+      const [priorityRows, analyticsProfiles] = await Promise.all([
+        fetchPrioritySettingsRows(storeIds),
+        fetchAnalyticsProfiles(storeIds),
+      ]);
+      syncStoresToLocalCache(session.accessibleStores, priorityRows, analyticsProfiles);
+      return session.accessibleStores.slice().sort((left, right) => right.created_at.localeCompare(left.created_at));
+    }
+
+    return session.accessibleStores;
+  }
+
   const repository = getCanonicalMyBizRepository();
   const access = await repository.resolveStoreAccess({
     fallbackEmail: 'ops@mybiz.ai.kr',
@@ -2063,6 +2113,8 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
+    const timestamp = nowIso();
+    const repository = getCanonicalMyBizRepository();
     const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan, {
       paymentId: options?.paymentId,
       requestId: options?.requestId,
@@ -2070,7 +2122,28 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     const profileId = await getAuthenticatedSupabaseUserId();
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
 
-    await getCanonicalMyBizRepository().saveStorePublicPage(
+    await repository.saveStoreSubscription({
+      id: `subscription_${verified.store.id}`,
+      store_id: verified.store.id,
+      plan: subscriptionPlan,
+      status:
+        options?.subscriptionStatus === 'subscription_cancelled'
+          ? 'cancelled'
+          : options?.subscriptionStatus === 'subscription_past_due'
+            ? 'past_due'
+            : verified.store.trial_ends_at
+              ? 'trialing'
+              : 'active',
+      billing_provider: options?.paymentId ? 'portone' : 'manual',
+      trial_ends_at: verified.store.trial_ends_at,
+      current_period_starts_at: timestamp,
+      current_period_ends_at:
+        subscriptionPlan === 'free' && verified.store.trial_ends_at ? verified.store.trial_ends_at : isoDaysFromNow(30),
+      created_at: timestamp,
+      updated_at: timestamp,
+    });
+
+    await repository.saveStorePublicPage(
       buildDefaultStorePublicPage({
         store: {
           ...verified.store,
@@ -2879,6 +2952,18 @@ export async function updateInquiryRecord(
   return updateStoreInquiry(storeId, inquiryId, input);
 }
 
+export async function listConversationSessions(storeId: string, inquiryId?: string) {
+  return getCanonicalMyBizRepository().listConversationSessions(storeId, inquiryId);
+}
+
+export async function listConversationMessages(sessionId: string) {
+  return getCanonicalMyBizRepository().listConversationMessages(sessionId);
+}
+
+export async function listCustomerTimelineEvents(storeId: string, customerId?: string) {
+  return getCanonicalMyBizRepository().listCustomerTimelineEvents(storeId, customerId);
+}
+
 export async function attachCustomerToOrder(
   storeId: string,
   orderId: string,
@@ -3139,6 +3224,55 @@ export async function getPublicInquiryForm(storeId: string) {
   }
 
   return getPublicInquiryFormSnapshot(storeId);
+}
+
+export async function getPublicConsultation(storeId: string) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicConsultationSnapshot>>>('/api/public/consultation-form', {
+      searchParams: { storeId },
+    });
+  }
+
+  return getPublicConsultationSnapshot(storeId);
+}
+
+export async function submitPublicConsultation(
+  input:
+    | {
+        storeId: string;
+        customerName: string;
+        phone: string;
+        email?: string;
+        marketingOptIn: boolean;
+        message: string;
+        visitorSessionId?: string;
+        visitorToken?: string;
+        visitorPath?: string;
+        referrer?: string;
+        conversationSessionId?: undefined;
+      }
+    | {
+        storeId: string;
+        message: string;
+        visitorSessionId?: string;
+        visitorToken?: string;
+        visitorPath?: string;
+        referrer?: string;
+        conversationSessionId: string;
+      },
+) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<Awaited<ReturnType<typeof submitPublicConsultationMessage>>>('/api/public/consultation', {
+      body: input,
+      method: 'POST',
+    });
+  }
+
+  const result = await submitPublicConsultationMessage(input);
+  updateDatabase((database) => {
+    incrementConsultationMetric(database, input.storeId, result.inquiry.created_at);
+  });
+  return result;
 }
 
 export async function submitPublicInquiry(input: {
@@ -3901,13 +4035,13 @@ export async function getAiReportDashboard(storeId: string, input: AiReportDashb
   const currentResponses = data.surveyResponses.filter((response) => isWithinDateRange(response.created_at, resolved.start, resolved.end));
   const previousResponses = data.surveyResponses.filter((response) => isWithinDateRange(response.created_at, previousRange.start, previousRange.end));
   const completedOrders = data.orders.filter(
-    (order) => order.status === 'completed' && isWithinDateRange(order.completed_at || order.placed_at, resolved.start, resolved.end),
+    (order) => isRevenueRecognizedOrder(order) && isWithinDateRange(order.completed_at || order.placed_at, resolved.start, resolved.end),
   );
   const activeOrders = data.orders.filter(
     (order) => order.status !== 'cancelled' && isWithinDateRange(order.placed_at, resolved.start, resolved.end),
   );
   const previousCompletedOrders = data.orders.filter(
-    (order) => order.status === 'completed' && isWithinDateRange(order.completed_at || order.placed_at, previousRange.start, previousRange.end),
+    (order) => isRevenueRecognizedOrder(order) && isWithinDateRange(order.completed_at || order.placed_at, previousRange.start, previousRange.end),
   );
   const previousActiveOrders = data.orders.filter(
     (order) => order.status !== 'cancelled' && isWithinDateRange(order.placed_at, previousRange.start, previousRange.end),
@@ -4278,7 +4412,7 @@ export async function saveManualDailyMetric(storeId: string, input: ManualMetric
 export async function listSales(storeId: string) {
   const data = getStoreScopedData(storeId);
   const sales = data.sales.slice().sort((left, right) => left.sale_date.localeCompare(right.sale_date));
-  const completedOrders = data.orders.filter((order) => order.status === 'completed');
+  const completedOrders = data.orders.filter((order) => isRevenueRecognizedOrder(order));
   const totalSales = sumBy(completedOrders, (order) => order.total_amount);
   const channelMix = completedOrders.reduce<Record<string, number>>((accumulator, order) => {
     accumulator[order.channel] = (accumulator[order.channel] || 0) + 1;
@@ -4322,6 +4456,98 @@ export async function listOrders(storeId: string) {
     }));
 }
 
+export interface TableLiveBoardRow {
+  activeOrderCount: number;
+  latestTicketStatus?: KitchenTicket['status'];
+  paidOrderCount: number;
+  pendingPaymentCount: number;
+  recentConversation?: {
+    channel: ConversationSession['channel'];
+    lastAssistantReply?: string;
+    lastMessageAt?: string;
+    sessionId: string;
+    subject: string;
+  } | null;
+  recentTimeline: CustomerTimelineEvent[];
+  tableId: string;
+  tableNo: string;
+  qrValue: string;
+  seats: number;
+  tableOrders: Array<
+    Order & {
+      customer?: Customer;
+      items: OrderItem[];
+    }
+  >;
+}
+
+export async function getTableLiveBoard(storeId: string): Promise<TableLiveBoardRow[]> {
+  const data = getStoreScopedData(storeId);
+  const customerById = new Map(data.customers.map((customer) => [customer.id, customer]));
+
+  return data.tables
+    .map((table) => {
+      const tableOrders = data.orders
+        .filter((order) => order.table_id === table.id)
+        .slice()
+        .sort((left, right) => right.placed_at.localeCompare(left.placed_at))
+        .map((order) => ({
+          ...order,
+          customer: order.customer_id ? customerById.get(order.customer_id) : undefined,
+          items: orderItemsForOrder(order.id, data.orderItems),
+        }));
+      const activeOrders = tableOrders.filter((order) => order.status !== 'completed' && order.status !== 'cancelled');
+      const latestTicket = data.kitchenTickets
+        .filter((ticket) => ticket.table_id === table.id)
+        .slice()
+        .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
+      const latestCustomerId = tableOrders.find((order) => order.customer_id)?.customer_id;
+      const recentSessions = latestCustomerId
+        ? data.conversationSessions
+            .filter((session) => session.customer_id === latestCustomerId)
+            .slice()
+            .sort((left, right) => (right.last_message_at || right.updated_at).localeCompare(left.last_message_at || left.updated_at))
+        : [];
+      const recentSession = recentSessions[0];
+      const recentMessages = recentSession
+        ? data.conversationMessages
+            .filter((message) => message.conversation_session_id === recentSession.id)
+            .slice()
+            .sort((left, right) => right.created_at.localeCompare(left.created_at))
+        : [];
+      const recentTimeline = latestCustomerId
+        ? data.customerTimelineEvents
+            .filter((event) => event.customer_id === latestCustomerId)
+            .slice()
+            .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+            .slice(0, 3)
+        : [];
+
+      return {
+        activeOrderCount: activeOrders.length,
+        latestTicketStatus: latestTicket?.status,
+        paidOrderCount: tableOrders.filter((order) => order.payment_status === 'paid').length,
+        pendingPaymentCount: tableOrders.filter((order) => order.payment_status !== 'paid' && order.status !== 'cancelled').length,
+        recentConversation: recentSession
+          ? {
+              channel: recentSession.channel,
+              lastAssistantReply: recentMessages.find((message) => message.sender === 'assistant')?.body,
+              lastMessageAt: recentSession.last_message_at,
+              sessionId: recentSession.id,
+              subject: recentSession.subject,
+            }
+          : null,
+        recentTimeline,
+        qrValue: table.qr_value,
+        seats: table.seats,
+        tableId: table.id,
+        tableNo: table.table_no,
+        tableOrders,
+      } satisfies TableLiveBoardRow;
+    })
+    .sort((left, right) => left.tableNo.localeCompare(right.tableNo, 'ko-KR'));
+}
+
 function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {
   if (order.status === 'completed' && order.completed_at) {
     return order;
@@ -4330,18 +4556,61 @@ function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {
   const completedOrder: Order = {
     ...order,
     status: 'completed',
-    payment_status: 'paid',
     completed_at: nowIso(),
   };
 
-  database.sales_daily = upsertSalesDailyForCompletedOrder(database.sales_daily, {
-    store_id: completedOrder.store_id,
-    placed_at: completedOrder.completed_at ?? completedOrder.placed_at,
-    total_amount: completedOrder.total_amount,
-    channel: completedOrder.channel,
-  });
+  if (completedOrder.payment_status === 'paid') {
+    database.sales_daily = upsertSalesDailyForCompletedOrder(database.sales_daily, {
+      store_id: completedOrder.store_id,
+      placed_at: completedOrder.completed_at ?? completedOrder.placed_at,
+      total_amount: completedOrder.total_amount,
+      channel: completedOrder.channel,
+    });
+  }
 
   return completedOrder;
+}
+
+export async function recordOrderPayment(
+  storeId: string,
+  orderId: string,
+  input: {
+    paymentMethod?: OrderPaymentMethod;
+    paymentSource: OrderPaymentSource;
+  },
+) {
+  let updatedOrder: Order | null = null;
+
+  updateDatabase((database) => {
+    database.orders = database.orders.map((order) => {
+      if (order.id !== orderId || order.store_id !== storeId) {
+        return order;
+      }
+
+      const nextOrder: Order = {
+        ...order,
+        payment_method: input.paymentMethod || order.payment_method || (input.paymentSource === 'counter' ? 'cash' : 'card'),
+        payment_recorded_at: nowIso(),
+        payment_source: input.paymentSource,
+        payment_status: 'paid',
+      };
+
+      const shouldUpsertSales = order.payment_status !== 'paid' && nextOrder.status === 'completed';
+      if (shouldUpsertSales) {
+        database.sales_daily = upsertSalesDailyForCompletedOrder(database.sales_daily, {
+          store_id: nextOrder.store_id,
+          placed_at: nextOrder.completed_at ?? nextOrder.placed_at,
+          total_amount: nextOrder.total_amount,
+          channel: nextOrder.channel,
+        });
+      }
+
+      updatedOrder = nextOrder;
+      return nextOrder;
+    });
+  });
+
+  return updatedOrder;
 }
 
 export async function updateOrderStatus(storeId: string, orderId: string, status: OrderStatus) {
@@ -4767,6 +5036,8 @@ export async function submitPublicOrder(input: {
   tableNo?: string;
   items: CartItemInput[];
   note?: string;
+  paymentMethod?: OrderPaymentMethod;
+  paymentSource?: OrderPaymentSource;
 }) {
   const store = await getStoreBySlug(input.storeSlug);
 
@@ -4796,6 +5067,9 @@ export async function submitPublicOrder(input: {
     .filter(Boolean) as Array<{ menuItemId: string; menuName: string; quantity: number; unitPrice: number }>;
 
   const orderId = createId('order');
+  const paymentSource = input.paymentSource || 'counter';
+  const paymentMethod = input.paymentMethod || (paymentSource === 'counter' ? 'cash' : 'card');
+  const isAlreadyPaid = calculateOrderTotal(lineItems) === 0;
   const order: Order = {
     id: orderId,
     store_id: store.id,
@@ -4803,7 +5077,10 @@ export async function submitPublicOrder(input: {
     table_no: table?.table_no,
     channel: table ? 'table' : 'walk_in',
     status: 'pending',
-    payment_status: 'pending',
+    payment_method: paymentMethod,
+    payment_recorded_at: isAlreadyPaid ? nowIso() : undefined,
+    payment_source: paymentSource,
+    payment_status: isAlreadyPaid ? 'paid' : 'pending',
     total_amount: calculateOrderTotal(lineItems),
     placed_at: nowIso(),
     note: input.note,

@@ -2,6 +2,7 @@ import PortOne, { Currency, PaymentPayMethod, type PaymentRequest, type PaymentR
 
 import type { BillingPlanCode } from './billingPlans';
 import { isAsciiSerializableJson } from './checkoutCustomData';
+import { readPublicEnv } from './publicEnv';
 import { BUSINESS_INFO } from './siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
@@ -148,9 +149,9 @@ function isAsciiSafePaymentId(value: string) {
 }
 
 function requireBrowserCheckoutEnv(): BrowserCheckoutContext {
-  const storeId = normalizeNonEmptyString(import.meta.env.NEXT_PUBLIC_PORTONE_STORE_ID);
-  const channelKey = normalizeNonEmptyString(import.meta.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY);
-  const rawAppBaseUrl = normalizeNonEmptyString(import.meta.env.VITE_APP_BASE_URL);
+  const storeId = normalizeNonEmptyString(readPublicEnv('NEXT_PUBLIC_PORTONE_STORE_ID'));
+  const channelKey = normalizeNonEmptyString(readPublicEnv('NEXT_PUBLIC_PORTONE_CHANNEL_KEY'));
+  const rawAppBaseUrl = normalizeNonEmptyString(readPublicEnv('VITE_APP_BASE_URL'));
   const missing: string[] = [];
 
   if (!storeId) {

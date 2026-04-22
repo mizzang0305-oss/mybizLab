@@ -1,4 +1,5 @@
 export const queryKeys = {
+  adminSession: ['admin-session'] as const,
   stores: ['stores'] as const,
   storeBySlug: (slug: string) => ['stores', 'slug', slug] as const,
   setupRequests: ['setup-requests'] as const,
@@ -21,6 +22,10 @@ export const queryKeys = {
   surveys: (storeId: string) => ['surveys', storeId] as const,
   waiting: (storeId: string) => ['waiting', storeId] as const,
   orders: (storeId: string) => ['orders', storeId] as const,
+  tableLiveBoard: (storeId: string) => ['table-live-board', storeId] as const,
+  conversationSessions: (storeId: string, inquiryId?: string) =>
+    ['conversation-sessions', storeId, inquiryId || 'all'] as const,
+  conversationMessages: (sessionId: string) => ['conversation-messages', sessionId] as const,
   kitchen: (storeId: string) => ['kitchen', storeId] as const,
   storeTables: (storeId: string) => ['store-tables', storeId] as const,
   menu: (storeId: string) => ['menu', storeId] as const,
@@ -33,4 +38,5 @@ export const queryKeys = {
   publicStoreById: (storeId: string) => ['public-store', 'id', storeId] as const,
   publicSurvey: (storeId: string, formId: string) => ['public-survey', storeId, formId] as const,
   publicInquiry: (storeId: string) => ['public-inquiry', storeId] as const,
+  publicConsultation: (storeId: string) => ['public-consultation', storeId] as const,
 } as const;

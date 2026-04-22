@@ -7,7 +7,8 @@ import { Panel } from '@/shared/components/Panel';
 import { usePersistentDiagnosisWorldSurface } from '@/shared/components/PersistentDiagnosisWorldShell';
 import { useAccessibleStores } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
-import { createDemoAdminSession, useAdminSessionStore } from '@/shared/lib/adminSession';
+import { IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
+import { createDemoAdminSession, refreshAdminSession } from '@/shared/lib/adminSession';
 import { BILLING_PLAN_DETAILS } from '@/shared/lib/billingPlans';
 import { requestStructuredDiagnosis } from '@/shared/lib/diagnosisClient';
 import {
@@ -333,7 +334,6 @@ export function OnboardingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const storesQuery = useAccessibleStores();
-  const setSession = useAdminSessionStore((state) => state.setSession);
   const setSelectedStoreId = useUiStore((state) => state.setSelectedStoreId);
   const [flow, setFlow] = useState(() => readOnboardingFlowState());
   const [message, setMessage] = useState<MessageState | null>(null);
@@ -454,8 +454,11 @@ export function OnboardingPage() {
         queryClient.invalidateQueries({ queryKey: queryKeys.stores }),
         queryClient.invalidateQueries({ queryKey: queryKeys.setupRequests }),
       ]);
-      const session = await createDemoAdminSession();
-      setSession(session);
+      if (IS_DEMO_RUNTIME) {
+        await createDemoAdminSession();
+      } else {
+        await refreshAdminSession();
+      }
       setSelectedStoreId(result.store.id);
       setFlow((current) => ({ ...current, step: 'activation', activationStatus: 'completed', createdStoreId: result.store.id }));
       setMessage({ tone: 'success', text: `${result.store.name} 스토어가 준비되었습니다. 잠시 후 생성된 스토어 상세 화면으로 이동합니다.` });

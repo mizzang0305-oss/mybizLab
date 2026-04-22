@@ -59,6 +59,10 @@ export interface PublicRuntimeConfig {
 }
 
 function readRawPublicRuntimeInput() {
+  if (typeof process !== 'undefined' && process.env.VITEST && process.env.MYBIZ_TEST_USE_REAL_ENV !== 'true') {
+    return {};
+  }
+
   return {
     appBaseUrl: readPublicEnv('VITE_APP_BASE_URL'),
     appRuntimeMode: readPublicEnv('VITE_APP_RUNTIME_MODE'),
@@ -86,8 +90,16 @@ function resolveDataMode(dataProvider: LegacyDataProvider): StoreDataMode {
 }
 
 function normalizeConfig(parsed: Partial<z.infer<typeof PublicRuntimeSchema>>, warnings: string[]): PublicRuntimeConfig {
-  const dataProvider = parsed.dataProvider ?? 'local';
-  const appRuntimeMode = parsed.appRuntimeMode ?? 'demo';
+  const supabaseConfigured = Boolean(parsed.supabaseUrl && parsed.supabaseAnonKey);
+  const explicitDemoRuntime = parsed.appRuntimeMode === 'demo';
+  const appRuntimeMode = parsed.appRuntimeMode ?? (supabaseConfigured ? 'live' : 'demo');
+  const requestedProvider = parsed.dataProvider;
+  const dataProvider =
+    explicitDemoRuntime
+      ? requestedProvider ?? 'local'
+      : supabaseConfigured
+        ? 'supabase'
+        : requestedProvider ?? 'local';
   const firebaseConfigured =
     Boolean(parsed.firebaseApiKey) &&
     Boolean(parsed.firebaseAuthDomain) &&
@@ -98,6 +110,12 @@ function normalizeConfig(parsed: Partial<z.infer<typeof PublicRuntimeSchema>>, w
 
   if ((dataProvider === 'firebase' || dataProvider === 'supabase') && !firebaseConfigured && !parsed.supabaseUrl) {
     warnings.push('Firebase mode was requested without Firebase browser config, so the app will keep demo/local-safe fallbacks.');
+  }
+
+  if (requestedProvider === 'mock' && supabaseConfigured && appRuntimeMode === 'live') {
+    warnings.push(
+      'Ignoring legacy mock provider because live Supabase browser config is present. Set VITE_APP_RUNTIME_MODE=demo to force explicit demo runtime.',
+    );
   }
 
   return {

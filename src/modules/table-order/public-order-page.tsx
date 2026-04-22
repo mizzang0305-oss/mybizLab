@@ -14,6 +14,7 @@ export function StoreOrderPage() {
   const [note, setNote] = useState('');
   const [latestOrderId, setLatestOrderId] = useState<string>();
   const [modalOpen, setModalOpen] = useState(false);
+  const [paymentSource, setPaymentSource] = useState<'counter' | 'mobile'>(tableNo ? 'mobile' : 'counter');
   const [customerForm, setCustomerForm] = useState({
     phone: '',
     name: '',
@@ -44,6 +45,8 @@ export function StoreOrderPage() {
           quantity: entry.quantity,
         })),
         note,
+        paymentMethod: paymentSource === 'counter' ? 'cash' : 'card',
+        paymentSource,
       }),
     onSuccess: async (result) => {
       setLatestOrderId(result.order.id);
@@ -124,6 +127,35 @@ export function StoreOrderPage() {
           <div className="rounded-3xl bg-slate-950 p-5 text-white">
             <p className="text-sm text-slate-300">총 결제 예상 금액</p>
             <p className="mt-2 font-display text-3xl font-black">{formatCurrency(total)}</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">결제 방식</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <button
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                  paymentSource === 'counter' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'
+                }`}
+                onClick={() => setPaymentSource('counter')}
+                type="button"
+              >
+                <p className="font-semibold">매장에서 결제</p>
+                <p className={`mt-2 text-sm leading-6 ${paymentSource === 'counter' ? 'text-slate-200' : 'text-slate-500'}`}>
+                  카운터 결제로 접수하고 점주가 결제 완료를 기록합니다.
+                </p>
+              </button>
+              <button
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                  paymentSource === 'mobile' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'
+                }`}
+                onClick={() => setPaymentSource('mobile')}
+                type="button"
+              >
+                <p className="font-semibold">모바일 결제</p>
+                <p className={`mt-2 text-sm leading-6 ${paymentSource === 'mobile' ? 'text-slate-200' : 'text-slate-500'}`}>
+                  모바일 결제 주문으로 접수하고 운영 화면에서 실제 결제 완료 여부를 확인합니다.
+                </p>
+              </button>
+            </div>
           </div>
           <button className="btn-primary w-full" disabled={!cartItems.length || orderMutation.isPending} onClick={() => orderMutation.mutate()} type="button">
             주문 제출

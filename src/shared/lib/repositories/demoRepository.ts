@@ -100,12 +100,18 @@ export const demoRepository: CanonicalMyBizRepository = {
     return getDatabase().store_public_pages.find((page) => page.slug.trim().toLowerCase() === normalizedSlug) || null;
   },
   listConversationMessages: async (sessionId) => {
-    return getDatabase().conversation_messages.filter((message) => message.conversation_session_id === sessionId);
+    return getDatabase()
+      .conversation_messages
+      .filter((message) => message.conversation_session_id === sessionId)
+      .slice()
+      .sort((left, right) => left.created_at.localeCompare(right.created_at));
   },
   listConversationSessions: async (storeId, inquiryId) => {
-    return getDatabase().conversation_sessions.filter(
-      (session) => session.store_id === storeId && (!inquiryId || session.inquiry_id === inquiryId),
-    );
+    return getDatabase()
+      .conversation_sessions
+      .filter((session) => session.store_id === storeId && (!inquiryId || session.inquiry_id === inquiryId))
+      .slice()
+      .sort((left, right) => (right.updated_at || right.created_at).localeCompare(left.updated_at || left.created_at));
   },
   listCustomerContacts: async (storeId, customerId) => {
     return getDatabase().customer_contacts.filter(

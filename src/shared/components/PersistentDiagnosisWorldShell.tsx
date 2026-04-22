@@ -471,6 +471,7 @@ export function PersistentDiagnosisWorldProvider({
   );
 
   const tone = getMybiModeTone(resolvedScene.companionMode);
+  const shouldMountWorld = active && (resolvedScene.layoutMode === 'hero' || panelOpen);
   const allowShellDrift =
     resolvedScene.layoutMode === 'floating' &&
     !isDragging &&
@@ -599,6 +600,12 @@ export function PersistentDiagnosisWorldProvider({
       window.removeEventListener('unhandledrejection', handleRejection);
     };
   }, [active, pushRecentActivity]);
+
+  useEffect(() => {
+    if (!shouldMountWorld) {
+      setReady(false);
+    }
+  }, [shouldMountWorld]);
 
   useEffect(() => {
     if (!active || !ready) return;
@@ -994,13 +1001,21 @@ export function PersistentDiagnosisWorldProvider({
                 }
               >
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_16%,rgba(125,211,252,0.16),transparent_22%),radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.12),transparent_18%),linear-gradient(180deg,rgba(4,7,13,0.92),rgba(2,5,10,0.82))]" />
-                <iframe
-                  ref={iframeRef}
-                  className="absolute inset-0 h-full w-full border-0"
-                  onLoad={() => setReady(true)}
-                  src="/neural-world.html"
-                  title="MYBI neural companion"
-                />
+                {shouldMountWorld ? (
+                  <iframe
+                    ref={iframeRef}
+                    className="absolute inset-0 h-full w-full border-0"
+                    onLoad={() => setReady(true)}
+                    src="/neural-world.html"
+                    title="MYBI neural companion"
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-[radial-gradient(circle_at_48%_38%,rgba(125,211,252,0.18),transparent_20%),radial-gradient(circle_at_62%_58%,rgba(236,91,19,0.16),transparent_24%),linear-gradient(180deg,rgba(2,5,10,0.28),rgba(2,5,10,0.52))]"
+                    data-mybi-world="standby"
+                  />
+                )}
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_52%_34%,rgba(255,255,255,0.06),transparent_16%),linear-gradient(180deg,rgba(2,5,10,0)_0%,rgba(2,5,10,0.12)_44%,rgba(2,5,10,0.38)_100%)]" />
               </motion.div>
             </div>

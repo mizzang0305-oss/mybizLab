@@ -48,6 +48,10 @@ const AiReportsPage = lazyPage(() => import('@/modules/ai-report/page'), 'AiRepo
 const AdminUsersPage = lazyPage(() => import('@/modules/admin-users/page'), 'AdminUsersPage');
 const BillingPage = lazyPage(() => import('@/modules/billing/page'), 'BillingPage');
 const BrandPage = lazyPage(() => import('@/modules/brand/page'), 'BrandPage');
+const PublicConsultationPage = lazyPage(
+  () => import('@/modules/consultation/public-page'),
+  'PublicConsultationPage',
+);
 const ContractsPage = lazyPage(() => import('@/modules/contracts/page'), 'ContractsPage');
 const CustomersPage = lazyPage(() => import('@/modules/customers/page'), 'CustomersPage');
 const DashboardPage = lazyPage(() => import('@/modules/dashboard/page'), 'DashboardPage');
@@ -232,6 +236,10 @@ export const appRoutes: RouteObject[] = [
       {
         path: '/s/:storeId/inquiry',
         element: routeElement(PublicInquiryPage),
+      },
+      {
+        path: '/s/:storeId/consultation',
+        element: routeElement(PublicConsultationPage),
       },
       {
         path: '/s/:storeId/reservation',

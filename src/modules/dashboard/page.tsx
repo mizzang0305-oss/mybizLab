@@ -188,7 +188,7 @@ export function DashboardPage() {
     );
   }
 
-  const currentPlan = snapshot.subscription?.plan || currentStore.plan || currentStore.subscription_plan || 'free';
+  const currentPlan = snapshot.subscription?.plan || 'free';
   const publicStatus = snapshot.publicPage?.public_status || currentStore.public_status || 'private';
 
   return (

@@ -7,6 +7,7 @@ import {
   listCustomers,
   listKitchenTickets,
   listSales,
+  recordOrderPayment,
   submitPublicOrder,
   updateKitchenTicketStatus,
 } from '@/shared/lib/services/mvpService';
@@ -46,6 +47,10 @@ describe('store flow smoke test', () => {
     expect(customer?.id).toBe('customer_hana');
 
     await updateKitchenTicketStatus(publicStore.store.id, orderResult.ticket.id, 'completed');
+    await recordOrderPayment(publicStore.store.id, orderResult.order.id, {
+      paymentMethod: 'cash',
+      paymentSource: 'counter',
+    });
 
     const tickets = await listKitchenTickets(publicStore.store.id);
     const updatedTicket = tickets.find((ticket) => ticket.id === orderResult.ticket.id);
