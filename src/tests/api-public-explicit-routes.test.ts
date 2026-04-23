@@ -16,17 +16,7 @@ const publicApiMocks = vi.hoisted(() => ({
 
 vi.mock('../server/publicApi.js', () => publicApiMocks);
 
-import consultationFormHandler from '../../api/public/consultation-form';
-import consultationHandler from '../../api/public/consultation';
-import inquiryFormHandler from '../../api/public/inquiry-form';
-import inquiryHandler from '../../api/public/inquiry';
-import orderPaymentCheckoutHandler from '../../api/public/order-payment-checkout';
-import orderPaymentVerifyHandler from '../../api/public/order-payment-verify';
-import orderHandler from '../../api/public/order';
-import reservationHandler from '../../api/public/reservation';
-import storeHandler from '../../api/public/store';
-import visitorSessionHandler from '../../api/public/visitor-session';
-import waitingHandler from '../../api/public/waiting';
+import publicHandler from '../../api/public';
 
 function okResponse(kind: string) {
   return new Response(JSON.stringify({ ok: true, kind }), {
@@ -37,34 +27,40 @@ function okResponse(kind: string) {
   });
 }
 
-describe('/api/public explicit route handlers', () => {
+describe('/api/public routed handler', () => {
   it('routes store, inquiry-form, and consultation-form GET requests to their handlers', async () => {
-    publicApiMocks.handlePublicStoreRequest.mockResolvedValueOnce(okResponse('store'));
+    publicApiMocks.handlePublicStoreRequest.mockImplementation(async () => okResponse('store'));
     publicApiMocks.handlePublicInquiryFormRequest.mockResolvedValueOnce(okResponse('inquiry-form'));
     publicApiMocks.handlePublicConsultationFormRequest.mockResolvedValueOnce(okResponse('consultation-form'));
 
-    const storeResponse = await storeHandler(
+    const storeResponse = await publicHandler(
       new Request('https://example.com/api/public/store?slug=golden-coffee', {
         method: 'GET',
       }),
     );
-    const inquiryFormResponse = await inquiryFormHandler(
+    const inquiryFormResponse = await publicHandler(
       new Request('https://example.com/api/public/inquiry-form?storeId=store-live', {
         method: 'GET',
       }),
     );
-    const consultationFormResponse = await consultationFormHandler(
+    const consultationFormResponse = await publicHandler(
       new Request('https://example.com/api/public/consultation-form?storeId=store-live', {
         method: 'GET',
       }),
     );
+    const rewrittenStoreResponse = await publicHandler(
+      new Request('https://example.com/api/public?resource=store&slug=golden-coffee', {
+        method: 'GET',
+      }),
+    );
 
-    expect(publicApiMocks.handlePublicStoreRequest).toHaveBeenCalledTimes(1);
+    expect(publicApiMocks.handlePublicStoreRequest).toHaveBeenCalledTimes(2);
     expect(publicApiMocks.handlePublicInquiryFormRequest).toHaveBeenCalledTimes(1);
     expect(publicApiMocks.handlePublicConsultationFormRequest).toHaveBeenCalledTimes(1);
     await expect(storeResponse.json()).resolves.toMatchObject({ kind: 'store' });
     await expect(inquiryFormResponse.json()).resolves.toMatchObject({ kind: 'inquiry-form' });
     await expect(consultationFormResponse.json()).resolves.toMatchObject({ kind: 'consultation-form' });
+    await expect(rewrittenStoreResponse.json()).resolves.toMatchObject({ kind: 'store' });
   });
 
   it('routes visitor-session, inquiry, consultation, reservation, waiting, and order POST requests to their handlers', async () => {
@@ -77,42 +73,42 @@ describe('/api/public explicit route handlers', () => {
     publicApiMocks.handlePublicOrderPaymentCheckoutRequest.mockResolvedValueOnce(okResponse('order-payment-checkout'));
     publicApiMocks.handlePublicOrderPaymentVerifyRequest.mockResolvedValueOnce(okResponse('order-payment-verify'));
 
-    const visitorSessionResponse = await visitorSessionHandler({
+    const visitorSessionResponse = await publicHandler({
       body: { storeId: 'store-live' },
       method: 'POST',
       url: '/api/public/visitor-session',
     });
-    const inquiryResponse = await inquiryHandler({
+    const inquiryResponse = await publicHandler({
       body: { storeId: 'store-live' },
       method: 'POST',
       url: '/api/public/inquiry',
     });
-    const consultationResponse = await consultationHandler({
+    const consultationResponse = await publicHandler({
       body: { storeId: 'store-live' },
       method: 'POST',
       url: '/api/public/consultation',
     });
-    const reservationResponse = await reservationHandler({
+    const reservationResponse = await publicHandler({
       body: { storeId: 'store-live' },
       method: 'POST',
       url: '/api/public/reservation',
     });
-    const waitingResponse = await waitingHandler({
+    const waitingResponse = await publicHandler({
       body: { storeId: 'store-live' },
       method: 'POST',
       url: '/api/public/waiting',
     });
-    const orderResponse = await orderHandler({
+    const orderResponse = await publicHandler({
       body: { storeSlug: 'golden-coffee' },
       method: 'POST',
       url: '/api/public/order',
     });
-    const orderPaymentCheckoutResponse = await orderPaymentCheckoutHandler({
+    const orderPaymentCheckoutResponse = await publicHandler({
       body: { orderId: 'order_001', storeSlug: 'golden-coffee' },
       method: 'POST',
       url: '/api/public/order-payment-checkout',
     });
-    const orderPaymentVerifyResponse = await orderPaymentVerifyHandler({
+    const orderPaymentVerifyResponse = await publicHandler({
       body: { orderId: 'order_001', paymentId: 'payment_001', storeSlug: 'golden-coffee' },
       method: 'POST',
       url: '/api/public/order-payment-verify',
@@ -136,18 +132,18 @@ describe('/api/public explicit route handlers', () => {
     await expect(orderPaymentVerifyResponse.json()).resolves.toMatchObject({ kind: 'order-payment-verify' });
   });
 
-  it('returns 405 when a method does not match the explicit public endpoint', async () => {
-    const storeResponse = await storeHandler(
+  it('returns 405 when a method does not match the routed public endpoint', async () => {
+    const storeResponse = await publicHandler(
       new Request('https://example.com/api/public/store?slug=golden-coffee', {
         method: 'POST',
       }),
     );
-    const inquiryResponse = await inquiryHandler(
+    const inquiryResponse = await publicHandler(
       new Request('https://example.com/api/public/inquiry', {
         method: 'GET',
       }),
     );
-    const orderPaymentVerifyResponse = await orderPaymentVerifyHandler(
+    const orderPaymentVerifyResponse = await publicHandler(
       new Request('https://example.com/api/public/order-payment-verify', {
         method: 'GET',
       }),
