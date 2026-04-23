@@ -1,4 +1,4 @@
-import { createId } from '@/shared/lib/ids';
+import { createId } from '../ids.js';
 import {
   buildCustomerContact,
   buildCustomerPreference,
@@ -8,11 +8,11 @@ import {
   normalizeCustomerEmail,
   normalizeCustomerRecord,
   normalizeCustomerPhone,
-} from '@/shared/lib/domain/customerMemory';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalCustomerMemoryRepository } from '@/shared/lib/repositories';
-import type { Customer, CustomerContact, CustomerPreference } from '@/shared/types/models';
-import type { CustomerMemoryRecord, CustomerMemoryUpsertInput } from '@/shared/lib/repositories/contracts';
+} from '../domain/customerMemory.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalCustomerMemoryRepository } from '../repositories/index.js';
+import type { Customer, CustomerContact, CustomerPreference } from '../../types/models.js';
+import type { CustomerMemoryRecord, CustomerMemoryUpsertInput } from '../repositories/contracts.js';
 
 function nowIso() {
   return new Date().toISOString();

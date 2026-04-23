@@ -1,7 +1,7 @@
 import PortOne, { Currency, PaymentPayMethod, type PaymentRequest, type PaymentResponse } from '@portone/browser-sdk/v2';
 
-import { requestPublicApi } from '@/shared/lib/publicApiClient';
-import { PortOneCheckoutError } from '@/shared/lib/portoneCheckout';
+import { requestPublicApi } from './publicApiClient.js';
+import { PortOneCheckoutError } from './portoneCheckout.js';
 
 export interface PublicOrderCheckoutSession {
   channelKey: string;

@@ -6,8 +6,8 @@ import {
   DIAGNOSIS_DESIRED_OUTCOME_OPTIONS,
   DIAGNOSIS_INDUSTRY_OPTIONS,
   DIAGNOSIS_STORE_MODE_OPTIONS,
-} from '@/shared/lib/diagnosisBlueprint';
-import { ALL_FEATURES } from '@/shared/types/models';
+} from './diagnosisBlueprint.js';
+import { ALL_FEATURES } from '../types/models.js';
 
 function enumValues<const T extends readonly { value: string }[]>(options: T) {
   return options.map((option) => option.value) as [T[number]['value'], ...T[number]['value'][]];

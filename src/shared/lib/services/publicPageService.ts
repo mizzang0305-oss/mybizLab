@@ -1,11 +1,11 @@
-import { createId } from '@/shared/lib/ids';
-import { IS_LIVE_RUNTIME } from '@/shared/lib/appConfig';
-import { requestPublicApi } from '@/shared/lib/publicApiClient';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { getStoreBrandConfig, getStoreRecordId } from '@/shared/lib/storeData';
-import type { Store, StoreFeature, StoreLocation, StoreMedia, StoreNotice, StorePublicPage, VisitorSession } from '@/shared/types/models';
-import { assertStoreEntitlement, getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
+import { createId } from '../ids.js';
+import { IS_LIVE_RUNTIME } from '../appConfig.js';
+import { requestPublicApi } from '../publicApiClient.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts.js';
+import { getStoreBrandConfig, getStoreRecordId } from '../storeData.js';
+import type { Store, StoreFeature, StoreLocation, StoreMedia, StoreNotice, StorePublicPage, VisitorSession } from '../../types/models.js';
+import { assertStoreEntitlement, getStoreEntitlements } from './storeEntitlementsService.js';
 
 function nowIso() {
   return new Date().toISOString();

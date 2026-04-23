@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '../../../integrations/supabase/client.js';
 import type {
   ConversationMessage,
   ConversationSession,
@@ -17,10 +17,10 @@ import type {
   StoreSubscription,
   VisitorSession,
   WaitingEntry,
-} from '@/shared/types/models';
-import type { CanonicalMyBizRepository, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
-import { getStoreBrandConfig, mapLiveStoreToAppStore } from '@/shared/lib/storeData';
-import { getCustomerRecordId, normalizeCustomerRecord } from '@/shared/lib/domain/customerMemory';
+} from '../../types/models.js';
+import type { CanonicalMyBizRepository, ResolvedStoreAccess } from './contracts.js';
+import { getStoreBrandConfig, mapLiveStoreToAppStore } from '../storeData.js';
+import { getCustomerRecordId, normalizeCustomerRecord } from '../domain/customerMemory.js';
 
 const LIVE_STORE_SELECT = 'store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan';
 const LIVE_CUSTOMER_SELECT =

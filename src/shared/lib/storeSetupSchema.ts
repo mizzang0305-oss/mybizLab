@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { DIAGNOSIS_STORE_MODE_OPTIONS, type DiagnosisDataMode, type DiagnosisRecommendedStoreMode } from '@/shared/lib/diagnosisBlueprint';
-import { ALL_FEATURES } from '@/shared/types/models';
+import { DIAGNOSIS_STORE_MODE_OPTIONS, type DiagnosisDataMode, type DiagnosisRecommendedStoreMode } from './diagnosisBlueprint.js';
+import { ALL_FEATURES } from '../types/models.js';
 
 export type StoreSetupTheme = 'light' | 'warm' | 'modern';
 export type StoreSetupPreviewTarget = 'survey' | 'order' | 'inquiry';

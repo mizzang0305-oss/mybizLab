@@ -1,5 +1,5 @@
-import { getPublicRuntimeConfig } from '@/shared/lib/env/runtimeConfig';
-import { readImportMetaBoolean } from '@/shared/lib/publicEnv';
+import { getPublicRuntimeConfig } from './env/runtimeConfig.js';
+import { readImportMetaBoolean } from './publicEnv.js';
 
 export const PUBLIC_RUNTIME_CONFIG = getPublicRuntimeConfig();
 export const PUBLIC_SERVICE_ORIGIN = PUBLIC_RUNTIME_CONFIG.appBaseUrl;

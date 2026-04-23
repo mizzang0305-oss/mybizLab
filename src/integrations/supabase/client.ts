@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-import { isSupabaseConfigured } from '@/shared/lib/appConfig';
-import { readPublicEnv } from '@/shared/lib/publicEnv';
+import { isSupabaseConfigured } from '../../shared/lib/appConfig.js';
+import { readPublicEnv } from '../../shared/lib/publicEnv.js';
 
 const supabaseUrl = readPublicEnv('VITE_SUPABASE_URL');
 const supabaseAnonKey = readPublicEnv('VITE_SUPABASE_ANON_KEY');

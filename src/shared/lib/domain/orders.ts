@@ -1,6 +1,6 @@
-import type { Order, OrderChannel, OrderItem, SalesDaily } from '@/shared/types/models';
-import { createId } from '@/shared/lib/ids';
-import { startOfDayKey } from '@/shared/lib/format';
+import type { Order, OrderChannel, OrderItem, SalesDaily } from '../../types/models.js';
+import { createId } from '../ids.js';
+import { startOfDayKey } from '../format.js';
 
 export interface OrderLineInput {
   menuItemId: string;

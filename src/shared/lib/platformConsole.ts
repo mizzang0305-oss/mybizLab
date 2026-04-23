@@ -1,4 +1,4 @@
-import { featureDefinitions } from '@/shared/lib/moduleCatalog';
+import { featureDefinitions } from './moduleCatalog.js';
 import type {
   AdminUserRole,
   AdminUserStatus,
@@ -11,7 +11,7 @@ import type {
   SubscriptionPlan,
   SubscriptionStatus,
   SystemStatusState,
-} from '@/shared/types/models';
+} from '../types/models.js';
 
 const featureMap = new Map(featureDefinitions.map((feature) => [feature.key, feature]));
 

@@ -3,9 +3,9 @@
  * repository boundary. This adapter registry remains only for legacy demo
  * bootstrap flows.
  */
-import { DATA_PROVIDER } from '@/shared/lib/appConfig';
-import { firebaseAdapter } from '@/shared/lib/data/adapters/firebaseAdapter';
-import { localMockAdapter } from '@/shared/lib/data/adapters/localMockAdapter';
+import { DATA_PROVIDER } from '../appConfig.js';
+import { firebaseAdapter } from './adapters/firebaseAdapter.js';
+import { localMockAdapter } from './adapters/localMockAdapter.js';
 
 export const demoDataAdapters = {
   firebase: firebaseAdapter,

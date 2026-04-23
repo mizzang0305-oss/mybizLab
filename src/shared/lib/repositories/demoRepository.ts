@@ -1,10 +1,10 @@
-import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
-import { createId } from '@/shared/lib/ids';
+import { getDatabase, updateDatabase } from '../mockDb.js';
+import { createId } from '../ids.js';
 import type {
   Profile,
   StoreMember,
-} from '@/shared/types/models';
-import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
+} from '../../types/models.js';
+import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from './contracts.js';
 
 const PLATFORM_DEMO_PROFILE_ID = 'profile_platform_owner';
 

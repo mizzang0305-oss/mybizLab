@@ -1,4 +1,4 @@
-import { PUBLIC_SERVICE_ORIGIN } from '@/shared/lib/appConfig';
+import { PUBLIC_SERVICE_ORIGIN } from './appConfig.js';
 
 function isLocalHostname(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1';

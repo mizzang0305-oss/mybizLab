@@ -1,4 +1,4 @@
-import { SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
+import { SUBSCRIPTION_START_PATH } from './siteConfig.js';
 
 export const DIAGNOSIS_CORRIDOR_STEPS = [
   {

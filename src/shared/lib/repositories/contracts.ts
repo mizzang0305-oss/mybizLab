@@ -14,7 +14,7 @@ import type {
   StoreSubscription,
   VisitorSession,
   WaitingEntry,
-} from '@/shared/types/models';
+} from '../../types/models.js';
 
 export type CanonicalRepositoryProvider = 'demo' | 'supabase';
 

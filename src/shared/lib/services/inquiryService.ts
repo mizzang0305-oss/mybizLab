@@ -1,19 +1,19 @@
-import { createId } from '@/shared/lib/ids';
-import { getCustomerRecordId } from '@/shared/lib/domain/customerMemory';
+import { createId } from '../ids.js';
+import { getCustomerRecordId } from '../domain/customerMemory.js';
 import {
   inquiryOwnerUpdateSchema,
   normalizeInquiryTags,
   publicInquirySchema,
-} from '@/shared/lib/inquirySchema';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
+} from '../inquirySchema.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts.js';
+import { upsertCustomerMemory } from './customerMemoryService.js';
 import {
   getCanonicalStorePublicPage,
   touchVisitorSession,
-} from '@/shared/lib/services/publicPageService';
-import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
-import type { Inquiry } from '@/shared/types/models';
+} from './publicPageService.js';
+import { assertStoreEntitlement } from './storeEntitlementsService.js';
+import type { Inquiry } from '../../types/models.js';
 
 function nowIso() {
   return new Date().toISOString();
