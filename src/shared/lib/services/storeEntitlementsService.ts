@@ -63,12 +63,6 @@ const ENTITLEMENT_ERROR_MESSAGE: Record<StoreEntitlement, string> = {
 
 export async function getStorePlan(storeId: string, options?: StoreEntitlementsOptions) {
   const repository = options?.repository || getCanonicalMyBizRepository();
-  const store = await repository.findStoreById(storeId);
-
-  if (store) {
-    return normalizeStorePlan(store.plan ?? store.subscription_plan);
-  }
-
   const subscription = await repository.getStoreSubscription(storeId);
   return normalizeStorePlan(subscription?.plan);
 }

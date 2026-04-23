@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { readPublicEnv } from '@/shared/lib/publicEnv';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -9,7 +10,7 @@ export interface GeminiResult {
 }
 
 export async function generateGeminiSummary(prompt: string, fallback: string): Promise<GeminiResult> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = readPublicEnv('VITE_GEMINI_API_KEY');
 
   if (!apiKey) {
     return {

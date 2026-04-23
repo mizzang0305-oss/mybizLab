@@ -44,6 +44,7 @@ export function PublicInquiryPage() {
     queryKey: queryKeys.publicInquiry(storeId),
     queryFn: () => getPublicInquiryForm(storeId),
     enabled: Boolean(storeId),
+    retry: false,
   });
 
   const storeName = inquiryQuery.data?.store.name || '매장 문의';

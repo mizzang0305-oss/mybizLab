@@ -4,8 +4,17 @@ import { Link } from 'react-router-dom';
 
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
+import { StatusBadge } from '@/shared/components/StatusBadge';
+import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { createMenuCategory, createMenuItem, createStoreTable, listMenu, listStoreTables } from '@/shared/lib/services/mvpService';
+import {
+  createMenuCategory,
+  createMenuItem,
+  createStoreTable,
+  getTableLiveBoard,
+  listMenu,
+  listStoreTables,
+} from '@/shared/lib/services/mvpService';
 import { buildStorePath } from '@/shared/lib/storeSlug';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 
@@ -34,6 +43,12 @@ export function TableOrderAdminPage() {
     enabled: Boolean(currentStore),
   });
 
+  const liveBoardQuery = useQuery({
+    queryKey: queryKeys.tableLiveBoard(currentStore?.id || ''),
+    queryFn: () => getTableLiveBoard(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
   useEffect(() => {
     if (!menuForm.category_id && menuQuery.data?.categories[0]) {
       setMenuForm((current) => ({ ...current, category_id: menuQuery.data!.categories[0].id }));
@@ -43,7 +58,10 @@ export function TableOrderAdminPage() {
   const tableMutation = useMutation({
     mutationFn: () => createStoreTable(currentStore!.id, tableForm),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.storeTables(currentStore!.id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.storeTables(currentStore!.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tableLiveBoard(currentStore!.id) }),
+      ]);
     },
   });
 
@@ -144,6 +162,100 @@ export function TableOrderAdminPage() {
         </div>
 
         <div className="space-y-8">
+          <Panel title="테이블 라이브 보드" subtitle="주문, 결제, 고객 기억이 테이블 기준으로 어디까지 연결됐는지 바로 확인합니다.">
+            <div className="space-y-3">
+              {liveBoardQuery.data?.map((row) => (
+                <div key={row.tableId} className="rounded-3xl border border-slate-200 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-slate-900">테이블 {row.tableNo}</p>
+                        <StatusBadge status={row.activeOrderCount ? 'active' : 'pending'} />
+                        {row.latestTicketStatus ? <StatusBadge status={row.latestTicketStatus} /> : null}
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500">
+                        좌석 {row.seats}석 · 진행중 주문 {row.activeOrderCount}건 · 미결제 {row.pendingPaymentCount}건 · 결제완료 {row.paidOrderCount}건
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link className="btn-secondary" to={`${buildStorePath(currentStore.slug, 'order')}?table=${row.tableNo}`}>
+                        QR 주문 열기
+                      </Link>
+                      <Link className="btn-secondary" to="/dashboard/orders">
+                        주문 화면 열기
+                      </Link>
+                    </div>
+                  </div>
+
+                  {row.tableOrders.length ? (
+                    <div className="mt-4 grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
+                      <div className="space-y-3">
+                        {row.tableOrders.slice(0, 3).map((order) => (
+                          <div key={order.id} className="rounded-2xl bg-slate-50 p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge status={order.status} />
+                              <StatusBadge status={order.payment_status} />
+                              {order.payment_source ? (
+                                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                                  {order.payment_source === 'counter' ? '카운터 결제' : '모바일 결제'}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-3 text-sm font-semibold text-slate-900">
+                              {order.customer?.name || '미등록 고객'} · {formatCurrency(order.total_amount)}
+                            </p>
+                            <p className="mt-2 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
+                            <p className="mt-2 text-xs text-slate-400">{formatDateTime(order.placed_at)}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="rounded-2xl bg-slate-50 p-4">
+                          <p className="text-sm font-semibold text-slate-500">최근 고객 기억</p>
+                          {row.recentTimeline.length ? (
+                            <div className="mt-3 space-y-2">
+                              {row.recentTimeline.map((event) => (
+                                <div key={event.id} className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700">
+                                  <p className="font-semibold text-slate-900">{event.summary}</p>
+                                  <p className="mt-1 text-xs text-slate-400">{formatDateTime(event.occurred_at)}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-sm text-slate-500">연결된 고객 기억이 아직 없습니다.</p>
+                          )}
+                        </div>
+
+                        <div className="rounded-2xl bg-slate-50 p-4">
+                          <p className="text-sm font-semibold text-slate-500">최근 AI 상담 / 문의</p>
+                          {row.recentConversation ? (
+                            <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate-700">
+                              <p className="font-semibold text-slate-900">{row.recentConversation.subject}</p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                {row.recentConversation.channel === 'ai_chat' ? 'AI 상담' : '문의 세션'}
+                                {row.recentConversation.lastMessageAt
+                                  ? ` · ${formatDateTime(row.recentConversation.lastMessageAt)}`
+                                  : ''}
+                              </p>
+                              {row.recentConversation.lastAssistantReply ? (
+                                <p className="mt-3 line-clamp-4 leading-6 text-slate-600">{row.recentConversation.lastAssistantReply}</p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-sm text-slate-500">연결된 상담/문의 세션이 아직 없습니다.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-500">아직 이 테이블에 연결된 주문이 없습니다.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Panel>
+
           <Panel title="테이블 및 QR 링크">
             <div className="space-y-3">
               {tablesQuery.data?.map((table) => (

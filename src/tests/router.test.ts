@@ -75,6 +75,7 @@ describe('app routing', () => {
 
   it('resolves the public inquiry route by store id', () => {
     expect(matchedPaths('/s/store_golden_coffee/inquiry')).toContain('/s/:storeId/inquiry');
+    expect(matchedPaths('/s/store_golden_coffee/consultation')).toContain('/s/:storeId/consultation');
   });
 
   it('resolves the public reservation and waiting routes by store id', () => {

@@ -2,6 +2,8 @@ import PortOne, { Currency, PaymentPayMethod, type PaymentRequest, type PaymentR
 
 import type { BillingPlanCode } from './billingPlans';
 import { isAsciiSerializableJson } from './checkoutCustomData';
+import { readPublicEnv } from './publicEnv';
+import { resolveServerApiUrl } from './serverApiUrl';
 import { BUSINESS_INFO } from './siteConfig';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
@@ -148,9 +150,9 @@ function isAsciiSafePaymentId(value: string) {
 }
 
 function requireBrowserCheckoutEnv(): BrowserCheckoutContext {
-  const storeId = normalizeNonEmptyString(import.meta.env.NEXT_PUBLIC_PORTONE_STORE_ID);
-  const channelKey = normalizeNonEmptyString(import.meta.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY);
-  const rawAppBaseUrl = normalizeNonEmptyString(import.meta.env.VITE_APP_BASE_URL);
+  const storeId = normalizeNonEmptyString(readPublicEnv('NEXT_PUBLIC_PORTONE_STORE_ID'));
+  const channelKey = normalizeNonEmptyString(readPublicEnv('NEXT_PUBLIC_PORTONE_CHANNEL_KEY'));
+  const rawAppBaseUrl = normalizeNonEmptyString(readPublicEnv('VITE_APP_BASE_URL'));
   const missing: string[] = [];
 
   if (!storeId) {
@@ -598,7 +600,7 @@ async function readApiResponse<T>(response: Response) {
 
 export async function createCheckoutSession(plan: BillingPlanCode, options?: CheckoutSessionRequestOptions) {
   const body = buildCheckoutSessionRequestBody(plan, options);
-  const response = await fetch(CHECKOUT_ENDPOINT, {
+  const response = await fetch(resolveServerApiUrl(CHECKOUT_ENDPOINT), {
     body: JSON.stringify(body),
     headers: {
       'content-type': 'application/json',
@@ -616,7 +618,7 @@ export async function createCheckoutSession(plan: BillingPlanCode, options?: Che
 }
 
 export async function verifyPortOnePayment(paymentId: string, options?: { storeId?: string }) {
-  const response = await fetch(VERIFY_ENDPOINT, {
+  const response = await fetch(resolveServerApiUrl(VERIFY_ENDPOINT), {
     body: JSON.stringify({
       paymentId,
       ...(options?.storeId ? { storeId: options.storeId } : {}),

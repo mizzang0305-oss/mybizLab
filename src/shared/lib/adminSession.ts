@@ -1,12 +1,16 @@
+import { useEffect } from 'react';
 import { create } from 'zustand';
 
-import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PASSWORD } from '@/shared/lib/appConfig';
+import { supabase } from '@/integrations/supabase/client';
+import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PASSWORD, IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
+import { getDatabase } from '@/shared/lib/mockDb';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
 import { useUiStore } from '@/shared/lib/uiStore';
-import type { StoreMember } from '@/shared/types/models';
+import type { Store, StoreMember } from '@/shared/types/models';
 
-const STORAGE_KEY = 'mybizlab:admin-session';
 const DEFAULT_NEXT_PATH = '/dashboard';
+const DEMO_STORE_ORDER = ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'] as const;
 const FALLBACK_PROFILE_ID = 'profile_platform_owner';
 const FALLBACK_FULL_NAME = '운영 관리자';
 const DASHBOARD_ACCESS_ROLES: StoreMember['role'][] = ['owner', 'manager', 'staff'];
@@ -18,23 +22,45 @@ export const DEMO_ADMIN_CREDENTIALS = {
 
 export interface AdminSession {
   accessibleStoreIds: string[];
+  accessibleStores: Store[];
   authenticatedAt: string;
   email: string;
   fullName: string;
+  memberships: StoreMember[];
   profileId: string;
   provider: 'demo' | 'supabase';
   role: StoreMember['role'];
 }
 
+type AdminSessionStatus =
+  | 'idle'
+  | 'loading'
+  | 'authenticated'
+  | 'unauthenticated'
+  | 'forbidden'
+  | 'error';
+
 interface AdminSessionState {
+  error: string | null;
   session: AdminSession | null;
+  status: AdminSessionStatus;
+  setError: (error: string | null) => void;
   setSession: (session: AdminSession | null) => void;
-  signOut: () => void;
+  setStatus: (status: AdminSessionStatus) => void;
 }
 
 interface CreateDemoAdminSessionOptions {
   email?: string;
   fullName?: string;
+}
+
+class AdminAccessError extends Error {
+  code: 'forbidden' | 'unauthenticated';
+
+  constructor(code: 'forbidden' | 'unauthenticated', message: string) {
+    super(message);
+    this.code = code;
+  }
 }
 
 function normalizeAdminDisplayName(fullName?: string | null) {
@@ -45,69 +71,191 @@ function normalizeAdminDisplayName(fullName?: string | null) {
   return fullName.trim();
 }
 
+function normalizeRole(role: StoreMember['role'] | null | undefined) {
+  return role && DASHBOARD_ACCESS_ROLES.includes(role) ? role : 'owner';
+}
+
 function normalizeSession(value: Partial<AdminSession> | null | undefined) {
   if (!value?.profileId || !value.email) {
     return null;
   }
 
-  const role = value.role && DASHBOARD_ACCESS_ROLES.includes(value.role) ? value.role : 'owner';
-
   return {
     accessibleStoreIds: Array.isArray(value.accessibleStoreIds) ? value.accessibleStoreIds : [],
+    accessibleStores: Array.isArray(value.accessibleStores) ? value.accessibleStores : [],
     authenticatedAt: value.authenticatedAt || new Date().toISOString(),
     email: value.email,
     fullName: normalizeAdminDisplayName(value.fullName),
+    memberships: Array.isArray(value.memberships) ? value.memberships : [],
     profileId: value.profileId,
     provider: value.provider === 'supabase' ? 'supabase' : 'demo',
-    role,
+    role: normalizeRole(value.role),
   } satisfies AdminSession;
 }
 
-function readStoredSession() {
-  if (typeof window === 'undefined') {
-    return null;
+function getDemoStoreOperationalScore(storeId: string) {
+  const database = getDatabase();
+  let score = 0;
+
+  if (database.customers.some((item) => item.store_id === storeId)) {
+    score += 1;
   }
 
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    return normalizeSession(JSON.parse(raw) as Partial<AdminSession>);
-  } catch {
-    return null;
+  if (database.inquiries.some((item) => item.store_id === storeId)) {
+    score += 1;
   }
+
+  if (database.reservations.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  if (database.sales_daily.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  if (database.ai_reports.some((item) => item.store_id === storeId)) {
+    score += 1;
+  }
+
+  return score;
 }
 
-function persistSession(session: AdminSession | null) {
-  if (typeof window === 'undefined') {
+function compareDemoStoresByDashboardReady(left: Store, right: Store) {
+  const leftDemoIndex = DEMO_STORE_ORDER.indexOf(left.id as (typeof DEMO_STORE_ORDER)[number]);
+  const rightDemoIndex = DEMO_STORE_ORDER.indexOf(right.id as (typeof DEMO_STORE_ORDER)[number]);
+
+  if (leftDemoIndex >= 0 && rightDemoIndex >= 0 && leftDemoIndex !== rightDemoIndex) {
+    return leftDemoIndex - rightDemoIndex;
+  }
+
+  const scoreDelta = getDemoStoreOperationalScore(right.id) - getDemoStoreOperationalScore(left.id);
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  if (left.public_status !== right.public_status) {
+    return left.public_status === 'public' ? -1 : 1;
+  }
+
+  return right.created_at.localeCompare(left.created_at);
+}
+
+function orderAccessibleStores(stores: Store[], provider: 'demo' | 'supabase') {
+  if (provider !== 'demo') {
+    return stores;
+  }
+
+  return stores.slice().sort(compareDemoStoresByDashboardReady);
+}
+
+function setSelectedStoreFromSession(session: AdminSession | null) {
+  if (!session?.accessibleStoreIds.length) {
+    useUiStore.getState().setSelectedStoreId(undefined);
     return;
   }
 
-  if (!session) {
-    window.localStorage.removeItem(STORAGE_KEY);
+  const currentSelectedStoreId = useUiStore.getState().selectedStoreId;
+  if (currentSelectedStoreId && session.accessibleStoreIds.includes(currentSelectedStoreId)) {
     return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  useUiStore.getState().setSelectedStoreId(session.accessibleStoreIds[0]);
+}
+
+let demoSessionCache: AdminSession | null = null;
+
+function applySessionState(session: AdminSession | null, status: AdminSessionStatus, error: string | null = null) {
+  const normalized = normalizeSession(session);
+  setSelectedStoreFromSession(normalized);
+  useAdminSessionStore.setState({
+    error,
+    session: normalized,
+    status,
+  });
+  return normalized;
+}
+
+async function resolveSupabaseAccessToken() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw new Error(`Supabase session lookup failed: ${error.message}`);
+  }
+
+  return data.session?.access_token || null;
+}
+
+async function requestServerValidatedAdminSession(accessToken: string) {
+  const response = await fetch(resolveServerApiUrl('/api/auth/session'), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    method: 'GET',
+  });
+  const rawText = await response.text();
+  const payload = rawText
+    ? (JSON.parse(rawText) as { data?: AdminSession; error?: string; message?: string })
+    : {};
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (response.status === 403) {
+    throw new AdminAccessError('forbidden', payload.error || payload.message || 'Store membership is required.');
+  }
+
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || `Admin session request failed with ${response.status}.`);
+  }
+
+  return normalizeSession((payload.data ?? payload) as Partial<AdminSession>);
+}
+
+function buildSessionFromAccess(input: {
+  accessibleStores: Store[];
+  authenticatedAt?: string;
+  email: string;
+  fullName?: string;
+  memberships: StoreMember[];
+  profileId: string;
+  provider: 'demo' | 'supabase';
+  role?: StoreMember['role'] | null;
+}) {
+  const accessibleStores = orderAccessibleStores(input.accessibleStores, input.provider);
+
+  return normalizeSession({
+    accessibleStoreIds: accessibleStores.map((store) => store.id),
+    accessibleStores,
+    authenticatedAt: input.authenticatedAt || new Date().toISOString(),
+    email: input.email,
+    fullName: input.fullName,
+    memberships: input.memberships,
+    profileId: input.profileId,
+    provider: input.provider,
+    role: input.role || 'owner',
+  });
 }
 
 export const useAdminSessionStore = create<AdminSessionState>((set) => ({
-  session: readStoredSession(),
+  error: null,
+  session: null,
+  status: 'idle',
+  setError: (error) => set({ error }),
   setSession: (session) => {
-    const normalized = normalizeSession(session);
-    persistSession(normalized);
-    set({ session: normalized });
+    applySessionState(session, session ? 'authenticated' : 'unauthenticated');
   },
-  signOut: () => {
-    persistSession(null);
-    useUiStore.getState().setSelectedStoreId(undefined);
-    set({ session: null });
-  },
+  setStatus: (status) => set({ status }),
 }));
 
 export async function createDemoAdminSession(options: CreateDemoAdminSessionOptions = {}) {
+  if (!IS_DEMO_RUNTIME) {
+    throw new Error('Demo admin access is available only in explicit demo runtime.');
+  }
+
   const repository = getCanonicalMyBizRepository();
   const resolvedAccess = await repository.resolveStoreAccess({
     fallbackEmail: DEMO_ADMIN_CREDENTIALS.email,
@@ -117,40 +265,89 @@ export async function createDemoAdminSession(options: CreateDemoAdminSessionOpti
     requestedFullName: options.fullName,
   });
 
-  const nextSession =
-    normalizeSession(
-      resolvedAccess
-        ? {
-            accessibleStoreIds: resolvedAccess.accessibleStores.map((store) => store.id),
-            authenticatedAt: new Date().toISOString(),
-            email: resolvedAccess.email,
-            fullName: resolvedAccess.fullName,
-            profileId: resolvedAccess.profile.id,
-            provider: resolvedAccess.provider,
-            role: resolvedAccess.primaryRole || 'owner',
-          }
-        : {
-            accessibleStoreIds: [],
-            authenticatedAt: new Date().toISOString(),
-            email: options.email?.trim().toLowerCase() || DEMO_ADMIN_CREDENTIALS.email,
-            fullName: options.fullName || FALLBACK_FULL_NAME,
-            profileId: FALLBACK_PROFILE_ID,
-            provider: 'demo',
-            role: 'owner',
-          },
-    ) || {
-      accessibleStoreIds: [],
-      authenticatedAt: new Date().toISOString(),
-      email: DEMO_ADMIN_CREDENTIALS.email,
-      fullName: FALLBACK_FULL_NAME,
-      profileId: FALLBACK_PROFILE_ID,
+  demoSessionCache =
+    buildSessionFromAccess({
+      accessibleStores: resolvedAccess?.accessibleStores || [],
+      email: resolvedAccess?.email || options.email?.trim().toLowerCase() || DEMO_ADMIN_CREDENTIALS.email,
+      fullName: resolvedAccess?.fullName || options.fullName || FALLBACK_FULL_NAME,
+      memberships: resolvedAccess?.memberships || [],
+      profileId: resolvedAccess?.profile.id || FALLBACK_PROFILE_ID,
       provider: 'demo',
-      role: 'owner',
-    };
+      role: resolvedAccess?.primaryRole || 'owner',
+    }) || null;
 
-  useUiStore.getState().setSelectedStoreId(nextSession.accessibleStoreIds[0]);
+  useUiStore.getState().setSelectedStoreId(undefined);
+  return applySessionState(demoSessionCache, demoSessionCache ? 'authenticated' : 'unauthenticated');
+}
 
-  return nextSession;
+export async function refreshAdminSession() {
+  useAdminSessionStore.setState({ error: null, status: 'loading' });
+
+  if (IS_DEMO_RUNTIME) {
+    return applySessionState(demoSessionCache, demoSessionCache ? 'authenticated' : 'unauthenticated');
+  }
+
+  const accessToken = await resolveSupabaseAccessToken();
+  if (!accessToken) {
+    return applySessionState(null, 'unauthenticated');
+  }
+
+  try {
+    const session = await requestServerValidatedAdminSession(accessToken);
+    return applySessionState(session, session ? 'authenticated' : 'unauthenticated');
+  } catch (error) {
+    if (error instanceof AdminAccessError && error.code === 'forbidden') {
+      return applySessionState(null, 'forbidden', error.message);
+    }
+
+    const message = error instanceof Error ? error.message : 'Admin session refresh failed.';
+    useAdminSessionStore.setState({
+      error: message,
+      session: null,
+      status: 'error',
+    });
+    throw error;
+  }
+}
+
+export async function signOutAdminSession() {
+  demoSessionCache = null;
+
+  if (supabase) {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Fall through and clear the local cache regardless of SDK errors.
+    }
+  }
+
+  useUiStore.getState().setSelectedStoreId(undefined);
+  applySessionState(null, 'unauthenticated');
+}
+
+export function useAdminAccess() {
+  const session = useAdminSessionStore((state) => state.session);
+  const status = useAdminSessionStore((state) => state.status);
+  const error = useAdminSessionStore((state) => state.error);
+
+  useEffect(() => {
+    if (status !== 'idle') {
+      return;
+    }
+
+    void refreshAdminSession().catch(() => {
+      // The store captures the error state; callers can inspect it if needed.
+    });
+  }, [status]);
+
+  return {
+    error,
+    isLoading: !session && (status === 'idle' || status === 'loading'),
+    refreshSession: refreshAdminSession,
+    session,
+    signOut: signOutAdminSession,
+    status,
+  };
 }
 
 export function sanitizeAdminNextPath(nextPath?: string | null) {

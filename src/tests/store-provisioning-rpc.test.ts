@@ -127,6 +127,8 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
 }
 
 describe('createStoreFromSetupRequest with Supabase provisioning', () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     resetDatabase();
     getUser.mockReset();
@@ -148,9 +150,31 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
       error: null,
     });
     setProvisioningRows();
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          store: {
+            id: 'live-store-001',
+            name: 'RPC Provision Store',
+            plan: 'pro',
+            slug: 'rpc-provision-store',
+            store_id: 'live-store-001',
+          },
+        }),
+        {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        },
+      ),
+    ) as typeof fetch;
   });
 
-  it('creates the live store through create_store_with_owner and verifies canonical provisioning rows', async () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('creates the live store through the provisioning API and verifies canonical provisioning rows', async () => {
     const created = await createStoreFromSetupRequest(requestInput, {
       plan: 'pro',
       paymentId: 'payment_live_001',
@@ -162,15 +186,26 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
       subscriptionStatus: 'subscription_active',
     });
 
-    expect(getUser).toHaveBeenCalledTimes(2);
-    expect(rpc).toHaveBeenCalledWith(
-      'create_store_with_owner',
-      expect.objectContaining({
-        p_plan: 'pro',
-        p_requested_slug: 'rpc-provision-store',
-        p_store_name: 'RPC Provision Store',
-      }),
-    );
+    expect(getUser).toHaveBeenCalledTimes(1);
+    const [requestUrl, requestInit] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+
+    expect(requestUrl).toBe('https://mybiz.ai.kr/api/stores/provision');
+    expect(requestInit).toMatchObject({
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    });
+    expect(JSON.parse(requestInit.body as string)).toMatchObject({
+      address: 'Seoul Seongsu 123-45',
+      business_name: 'RPC Provision Store',
+      business_number: '123-45-67890',
+      business_type: 'Cafe',
+      email: 'owner@rpc.kr',
+      owner_name: 'Live Owner',
+      payment_id: 'payment_live_001',
+      phone: '010-1234-5678',
+      plan: 'pro',
+      requested_slug: 'rpc-provision-store',
+    });
 
     expect(from).toHaveBeenCalledWith('stores');
     expect(from).toHaveBeenCalledWith('store_members');

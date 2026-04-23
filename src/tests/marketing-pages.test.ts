@@ -29,6 +29,7 @@ describe('public diagnosis surfaces', () => {
 
     expect(html).toContain('data-landing-mode="hero-engine"');
     expect(html).toContain('data-mybi-shell="active"');
+    expect(html).toContain('title="MYBI neural companion"');
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
   });
 
@@ -44,6 +45,8 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('data-mybi-shell="active"');
     expect(html).toContain('data-mybi-trigger="orb-handle"');
     expect(html).toContain('data-mybi-anchor="onboarding-active-flow"');
+    expect(html).toContain('data-mybi-world="standby"');
+    expect(html).not.toContain('title="MYBI neural companion"');
     expect(html).not.toContain('data-diagnosis-world-panel="sticky"');
   });
 
@@ -54,5 +57,7 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('PRO');
     expect(html).toContain('VIP');
     expect(html).toContain('data-mybi-shell="active"');
+    expect(html).toContain('data-mybi-world="standby"');
+    expect(html).not.toContain('title="MYBI neural companion"');
   });
 });

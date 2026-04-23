@@ -1,10 +1,14 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
-import { hasDashboardAccess, useAdminSessionStore } from '@/shared/lib/adminSession';
+import { hasDashboardAccess, useAdminAccess } from '@/shared/lib/adminSession';
 
 export function RequireAdminAuth() {
-  const session = useAdminSessionStore((state) => state.session);
+  const { isLoading, session } = useAdminAccess();
   const location = useLocation();
+
+  if (isLoading) {
+    return <div className="page-shell py-14 text-sm text-slate-500">권한을 확인하는 중입니다...</div>;
+  }
 
   if (!session) {
     const nextPath = encodeURIComponent(`${location.pathname}${location.search}${location.hash}`);

@@ -1,6 +1,7 @@
 import { generateGeminiSummary } from '@/integrations/gemini/gemini';
 import { supabase } from '@/integrations/supabase/client';
 import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_LIVE_RUNTIME, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
+import { refreshAdminSession } from '@/shared/lib/adminSession';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
 import { buildStoreFeatures } from '@/shared/lib/domain/features';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
@@ -15,6 +16,11 @@ import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
 import { requestPublicApi } from '@/shared/lib/publicApiClient';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
+import {
+  getPublicConsultationSnapshot,
+  submitPublicConsultationMessage,
+} from '@/shared/lib/services/consultationService';
 import { listStoreCustomers, upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
 import {
   getPublicInquirySummary,
@@ -51,13 +57,17 @@ import {
 } from '@/shared/lib/storeData';
 import { buildLiveStoreSetupRequestInsertPayload } from '@/shared/lib/setupRequestPersistence';
 import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
+import { normalizeCustomerRecord } from '@/shared/lib/domain/customerMemory';
 import type {
   AIReport,
   BillingEvent,
   BillingEventStatus,
   CartItemInput,
+  ConversationMessage,
+  ConversationSession,
   Contract,
   Customer,
+  CustomerTimelineEvent,
   FeatureKey,
   Inquiry,
   KitchenTicket,
@@ -65,6 +75,8 @@ import type {
   MenuItem,
   MvpDatabase,
   Order,
+  OrderPaymentMethod,
+  OrderPaymentSource,
   OrderItem,
   OrderStatus,
   PaymentMethodStatus,
@@ -84,6 +96,7 @@ import type {
   StoreNotice,
   StorePriorityKey,
   StorePrioritySettings,
+  StoreTable,
   StorePriorityWeights,
   StoreSchedule,
   StoreVisibility,
@@ -97,6 +110,8 @@ import type {
 } from '@/shared/types/models';
 
 const DEMO_PROFILE_ID = 'profile_platform_owner';
+const PUBLIC_MUTATION_TIMEOUT_MS = 20000;
+const PUBLIC_AI_MUTATION_TIMEOUT_MS = 35000;
 const SETUP_FEE_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
   free: 0,
   pro: 390000,
@@ -158,6 +173,12 @@ interface LivePrioritySettingsRow {
   version: number;
 }
 
+interface LiveStoreRuntimeCache {
+  analyticsProfiles: Map<string, StoreAnalyticsProfile>;
+  prioritySettings: Map<string, StorePrioritySettings>;
+  stores: Map<string, Store>;
+}
+
 export interface StoreSettingsSnapshot {
   store: Store;
   analyticsProfile: StoreAnalyticsProfile;
@@ -194,6 +215,12 @@ export interface UpdateStoreSettingsInput {
   noticeContent: string;
 }
 
+const liveStoreRuntimeCache: LiveStoreRuntimeCache = {
+  analyticsProfiles: new Map(),
+  prioritySettings: new Map(),
+  stores: new Map(),
+};
+
 function shouldUseSupabaseStoreProvisioning() {
   return DATA_PROVIDER === 'supabase' && Boolean(supabase);
 }
@@ -206,6 +233,45 @@ function assertLocalStoreProvisioningAllowed() {
   if (IS_PRODUCTION_RUNTIME) {
     throw new Error('프로덕션에서는 로컬 스토어 생성 경로를 사용할 수 없습니다. create_store_with_owner RPC만 사용해야 합니다.');
   }
+}
+
+function canUseDemoDatabaseCache() {
+  const isVitestRuntime = typeof process !== 'undefined' && Boolean(process.env.VITEST);
+  return IS_DEMO_RUNTIME || (!shouldUseSupabaseStoreProvisioning() && isVitestRuntime);
+}
+
+function getCachedStoreById(storeId: string) {
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().stores.find((store) => store.id === storeId) || null;
+  }
+
+  return liveStoreRuntimeCache.stores.get(storeId) || null;
+}
+
+function getCachedStoreBySlug(storeSlug: string) {
+  const normalizedSlug = normalizeStoreSlug(storeSlug);
+
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().stores.find((store) => normalizeStoreSlug(store.slug) === normalizedSlug) || null;
+  }
+
+  return [...liveStoreRuntimeCache.stores.values()].find((store) => normalizeStoreSlug(store.slug) === normalizedSlug) || null;
+}
+
+function getCachedPrioritySettings(storeId: string) {
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().store_priority_settings.find((item) => item.store_id === storeId) || null;
+  }
+
+  return liveStoreRuntimeCache.prioritySettings.get(storeId) || null;
+}
+
+function getCachedAnalyticsProfile(storeId: string) {
+  if (canUseDemoDatabaseCache()) {
+    return getDatabase().store_analytics_profiles.find((item) => item.store_id === storeId) || null;
+  }
+
+  return liveStoreRuntimeCache.analyticsProfiles.get(storeId) || null;
 }
 
 async function getAuthenticatedSupabaseUserId() {
@@ -227,6 +293,33 @@ async function getAuthenticatedSupabaseUserId() {
 
 function syncStoresToLocalCache(stores: Store[], priorityRows?: LivePrioritySettingsRow[], analyticsProfiles?: StoreAnalyticsProfile[]) {
   if (!stores.length && !priorityRows?.length && !analyticsProfiles?.length) {
+    return;
+  }
+
+  if (!canUseDemoDatabaseCache()) {
+    stores.forEach((incomingStore) => {
+      const existingStore = liveStoreRuntimeCache.stores.get(incomingStore.id) || null;
+      const nextStore = normalizeStoreRecord({
+        ...(existingStore || incomingStore),
+        ...incomingStore,
+        brand_config: incomingStore.brand_config,
+        public_status: existingStore?.public_status ?? incomingStore.public_status ?? 'public',
+        subscription_plan: incomingStore.subscription_plan ?? existingStore?.subscription_plan ?? 'free',
+        plan: incomingStore.plan ?? existingStore?.plan ?? incomingStore.subscription_plan ?? 'free',
+        admin_email: incomingStore.admin_email || existingStore?.admin_email || getStoreBrandConfig(incomingStore).email,
+      });
+
+      liveStoreRuntimeCache.stores.set(nextStore.id, nextStore);
+    });
+
+    priorityRows?.forEach((row) => {
+      liveStoreRuntimeCache.prioritySettings.set(row.store_id, row);
+    });
+
+    analyticsProfiles?.forEach((profile) => {
+      liveStoreRuntimeCache.analyticsProfiles.set(profile.store_id, profile);
+    });
+
     return;
   }
 
@@ -294,7 +387,7 @@ async function fetchLiveStoreById(storeId: string) {
     return null;
   }
 
-  const existingStore = getDatabase().stores.find((store) => store.id === storeId) || null;
+  const existingStore = getCachedStoreById(storeId);
   return mapLiveStoreToAppStore(data as LiveStoreRow, existingStore);
 }
 
@@ -405,7 +498,7 @@ async function createStoreViaSupabaseRpc(
   },
 ): Promise<CreateStoreWithOwnerRpcRow> {
   // 서버사이드 API 통해 service_role로 RPC 호출 (클라이언트 Auth 불필요)
-  const response = await fetch('/api/stores/provision', {
+  const response = await fetch(resolveServerApiUrl('/api/stores/provision'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -575,6 +668,346 @@ export interface DashboardSnapshot {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeText(value: unknown) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return '';
+}
+
+function normalizeNumeric(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function normalizeInteger(value: unknown, fallback = 0) {
+  return Math.trunc(normalizeNumeric(value, fallback));
+}
+
+function shouldUseLiveOrderData() {
+  return IS_LIVE_RUNTIME && typeof window !== 'undefined' && Boolean(supabase);
+}
+
+function assertLiveSupabaseClient() {
+  if (!supabase) {
+    throw new Error('Supabase browser client is not configured for live order data.');
+  }
+
+  return supabase;
+}
+
+function mapLiveOrder(row: Record<string, unknown>): Order {
+  return {
+    id: normalizeText(row.id || row.order_id),
+    store_id: normalizeText(row.store_id),
+    customer_id: normalizeText(row.customer_id) || undefined,
+    table_id: normalizeText(row.table_id) || undefined,
+    table_no: normalizeText(row.table_no) || undefined,
+    channel: (normalizeText(row.channel) || 'walk_in') as Order['channel'],
+    status: (normalizeText(row.status) || 'pending') as Order['status'],
+    payment_status: (normalizeText(row.payment_status) || 'pending') as Order['payment_status'],
+    payment_source: (normalizeText(row.payment_source) || undefined) as Order['payment_source'],
+    payment_method: (normalizeText(row.payment_method) || undefined) as Order['payment_method'],
+    payment_recorded_at: normalizeText(row.payment_recorded_at) || undefined,
+    total_amount: normalizeNumeric(row.total_amount),
+    placed_at: normalizeText(row.placed_at || row.created_at || row.submitted_at),
+    completed_at: normalizeText(row.completed_at) || undefined,
+    note: normalizeText(row.note) || undefined,
+  };
+}
+
+function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
+  return {
+    id: normalizeText(row.id) || `order_item_${normalizeText(row.order_id)}_${normalizeText(row.menu_item_id || row.menu_id)}`,
+    order_id: normalizeText(row.order_id),
+    store_id: normalizeText(row.store_id),
+    menu_item_id: normalizeText(row.menu_item_id || row.menu_id),
+    menu_name: normalizeText(row.menu_name || row.name),
+    quantity: normalizeInteger(row.quantity, 1),
+    unit_price: normalizeNumeric(row.unit_price),
+    line_total: normalizeNumeric(row.line_total),
+  };
+}
+
+function mapLiveKitchenTicket(row: Record<string, unknown>): KitchenTicket {
+  return {
+    id: normalizeText(row.id) || `compat_ticket_${normalizeText(row.order_id)}`,
+    store_id: normalizeText(row.store_id),
+    order_id: normalizeText(row.order_id),
+    table_id: normalizeText(row.table_id) || undefined,
+    table_no: normalizeText(row.table_no) || undefined,
+    status: (normalizeText(row.status) || 'pending') as KitchenTicket['status'],
+    created_at: normalizeText(row.created_at),
+    updated_at: normalizeText(row.updated_at),
+  };
+}
+
+function mapLiveStoreTable(row: Record<string, unknown>): StoreTable {
+  const tableNo = normalizeText(row.table_no);
+  return {
+    id: normalizeText(row.id || row.table_id),
+    store_id: normalizeText(row.store_id),
+    table_no: tableNo,
+    seats: normalizeInteger(row.seats, 4),
+    qr_value: normalizeText(row.qr_value),
+    is_active: row.is_active !== false,
+  };
+}
+
+function mapLiveMenuCategory(row: Record<string, unknown>): MenuCategory {
+  return {
+    id: normalizeText(row.id || row.category_id),
+    store_id: normalizeText(row.store_id),
+    name: normalizeText(row.name),
+    sort_order: normalizeInteger(row.sort_order, 1),
+  };
+}
+
+function mapLiveMenuItem(row: Record<string, unknown>): MenuItem {
+  return {
+    id: normalizeText(row.id || row.menu_id),
+    store_id: normalizeText(row.store_id),
+    category_id: normalizeText(row.category_id),
+    name: normalizeText(row.name),
+    price: normalizeNumeric(row.price),
+    description: normalizeText(row.description),
+    is_popular: row.is_popular === true,
+    is_active: row.is_active !== false,
+  };
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function isSchemaCompatError(error?: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    error?.code === 'PGRST205' ||
+    error?.code === '42703' ||
+    message.includes('does not exist') ||
+    message.includes('could not find the table') ||
+    message.includes('schema cache') ||
+    message.includes('could not find the column')
+  );
+}
+
+function buildCompatOrderItems(orderId: string, storeId: string, value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as OrderItem[];
+  }
+
+  return value
+    .map((item, index) => {
+      const row = toRecord(item);
+      const menuItemId = normalizeText(row.menu_item_id || row.menuItemId || row.menu_id);
+      const menuName = normalizeText(row.menu_name || row.menuName || row.name);
+      if (!menuItemId || !menuName) {
+        return null;
+      }
+
+      const quantity = Math.max(1, normalizeInteger(row.quantity, 1));
+      const unitPrice = normalizeNumeric(row.unit_price || row.unitPrice);
+      return {
+        id: normalizeText(row.id) || `compat_item_${orderId}_${index + 1}`,
+        order_id: orderId,
+        store_id: storeId,
+        menu_item_id: menuItemId,
+        menu_name: menuName,
+        quantity,
+        unit_price: unitPrice,
+        line_total: normalizeNumeric(row.line_total || row.lineTotal, unitPrice * quantity),
+      } satisfies OrderItem;
+    })
+    .filter((item): item is OrderItem => Boolean(item));
+}
+
+function buildLiveCompatOrderState(orderRow: Record<string, unknown>, paymentEventRows: Record<string, unknown>[], tableNoById?: Map<string, string>) {
+  const mergedRaw = paymentEventRows
+    .map((row) => toRecord(row.raw))
+    .reduce<Record<string, unknown>>((accumulator, raw) => ({ ...accumulator, ...raw }), {});
+  const order = mapLiveOrder({
+    ...orderRow,
+    customer_id: orderRow.customer_id || mergedRaw.customer_id,
+    note: orderRow.note || mergedRaw.note,
+    payment_method: orderRow.payment_method || mergedRaw.payment_method,
+    payment_recorded_at: orderRow.payment_recorded_at || mergedRaw.payment_recorded_at,
+    payment_source: orderRow.payment_source || mergedRaw.payment_source,
+    payment_status:
+      orderRow.payment_status ||
+      mergedRaw.payment_status ||
+      (paymentEventRows.some((row) => normalizeText(row.status).toLowerCase() === 'paid') ? 'paid' : 'pending'),
+    placed_at: orderRow.placed_at || mergedRaw.placed_at || orderRow.created_at || orderRow.submitted_at,
+    table_no: orderRow.table_no || mergedRaw.table_no || (tableNoById ? tableNoById.get(normalizeText(orderRow.table_id)) : undefined),
+  });
+  const items = buildCompatOrderItems(order.id, order.store_id, mergedRaw.items);
+  const ticketStatus = normalizeText(mergedRaw.kitchen_status || order.status || 'pending') as KitchenTicket['status'];
+  const ticket =
+    order.status === 'cancelled'
+      ? null
+      : {
+          id: `compat_ticket_${order.id}`,
+          store_id: order.store_id,
+          order_id: order.id,
+          table_id: order.table_id,
+          table_no: order.table_no,
+          status: ticketStatus,
+          created_at: order.placed_at,
+          updated_at: normalizeText(mergedRaw.kitchen_updated_at || mergedRaw.payment_recorded_at) || order.completed_at || order.placed_at,
+        } satisfies KitchenTicket;
+
+  return { items, order, ticket };
+}
+
+async function listLiveOrders(storeId: string) {
+  const client = assertLiveSupabaseClient();
+  const ordersResult = await client.from('orders').select('*').eq('store_id', storeId);
+
+  if (ordersResult.error) {
+    throw new Error(`Failed to load live orders: ${ordersResult.error.message}`);
+  }
+
+  const orderRows = (ordersResult.data || []) as Record<string, unknown>[];
+  const useCompatOrderItemsOnly = orderRows.some(
+    (row) =>
+      Boolean(normalizeText(row.order_id)) &&
+      !normalizeText(row.id) &&
+      !normalizeText(row.placed_at) &&
+      Boolean(normalizeText(row.submitted_at) || normalizeText(row.created_at)),
+  );
+
+  const [itemsResult, customersResult, tablesResult] = await Promise.all([
+    useCompatOrderItemsOnly
+      ? Promise.resolve({ data: [] as Record<string, unknown>[], error: null })
+      : client.from('order_items').select('*').eq('store_id', storeId),
+    client.from('customers').select('*').eq('store_id', storeId),
+    client.from('store_tables').select('*').eq('store_id', storeId),
+  ]);
+
+  if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
+    throw new Error(`Failed to load live order items: ${itemsResult.error.message}`);
+  }
+
+  if (customersResult.error) {
+    throw new Error(`Failed to load live customers for orders: ${customersResult.error.message}`);
+  }
+
+  if (tablesResult.error && !isSchemaCompatError(tablesResult.error)) {
+    throw new Error(`Failed to load live tables for orders: ${tablesResult.error.message}`);
+  }
+
+  const orderIds = orderRows.map((row) => normalizeText(row.id || row.order_id)).filter(Boolean);
+  const paymentEventsResult = orderIds.length
+    ? await client.from('payment_events').select('*').in('order_id', orderIds)
+    : { data: [], error: null };
+  if (paymentEventsResult.error && !isSchemaCompatError(paymentEventsResult.error)) {
+    throw new Error(`Failed to load live payment events for orders: ${paymentEventsResult.error.message}`);
+  }
+
+  const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
+  const customers = ((customersResult.data || []) as Record<string, unknown>[]).map((row) =>
+    normalizeCustomerRecord({
+      id: normalizeText(row.id || row.customer_id),
+      store_id: normalizeText(row.store_id),
+      name: normalizeText(row.name),
+      phone: normalizeText(row.phone),
+      email: normalizeText(row.email) || undefined,
+      visit_count: normalizeInteger(row.visit_count),
+      last_visit_at: normalizeText(row.last_visit_at) || undefined,
+      is_regular: row.is_regular === true,
+      marketing_opt_in: row.marketing_opt_in === true,
+      created_at: normalizeText(row.created_at),
+      updated_at: normalizeText(row.updated_at) || undefined,
+    }),
+  );
+  const tableNoById = new Map(
+    ((tablesResult.data || []) as Record<string, unknown>[]).map((row) => [normalizeText(row.id || row.table_id), normalizeText(row.table_no)] as const),
+  );
+  const paymentEvents = (paymentEventsResult.data || []) as Record<string, unknown>[];
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+
+  return orderRows
+    .map((row) => {
+      const orderId = normalizeText(row.id || row.order_id);
+      const compat = buildLiveCompatOrderState(
+        row,
+        paymentEvents.filter((event) => normalizeText(event.order_id) === orderId),
+        tableNoById,
+      );
+      const canonicalItems = items.filter((item) => item.order_id === orderId);
+      return {
+        ...compat.order,
+        items: canonicalItems.length ? canonicalItems : compat.items,
+        customer: compat.order.customer_id ? customerById.get(compat.order.customer_id) : undefined,
+      };
+    })
+    .sort((left, right) => right.placed_at.localeCompare(left.placed_at));
+}
+
+async function listLiveStoreTables(storeId: string) {
+  const client = assertLiveSupabaseClient();
+  const { data, error } = await client.from('store_tables').select('*').eq('store_id', storeId).order('table_no', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load live store tables: ${error.message}`);
+  }
+
+  const store = await getStoreById(storeId);
+  return ((data || []) as Record<string, unknown>[]).map((row) => {
+    const table = mapLiveStoreTable(row);
+    return {
+      ...table,
+      qr_value: table.qr_value || `${buildStoreUrl(store?.slug || storeId)}/order?table=${encodeURIComponent(table.table_no)}`,
+    };
+  });
+}
+
+async function listLiveMenu(storeId: string) {
+  const client = assertLiveSupabaseClient();
+  let [categoriesResult, itemsResult] = await Promise.all([
+    client.from('menu_categories').select('*').eq('store_id', storeId).order('sort_order', { ascending: true }),
+    client.from('menu_items').select('*').eq('store_id', storeId).order('name', { ascending: true }),
+  ]);
+
+  if (categoriesResult.error && isSchemaCompatError(categoriesResult.error)) {
+    categoriesResult = await client.from('menu_categories').select('*').eq('store_id', storeId);
+  }
+
+  if (categoriesResult.error) {
+    throw new Error(`Failed to load live menu categories: ${categoriesResult.error.message}`);
+  }
+
+  if (itemsResult.error) {
+    throw new Error(`Failed to load live menu items: ${itemsResult.error.message}`);
+  }
+
+  return {
+    categories: ((categoriesResult.data || []) as Record<string, unknown>[])
+      .map((row) => mapLiveMenuCategory(row))
+      .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name, 'ko-KR')),
+    items: ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveMenuItem(row)),
+  };
 }
 
 function isoDaysAgo(daysAgo: number, hours = 9) {
@@ -1059,6 +1492,9 @@ function getStoreScopedData(storeId: string) {
     menuCategories: database.menu_categories.filter((item) => item.store_id === storeId),
     menuItems: database.menu_items.filter((item) => item.store_id === storeId),
     customers: database.customers.filter((item) => item.store_id === storeId),
+    customerTimelineEvents: database.customer_timeline_events.filter((item) => item.store_id === storeId),
+    conversationMessages: database.conversation_messages.filter((item) => item.store_id === storeId),
+    conversationSessions: database.conversation_sessions.filter((item) => item.store_id === storeId),
     inquiries: database.inquiries.filter((item) => item.store_id === storeId),
     orders: database.orders.filter((item) => item.store_id === storeId),
     orderItems: database.order_items.filter((item) => item.store_id === storeId),
@@ -1874,10 +2310,14 @@ function getTodayOrders(orders: Order[]) {
   return orders.filter((order) => startOfDayKey(order.placed_at) === todayKey && order.status !== 'cancelled');
 }
 
+function isRevenueRecognizedOrder(order: Pick<Order, 'status' | 'payment_status'>) {
+  return order.status === 'completed' && order.payment_status === 'paid';
+}
+
 function getTodayCompletedOrders(orders: Order[]) {
   const todayKey = startOfDayKey(new Date());
   return orders.filter(
-    (order) => order.status === 'completed' && order.completed_at && startOfDayKey(order.completed_at) === todayKey,
+    (order) => isRevenueRecognizedOrder(order) && order.completed_at && startOfDayKey(order.completed_at) === todayKey,
   );
 }
 
@@ -1923,6 +2363,20 @@ async function generateAiNarrative(storeId: string) {
 }
 
 export async function getCurrentProfile() {
+  if (typeof window !== 'undefined' && !IS_DEMO_RUNTIME) {
+    const session = await refreshAdminSession();
+    if (!session) {
+      return null;
+    }
+
+    return {
+      created_at: session.authenticatedAt,
+      email: session.email,
+      full_name: session.fullName,
+      id: session.profileId,
+    };
+  }
+
   const repository = getCanonicalMyBizRepository();
   const access = await repository.resolveStoreAccess({
     fallbackEmail: 'ops@mybiz.ai.kr',
@@ -1934,6 +2388,25 @@ export async function getCurrentProfile() {
 }
 
 export async function listAccessibleStores() {
+  if (typeof window !== 'undefined' && !IS_DEMO_RUNTIME) {
+    const session = await refreshAdminSession();
+    if (!session?.accessibleStores.length) {
+      return [];
+    }
+
+    if (shouldUseSupabaseStoreProvisioning()) {
+      const storeIds = session.accessibleStores.map((store) => store.id);
+      const [priorityRows, analyticsProfiles] = await Promise.all([
+        fetchPrioritySettingsRows(storeIds),
+        fetchAnalyticsProfiles(storeIds),
+      ]);
+      syncStoresToLocalCache(session.accessibleStores, priorityRows, analyticsProfiles);
+      return session.accessibleStores.slice().sort((left, right) => right.created_at.localeCompare(left.created_at));
+    }
+
+    return session.accessibleStores;
+  }
+
   const repository = getCanonicalMyBizRepository();
   const access = await repository.resolveStoreAccess({
     fallbackEmail: 'ops@mybiz.ai.kr',
@@ -2063,6 +2536,8 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
+    const timestamp = nowIso();
+    const repository = getCanonicalMyBizRepository();
     const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan, {
       paymentId: options?.paymentId,
       requestId: options?.requestId,
@@ -2070,7 +2545,28 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     const profileId = await getAuthenticatedSupabaseUserId();
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
 
-    await getCanonicalMyBizRepository().saveStorePublicPage(
+    await repository.saveStoreSubscription({
+      id: `subscription_${verified.store.id}`,
+      store_id: verified.store.id,
+      plan: subscriptionPlan,
+      status:
+        options?.subscriptionStatus === 'subscription_cancelled'
+          ? 'cancelled'
+          : options?.subscriptionStatus === 'subscription_past_due'
+            ? 'past_due'
+            : verified.store.trial_ends_at
+              ? 'trialing'
+              : 'active',
+      billing_provider: options?.paymentId ? 'portone' : 'manual',
+      trial_ends_at: verified.store.trial_ends_at,
+      current_period_starts_at: timestamp,
+      current_period_ends_at:
+        subscriptionPlan === 'free' && verified.store.trial_ends_at ? verified.store.trial_ends_at : isoDaysFromNow(30),
+      created_at: timestamp,
+      updated_at: timestamp,
+    });
+
+    await repository.saveStorePublicPage(
       buildDefaultStorePublicPage({
         store: {
           ...verified.store,
@@ -2498,8 +2994,7 @@ export async function getStoreById(storeId: string) {
     }
   }
 
-  const database = getDatabase();
-  return database.stores.find((store) => store.id === storeId) || null;
+  return getCachedStoreById(storeId);
 }
 
 export async function getStoreBySlug(storeSlug: string) {
@@ -2526,19 +3021,18 @@ export async function getStoreBySlug(storeSlug: string) {
     if (data) {
       const liveStore = mapLiveStoreToAppStore(
         data as LiveStoreRow,
-        getDatabase().stores.find((store) => store.id === String((data as LiveStoreRow).store_id)) || null,
+        getCachedStoreById(String((data as LiveStoreRow).store_id)),
       );
       syncStoresToLocalCache([liveStore]);
       return liveStore;
     }
   }
 
-  const database = getDatabase();
   const normalized = normalizeStoreSlug(storeSlug);
   if (isReservedSlug(normalized)) {
     return null;
   }
-  return database.stores.find((store) => store.slug === normalized) || null;
+  return getCachedStoreBySlug(normalized);
 }
 
 export function getDashboardSnapshot(storeId: string, input: DashboardSnapshotInput = { range: 'weekly' }): DashboardSnapshot {
@@ -2879,6 +3373,18 @@ export async function updateInquiryRecord(
   return updateStoreInquiry(storeId, inquiryId, input);
 }
 
+export async function listConversationSessions(storeId: string, inquiryId?: string) {
+  return getCanonicalMyBizRepository().listConversationSessions(storeId, inquiryId);
+}
+
+export async function listConversationMessages(sessionId: string) {
+  return getCanonicalMyBizRepository().listConversationMessages(sessionId);
+}
+
+export async function listCustomerTimelineEvents(storeId: string, customerId?: string) {
+  return getCanonicalMyBizRepository().listCustomerTimelineEvents(storeId, customerId);
+}
+
 export async function attachCustomerToOrder(
   storeId: string,
   orderId: string,
@@ -2895,6 +3401,44 @@ export async function attachCustomerToOrder(
     summary: '주문 고객 정보가 고객 메모리에 연결되었습니다.',
     visitIncrement: 1,
   });
+
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { error } = await client
+      .from('orders')
+      .update({ customer_id: memoryRecord.customer.id })
+      .eq('id', orderId)
+      .eq('store_id', storeId);
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to attach customer to live order: ${error.message}`);
+    }
+
+    if (error) {
+      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+      await persistLiveCompatOrderEvent({
+        amount: current?.total_amount || 0,
+        orderId,
+        paymentId: `compat-customer:${orderId}:${Date.now()}`,
+        raw: {
+          customer_id: memoryRecord.customer.id,
+          items: current?.items || [],
+          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
+          note: current?.note || null,
+          payment_method: current?.payment_method || null,
+          payment_recorded_at: current?.payment_recorded_at || null,
+          payment_source: current?.payment_source || null,
+          payment_status: current?.payment_status || 'pending',
+          placed_at: current?.placed_at || nowIso(),
+          table_id: current?.table_id || null,
+          table_no: current?.table_no || null,
+        },
+        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
+      });
+    }
+
+    return memoryRecord.customer;
+  }
 
   updateDatabase((database) => {
     database.orders = database.orders.map((order) =>
@@ -3141,6 +3685,56 @@ export async function getPublicInquiryForm(storeId: string) {
   return getPublicInquiryFormSnapshot(storeId);
 }
 
+export async function getPublicConsultation(storeId: string) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicConsultationSnapshot>>>('/api/public/consultation-form', {
+      searchParams: { storeId },
+    });
+  }
+
+  return getPublicConsultationSnapshot(storeId);
+}
+
+export async function submitPublicConsultation(
+  input:
+    | {
+        storeId: string;
+        customerName: string;
+        phone: string;
+        email?: string;
+        marketingOptIn: boolean;
+        message: string;
+        visitorSessionId?: string;
+        visitorToken?: string;
+        visitorPath?: string;
+        referrer?: string;
+        conversationSessionId?: undefined;
+      }
+    | {
+        storeId: string;
+        message: string;
+        visitorSessionId?: string;
+        visitorToken?: string;
+        visitorPath?: string;
+        referrer?: string;
+        conversationSessionId: string;
+      },
+) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<Awaited<ReturnType<typeof submitPublicConsultationMessage>>>('/api/public/consultation', {
+      body: input,
+      method: 'POST',
+      timeoutMs: PUBLIC_AI_MUTATION_TIMEOUT_MS,
+    });
+  }
+
+  const result = await submitPublicConsultationMessage(input);
+  updateDatabase((database) => {
+    incrementConsultationMetric(database, input.storeId, result.inquiry.created_at);
+  });
+  return result;
+}
+
 export async function submitPublicInquiry(input: {
   storeId: string;
   customerName: string;
@@ -3179,6 +3773,7 @@ export async function submitPublicInquiry(input: {
     }>('/api/public/inquiry', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
     });
   }
 
@@ -3277,6 +3872,7 @@ export async function submitPublicReservation(input: {
     }>('/api/public/reservation', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
     });
   }
 
@@ -3317,6 +3913,7 @@ export async function submitPublicWaitingEntry(input: {
     }>('/api/public/waiting', {
       body: input,
       method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
     });
   }
 
@@ -3384,6 +3981,10 @@ export async function getStorePrioritySettings(storeId: string) {
       syncStoresToLocalCache([], [rows[0]]);
       return rows[0];
     }
+  }
+
+  if (!canUseDemoDatabaseCache()) {
+    return getCachedPrioritySettings(storeId);
   }
 
   const data = getStoreScopedData(storeId);
@@ -3483,7 +4084,9 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
   ]);
 
   if (storeRecord && publicPage) {
-    const scoped = getStoreScopedData(storeId);
+    const analyticsProfile = getCachedAnalyticsProfile(storeId) || buildStoreAnalyticsProfile(storeRecord);
+    const prioritySettings =
+      getCachedPrioritySettings(storeId) || buildStorePrioritySettings(storeId, analyticsProfile.analytics_preset || 'seongsu_brunch_cafe');
     const mergedStore = normalizeStoreRecord({
       ...storeRecord,
       slug: publicPage.slug,
@@ -3516,7 +4119,7 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
 
     return {
       store: mergedStore,
-      analyticsProfile: scoped.analyticsProfile || buildStoreAnalyticsProfile(mergedStore),
+      analyticsProfile,
       location: {
         id: `store_public_location_${storeId}`,
         store_id: storeId,
@@ -3528,8 +4131,27 @@ export async function getStoreSettings(storeId: string): Promise<StoreSettingsSn
       },
       notices: getPublishedStoreNotices(publicPage.notices),
       media: getSortedStoreMedia(publicPage.media),
-      prioritySettings:
-        scoped.prioritySettings || buildStorePrioritySettings(storeId, scoped.analyticsProfile?.analytics_preset || 'seongsu_brunch_cafe'),
+      prioritySettings,
+    };
+  }
+
+  if (!canUseDemoDatabaseCache()) {
+    const cachedStore = getCachedStoreById(storeId);
+    if (!cachedStore) {
+      return null;
+    }
+
+    const analyticsProfile = getCachedAnalyticsProfile(storeId) || buildStoreAnalyticsProfile(cachedStore);
+    const prioritySettings =
+      getCachedPrioritySettings(storeId) || buildStorePrioritySettings(storeId, analyticsProfile.analytics_preset || 'seongsu_brunch_cafe');
+
+    return {
+      store: cachedStore,
+      analyticsProfile,
+      location: null,
+      notices: [],
+      media: [],
+      prioritySettings,
     };
   }
 
@@ -3643,6 +4265,26 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
       });
     }
 
+    syncStoresToLocalCache([
+      normalizeStoreRecord({
+        ...currentStore,
+        ...withStoreBrandConfig(currentStore, nextBrandConfig),
+        name: input.storeName.trim(),
+        slug: normalizedSlug,
+        public_status: input.publicStatus,
+        homepage_visible: input.homepageVisible,
+        consultation_enabled: input.consultationEnabled,
+        inquiry_enabled: input.inquiryEnabled,
+        reservation_enabled: input.reservationEnabled,
+        order_entry_enabled: input.orderEntryEnabled,
+        logo_url: input.logoUrl.trim(),
+        brand_color: input.brandColor.trim() || currentStore.brand_color,
+        tagline: input.tagline.trim(),
+        description: input.description.trim(),
+        updated_at: nowIso(),
+      }),
+    ]);
+
     return getStoreSettings(storeId);
   }
 
@@ -3674,6 +4316,26 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
     if (storeError) {
       throw new Error(`스토어 설정을 저장하지 못했습니다: ${storeError.message}`);
     }
+
+    syncStoresToLocalCache([
+      normalizeStoreRecord({
+        ...currentStore,
+        ...withStoreBrandConfig(currentStore, nextBrandConfig),
+        name: input.storeName.trim(),
+        slug: normalizedSlug,
+        public_status: input.publicStatus,
+        homepage_visible: input.homepageVisible,
+        consultation_enabled: input.consultationEnabled,
+        inquiry_enabled: input.inquiryEnabled,
+        reservation_enabled: input.reservationEnabled,
+        order_entry_enabled: input.orderEntryEnabled,
+        logo_url: input.logoUrl.trim(),
+        brand_color: input.brandColor.trim() || currentStore.brand_color,
+        tagline: input.tagline.trim(),
+        description: input.description.trim(),
+        updated_at: nowIso(),
+      }),
+    ]);
 
     return getStoreSettings(storeId);
   }
@@ -3901,13 +4563,13 @@ export async function getAiReportDashboard(storeId: string, input: AiReportDashb
   const currentResponses = data.surveyResponses.filter((response) => isWithinDateRange(response.created_at, resolved.start, resolved.end));
   const previousResponses = data.surveyResponses.filter((response) => isWithinDateRange(response.created_at, previousRange.start, previousRange.end));
   const completedOrders = data.orders.filter(
-    (order) => order.status === 'completed' && isWithinDateRange(order.completed_at || order.placed_at, resolved.start, resolved.end),
+    (order) => isRevenueRecognizedOrder(order) && isWithinDateRange(order.completed_at || order.placed_at, resolved.start, resolved.end),
   );
   const activeOrders = data.orders.filter(
     (order) => order.status !== 'cancelled' && isWithinDateRange(order.placed_at, resolved.start, resolved.end),
   );
   const previousCompletedOrders = data.orders.filter(
-    (order) => order.status === 'completed' && isWithinDateRange(order.completed_at || order.placed_at, previousRange.start, previousRange.end),
+    (order) => isRevenueRecognizedOrder(order) && isWithinDateRange(order.completed_at || order.placed_at, previousRange.start, previousRange.end),
   );
   const previousActiveOrders = data.orders.filter(
     (order) => order.status !== 'cancelled' && isWithinDateRange(order.placed_at, previousRange.start, previousRange.end),
@@ -4278,7 +4940,7 @@ export async function saveManualDailyMetric(storeId: string, input: ManualMetric
 export async function listSales(storeId: string) {
   const data = getStoreScopedData(storeId);
   const sales = data.sales.slice().sort((left, right) => left.sale_date.localeCompare(right.sale_date));
-  const completedOrders = data.orders.filter((order) => order.status === 'completed');
+  const completedOrders = data.orders.filter((order) => isRevenueRecognizedOrder(order));
   const totalSales = sumBy(completedOrders, (order) => order.total_amount);
   const channelMix = completedOrders.reduce<Record<string, number>>((accumulator, order) => {
     accumulator[order.channel] = (accumulator[order.channel] || 0) + 1;
@@ -4311,6 +4973,10 @@ export async function listSales(storeId: string) {
 }
 
 export async function listOrders(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    return listLiveOrders(storeId);
+  }
+
   const data = getStoreScopedData(storeId);
   return data.orders
     .slice()
@@ -4322,6 +4988,198 @@ export async function listOrders(storeId: string) {
     }));
 }
 
+export interface TableLiveBoardRow {
+  activeOrderCount: number;
+  latestTicketStatus?: KitchenTicket['status'];
+  paidOrderCount: number;
+  pendingPaymentCount: number;
+  recentConversation?: {
+    channel: ConversationSession['channel'];
+    lastAssistantReply?: string;
+    lastMessageAt?: string;
+    sessionId: string;
+    subject: string;
+  } | null;
+  recentTimeline: CustomerTimelineEvent[];
+  tableId: string;
+  tableNo: string;
+  qrValue: string;
+  seats: number;
+  tableOrders: Array<
+    Order & {
+      customer?: Customer;
+      items: OrderItem[];
+    }
+  >;
+}
+
+export async function getTableLiveBoard(storeId: string): Promise<TableLiveBoardRow[]> {
+  if (shouldUseLiveOrderData()) {
+    const [tables, orders, kitchenTickets, timelineEvents, customers, conversationSessions] = await Promise.all([
+      listLiveStoreTables(storeId),
+      listLiveOrders(storeId),
+      listKitchenTickets(storeId),
+      listCustomerTimelineEvents(storeId),
+      listStoreCustomers(storeId),
+      listConversationSessions(storeId),
+    ]);
+    const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+    const conversationMessagesBySession = new Map(
+      await Promise.all(
+        conversationSessions.map(async (session) => [session.id, await listConversationMessages(session.id)] as const),
+      ),
+    );
+
+    return tables
+      .map((table) => {
+        const tableOrders = orders
+          .filter((order) => order.table_id === table.id)
+          .slice()
+          .sort((left, right) => right.placed_at.localeCompare(left.placed_at))
+          .map((order) => ({
+            ...order,
+            customer: order.customer_id ? customerById.get(order.customer_id) : order.customer,
+          }));
+        const activeOrders = tableOrders.filter((order) => order.status !== 'completed' && order.status !== 'cancelled');
+        const latestTicket = kitchenTickets
+          .filter((ticket) => ticket.table_id === table.id)
+          .slice()
+          .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
+        const latestCustomerId = tableOrders.find((order) => order.customer_id)?.customer_id;
+        const recentSession = latestCustomerId
+          ? conversationSessions
+              .filter((session) => session.customer_id === latestCustomerId)
+              .slice()
+              .sort((left, right) =>
+                (right.last_message_at || right.updated_at).localeCompare(left.last_message_at || left.updated_at),
+              )[0]
+          : undefined;
+        const recentMessages = recentSession ? conversationMessagesBySession.get(recentSession.id) || [] : [];
+        const recentTimeline = latestCustomerId
+          ? timelineEvents
+              .filter((event) => event.customer_id === latestCustomerId)
+              .slice()
+              .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+              .slice(0, 3)
+          : [];
+
+        return {
+          activeOrderCount: activeOrders.length,
+          latestTicketStatus: latestTicket?.status,
+          paidOrderCount: tableOrders.filter((order) => order.payment_status === 'paid').length,
+          pendingPaymentCount: tableOrders.filter(
+            (order) => order.payment_status !== 'paid' && order.status !== 'cancelled',
+          ).length,
+          recentConversation: recentSession
+            ? {
+                channel: recentSession.channel,
+                lastAssistantReply: recentMessages.find((message) => message.sender === 'assistant')?.body,
+                lastMessageAt: recentSession.last_message_at,
+                sessionId: recentSession.id,
+                subject: recentSession.subject,
+              }
+            : null,
+          recentTimeline,
+          qrValue: table.qr_value,
+          seats: table.seats,
+          tableId: table.id,
+          tableNo: table.table_no,
+          tableOrders,
+        } satisfies TableLiveBoardRow;
+      })
+      .sort((left, right) => left.tableNo.localeCompare(right.tableNo, 'ko-KR'));
+  }
+
+  const data = getStoreScopedData(storeId);
+  const customerById = new Map(data.customers.map((customer) => [customer.id, customer]));
+
+  return data.tables
+    .map((table) => {
+      const tableOrders = data.orders
+        .filter((order) => order.table_id === table.id)
+        .slice()
+        .sort((left, right) => right.placed_at.localeCompare(left.placed_at))
+        .map((order) => ({
+          ...order,
+          customer: order.customer_id ? customerById.get(order.customer_id) : undefined,
+          items: orderItemsForOrder(order.id, data.orderItems),
+        }));
+      const activeOrders = tableOrders.filter((order) => order.status !== 'completed' && order.status !== 'cancelled');
+      const latestTicket = data.kitchenTickets
+        .filter((ticket) => ticket.table_id === table.id)
+        .slice()
+        .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
+      const latestCustomerId = tableOrders.find((order) => order.customer_id)?.customer_id;
+      const recentSessions = latestCustomerId
+        ? data.conversationSessions
+            .filter((session) => session.customer_id === latestCustomerId)
+            .slice()
+            .sort((left, right) => (right.last_message_at || right.updated_at).localeCompare(left.last_message_at || left.updated_at))
+        : [];
+      const recentSession = recentSessions[0];
+      const recentMessages = recentSession
+        ? data.conversationMessages
+            .filter((message) => message.conversation_session_id === recentSession.id)
+            .slice()
+            .sort((left, right) => right.created_at.localeCompare(left.created_at))
+        : [];
+      const recentTimeline = latestCustomerId
+        ? data.customerTimelineEvents
+            .filter((event) => event.customer_id === latestCustomerId)
+            .slice()
+            .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+            .slice(0, 3)
+        : [];
+
+      return {
+        activeOrderCount: activeOrders.length,
+        latestTicketStatus: latestTicket?.status,
+        paidOrderCount: tableOrders.filter((order) => order.payment_status === 'paid').length,
+        pendingPaymentCount: tableOrders.filter((order) => order.payment_status !== 'paid' && order.status !== 'cancelled').length,
+        recentConversation: recentSession
+          ? {
+              channel: recentSession.channel,
+              lastAssistantReply: recentMessages.find((message) => message.sender === 'assistant')?.body,
+              lastMessageAt: recentSession.last_message_at,
+              sessionId: recentSession.id,
+              subject: recentSession.subject,
+            }
+          : null,
+        recentTimeline,
+        qrValue: table.qr_value,
+        seats: table.seats,
+        tableId: table.id,
+        tableNo: table.table_no,
+        tableOrders,
+      } satisfies TableLiveBoardRow;
+    })
+    .sort((left, right) => left.tableNo.localeCompare(right.tableNo, 'ko-KR'));
+}
+
+async function persistLiveCompatOrderEvent(input: {
+  amount: number;
+  orderId: string;
+  paymentId: string;
+  raw: Record<string, unknown>;
+  status: string;
+}) {
+  const client = assertLiveSupabaseClient();
+  const { error } = await client.from('payment_events').insert({
+    provider: 'mybiz',
+    event_id: input.paymentId,
+    order_id: input.orderId,
+    user_id: null,
+    status: input.status,
+    amount: input.amount,
+    raw: input.raw,
+    created_at: nowIso(),
+  });
+
+  if (error) {
+    throw new Error(`Failed to persist live compat order event: ${error.message}`);
+  }
+}
+
 function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {
   if (order.status === 'completed' && order.completed_at) {
     return order;
@@ -4330,21 +5188,174 @@ function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {
   const completedOrder: Order = {
     ...order,
     status: 'completed',
-    payment_status: 'paid',
     completed_at: nowIso(),
   };
 
-  database.sales_daily = upsertSalesDailyForCompletedOrder(database.sales_daily, {
-    store_id: completedOrder.store_id,
-    placed_at: completedOrder.completed_at ?? completedOrder.placed_at,
-    total_amount: completedOrder.total_amount,
-    channel: completedOrder.channel,
-  });
+  if (completedOrder.payment_status === 'paid') {
+    database.sales_daily = upsertSalesDailyForCompletedOrder(database.sales_daily, {
+      store_id: completedOrder.store_id,
+      placed_at: completedOrder.completed_at ?? completedOrder.placed_at,
+      total_amount: completedOrder.total_amount,
+      channel: completedOrder.channel,
+    });
+  }
 
   return completedOrder;
 }
 
+export async function recordOrderPayment(
+  storeId: string,
+  orderId: string,
+  input: {
+    paymentMethod?: OrderPaymentMethod;
+    paymentSource: OrderPaymentSource;
+  },
+) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const paymentRecordedAt = nowIso();
+    const { data, error } = await client
+      .from('orders')
+      .update({
+        payment_method: input.paymentMethod || (input.paymentSource === 'counter' ? 'cash' : 'card'),
+        payment_recorded_at: paymentRecordedAt,
+        payment_source: input.paymentSource,
+        payment_status: 'paid',
+      })
+      .eq('id', orderId)
+      .eq('store_id', storeId)
+      .select('*')
+      .single();
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to record live order payment: ${error.message}`);
+    }
+
+    if (error) {
+      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+      await persistLiveCompatOrderEvent({
+        amount: current?.total_amount || 0,
+        orderId,
+        paymentId: `compat-payment:${orderId}:${Date.now()}`,
+        raw: {
+          customer_id: current?.customer_id || null,
+          items: current?.items || [],
+          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
+          note: current?.note || null,
+          payment_method: input.paymentMethod || current?.payment_method || (input.paymentSource === 'counter' ? 'cash' : 'card'),
+          payment_recorded_at: paymentRecordedAt,
+          payment_source: input.paymentSource,
+          payment_status: 'paid',
+          placed_at: current?.placed_at || nowIso(),
+          table_id: current?.table_id || null,
+          table_no: current?.table_no || null,
+        },
+        status: 'paid',
+      });
+      return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+    }
+
+    return data ? mapLiveOrder(data as Record<string, unknown>) : null;
+  }
+
+  let updatedOrder: Order | null = null;
+
+  updateDatabase((database) => {
+    database.orders = database.orders.map((order) => {
+      if (order.id !== orderId || order.store_id !== storeId) {
+        return order;
+      }
+
+      const nextOrder: Order = {
+        ...order,
+        payment_method: input.paymentMethod || order.payment_method || (input.paymentSource === 'counter' ? 'cash' : 'card'),
+        payment_recorded_at: nowIso(),
+        payment_source: input.paymentSource,
+        payment_status: 'paid',
+      };
+
+      const shouldUpsertSales = order.payment_status !== 'paid' && nextOrder.status === 'completed';
+      if (shouldUpsertSales) {
+        database.sales_daily = upsertSalesDailyForCompletedOrder(database.sales_daily, {
+          store_id: nextOrder.store_id,
+          placed_at: nextOrder.completed_at ?? nextOrder.placed_at,
+          total_amount: nextOrder.total_amount,
+          channel: nextOrder.channel,
+        });
+      }
+
+      updatedOrder = nextOrder;
+      return nextOrder;
+    });
+  });
+
+  return updatedOrder;
+}
+
 export async function updateOrderStatus(storeId: string, orderId: string, status: OrderStatus) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const completedAt = status === 'completed' ? nowIso() : null;
+    const { data, error } = await client
+      .from('orders')
+      .update({
+        completed_at: completedAt,
+        status,
+      })
+      .eq('id', orderId)
+      .eq('store_id', storeId)
+      .select('*')
+      .single();
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to update live order status: ${error.message}`);
+    }
+
+    const ticketStatus = status === 'cancelled' ? null : status === 'completed' ? 'completed' : status;
+    if (!error && ticketStatus) {
+      const { error: ticketError } = await client
+        .from('kitchen_tickets')
+        .update({
+          status: ticketStatus,
+          updated_at: nowIso(),
+        })
+        .eq('order_id', orderId)
+        .eq('store_id', storeId);
+
+      if (ticketError) {
+        throw new Error(`Failed to sync live kitchen ticket status: ${ticketError.message}`);
+      }
+    }
+
+    if (error) {
+      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+      await persistLiveCompatOrderEvent({
+        amount: current?.total_amount || 0,
+        orderId,
+        paymentId: `compat-status:${orderId}:${Date.now()}`,
+        raw: {
+          completed_at: completedAt,
+          customer_id: current?.customer_id || null,
+          items: current?.items || [],
+          kitchen_status: ticketStatus || null,
+          note: current?.note || null,
+          payment_method: current?.payment_method || null,
+          payment_recorded_at: current?.payment_recorded_at || null,
+          payment_source: current?.payment_source || null,
+          payment_status: current?.payment_status || 'pending',
+          placed_at: current?.placed_at || nowIso(),
+          status,
+          table_id: current?.table_id || null,
+          table_no: current?.table_no || null,
+        },
+        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
+      });
+      return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+    }
+
+    return data ? mapLiveOrder(data as Record<string, unknown>) : null;
+  }
+
   let updatedOrder: Order | null = null;
 
   updateDatabase((database) => {
@@ -4381,6 +5392,52 @@ export async function updateOrderStatus(storeId: string, orderId: string, status
 }
 
 export async function listKitchenTickets(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const [ticketsResult, orders, itemsResult] = await Promise.all([
+      client.from('kitchen_tickets').select('*').eq('store_id', storeId).order('created_at', { ascending: false }),
+      listLiveOrders(storeId),
+      client.from('order_items').select('*').eq('store_id', storeId),
+    ]);
+
+    if (ticketsResult.error && !isSchemaCompatError(ticketsResult.error)) {
+      throw new Error(`Failed to load live kitchen tickets: ${ticketsResult.error.message}`);
+    }
+
+    if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
+      throw new Error(`Failed to load live order items for kitchen tickets: ${itemsResult.error.message}`);
+    }
+
+    const orderMap = new Map(orders.map((order) => [order.id, order]));
+    const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
+
+    if (ticketsResult.error || !(ticketsResult.data || []).length) {
+      return orders
+        .filter((order) => order.status !== 'cancelled')
+        .map((order) => ({
+          created_at: order.placed_at,
+          id: `compat_ticket_${order.id}`,
+          items: order.items.length ? order.items : items.filter((item) => item.order_id === order.id),
+          order,
+          order_id: order.id,
+          status: (order.status === 'completed' ? 'completed' : order.status) as KitchenTicket['status'],
+          store_id: order.store_id,
+          table_id: order.table_id,
+          table_no: order.table_no,
+          updated_at: order.completed_at || order.payment_recorded_at || order.placed_at,
+        }));
+    }
+
+    return ((ticketsResult.data || []) as Record<string, unknown>[]).map((row) => {
+      const ticket = mapLiveKitchenTicket(row);
+      return {
+        ...ticket,
+        order: orderMap.get(ticket.order_id),
+        items: items.filter((item) => item.order_id === ticket.order_id),
+      };
+    });
+  }
+
   const data = getStoreScopedData(storeId);
   return data.kitchenTickets
     .slice()
@@ -4393,6 +5450,30 @@ export async function listKitchenTickets(storeId: string) {
 }
 
 export async function updateKitchenTicketStatus(storeId: string, ticketId: string, status: KitchenTicket['status']) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { data, error } = await client
+      .from('kitchen_tickets')
+      .update({
+        status,
+        updated_at: nowIso(),
+      })
+      .eq('id', ticketId)
+      .eq('store_id', storeId)
+      .select('*')
+      .single();
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to update live kitchen ticket status: ${error.message}`);
+    }
+
+    const orderId = normalizeText((data as Record<string, unknown> | null)?.order_id) || ticketId.replace(/^compat_ticket_/, '');
+    if (orderId) {
+      await updateOrderStatus(storeId, orderId, status === 'completed' ? 'completed' : status);
+    }
+    return;
+  }
+
   let targetOrderId = '';
 
   updateDatabase((database) => {
@@ -4459,10 +5540,64 @@ export async function saveContract(
 }
 
 export async function listStoreTables(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    return listLiveStoreTables(storeId);
+  }
+
   return getStoreScopedData(storeId).tables;
 }
 
 export async function createStoreTable(storeId: string, input: { table_no: string; seats: number }) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const store = await getStoreById(storeId);
+    if (!store) {
+      throw new Error('Store not found');
+    }
+
+    const { data, error } = await client
+      .from('store_tables')
+      .insert({
+        is_active: true,
+        qr_value: `${buildStoreUrl(store.slug)}/order?table=${encodeURIComponent(input.table_no)}`,
+        seats: input.seats,
+        store_id: storeId,
+        table_no: input.table_no,
+      })
+      .select('*')
+      .single();
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to create live store table: ${error.message}`);
+    }
+
+    if (error) {
+      const legacyResult = await client
+        .from('store_tables')
+        .insert({
+          table_id: crypto.randomUUID(),
+          store_id: storeId,
+          table_no: input.table_no,
+          status: 'available',
+          status_updated_at: nowIso(),
+        })
+        .select('*')
+        .single();
+
+      if (legacyResult.error) {
+        throw new Error(`Failed to create live store table: ${legacyResult.error.message}`);
+      }
+
+      return {
+        ...mapLiveStoreTable(legacyResult.data as Record<string, unknown>),
+        qr_value: `${buildStoreUrl(store.slug)}/order?table=${encodeURIComponent(input.table_no)}`,
+        seats: input.seats,
+      };
+    }
+
+    return mapLiveStoreTable(data as Record<string, unknown>);
+  }
+
   const store = await getStoreById(storeId);
   if (!store) {
     throw new Error('Store not found');
@@ -4485,6 +5620,10 @@ export async function createStoreTable(storeId: string, input: { table_no: strin
 }
 
 export async function listMenu(storeId: string) {
+  if (shouldUseLiveOrderData()) {
+    return listLiveMenu(storeId);
+  }
+
   const data = getStoreScopedData(storeId);
   return {
     categories: data.menuCategories.slice().sort((left, right) => left.sort_order - right.sort_order),
@@ -4493,6 +5632,44 @@ export async function listMenu(storeId: string) {
 }
 
 export async function createMenuCategory(storeId: string, name: string) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const existingMenu = await listLiveMenu(storeId);
+    const { data, error } = await client
+      .from('menu_categories')
+      .insert({
+        name,
+        sort_order: existingMenu.categories.length + 1,
+        store_id: storeId,
+      })
+      .select('*')
+      .single();
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to create live menu category: ${error.message}`);
+    }
+
+    if (error) {
+      const legacyResult = await client
+        .from('menu_categories')
+        .insert({
+          category_id: crypto.randomUUID(),
+          name,
+          store_id: storeId,
+        })
+        .select('*')
+        .single();
+
+      if (legacyResult.error) {
+        throw new Error(`Failed to create live menu category: ${legacyResult.error.message}`);
+      }
+
+      return mapLiveMenuCategory(legacyResult.data as Record<string, unknown>);
+    }
+
+    return mapLiveMenuCategory(data as Record<string, unknown>);
+  }
+
   const data = getStoreScopedData(storeId);
   const category: MenuCategory = {
     id: createId('menu_category'),
@@ -4512,6 +5689,54 @@ export async function createMenuItem(
   storeId: string,
   input: Pick<MenuItem, 'category_id' | 'name' | 'price' | 'description' | 'is_popular'>,
 ) {
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { data, error } = await client
+      .from('menu_items')
+      .insert({
+        category_id: input.category_id,
+        description: input.description,
+        is_active: true,
+        is_popular: input.is_popular,
+        name: input.name,
+        price: input.price,
+        store_id: storeId,
+      })
+      .select('*')
+      .single();
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to create live menu item: ${error.message}`);
+    }
+
+    if (error) {
+      const legacyResult = await client
+        .from('menu_items')
+        .insert({
+          menu_id: crypto.randomUUID(),
+          category_id: input.category_id,
+          is_active: true,
+          name: input.name,
+          price: input.price,
+          store_id: storeId,
+        })
+        .select('*')
+        .single();
+
+      if (legacyResult.error) {
+        throw new Error(`Failed to create live menu item: ${legacyResult.error.message}`);
+      }
+
+      return {
+        ...mapLiveMenuItem(legacyResult.data as Record<string, unknown>),
+        description: input.description,
+        is_popular: input.is_popular,
+      };
+    }
+
+    return mapLiveMenuItem(data as Record<string, unknown>);
+  }
+
   const item: MenuItem = {
     id: createId('menu_item'),
     store_id: storeId,
@@ -4767,7 +5992,21 @@ export async function submitPublicOrder(input: {
   tableNo?: string;
   items: CartItemInput[];
   note?: string;
+  paymentMethod?: OrderPaymentMethod;
+  paymentSource?: OrderPaymentSource;
 }) {
+  if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
+    return requestPublicApi<{
+      items: OrderItem[];
+      order: Order;
+      ticket: KitchenTicket;
+    }>('/api/public/order', {
+      body: input,
+      method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
+    });
+  }
+
   const store = await getStoreBySlug(input.storeSlug);
 
   if (!store) {
@@ -4796,6 +6035,9 @@ export async function submitPublicOrder(input: {
     .filter(Boolean) as Array<{ menuItemId: string; menuName: string; quantity: number; unitPrice: number }>;
 
   const orderId = createId('order');
+  const paymentSource = input.paymentSource || 'counter';
+  const paymentMethod = input.paymentMethod || (paymentSource === 'counter' ? 'cash' : 'card');
+  const isAlreadyPaid = calculateOrderTotal(lineItems) === 0;
   const order: Order = {
     id: orderId,
     store_id: store.id,
@@ -4803,7 +6045,10 @@ export async function submitPublicOrder(input: {
     table_no: table?.table_no,
     channel: table ? 'table' : 'walk_in',
     status: 'pending',
-    payment_status: 'pending',
+    payment_method: paymentMethod,
+    payment_recorded_at: isAlreadyPaid ? nowIso() : undefined,
+    payment_source: paymentSource,
+    payment_status: isAlreadyPaid ? 'paid' : 'pending',
     total_amount: calculateOrderTotal(lineItems),
     placed_at: nowIso(),
     note: input.note,

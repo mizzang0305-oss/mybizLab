@@ -64,6 +64,19 @@ type StoreHomeContentRow = {
   updated_at: string;
 };
 
+type StoreSubscriptionRow = {
+  id: string;
+  store_id: string;
+  plan: string;
+  status: string;
+  billing_provider: StoreSubscription['billing_provider'] | null;
+  trial_ends_at: string | null;
+  current_period_starts_at: string | null;
+  current_period_ends_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function normalizePlan(value: unknown, fallback: StoreSubscription['plan'] = 'free'): StoreSubscription['plan'] {
   if (value === 'free' || value === 'pro' || value === 'vip') {
     return value;
@@ -149,22 +162,21 @@ function mapCustomerRow(row: CustomerRow): Customer {
   });
 }
 
-function mapStoreToSubscription(store: Store, existing?: Partial<StoreSubscription> | null): StoreSubscription {
-  const now = Date.now();
-  const trialEndsAt = store.trial_ends_at;
-  const isTrialing = Boolean(trialEndsAt && new Date(trialEndsAt).getTime() > now);
-
+function mapStoreSubscriptionRow(row: StoreSubscriptionRow): StoreSubscription {
   return {
-    id: existing?.id || `legacy_store_subscription_${normalizeStoreId(store)}`,
-    store_id: normalizeStoreId(store),
-    plan: normalizePlan(store.plan ?? store.subscription_plan, 'free'),
-    status: existing?.status || (isTrialing ? 'trialing' : 'active'),
-    billing_provider: existing?.billing_provider,
-    trial_ends_at: trialEndsAt,
-    current_period_starts_at: existing?.current_period_starts_at,
-    current_period_ends_at: existing?.current_period_ends_at,
-    created_at: existing?.created_at || store.created_at,
-    updated_at: store.updated_at || existing?.updated_at || store.created_at,
+    id: row.id,
+    store_id: row.store_id,
+    plan: normalizePlan(row.plan, 'free'),
+    status:
+      row.status === 'trialing' || row.status === 'active' || row.status === 'past_due' || row.status === 'cancelled'
+        ? row.status
+        : 'trialing',
+    billing_provider: row.billing_provider || undefined,
+    trial_ends_at: row.trial_ends_at || undefined,
+    current_period_starts_at: row.current_period_starts_at || undefined,
+    current_period_ends_at: row.current_period_ends_at || undefined,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
   };
 }
 
@@ -277,23 +289,28 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
   }
 
   async function getStoreSubscription(storeId: string) {
-    const store = await findStoreById(storeId);
-    return store ? mapStoreToSubscription(store) : null;
+    const client = assertClient();
+    const { data, error } = await client.from('store_subscriptions').select('*').eq('store_id', storeId).maybeSingle();
+    if (error) {
+      throw new Error(`Failed to load store subscription: ${error.message}`);
+    }
+
+    return data ? mapStoreSubscriptionRow(data as StoreSubscriptionRow) : null;
   }
 
   async function listStoreSubscriptions(storeIds?: string[]) {
     const client = assertClient();
-    let query = client.from('stores').select(LIVE_STORE_SELECT);
+    let query = client.from('store_subscriptions').select('*');
     if (storeIds?.length) {
       query = query.in('store_id', storeIds);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('updated_at', { ascending: false });
     if (error) {
-      throw new Error(`Failed to load store subscription plans from stores: ${error.message}`);
+      throw new Error(`Failed to load store subscriptions: ${error.message}`);
     }
 
-    return ((data || []) as StoreRow[]).map((row) => mapStoreToSubscription(mapStoreRow(row)));
+    return ((data || []) as StoreSubscriptionRow[]).map((row) => mapStoreSubscriptionRow(row));
   }
 
   async function saveStore(store: Store) {
@@ -596,19 +613,30 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
       return data as StorePublicPage;
     },
     saveStoreSubscription: async (subscription) => {
-      const currentStore = await findStoreById(subscription.store_id);
-      if (!currentStore) {
-        throw new Error('Failed to save store subscription because the store could not be found.');
+      const client = assertClient();
+      const payload = {
+        id: subscription.id,
+        store_id: subscription.store_id,
+        plan: normalizePlan(subscription.plan, 'free'),
+        status: subscription.status,
+        billing_provider: subscription.billing_provider || null,
+        trial_ends_at: subscription.trial_ends_at || null,
+        current_period_starts_at: subscription.current_period_starts_at || null,
+        current_period_ends_at: subscription.current_period_ends_at || null,
+        created_at: subscription.created_at,
+        updated_at: subscription.updated_at,
+      };
+      const { data, error } = await client
+        .from('store_subscriptions')
+        .upsert(payload, { onConflict: 'store_id' })
+        .select('*')
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to save store subscription: ${error.message}`);
       }
 
-      const savedStore = await saveStore({
-        ...currentStore,
-        plan: subscription.plan,
-        subscription_plan: subscription.plan,
-        trial_ends_at: subscription.trial_ends_at || currentStore.trial_ends_at,
-      });
-
-      return mapStoreToSubscription(savedStore, subscription);
+      return mapStoreSubscriptionRow(data as StoreSubscriptionRow);
     },
     saveVisitorSession: async (session) => {
       const client = assertClient();

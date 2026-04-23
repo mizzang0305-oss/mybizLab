@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import { EmptyState } from '@/shared/components/EmptyState';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -15,6 +16,8 @@ import {
   isFirebaseConfigured,
   isSupabaseConfigured,
 } from '@/shared/lib/appConfig';
+import { queryKeys } from '@/shared/lib/queryKeys';
+import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 
 function buildSystemChecks(accessibleStoreCount: number) {
   return [
@@ -66,6 +69,11 @@ function buildSystemChecks(accessibleStoreCount: number) {
 export function SystemPage() {
   const accessibleStoresQuery = useAccessibleStores();
   const { currentStore } = useCurrentStore();
+  const subscriptionQuery = useQuery({
+    enabled: Boolean(currentStore),
+    queryKey: [...queryKeys.billingRecords, currentStore?.id || '', 'system-plan'],
+    queryFn: () => getCanonicalMyBizRepository().getStoreSubscription(currentStore!.id),
+  });
 
   usePageMeta(
     '시스템 상태',
@@ -150,7 +158,7 @@ export function SystemPage() {
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">
                 <p>
                   현재 스토어는 <span className="font-semibold text-slate-900">{currentStore.business_type || '업종 미설정'}</span>{' '}
-                  기준으로 운영되며, 플랜은 <span className="font-semibold text-slate-900">{currentStore.plan || currentStore.subscription_plan || 'free'}</span>
+                  기준으로 운영되며, 플랜은 <span className="font-semibold text-slate-900">{subscriptionQuery.data?.plan || 'free'}</span>
                   입니다.
                 </p>
               </div>

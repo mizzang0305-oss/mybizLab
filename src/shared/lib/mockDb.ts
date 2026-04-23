@@ -23,7 +23,8 @@ function canUseSessionStorage() {
 }
 
 function assertDemoRuntime() {
-  if (IS_DEMO_RUNTIME) {
+  const isVitestRuntime = typeof process !== 'undefined' && Boolean(process.env.VITEST);
+  if (IS_DEMO_RUNTIME || isVitestRuntime) {
     return;
   }
 

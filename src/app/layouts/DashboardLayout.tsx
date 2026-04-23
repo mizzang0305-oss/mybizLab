@@ -4,7 +4,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { Icons } from '@/shared/components/Icons';
 import { StoreSwitcher } from '@/shared/components/StoreSwitcher';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
-import { useAdminSessionStore } from '@/shared/lib/adminSession';
+import { useAdminAccess } from '@/shared/lib/adminSession';
 import { adminNavigation, resolveAdminNavigation } from '@/shared/lib/moduleCatalog';
 import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { getBusinessTypeLabel } from '@/shared/lib/storeLabels';
@@ -58,8 +58,7 @@ function getDashboardNavigationDescription(route: string) {
 export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const session = useAdminSessionStore((state) => state.session);
-  const signOut = useAdminSessionStore((state) => state.signOut);
+  const { session, signOut } = useAdminAccess();
   const { currentStore, stores, setSelectedStoreId } = useCurrentStore();
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
@@ -77,8 +76,9 @@ export function DashboardLayout() {
   const adminDisplayEmail = session?.email || 'admin@mybiz.ai.kr';
 
   function handleSignOut() {
-    signOut();
-    navigate('/login', { replace: true });
+    void signOut().finally(() => {
+      navigate('/login', { replace: true });
+    });
   }
 
   const sidebar = (

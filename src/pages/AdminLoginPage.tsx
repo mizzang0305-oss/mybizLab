@@ -8,8 +8,9 @@ import {
   createDemoAdminSession,
   hasDashboardAccess,
   isDemoPasswordLoginEnabled,
+  refreshAdminSession,
   sanitizeAdminNextPath,
-  useAdminSessionStore,
+  useAdminAccess,
 } from '@/shared/lib/adminSession';
 import { LEGAL_LINKS } from '@/shared/lib/siteConfig';
 
@@ -32,8 +33,7 @@ function getMessageClassName(tone: MessageTone) {
 export function AdminLoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const session = useAdminSessionStore((state) => state.session);
-  const setSession = useAdminSessionStore((state) => state.setSession);
+  const { session } = useAdminAccess();
   const [pendingMethod, setPendingMethod] = useState<LoginMethod | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -67,7 +67,10 @@ export function AdminLoginPage() {
         fullName: options?.fullName,
       });
 
-      setSession(nextSession);
+      if (!nextSession || !hasDashboardAccess(nextSession)) {
+        throw new Error('Demo access could not be initialized for this merchant.');
+      }
+
       navigate(nextPath, { replace: true });
     } catch {
       setMessage({
@@ -120,10 +123,18 @@ export function AdminLoginPage() {
         }
 
         if (data.user) {
-          await signInWithDemoAccess('email', {
-            email: data.user.email || normalizedEmail,
-            fullName: data.user.user_metadata?.full_name as string | undefined,
-          });
+          const nextSession = await refreshAdminSession();
+          if (!hasDashboardAccess(nextSession)) {
+            await supabase.auth.signOut();
+            setMessage({
+              tone: 'error',
+              text: '로그인은 되었지만 이 계정은 store_members 권한이 없어 점주 운영 화면에 접근할 수 없습니다.',
+            });
+            setPendingMethod(null);
+            return;
+          }
+
+          navigate(nextPath, { replace: true });
           return;
         }
       }

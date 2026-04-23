@@ -8,7 +8,6 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { getPublicStore, getPublicStoreById } from '@/shared/lib/services/mvpService';
 import { touchVisitorSession } from '@/shared/lib/services/publicPageService';
-import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { buildStoreIdPath, buildStorePath } from '@/shared/lib/storeSlug';
 import { getOrCreateVisitorSessionState, saveVisitorSessionState } from '@/shared/lib/visitorSessionClient';
 
@@ -43,11 +42,13 @@ export function StorePublicLayout() {
     queryKey: publicStoreQueryKey,
     queryFn: () => (isStoreIdRoute ? getPublicStoreById(storeId) : getPublicStore(storeSlug)),
     enabled: Boolean(storeSlug || storeId),
+    retry: false,
   });
 
   const publicStore = publicStoreQuery.data;
   const publicBasePath =
     isStoreIdRoute && publicStore ? buildStoreIdPath(publicStore.store.id) : buildStorePath(storeSlug);
+  const consultationPath = publicStore ? `/s/${publicStore.store.id}/consultation` : '#';
   const inquiryPath = publicStore ? `/s/${publicStore.store.id}/inquiry` : '#';
   const reservationPath = publicStore ? `/s/${publicStore.store.id}/reservation` : '#';
   const waitingPath = publicStore ? `/s/${publicStore.store.id}/waiting` : '#';
@@ -137,9 +138,6 @@ export function StorePublicLayout() {
     );
   }
 
-  const config = getStoreBrandConfig(publicStore.store);
-  const consultationLink = config.phone ? `tel:${config.phone.replace(/[^0-9+]/g, '')}` : undefined;
-
   return (
     <div className="flex min-h-screen flex-col bg-[#fffaf3]">
       <header className="border-b border-slate-200/70 bg-white/88 backdrop-blur">
@@ -184,10 +182,10 @@ export function StorePublicLayout() {
                   웨이팅 등록
                 </Link>
               ) : null}
-              {consultationLink && publicStore.capabilities.consultationEnabled ? (
-                <a className="btn-secondary" href={consultationLink}>
-                  전화 문의
-                </a>
+              {publicStore.capabilities.consultationEnabled ? (
+                <Link className="btn-secondary" to={consultationPath}>
+                  AI 상담 시작
+                </Link>
               ) : null}
               {publicStore.capabilities.orderEntryEnabled ? (
                 <NavLink className="btn-primary" to={`${publicBasePath}/order${tableNo ? `?table=${tableNo}` : ''}`}>
@@ -212,6 +210,11 @@ export function StorePublicLayout() {
             {publicStore.capabilities.inquiryEnabled ? (
               <Link className="btn-secondary" to={inquiryPath}>
                 문의
+              </Link>
+            ) : null}
+            {publicStore.capabilities.consultationEnabled ? (
+              <Link className="btn-secondary" to={consultationPath}>
+                AI 상담
               </Link>
             ) : null}
             {publicStore.capabilities.reservationEnabled ? (

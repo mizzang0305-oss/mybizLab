@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockUseLocation = vi.fn();
 const mockSessionState = {
+  isLoading: false,
   session: null as unknown,
 };
 
@@ -21,7 +22,7 @@ vi.mock('react-router-dom', async () => {
 vi.mock('@/shared/lib/adminSession', () => ({
   hasDashboardAccess: (session: { accessibleStoreIds?: string[]; role?: string } | null | undefined) =>
     Boolean(session && session.accessibleStoreIds?.length && ['owner', 'manager', 'staff'].includes(session.role || '')),
-  useAdminSessionStore: (selector: (state: { session: unknown }) => unknown) => selector(mockSessionState),
+  useAdminAccess: () => mockSessionState,
 }));
 
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
@@ -33,6 +34,7 @@ describe('RequireAdminAuth', () => {
       search: '?tab=overview',
       hash: '#summary',
     });
+    mockSessionState.isLoading = false;
     mockSessionState.session = null;
   });
 
@@ -57,5 +59,14 @@ describe('RequireAdminAuth', () => {
     const html = renderToStaticMarkup(createElement(RequireAdminAuth));
 
     expect(html).toContain('/login?reason=forbidden');
+  });
+
+  it('shows a loading state while server membership is being validated', () => {
+    mockSessionState.isLoading = true;
+
+    const html = renderToStaticMarkup(createElement(RequireAdminAuth));
+
+    expect(html).toContain('권한을 확인하는 중입니다');
+    expect(html).not.toContain('/login');
   });
 });
