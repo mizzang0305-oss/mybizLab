@@ -77,6 +77,14 @@ type StoreSubscriptionRow = {
   updated_at: string;
 };
 
+type QueryErrorLike =
+  | {
+      code?: string;
+      message?: string;
+    }
+  | null
+  | undefined;
+
 function normalizePlan(value: unknown, fallback: StoreSubscription['plan'] = 'free'): StoreSubscription['plan'] {
   if (value === 'free' || value === 'pro' || value === 'vip') {
     return value;
@@ -93,8 +101,43 @@ function normalizePlan(value: unknown, fallback: StoreSubscription['plan'] = 'fr
   return fallback;
 }
 
+function normalizeText(value: unknown) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return '';
+}
+
 function normalizeStoreId(store: Pick<Store, 'id' | 'store_id'> | null | undefined) {
   return store?.store_id || store?.id || '';
+}
+
+function isMissingRelationError(error: QueryErrorLike) {
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    error?.code === 'PGRST205' ||
+    message.includes('could not find the table') ||
+    (message.includes('relation') && message.includes('does not exist'))
+  );
+}
+
+function isMissingColumnError(error: QueryErrorLike) {
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    (message.includes('column') &&
+      (message.includes('does not exist') || message.includes('schema cache') || message.includes('could not find')))
+  );
+}
+
+function isSchemaCompatError(error: QueryErrorLike) {
+  return isMissingRelationError(error) || isMissingColumnError(error);
 }
 
 function rankMembershipRole(role: StoreMember['role']) {
@@ -180,6 +223,73 @@ function mapStoreSubscriptionRow(row: StoreSubscriptionRow): StoreSubscription {
   };
 }
 
+function mapLegacyStoreSubscriptionStatus(status: unknown, lastPaymentStatus: unknown): StoreSubscription['status'] {
+  const normalizedStatus = normalizeText(status).toLowerCase();
+  const normalizedPayment = normalizeText(lastPaymentStatus).toLowerCase();
+
+  if (normalizedStatus === 'active' || normalizedStatus === 'subscription_active' || normalizedPayment === 'paid') {
+    return 'active';
+  }
+
+  if (normalizedStatus === 'cancelled' || normalizedStatus === 'subscription_cancelled' || normalizedPayment === 'cancelled') {
+    return 'cancelled';
+  }
+
+  if (normalizedStatus === 'past_due' || normalizedStatus === 'subscription_past_due' || normalizedPayment === 'failed') {
+    return 'past_due';
+  }
+
+  return 'trialing';
+}
+
+function mapLegacySubscriptionRow(row: Record<string, unknown>, storeId: string): StoreSubscription {
+  const startedAt = normalizeText(row.started_at) || normalizeText(row.created_at) || new Date().toISOString();
+  const expiresAt = normalizeText(row.expires_at) || undefined;
+
+  return {
+    id: normalizeText(row.id) || `legacy_subscription_${storeId}`,
+    store_id: storeId,
+    plan: normalizePlan(row.tier || row.plan, 'free'),
+    status: mapLegacyStoreSubscriptionStatus(row.status, row.last_payment_status),
+    billing_provider: normalizeText(row.billing_key) ? 'portone' : undefined,
+    trial_ends_at: expiresAt,
+    current_period_starts_at: startedAt,
+    current_period_ends_at: expiresAt,
+    created_at: normalizeText(row.created_at) || startedAt,
+    updated_at: normalizeText(row.updated_at) || startedAt,
+  };
+}
+
+function rankStoreSubscriptionStatus(status: StoreSubscription['status']) {
+  switch (status) {
+    case 'active':
+      return 4;
+    case 'trialing':
+      return 3;
+    case 'past_due':
+      return 2;
+    case 'cancelled':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function preferStoreSubscriptionCandidate(left: StoreSubscription, right: StoreSubscription) {
+  const statusDelta = rankStoreSubscriptionStatus(left.status) - rankStoreSubscriptionStatus(right.status);
+  if (statusDelta !== 0) {
+    return statusDelta > 0;
+  }
+
+  const leftUpdatedAt = normalizeText(left.updated_at || left.current_period_starts_at || left.created_at);
+  const rightUpdatedAt = normalizeText(right.updated_at || right.current_period_starts_at || right.created_at);
+  if (leftUpdatedAt !== rightUpdatedAt) {
+    return leftUpdatedAt > rightUpdatedAt;
+  }
+
+  return left.id > right.id;
+}
+
 function mapLegacyStoreHomeContentToPublicPage(store: Store, row: StoreHomeContentRow): StorePublicPage {
   const brandConfig = getStoreBrandConfig(store);
 
@@ -251,6 +361,91 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     return data ? mapStoreRow(data as StoreRow) : null;
   }
 
+  async function loadPreferredMemberships(storeIds?: string[]) {
+    const client = assertClient();
+    let query = client.from('store_members').select('id,store_id,profile_id,role,created_at');
+    if (storeIds?.length) {
+      query = query.in('store_id', storeIds);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`Failed to load store memberships for subscription fallback: ${error.message}`);
+    }
+
+    const bestMembershipByStore = new Map<string, StoreMember>();
+    ((data || []) as Array<{ id?: string; store_id: string; profile_id: string; role: string; created_at?: string }>).forEach((row) => {
+      const membership = mapStoreMembershipRow(row);
+      const current = bestMembershipByStore.get(membership.store_id);
+      if (!current || rankMembershipRole(membership.role) > rankMembershipRole(current.role)) {
+        bestMembershipByStore.set(membership.store_id, membership);
+      }
+    });
+
+    return bestMembershipByStore;
+  }
+
+  async function loadLegacyStoreSubscriptions(storeIds?: string[]) {
+    const client = assertClient();
+    let membershipQuery = client.from('store_members').select('id,store_id,profile_id,role,created_at');
+    if (storeIds?.length) {
+      membershipQuery = membershipQuery.in('store_id', storeIds);
+    }
+
+    const { data: membershipRows, error: membershipError } = await membershipQuery;
+    if (membershipError) {
+      throw new Error(`Failed to load store memberships for legacy subscriptions: ${membershipError.message}`);
+    }
+
+    const memberships = ((membershipRows || []) as Array<{
+      id?: string;
+      store_id: string;
+      profile_id: string;
+      role: string;
+      created_at?: string;
+    }>).map((row) => mapStoreMembershipRow(row));
+    const profileIds = [...new Set(memberships.map((membership) => membership.profile_id))];
+    if (!profileIds.length) {
+      return [] as StoreSubscription[];
+    }
+
+    const { data, error } = await client.from('subscriptions').select('*').in('user_id', profileIds);
+    if (error) {
+      throw new Error(`Failed to load legacy subscriptions: ${error.message}`);
+    }
+
+    const subscriptionsByProfile = new Map<string, Record<string, unknown>>();
+    ((data || []) as Record<string, unknown>[]).forEach((row) => {
+      const profileId = normalizeText(row.user_id);
+      if (!profileId) {
+        return;
+      }
+
+      const current = subscriptionsByProfile.get(profileId);
+      const currentUpdatedAt = normalizeText(current?.updated_at || current?.started_at);
+      const candidateUpdatedAt = normalizeText(row.updated_at || row.started_at);
+      if (!current || candidateUpdatedAt >= currentUpdatedAt) {
+        subscriptionsByProfile.set(profileId, row);
+      }
+    });
+
+    const subscriptionsByStore = new Map<string, StoreSubscription>();
+    memberships.forEach((membership) => {
+      const legacyRow = subscriptionsByProfile.get(membership.profile_id);
+      if (!legacyRow) {
+        return;
+      }
+
+      const candidate = mapLegacySubscriptionRow(legacyRow, membership.store_id);
+      const current = subscriptionsByStore.get(membership.store_id);
+      if (!current || preferStoreSubscriptionCandidate(candidate, current)) {
+        subscriptionsByStore.set(membership.store_id, candidate);
+      }
+    });
+
+    return [...subscriptionsByStore.values()];
+  }
+
   async function loadLegacyStorePublicPage(store: Store) {
     const client = assertClient();
     const { data, error } = await client.from('store_home_content').select('*').eq('store_id', normalizeStoreId(store)).maybeSingle();
@@ -291,11 +486,16 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
   async function getStoreSubscription(storeId: string) {
     const client = assertClient();
     const { data, error } = await client.from('store_subscriptions').select('*').eq('store_id', storeId).maybeSingle();
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to load store subscription: ${error.message}`);
     }
 
-    return data ? mapStoreSubscriptionRow(data as StoreSubscriptionRow) : null;
+    if (data) {
+      return mapStoreSubscriptionRow(data as StoreSubscriptionRow);
+    }
+
+    const [legacySubscription] = await loadLegacyStoreSubscriptions([storeId]);
+    return legacySubscription || null;
   }
 
   async function listStoreSubscriptions(storeIds?: string[]) {
@@ -306,11 +506,15 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     }
 
     const { data, error } = await query.order('updated_at', { ascending: false });
-    if (error) {
+    if (error && !isSchemaCompatError(error)) {
       throw new Error(`Failed to load store subscriptions: ${error.message}`);
     }
 
-    return ((data || []) as StoreSubscriptionRow[]).map((row) => mapStoreSubscriptionRow(row));
+    if (!error) {
+      return ((data || []) as StoreSubscriptionRow[]).map((row) => mapStoreSubscriptionRow(row));
+    }
+
+    return loadLegacyStoreSubscriptions(storeIds);
   }
 
   async function saveStore(store: Store) {
@@ -632,11 +836,44 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
         .select('*')
         .single();
 
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save store subscription: ${error.message}`);
       }
 
-      return mapStoreSubscriptionRow(data as StoreSubscriptionRow);
+      if (!error && data) {
+        return mapStoreSubscriptionRow(data as StoreSubscriptionRow);
+      }
+
+      const membershipMap = await loadPreferredMemberships([subscription.store_id]);
+      const membership = membershipMap.get(subscription.store_id);
+      if (!membership) {
+        throw new Error('Failed to save store subscription: no store membership found for legacy subscription fallback.');
+      }
+
+      const legacyPayload = {
+        id: subscription.id,
+        user_id: membership.profile_id,
+        tier: normalizePlan(subscription.plan, 'free'),
+        status: subscription.status,
+        billing_key: subscription.billing_provider === 'portone' ? `compat_${subscription.id}` : null,
+        started_at: subscription.current_period_starts_at || subscription.created_at,
+        expires_at: subscription.current_period_ends_at || subscription.trial_ends_at || null,
+        last_payment_status:
+          subscription.status === 'active'
+            ? 'paid'
+            : subscription.status === 'past_due'
+              ? 'failed'
+              : subscription.status === 'cancelled'
+                ? 'cancelled'
+                : 'pending',
+        updated_at: subscription.updated_at,
+      };
+      const { error: legacyError } = await client.from('subscriptions').upsert(legacyPayload, { onConflict: 'id' });
+      if (legacyError) {
+        throw new Error(`Failed to save store subscription: ${legacyError.message}`);
+      }
+
+      return subscription;
     },
     saveVisitorSession: async (session) => {
       const client = assertClient();
