@@ -1,10 +1,10 @@
-import { getCustomerRecordId } from '@/shared/lib/domain/customerMemory';
-import { createId } from '@/shared/lib/ids';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
-import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
-import type { WaitingEntry, WaitingStatus } from '@/shared/types/models';
+import { getCustomerRecordId } from '../domain/customerMemory.js';
+import { createId } from '../ids.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts.js';
+import { upsertCustomerMemory } from './customerMemoryService.js';
+import { assertStoreEntitlement } from './storeEntitlementsService.js';
+import type { WaitingEntry, WaitingStatus } from '../../types/models.js';
 
 interface WaitingServiceOptions {
   repository?: CanonicalMyBizRepository;

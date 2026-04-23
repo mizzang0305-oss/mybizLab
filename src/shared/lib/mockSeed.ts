@@ -1,7 +1,7 @@
-import { buildStoreUrl } from '@/shared/lib/storeSlug';
-import { buildAnalyticsSeedForStores } from '@/shared/lib/analyticsSeed';
-import { buildStoreFeatures } from '@/shared/lib/domain/features';
-import type { MvpDatabase } from '@/shared/types/models';
+import { buildStoreUrl } from './storeSlug.js';
+import { buildAnalyticsSeedForStores } from './analyticsSeed.js';
+import { buildStoreFeatures } from './domain/features.js';
+import type { MvpDatabase } from '../types/models.js';
 
 const now = new Date();
 

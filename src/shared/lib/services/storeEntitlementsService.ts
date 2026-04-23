@@ -1,6 +1,6 @@
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import type { SubscriptionPlan } from '@/shared/types/models';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts.js';
+import type { SubscriptionPlan } from '../../types/models.js';
 
 export type StoreEntitlement =
   | 'public_store_page'

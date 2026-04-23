@@ -1,5 +1,5 @@
-import { ANALYTICS_PROFILE_DEFINITIONS, DEFAULT_PRIORITY_WEIGHTS, getAnalyticsProfileDefinition, resolveAnalyticsPresetForStore } from '@/shared/lib/analyticsProfiles';
-import { startOfDayKey } from '@/shared/lib/format';
+import { ANALYTICS_PROFILE_DEFINITIONS, DEFAULT_PRIORITY_WEIGHTS, getAnalyticsProfileDefinition, resolveAnalyticsPresetForStore } from './analyticsProfiles.js';
+import { startOfDayKey } from './format.js';
 import type {
   AnalyticsPreset,
   Store,
@@ -7,7 +7,7 @@ import type {
   StoreDailyMetric,
   StorePrioritySettings,
   StorePriorityWeights,
-} from '@/shared/types/models';
+} from '../types/models.js';
 
 type AnalyticsStoreInput = Pick<Store, 'id' | 'slug' | 'business_type'> & Partial<Pick<Store, 'brand_config'>>;
 

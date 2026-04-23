@@ -1,4 +1,4 @@
-import { BUSINESS_INFO } from '@/shared/lib/siteConfig';
+import { BUSINESS_INFO } from './siteConfig.js';
 
 export type MybiLayoutMode = 'floating' | 'hero';
 export type MybiCompanionMode =

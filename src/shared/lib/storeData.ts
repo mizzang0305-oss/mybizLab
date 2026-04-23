@@ -1,4 +1,4 @@
-import type { Store, StoreBrandConfig, StorePrioritySettings, StorePriorityWeights, SubscriptionPlan } from '@/shared/types/models';
+import type { Store, StoreBrandConfig, StorePrioritySettings, StorePriorityWeights, SubscriptionPlan } from '../types/models.js';
 
 export const DEFAULT_STORE_PRIORITY_WEIGHTS: StorePriorityWeights = {
   revenue: 28,

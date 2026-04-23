@@ -1,4 +1,4 @@
-import { ALL_FEATURES, type FeatureKey, type StoreFeature } from '@/shared/types/models';
+import { ALL_FEATURES, type FeatureKey, type StoreFeature } from '../../types/models.js';
 
 export function createStoreFeatureId(storeId: string, featureKey: FeatureKey) {
   return `store_feature_${storeId}_${featureKey}`;

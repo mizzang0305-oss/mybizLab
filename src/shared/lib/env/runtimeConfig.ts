@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { readPublicEnv } from '@/shared/lib/publicEnv';
+import { readPublicEnv } from '../publicEnv.js';
 
 const LEGACY_DATA_PROVIDER_VALUES = ['local', 'firebase', 'mock', 'supabase'] as const;
 const APP_RUNTIME_MODE_VALUES = ['demo', 'live'] as const;

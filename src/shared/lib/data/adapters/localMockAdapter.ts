@@ -3,10 +3,10 @@
  * the canonical demo boundary. Keep this adapter only while legacy diagnosis
  * flows are still wired to the old adapter layer.
  */
-import { buildDiagnosisSessionRecord } from '@/shared/lib/diagnosisSessionRecord';
-import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
-import type { DemoDataAdapterDescriptor, ResolveAdminAccessInput } from '@/shared/lib/data/contracts';
-import { getCurrentProfile, listAccessibleStores } from '@/shared/lib/services/mvpService';
+import { buildDiagnosisSessionRecord } from '../../diagnosisSessionRecord.js';
+import { getDatabase, updateDatabase } from '../../mockDb.js';
+import type { DemoDataAdapterDescriptor, ResolveAdminAccessInput } from '../contracts.js';
+import { getCurrentProfile, listAccessibleStores } from '../../services/mvpService.js';
 
 export const localMockAdapter: DemoDataAdapterDescriptor = {
   description: 'Uses bundled seed data plus browser localStorage/sessionStorage for demo-safe offline flows.',

@@ -1,5 +1,5 @@
-import type { Customer, CustomerContact, CustomerPreference, CustomerTimelineEvent } from '@/shared/types/models';
-import { createId } from '@/shared/lib/ids';
+import type { Customer, CustomerContact, CustomerPreference, CustomerTimelineEvent } from '../../types/models.js';
+import { createId } from '../ids.js';
 
 export function normalizeCustomerPhone(value?: string | null) {
   return (value || '').replace(/\D/g, '');

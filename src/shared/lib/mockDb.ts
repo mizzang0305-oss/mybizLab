@@ -1,8 +1,8 @@
-import { createStoreFeatureId } from '@/shared/lib/domain/features';
-import { IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
-import { getStoreBrandConfig, normalizeStoreRecord } from '@/shared/lib/storeData';
-import type { MvpDatabase } from '@/shared/types/models';
-import { createSeedDatabase } from '@/shared/lib/mockSeed';
+import { createStoreFeatureId } from './domain/features.js';
+import { IS_DEMO_RUNTIME } from './appConfig.js';
+import { getStoreBrandConfig, normalizeStoreRecord } from './storeData.js';
+import type { MvpDatabase } from '../types/models.js';
+import { createSeedDatabase } from './mockSeed.js';
 
 const STORAGE_KEY = 'mybizlab:mvp-db';
 const SESSION_STORAGE_KEY = 'mybizlab:mvp-db:session';

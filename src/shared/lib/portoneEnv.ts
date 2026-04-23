@@ -1,4 +1,4 @@
-import { readPublicEnv, requirePublicEnv } from '@/shared/lib/publicEnv';
+import { readPublicEnv, requirePublicEnv } from './publicEnv.js';
 
 const PORTONE_STORE_ENV_NAMES = ['NEXT_PUBLIC_PORTONE_STORE_ID', 'VITE_PORTONE_STORE_ID'] as const;
 const PORTONE_CHANNEL_ENV_NAMES = ['NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'VITE_PORTONE_CHANNEL_KEY'] as const;

@@ -3,8 +3,8 @@
  * memory repositories. Keep this helper only while legacy order flows are being
  * phased over.
  */
-import type { Customer } from '@/shared/types/models';
-import { createId } from '@/shared/lib/ids';
+import type { Customer } from '../../types/models.js';
+import { createId } from '../ids.js';
 
 interface MatchCustomerInput {
   storeId: string;

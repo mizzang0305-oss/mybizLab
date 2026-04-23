@@ -1,52 +1,52 @@
-import { generateGeminiSummary } from '@/integrations/gemini/gemini';
-import { supabase } from '@/integrations/supabase/client';
-import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_LIVE_RUNTIME, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
-import { refreshAdminSession } from '@/shared/lib/adminSession';
-import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '@/shared/lib/analyticsSeed';
-import { buildStoreFeatures } from '@/shared/lib/domain/features';
-import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '@/shared/lib/domain/orders';
-import { formatCurrency, startOfDayKey, sumBy } from '@/shared/lib/format';
-import { createId, createUuid } from '@/shared/lib/ids';
+import { generateGeminiSummary } from '../../../integrations/gemini/gemini.js';
+import { supabase } from '../../../integrations/supabase/client.js';
+import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_LIVE_RUNTIME, IS_PRODUCTION_RUNTIME } from '../appConfig.js';
+import { refreshAdminSession } from '../adminSession.js';
+import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '../analyticsSeed.js';
+import { buildStoreFeatures } from '../domain/features.js';
+import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '../domain/orders.js';
+import { formatCurrency, startOfDayKey, sumBy } from '../format.js';
+import { createId, createUuid } from '../ids.js';
 import {
   customerContactSchema,
   normalizeInquiryTags,
-} from '@/shared/lib/inquirySchema';
-import { manualMetricFormSchema, type ManualMetricFormInput } from '@/shared/lib/manualMetricSchema';
-import { repairOrderItemMenuName, repairPublicMenuCatalog } from '@/shared/lib/menuText';
-import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
-import { createSeedDatabase } from '@/shared/lib/mockSeed';
-import { requestPublicApi } from '@/shared/lib/publicApiClient';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
+} from '../inquirySchema.js';
+import { manualMetricFormSchema, type ManualMetricFormInput } from '../manualMetricSchema.js';
+import { repairOrderItemMenuName, repairPublicMenuCatalog } from '../menuText.js';
+import { getDatabase, saveDatabase, updateDatabase } from '../mockDb.js';
+import { createSeedDatabase } from '../mockSeed.js';
+import { requestPublicApi } from '../publicApiClient.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import { resolveServerApiUrl } from '../serverApiUrl.js';
 import {
   getPublicConsultationSnapshot,
   submitPublicConsultationMessage,
-} from '@/shared/lib/services/consultationService';
-import { listStoreCustomers, upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
+} from './consultationService.js';
+import { listStoreCustomers, upsertCustomerMemory } from './customerMemoryService.js';
 import {
   getPublicInquirySummary,
   getPublicInquiryFormSnapshot,
   listStoreInquiries,
   submitCanonicalPublicInquiry,
   updateStoreInquiry,
-} from '@/shared/lib/services/inquiryService';
+} from './inquiryService.js';
 import {
   buildDefaultStorePublicPage,
   getCanonicalStorePublicPage,
   resolvePublicPageCapabilities,
   saveCanonicalStorePublicPage,
-} from '@/shared/lib/services/publicPageService';
+} from './publicPageService.js';
 import {
   listStoreReservations,
   saveStoreReservation,
   updateStoreReservationStatus,
-} from '@/shared/lib/services/reservationService';
+} from './reservationService.js';
 import {
   listStoreWaitingEntries,
   saveStoreWaitingEntry,
   updateStoreWaitingStatus,
-} from '@/shared/lib/services/waitingService';
-import { normalizeSurveyQuestions, surveyFormSchema, surveyResponseSchema } from '@/shared/lib/surveySchema';
+} from './waitingService.js';
+import { normalizeSurveyQuestions, surveyFormSchema, surveyResponseSchema } from '../surveySchema.js';
 import {
   createStoreBrandConfig,
   getStoreBrandConfig,
@@ -55,10 +55,10 @@ import {
   normalizeStoreRecord,
   withStoreBrandConfig,
   withStorePriorityWeights,
-} from '@/shared/lib/storeData';
-import { buildLiveStoreSetupRequestInsertPayload } from '@/shared/lib/setupRequestPersistence';
-import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
-import { normalizeCustomerRecord } from '@/shared/lib/domain/customerMemory';
+} from '../storeData.js';
+import { buildLiveStoreSetupRequestInsertPayload } from '../setupRequestPersistence.js';
+import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '../storeSlug.js';
+import { normalizeCustomerRecord } from '../domain/customerMemory.js';
 import type {
   AIReport,
   BillingEvent,
@@ -108,7 +108,7 @@ import type {
   SurveyResponse,
   WaitingEntry,
   WaitingStatus,
-} from '@/shared/types/models';
+} from '../../types/models.js';
 
 const DEMO_PROFILE_ID = 'profile_platform_owner';
 const PUBLIC_MUTATION_TIMEOUT_MS = 20000;
