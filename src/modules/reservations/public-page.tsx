@@ -138,6 +138,27 @@ export function PublicReservationPage() {
     );
   }
 
+  if (publicStoreQuery.isError) {
+    return (
+      <div className="page-shell py-16">
+        <EmptyState
+          action={
+            <div className="flex flex-wrap justify-center gap-3">
+              <button className="btn-primary" onClick={() => void publicStoreQuery.refetch()} type="button">
+                다시 시도
+              </button>
+              <Link className="btn-secondary" to="/">
+                홈으로 이동
+              </Link>
+            </div>
+          }
+          description={publicStoreQuery.error instanceof Error ? publicStoreQuery.error.message : '공개 예약 화면을 불러오지 못했습니다.'}
+          title="공개 예약 화면을 불러오지 못했습니다"
+        />
+      </div>
+    );
+  }
+
   if (!publicStore || !canReserve) {
     return (
       <div className="page-shell py-16">

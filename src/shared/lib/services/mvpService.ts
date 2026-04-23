@@ -12,6 +12,7 @@ import {
   normalizeInquiryTags,
 } from '@/shared/lib/inquirySchema';
 import { manualMetricFormSchema, type ManualMetricFormInput } from '@/shared/lib/manualMetricSchema';
+import { repairOrderItemMenuName, repairPublicMenuCatalog } from '@/shared/lib/menuText';
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
 import { requestPublicApi } from '@/shared/lib/publicApiClient';
@@ -734,7 +735,7 @@ function mapLiveOrder(row: Record<string, unknown>): Order {
 }
 
 function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
-  return {
+  return repairOrderItemMenuName({
     id: normalizeText(row.id) || `order_item_${normalizeText(row.order_id)}_${normalizeText(row.menu_item_id || row.menu_id)}`,
     order_id: normalizeText(row.order_id),
     store_id: normalizeText(row.store_id),
@@ -743,7 +744,7 @@ function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
     quantity: normalizeInteger(row.quantity, 1),
     unit_price: normalizeNumeric(row.unit_price),
     line_total: normalizeNumeric(row.line_total),
-  };
+  });
 }
 
 function mapLiveKitchenTicket(row: Record<string, unknown>): KitchenTicket {
@@ -829,7 +830,7 @@ function buildCompatOrderItems(orderId: string, storeId: string, value: unknown)
 
       const quantity = Math.max(1, normalizeInteger(row.quantity, 1));
       const unitPrice = normalizeNumeric(row.unit_price || row.unitPrice);
-      return {
+      return repairOrderItemMenuName({
         id: normalizeText(row.id) || `compat_item_${orderId}_${index + 1}`,
         order_id: orderId,
         store_id: storeId,
@@ -838,7 +839,7 @@ function buildCompatOrderItems(orderId: string, storeId: string, value: unknown)
         quantity,
         unit_price: unitPrice,
         line_total: normalizeNumeric(row.line_total || row.lineTotal, unitPrice * quantity),
-      } satisfies OrderItem;
+      } satisfies OrderItem);
     })
     .filter((item): item is OrderItem => Boolean(item));
 }
@@ -1002,12 +1003,12 @@ async function listLiveMenu(storeId: string) {
     throw new Error(`Failed to load live menu items: ${itemsResult.error.message}`);
   }
 
-  return {
+  return repairPublicMenuCatalog({
     categories: ((categoriesResult.data || []) as Record<string, unknown>[])
       .map((row) => mapLiveMenuCategory(row))
       .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name, 'ko-KR')),
     items: ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveMenuItem(row)),
-  };
+  });
 }
 
 function isoDaysAgo(daysAgo: number, hours = 9) {

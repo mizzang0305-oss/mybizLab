@@ -1,4 +1,4 @@
-import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
+import { resolveServerApiUrl } from './serverApiUrl.js';
 
 type PublicApiMethod = 'GET' | 'POST';
 
@@ -6,6 +6,7 @@ interface PublicApiRequestOptions {
   body?: unknown;
   method?: PublicApiMethod;
   searchParams?: Record<string, string | undefined>;
+  timeoutMs?: number;
 }
 
 const PUBLIC_API_TIMEOUT_MS = 8000;
@@ -26,7 +27,8 @@ function buildPublicApiUrl(path: string, searchParams?: Record<string, string | 
 
 export async function requestPublicApi<T>(path: string, options?: PublicApiRequestOptions): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PUBLIC_API_TIMEOUT_MS);
+  const timeoutMs = Math.max(1000, options?.timeoutMs ?? PUBLIC_API_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(buildPublicApiUrl(path, options?.searchParams), {
@@ -36,7 +38,27 @@ export async function requestPublicApi<T>(path: string, options?: PublicApiReque
       signal: controller.signal,
     });
     const rawText = await response.text();
-    const payload = rawText ? (JSON.parse(rawText) as { data?: T; error?: string; message?: string }) : {};
+    const contentType = response.headers.get('content-type') || '';
+
+    if (!rawText.trim()) {
+      if (!response.ok) {
+        throw new Error(`Public API request failed with ${response.status}.`);
+      }
+
+      return {} as T;
+    }
+
+    if (contentType.includes('text/html') || rawText.trimStart().startsWith('<!doctype html') || rawText.trimStart().startsWith('<html')) {
+      throw new Error('Public API returned HTML instead of JSON. Please refresh the page or verify the production deployment routing.');
+    }
+
+    let payload: { data?: T; error?: string; message?: string };
+
+    try {
+      payload = JSON.parse(rawText) as { data?: T; error?: string; message?: string };
+    } catch {
+      throw new Error('Public API returned an unreadable response. Please retry after the latest deployment finishes.');
+    }
 
     if (!response.ok) {
       throw new Error(payload.error || payload.message || `Public API request failed with ${response.status}.`);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
@@ -52,10 +52,7 @@ export function StorePublicLayout() {
   const inquiryPath = publicStore ? `/s/${publicStore.store.id}/inquiry` : '#';
   const reservationPath = publicStore ? `/s/${publicStore.store.id}/reservation` : '#';
   const waitingPath = publicStore ? `/s/${publicStore.store.id}/waiting` : '#';
-  const waitingEnabled = useMemo(
-    () => Boolean(publicStore?.features.some((feature) => feature.feature_key === 'waiting_board' && feature.enabled)),
-    [publicStore],
-  );
+  const waitingEnabled = Boolean(publicStore?.capabilities.waitingEnabled);
 
   usePageMeta(
     publicStore ? `${publicStore.store.name} 공개 스토어` : '공개 스토어',
@@ -118,6 +115,36 @@ export function StorePublicLayout() {
     return (
       <div className="page-shell py-20">
         <div className="section-card p-10 text-center text-sm text-slate-500">매장 정보를 불러오는 중입니다.</div>
+      </div>
+    );
+  }
+
+  if (publicStoreQuery.isError) {
+    const description =
+      publicStoreQuery.error instanceof Error
+        ? publicStoreQuery.error.message
+        : '공개 스토어 데이터를 불러오지 못했습니다.';
+
+    return (
+      <div className="page-shell py-20">
+        <EmptyState
+          action={
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                className="btn-primary"
+                onClick={() => void publicStoreQuery.refetch()}
+                type="button"
+              >
+                다시 시도
+              </button>
+              <Link className="btn-secondary" to="/">
+                홈으로 이동
+              </Link>
+            </div>
+          }
+          description={description}
+          title="공개 스토어를 불러오지 못했습니다"
+        />
       </div>
     );
   }

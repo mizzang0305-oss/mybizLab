@@ -21,6 +21,7 @@ import {
 } from '../shared/lib/services/publicPageService.js';
 import { saveStoreReservation } from '../shared/lib/services/reservationService.js';
 import { saveStoreWaitingEntry } from '../shared/lib/services/waitingService.js';
+import { repairOrderItemMenuName, repairPublicMenuCatalog } from '../shared/lib/menuText.js';
 import { getStoreBrandConfig, getStoreRecordId, normalizeStoreRecord } from '../shared/lib/storeData.js';
 import type {
   Inquiry,
@@ -49,6 +50,18 @@ function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?
   });
 }
 
+function serializePublicApiError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+    };
+  }
+
+  return { error };
+}
+
 const PUBLIC_ORDER_CHECKOUT_ENDPOINT = '/api/public/order-payment-checkout';
 const PUBLIC_ORDER_PAYMENT_VERIFY_ENDPOINT = '/api/public/order-payment-verify';
 const PUBLIC_ORDER_PAYMENT_ID_MAX_LENGTH = 40;
@@ -58,7 +71,15 @@ function nowIso() {
 }
 
 function normalizeText(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return '';
 }
 
 function normalizeInteger(value: unknown, fallback = 0) {
@@ -103,41 +124,45 @@ function createPublicOrderPaymentId() {
 }
 
 function mapOrderRecord(row: Record<string, unknown>): Order {
+  const tableId = normalizeText(row.table_id);
+  const tableNo = normalizeText(row.table_no);
+  const normalizedChannel = normalizeText(row.channel);
+
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id || row.order_id),
     store_id: normalizeText(row.store_id),
     customer_id: normalizeText(row.customer_id) || undefined,
-    table_id: normalizeText(row.table_id) || undefined,
-    table_no: normalizeText(row.table_no) || undefined,
-    channel: (normalizeText(row.channel) || 'walk_in') as Order['channel'],
+    table_id: tableId || undefined,
+    table_no: tableNo || undefined,
+    channel: (normalizedChannel || (tableId || tableNo ? 'table' : 'walk_in')) as Order['channel'],
     status: (normalizeText(row.status) || 'pending') as Order['status'],
     payment_status: (normalizeText(row.payment_status) || 'pending') as Order['payment_status'],
     payment_source: (normalizeText(row.payment_source) || undefined) as Order['payment_source'],
     payment_method: (normalizeText(row.payment_method) || undefined) as Order['payment_method'],
     payment_recorded_at: normalizeText(row.payment_recorded_at) || undefined,
     total_amount: normalizeNumeric(row.total_amount),
-    placed_at: normalizeText(row.placed_at),
+    placed_at: normalizeText(row.placed_at || row.created_at || row.submitted_at),
     completed_at: normalizeText(row.completed_at) || undefined,
     note: normalizeText(row.note) || undefined,
   };
 }
 
 function mapOrderItemRecord(row: Record<string, unknown>): OrderItem {
-  return {
-    id: normalizeText(row.id),
+  return repairOrderItemMenuName({
+    id: normalizeText(row.id) || `order_item_${normalizeText(row.order_id)}_${normalizeText(row.menu_item_id || row.menu_id)}`,
     order_id: normalizeText(row.order_id),
     store_id: normalizeText(row.store_id),
-    menu_item_id: normalizeText(row.menu_item_id),
-    menu_name: normalizeText(row.menu_name),
+    menu_item_id: normalizeText(row.menu_item_id || row.menu_id),
+    menu_name: normalizeText(row.menu_name || row.name),
     quantity: normalizeInteger(row.quantity, 1),
     unit_price: normalizeNumeric(row.unit_price),
     line_total: normalizeNumeric(row.line_total),
-  };
+  });
 }
 
 function mapKitchenTicketRecord(row: Record<string, unknown>): KitchenTicket {
   return {
-    id: normalizeText(row.id),
+    id: normalizeText(row.id) || `kitchen_ticket_${normalizeText(row.order_id)}`,
     store_id: normalizeText(row.store_id),
     order_id: normalizeText(row.order_id),
     table_id: normalizeText(row.table_id) || undefined,
@@ -146,6 +171,237 @@ function mapKitchenTicketRecord(row: Record<string, unknown>): KitchenTicket {
     created_at: normalizeText(row.created_at),
     updated_at: normalizeText(row.updated_at),
   };
+}
+
+function isSchemaCompatError(error?: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    error?.code === 'PGRST204' ||
+    error?.code === 'PGRST205' ||
+    error?.code === '42703' ||
+    message.includes('does not exist') ||
+    message.includes('schema cache') ||
+    message.includes('could not find the')
+  );
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function mapStoreTableRecord(row: Record<string, unknown>, storeSlug: string): StoreTable {
+  const tableNo = normalizeText(row.table_no);
+  return {
+    id: normalizeText(row.id || row.table_id),
+    store_id: normalizeText(row.store_id),
+    table_no: tableNo,
+    seats: normalizeInteger(row.seats, 4),
+    qr_value: normalizeText(row.qr_value) || `/${encodeURIComponent(storeSlug)}/order?table=${encodeURIComponent(tableNo)}`,
+    is_active: row.is_active !== false,
+  };
+}
+
+function mapMenuCategoryRecord(row: Record<string, unknown>): MenuCategory {
+  return {
+    id: normalizeText(row.id || row.category_id),
+    store_id: normalizeText(row.store_id),
+    name: normalizeText(row.name),
+    sort_order: normalizeInteger(row.sort_order, 1),
+  };
+}
+
+function mapMenuItemRecord(row: Record<string, unknown>): MenuItem {
+  return {
+    id: normalizeText(row.id || row.menu_id),
+    store_id: normalizeText(row.store_id),
+    category_id: normalizeText(row.category_id),
+    name: normalizeText(row.name),
+    price: normalizeNumeric(row.price),
+    description: normalizeText(row.description),
+    is_popular: row.is_popular === true,
+    is_active: row.is_active !== false,
+  };
+}
+
+function mapCompatEventItems(orderId: string, storeId: string, items: unknown) {
+  if (!Array.isArray(items)) {
+    return [] as OrderItem[];
+  }
+
+  return items
+    .map((item, index) => {
+      const row = toRecord(item);
+      const menuItemId = normalizeText(row.menu_item_id || row.menuItemId || row.menu_id);
+      const menuName = normalizeText(row.menu_name || row.menuName || row.name);
+      if (!menuItemId || !menuName) {
+        return null;
+      }
+
+      const quantity = Math.max(1, normalizeInteger(row.quantity, 1));
+      const unitPrice = normalizeNumeric(row.unit_price || row.unitPrice);
+      return repairOrderItemMenuName({
+        id: normalizeText(row.id) || `compat_item_${orderId}_${index + 1}`,
+        order_id: orderId,
+        store_id: storeId,
+        menu_item_id: menuItemId,
+        menu_name: menuName,
+        quantity,
+        unit_price: unitPrice,
+        line_total: normalizeNumeric(row.line_total || row.lineTotal, unitPrice * quantity),
+      } satisfies OrderItem);
+    })
+    .filter((item): item is OrderItem => Boolean(item));
+}
+
+async function createLegacyPublicOrderCustomer(
+  client: SupabaseClient,
+  input: {
+    storeId: string;
+    timestamp: string;
+  },
+) {
+  const customerId = crypto.randomUUID();
+  const { error } = await client.from('customers').insert({
+    customer_id: customerId,
+    customer_key: customerId,
+    first_seen_at: input.timestamp,
+    last_seen_at: input.timestamp,
+    marketing_consent: false,
+    quiet_mode: false,
+    quiet_until: null,
+    store_id: input.storeId,
+    tags: [],
+  });
+
+  if (error) {
+    throw new Error(`Failed to create legacy public-order customer: ${error.message}`);
+  }
+
+  return customerId;
+}
+
+async function createLegacyPublicOrderSession(
+  client: SupabaseClient,
+  input: {
+    customerId: string;
+    storeId: string;
+    tableId?: string | null;
+    timestamp: string;
+  },
+) {
+  const sessionId = crypto.randomUUID();
+  const { error } = await client.from('sessions').insert({
+    customer_id: input.customerId,
+    ended_at: null,
+    ip_hash: null,
+    session_id: sessionId,
+    started_at: input.timestamp,
+    store_id: input.storeId,
+    table_id: input.tableId || null,
+  });
+
+  if (error) {
+    throw new Error(`Failed to create legacy public-order session: ${error.message}`);
+  }
+
+  return sessionId;
+}
+
+function buildCompatOrderState(orderRow: Record<string, unknown>, paymentEventRows: Record<string, unknown>[]) {
+  const mergedRaw = paymentEventRows
+    .map((row) => toRecord(row.raw))
+    .reduce<Record<string, unknown>>((accumulator, raw) => ({ ...accumulator, ...raw }), {});
+  const order = mapOrderRecord({
+    ...orderRow,
+    customer_id: orderRow.customer_id || mergedRaw.customer_id,
+    note: orderRow.note || mergedRaw.note,
+    payment_method: orderRow.payment_method || mergedRaw.payment_method,
+    payment_recorded_at: orderRow.payment_recorded_at || mergedRaw.payment_recorded_at,
+    payment_source: orderRow.payment_source || mergedRaw.payment_source,
+    payment_status:
+      orderRow.payment_status ||
+      mergedRaw.payment_status ||
+      (paymentEventRows.some((row) => normalizeText(row.status).toLowerCase() === 'paid') ? 'paid' : 'pending'),
+    placed_at: orderRow.placed_at || mergedRaw.placed_at || orderRow.created_at || orderRow.submitted_at,
+    table_id: orderRow.table_id || mergedRaw.table_id,
+    table_no: orderRow.table_no || mergedRaw.table_no,
+  });
+  const items = mapCompatEventItems(order.id, order.store_id, mergedRaw.items);
+  const ticketStatus = normalizeText(mergedRaw.kitchen_status || order.status || 'pending') as KitchenTicket['status'];
+  const ticket =
+    order.status === 'cancelled'
+      ? null
+      : {
+          id: `compat_ticket_${order.id}`,
+          store_id: order.store_id,
+          order_id: order.id,
+          table_id: order.table_id,
+          table_no: order.table_no,
+          status: ticketStatus,
+          created_at: order.placed_at,
+          updated_at: normalizeText(mergedRaw.kitchen_updated_at || mergedRaw.payment_recorded_at) || order.completed_at || order.placed_at,
+        } satisfies KitchenTicket;
+
+  return { items, order, ticket };
+}
+
+async function loadOrderPaymentEvents(client: SupabaseClient, orderId: string) {
+  const { data, error } = await client.from('payment_events').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+  if (error && !isSchemaCompatError(error)) {
+    throw new Error(`Failed to load payment events for order ${orderId}: ${error.message}`);
+  }
+
+  return ((data || []) as Record<string, unknown>[]).filter((row) => normalizeText(row.order_id) === orderId);
+}
+
+async function loadPublicOrderState(client: SupabaseClient, storeId: string, orderId: string) {
+  let orderResult = await client.from('orders').select('*').eq('id', orderId).eq('store_id', storeId).maybeSingle();
+  if (orderResult.error && isSchemaCompatError(orderResult.error)) {
+    orderResult = await client.from('orders').select('*').eq('order_id', orderId).eq('store_id', storeId).maybeSingle();
+  }
+
+  if (orderResult.error) {
+    throw new Error(`Failed to load public order: ${orderResult.error.message}`);
+  }
+
+  if (!orderResult.data) {
+    return null;
+  }
+
+  const paymentEvents = await loadOrderPaymentEvents(client, orderId);
+  return buildCompatOrderState(orderResult.data as Record<string, unknown>, paymentEvents);
+}
+
+async function persistCompatPaymentEvent(
+  client: SupabaseClient,
+  input: {
+    amount: number;
+    orderId: string;
+    paymentId: string;
+    provider: string;
+    raw: Record<string, unknown>;
+    status: string;
+    userId?: string | null;
+  },
+) {
+  const { error } = await client.from('payment_events').insert({
+    provider: input.provider,
+    event_id: input.paymentId,
+    order_id: input.orderId,
+    user_id: input.userId || null,
+    status: input.status,
+    amount: input.amount,
+    raw: input.raw,
+    created_at: nowIso(),
+  });
+
+  if (error) {
+    throw new Error(`Failed to persist compat payment event: ${error.message}`);
+  }
 }
 
 type PublicApiRequestLike =
@@ -314,6 +570,10 @@ function inferPublicApiErrorStatus(error: unknown) {
 
 function createPublicApiErrorResponse(error: unknown, status = 500) {
   const resolvedStatus = status === 500 ? inferPublicApiErrorStatus(error) : status;
+  console.error('[public-api] request failed', {
+    error: serializePublicApiError(error),
+    status: resolvedStatus,
+  });
   return responseJson(
     {
       ok: false,
@@ -489,7 +749,13 @@ async function selectOptionalList<T>(
       query = query.order(orderBy.column, { ascending: orderBy.ascending ?? true });
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if (error && orderBy && isSchemaCompatError(error)) {
+      const retry = await client.from(table).select('*').eq('store_id', storeId);
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
       return [] as T[];
     }
@@ -524,6 +790,7 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     inquiries,
     orders,
     orderItems,
+    paymentEvents,
   ] = await Promise.all([
     repository.getStorePublicPage(storeId),
     selectOptionalList<StoreFeature>(client, 'store_features', storeId),
@@ -538,6 +805,7 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     repository.listInquiries(storeId),
     selectOptionalList<Order>(client, 'orders', storeId),
     selectOptionalList<OrderItem>(client, 'order_items', storeId),
+    selectOptionalList<Record<string, unknown>>(client, 'payment_events', storeId),
   ]);
 
   const sortedMedia = sortMedia(media);
@@ -582,7 +850,36 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
       phone: canonicalPage.phone,
     },
   });
-  const menuItems = normalizeMenuItems(rawMenuItems);
+  const menuCategoriesNormalized = (menuCategories as unknown as Record<string, unknown>[])
+    .map((row) => mapMenuCategoryRecord(row))
+    .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name, 'ko-KR'));
+  const repairedMenu = repairPublicMenuCatalog({
+    categories: menuCategoriesNormalized,
+    items: normalizeMenuItems((rawMenuItems as unknown as Record<string, unknown>[]).map((row) => mapMenuItemRecord(row))),
+  });
+  const menuItems = repairedMenu.items;
+  const tableRecords = (tables as unknown as Record<string, unknown>[])
+    .map((row) => mapStoreTableRecord(row, publicStoreRecord.slug))
+    .filter((table) => table.is_active);
+  const ordersWithCompat = (orders as unknown as Record<string, unknown>[]).map((row) =>
+    buildCompatOrderState(
+      row,
+      (paymentEvents as Record<string, unknown>[]).filter((event) => normalizeText(event.order_id) === normalizeText(row.id || row.order_id)),
+    ).order,
+  );
+  const orderItemsWithCompat = [
+    ...((orderItems as unknown as Record<string, unknown>[]).map((row) => mapOrderItemRecord(row))),
+    ...((orders as unknown as Record<string, unknown>[]).flatMap((row) =>
+      buildCompatOrderState(
+        row,
+        (paymentEvents as Record<string, unknown>[]).filter((event) => normalizeText(event.order_id) === normalizeText(row.id || row.order_id)),
+      ).items,
+    )),
+  ].filter(
+    (item, index, items) => items.findIndex((candidate) => candidate.id === item.id || (
+      candidate.order_id === item.order_id && candidate.menu_item_id === item.menu_item_id && candidate.quantity === item.quantity
+    )) === index,
+  );
   const activeSurvey = surveys.find((survey) => survey.is_active) || surveys[0] || null;
   const surveySummary = buildSurveySummary(activeSurvey, surveyResponses);
   const inquirySummary = buildPublicInquirySummary(inquiries as Inquiry[]);
@@ -592,10 +889,10 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     store: publicStoreRecord,
     publicPageId: canonicalPage.id,
     menu: {
-      categories: menuCategories.slice().sort((left, right) => left.sort_order - right.sort_order),
+      categories: repairedMenu.categories,
       items: menuItems,
     },
-    tables: tables.filter((table) => table.is_active),
+    tables: tableRecords,
     location: {
       id: primaryLocation?.id || `store_public_location_${storeId}`,
       store_id: storeId,
@@ -610,8 +907,8 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     capabilities,
     features: features.filter((feature) => feature.enabled),
     menuHighlights: {
-      today: selectMenuHighlights(menuItems, orderItems, orders, 'today'),
-      weekly: selectMenuHighlights(menuItems, orderItems, orders, 'weekly'),
+      today: selectMenuHighlights(menuItems, orderItemsWithCompat, ordersWithCompat, 'today'),
+      weekly: selectMenuHighlights(menuItems, orderItemsWithCompat, ordersWithCompat, 'weekly'),
     },
     surveySummary,
     inquirySummary,
@@ -874,32 +1171,96 @@ export async function handlePublicOrderRequest(request: PublicApiRequestLike) {
     const isAlreadyPaid = totalAmount === 0;
     const placedAt = nowIso();
 
-    const { data: insertedOrder, error: orderError } = await adminClient
+    const canonicalOrderPayload = {
+      channel: table ? 'table' : 'walk_in',
+      completed_at: null,
+      note: normalizeText(body.note) || null,
+      payment_method: paymentMethod,
+      payment_recorded_at: isAlreadyPaid ? placedAt : null,
+      payment_source: paymentSource,
+      payment_status: isAlreadyPaid ? 'paid' : 'pending',
+      placed_at: placedAt,
+      status: 'pending',
+      store_id: snapshot.store.id,
+      table_id: table?.id || null,
+      table_no: table?.table_no || null,
+      total_amount: totalAmount,
+    };
+
+    let insertedOrder: Record<string, unknown> | null = null;
+    const canonicalOrderResult = await adminClient
       .from('orders')
-      .insert({
-        channel: table ? 'table' : 'walk_in',
-        completed_at: null,
+      .insert(canonicalOrderPayload)
+      .select('*')
+      .single();
+
+    if (!canonicalOrderResult.error && canonicalOrderResult.data) {
+      insertedOrder = canonicalOrderResult.data as Record<string, unknown>;
+    } else if (canonicalOrderResult.error && isSchemaCompatError(canonicalOrderResult.error)) {
+      const legacyCustomerId = await createLegacyPublicOrderCustomer(adminClient, {
+        storeId: snapshot.store.id,
+        timestamp: placedAt,
+      });
+      const legacySessionId = await createLegacyPublicOrderSession(adminClient, {
+        customerId: legacyCustomerId,
+        storeId: snapshot.store.id,
+        tableId: table?.id || null,
+        timestamp: placedAt,
+      });
+      const legacyOrderResult = await adminClient
+        .from('orders')
+        .insert({
+          order_id: crypto.randomUUID(),
+          store_id: snapshot.store.id,
+          table_id: table?.id || null,
+          session_id: legacySessionId,
+          status: 'pending',
+          total_amount: totalAmount,
+          created_at: placedAt,
+          submitted_at: placedAt,
+        })
+        .select('*')
+        .single();
+
+      if (legacyOrderResult.error || !legacyOrderResult.data) {
+        throw new Error(`Failed to create public order: ${legacyOrderResult.error?.message || 'Unknown legacy insert error'}`);
+      }
+
+      insertedOrder = legacyOrderResult.data as Record<string, unknown>;
+    } else {
+      throw new Error(`Failed to create public order: ${canonicalOrderResult.error?.message || 'Unknown insert error'}`);
+    }
+
+    const orderId = normalizeText(insertedOrder.id || insertedOrder.order_id);
+    await persistCompatPaymentEvent(adminClient, {
+      amount: totalAmount,
+      orderId,
+      paymentId: `public-order:${orderId}:created`,
+      provider: 'mybiz',
+      raw: {
+        items: lineItems.map((item, index) => ({
+          id: `compat_item_${orderId}_${index + 1}`,
+          line_total: item.line_total,
+          menu_item_id: item.menu_item_id,
+          menu_name: item.menu_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        })),
+        kitchen_status: 'pending',
         note: normalizeText(body.note) || null,
         payment_method: paymentMethod,
         payment_recorded_at: isAlreadyPaid ? placedAt : null,
         payment_source: paymentSource,
         payment_status: isAlreadyPaid ? 'paid' : 'pending',
         placed_at: placedAt,
-        status: 'pending',
-        store_id: snapshot.store.id,
         table_id: table?.id || null,
         table_no: table?.table_no || null,
-        total_amount: totalAmount,
-      })
-      .select('*')
-      .single();
+      },
+      status: isAlreadyPaid ? 'paid' : 'pending',
+    });
 
-    if (orderError || !insertedOrder) {
-      throw new Error(`Failed to create public order: ${orderError?.message || 'Unknown insert error'}`);
-    }
-
-    const order = mapOrderRecord(insertedOrder as Record<string, unknown>);
-    const { data: insertedItems, error: itemsError } = await adminClient
+    const { items, order, ticket } = buildCompatOrderState(insertedOrder, await loadOrderPaymentEvents(adminClient, orderId));
+    const canonicalItemsResult = await adminClient
       .from('order_items')
       .insert(
         lineItems.map((item) => ({
@@ -908,12 +1269,16 @@ export async function handlePublicOrderRequest(request: PublicApiRequestLike) {
         })),
       )
       .select('*');
+    const resolvedItems =
+      canonicalItemsResult.error && !isSchemaCompatError(canonicalItemsResult.error)
+        ? (() => {
+            throw new Error(`Failed to create order items: ${canonicalItemsResult.error.message}`);
+          })()
+        : canonicalItemsResult.data
+          ? ((canonicalItemsResult.data as Record<string, unknown>[]).map((item) => mapOrderItemRecord(item)))
+          : items;
 
-    if (itemsError) {
-      throw new Error(`Failed to create order items: ${itemsError.message}`);
-    }
-
-    const { data: insertedTicket, error: ticketError } = await adminClient
+    const canonicalTicketResult = await adminClient
       .from('kitchen_tickets')
       .insert({
         created_at: placedAt,
@@ -926,17 +1291,21 @@ export async function handlePublicOrderRequest(request: PublicApiRequestLike) {
       })
       .select('*')
       .single();
-
-    if (ticketError || !insertedTicket) {
-      throw new Error(`Failed to create kitchen ticket: ${ticketError?.message || 'Unknown insert error'}`);
-    }
+    const resolvedTicket =
+      canonicalTicketResult.error && !isSchemaCompatError(canonicalTicketResult.error)
+        ? (() => {
+            throw new Error(`Failed to create kitchen ticket: ${canonicalTicketResult.error.message}`);
+          })()
+        : canonicalTicketResult.data
+          ? mapKitchenTicketRecord(canonicalTicketResult.data as Record<string, unknown>)
+          : ticket;
 
     return responseJson({
       ok: true,
       data: {
-        items: ((insertedItems || []) as Record<string, unknown>[]).map((item) => mapOrderItemRecord(item)),
+        items: resolvedItems,
         order,
-        ticket: mapKitchenTicketRecord(insertedTicket as Record<string, unknown>),
+        ticket: resolvedTicket,
       },
     });
   } catch (error) {
@@ -1010,22 +1379,12 @@ export async function handlePublicOrderPaymentCheckoutRequest(request: PublicApi
     }
 
     const adminClient = getSupabaseAdminClient();
-    const { data: orderRow, error: orderError } = await adminClient
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .eq('store_id', snapshot.store.id)
-      .maybeSingle();
-
-    if (orderError) {
-      throw new Error(`Failed to load public order: ${orderError.message}`);
-    }
-
-    if (!orderRow) {
+    const orderState = await loadPublicOrderState(adminClient, snapshot.store.id, orderId);
+    if (!orderState) {
       return createPublicApiErrorResponse(new Error('Order could not be found for this store.'), 404);
     }
 
-    const order = mapOrderRecord(orderRow as Record<string, unknown>);
+    const order = orderState.order;
     if (order.payment_status === 'paid') {
       return createPublicApiErrorResponse(new Error('This order is already paid.'), 409);
     }
@@ -1113,22 +1472,12 @@ export async function handlePublicOrderPaymentVerifyRequest(request: PublicApiRe
     }
 
     const adminClient = getSupabaseAdminClient();
-    const { data: orderRow, error: orderError } = await adminClient
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .eq('store_id', snapshot.store.id)
-      .maybeSingle();
-
-    if (orderError) {
-      throw new Error(`Failed to load public order: ${orderError.message}`);
-    }
-
-    if (!orderRow) {
+    const orderState = await loadPublicOrderState(adminClient, snapshot.store.id, orderId);
+    if (!orderState) {
       return createPublicApiErrorResponse(new Error('Order could not be found for this store.'), 404);
     }
 
-    const order = mapOrderRecord(orderRow as Record<string, unknown>);
+    const order = orderState.order;
     if (order.payment_status === 'paid') {
       return responseJson({ ok: true, data: { order } });
     }
@@ -1179,11 +1528,12 @@ export async function handlePublicOrderPaymentVerifyRequest(request: PublicApiRe
       });
     }
 
-    const { data: updatedOrder, error: updateError } = await adminClient
+    const paymentRecordedAt = nowIso();
+    const updateResult = await adminClient
       .from('orders')
       .update({
         payment_method: 'card',
-        payment_recorded_at: nowIso(),
+        payment_recorded_at: paymentRecordedAt,
         payment_source: 'mobile',
         payment_status: 'paid',
       })
@@ -1192,14 +1542,51 @@ export async function handlePublicOrderPaymentVerifyRequest(request: PublicApiRe
       .select('*')
       .single();
 
-    if (updateError || !updatedOrder) {
-      throw new Error(`Failed to mark public order as paid: ${updateError?.message || 'Unknown update error'}`);
+    let nextOrderState: ReturnType<typeof buildCompatOrderState>;
+    if (!updateResult.error && updateResult.data) {
+      await persistCompatPaymentEvent(adminClient, {
+        amount: order.total_amount,
+        orderId,
+        paymentId,
+        provider: 'portone',
+        raw: {
+          payment_method: 'card',
+          payment_recorded_at: paymentRecordedAt,
+          payment_source: 'mobile',
+          payment_status: 'paid',
+        },
+        status: 'paid',
+      });
+      nextOrderState = buildCompatOrderState(updateResult.data as Record<string, unknown>, await loadOrderPaymentEvents(adminClient, orderId));
+    } else if (updateResult.error && isSchemaCompatError(updateResult.error)) {
+      await persistCompatPaymentEvent(adminClient, {
+        amount: order.total_amount,
+        orderId,
+        paymentId,
+        provider: 'portone',
+        raw: {
+          items: orderState.items,
+          kitchen_status: orderState.ticket?.status || 'pending',
+          note: order.note || null,
+          payment_method: 'card',
+          payment_recorded_at: paymentRecordedAt,
+          payment_source: 'mobile',
+          payment_status: 'paid',
+          placed_at: order.placed_at,
+          table_id: order.table_id || null,
+          table_no: order.table_no || null,
+        },
+        status: 'paid',
+      });
+      nextOrderState = buildCompatOrderState(orderState.order as unknown as Record<string, unknown>, await loadOrderPaymentEvents(adminClient, orderId));
+    } else {
+      throw new Error(`Failed to mark public order as paid: ${updateResult.error?.message || 'Unknown update error'}`);
     }
 
     return responseJson({
       ok: true,
       data: {
-        order: mapOrderRecord(updatedOrder as Record<string, unknown>),
+        order: nextOrderState.order,
         payment: {
           paymentId,
           paymentStatus,

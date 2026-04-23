@@ -1,10 +1,60 @@
 import { matchRoutes } from 'react-router-dom';
 
 import { appRoutes } from '@/app/router';
+import { PublicConsultationPage } from '@/modules/consultation/public-page';
+import { PublicInquiryPage } from '@/modules/inquiries/public-page';
+import { PublicReservationPage } from '@/modules/reservations/public-page';
+import { PublicSurveyResponsePage } from '@/modules/surveys/public-response-page';
+import { StoreHomePage } from '@/modules/table-order/public-home-page';
+import { StoreMenuPage } from '@/modules/table-order/public-menu-page';
+import { StoreOrderPage } from '@/modules/table-order/public-order-page';
+import { PublicWaitingPage } from '@/modules/waiting/public-page';
 import { resolveAdminNavigation } from '@/shared/lib/moduleCatalog';
 
 function matchedPaths(pathname: string) {
   return (matchRoutes(appRoutes, pathname) ?? []).map(({ route }) => route.path ?? (route.index ? '(index)' : '(layout)'));
+}
+
+function findRoute(pathname: string, routes = appRoutes): (typeof appRoutes)[number] | undefined {
+  for (const route of routes) {
+    if (route.path === pathname) {
+      return route;
+    }
+
+    if (route.children) {
+      const match = findRoute(pathname, route.children);
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function unwrapRoutedComponent(pathname: string) {
+  const route = findRoute(pathname);
+  if (!route?.element) {
+    throw new Error(`Route ${pathname} was not found.`);
+  }
+
+  const boundaryElement = route.element as {
+    props: {
+      children: {
+        props: {
+          children: {
+            type: unknown;
+          };
+        };
+      };
+      mode?: string;
+    };
+  };
+
+  return {
+    mode: boundaryElement.props.mode,
+    type: boundaryElement.props.children.props.children.type,
+  };
 }
 
 describe('app routing', () => {
@@ -81,5 +131,59 @@ describe('app routing', () => {
   it('resolves the public reservation and waiting routes by store id', () => {
     expect(matchedPaths('/s/store_golden_coffee/reservation')).toContain('/s/:storeId/reservation');
     expect(matchedPaths('/s/store_golden_coffee/waiting')).toContain('/s/:storeId/waiting');
+  });
+
+  it('keeps critical public routes in stable eager-loaded components', () => {
+    expect(unwrapRoutedComponent('/s/:storeId/inquiry')).toEqual({
+      mode: 'public',
+      type: PublicInquiryPage,
+    });
+    expect(unwrapRoutedComponent('/s/:storeId/consultation')).toEqual({
+      mode: 'public',
+      type: PublicConsultationPage,
+    });
+    expect(unwrapRoutedComponent('/s/:storeId/reservation')).toEqual({
+      mode: 'public',
+      type: PublicReservationPage,
+    });
+    expect(unwrapRoutedComponent('/s/:storeId/waiting')).toEqual({
+      mode: 'public',
+      type: PublicWaitingPage,
+    });
+    expect(unwrapRoutedComponent('/s/:storeId/survey/:formId')).toEqual({
+      mode: 'public',
+      type: PublicSurveyResponsePage,
+    });
+    expect(unwrapRoutedComponent('menu')).toEqual({
+      mode: 'public',
+      type: StoreMenuPage,
+    });
+    expect(unwrapRoutedComponent('order')).toEqual({
+      mode: 'public',
+      type: StoreOrderPage,
+    });
+  });
+
+  it('keeps the public store home route eager-loaded under both public store parents', () => {
+    const publicStoreSlugRoute = appRoutes
+      .flatMap((route) => route.children || [])
+      .find((route) => route.path === '/:storeSlug');
+    const publicStoreIdRoute = appRoutes
+      .flatMap((route) => route.children || [])
+      .find((route) => route.path === '/store/:storeId');
+
+    const slugIndexType = (
+      (publicStoreSlugRoute?.children?.find((route) => route.index)?.element as {
+        props: { children: { props: { children: { type: unknown } } }; mode?: string };
+      })
+    ).props.children.props.children.type;
+    const storeIdIndexType = (
+      (publicStoreIdRoute?.children?.find((route) => route.index)?.element as {
+        props: { children: { props: { children: { type: unknown } } }; mode?: string };
+      })
+    ).props.children.props.children.type;
+
+    expect(slugIndexType).toBe(StoreHomePage);
+    expect(storeIdIndexType).toBe(StoreHomePage);
   });
 });
