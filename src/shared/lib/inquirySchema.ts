@@ -41,6 +41,12 @@ export type PublicInquiryInput = z.infer<typeof publicInquirySchema>;
 export type InquiryOwnerUpdateInput = z.infer<typeof inquiryOwnerUpdateSchema>;
 export type CustomerContactInput = z.infer<typeof customerContactSchema>;
 
-export function normalizeInquiryTags(input: string[]) {
-  return [...new Set(input.map((tag) => tag.trim()).filter(Boolean))].slice(0, 6);
+export function normalizeInquiryTags(input: Array<string | null | undefined>) {
+  return [
+    ...new Set(
+      input
+        .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+        .filter(Boolean),
+    ),
+  ].slice(0, 6);
 }

@@ -113,6 +113,29 @@ function normalizeText(value: unknown) {
   return '';
 }
 
+function normalizeBoolean(value: unknown, fallback = false) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function toPrimitiveRecord(value: unknown) {
+  return Object.fromEntries(
+    Object.entries(toRecord(value)).map(([key, candidate]) => [
+      key,
+      typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean' || candidate === null
+        ? candidate
+        : normalizeText(candidate) || null,
+    ]),
+  ) as Record<string, boolean | number | string | null>;
+}
+
 function normalizeStoreId(store: Pick<Store, 'id' | 'store_id'> | null | undefined) {
   return store?.store_id || store?.id || '';
 }
@@ -332,6 +355,78 @@ function mapLegacyStoreHomeContentToPublicPage(store: Store, row: StoreHomeConte
   };
 }
 
+function mapAnyStorePublicPageRow(store: Store, row: Record<string, unknown>): StorePublicPage {
+  if (normalizeText(row.brand_name)) {
+    return {
+      ...((row as unknown) as StorePublicPage),
+      slug: normalizeText(row.slug) || store.slug,
+      brand_name: normalizeText(row.brand_name) || store.name,
+      phone: normalizeText(row.phone) || getStoreBrandConfig(store).phone,
+      email: normalizeText(row.email) || getStoreBrandConfig(store).email,
+      address: normalizeText(row.address) || getStoreBrandConfig(store).address,
+      consultation_enabled: normalizeBoolean(row.consultation_enabled, store.consultation_enabled ?? true),
+      inquiry_enabled: normalizeBoolean(row.inquiry_enabled, store.inquiry_enabled ?? true),
+      reservation_enabled: normalizeBoolean(row.reservation_enabled, store.reservation_enabled ?? false),
+      order_entry_enabled: normalizeBoolean(row.order_entry_enabled, store.order_entry_enabled ?? false),
+      cta_config: toPrimitiveRecord(row.cta_config),
+      content_blocks: Array.isArray(row.content_blocks) ? (row.content_blocks as StorePublicPage['content_blocks']) : [],
+      seo_metadata: toPrimitiveRecord(row.seo_metadata),
+      media: Array.isArray(row.media) ? (row.media as StorePublicPage['media']) : [],
+      notices: Array.isArray(row.notices) ? (row.notices as StorePublicPage['notices']) : [],
+    };
+  }
+
+  const brandConfig = getStoreBrandConfig(store);
+  const primaryTarget = normalizeText(row.cta_primary_target) || normalizeText(toRecord(row.cta_config).primaryTarget);
+  const waitingEnabled = normalizeBoolean(row.waiting_enabled, store.order_entry_enabled ?? false);
+
+  return {
+    id: normalizeText(row.id) || `store_public_page_${normalizeStoreId(store)}`,
+    store_id: normalizeStoreId(store),
+    slug: store.slug,
+    brand_name: store.name,
+    logo_url: store.logo_url,
+    brand_color: store.brand_color,
+    tagline: store.tagline,
+    description: normalizeText(row.intro_text) || store.description,
+    business_type: brandConfig.business_type,
+    phone: brandConfig.phone,
+    email: brandConfig.email,
+    address: brandConfig.address,
+    directions: '',
+    opening_hours: undefined,
+    parking_note: undefined,
+    public_status: normalizeBoolean(row.is_published, store.public_status === 'public') ? 'public' : 'private',
+    homepage_visible: normalizeBoolean(row.is_published, true),
+    consultation_enabled: store.consultation_enabled ?? true,
+    inquiry_enabled: normalizeBoolean(row.inquiry_enabled, store.inquiry_enabled ?? true),
+    reservation_enabled: normalizeBoolean(row.reservation_enabled, store.reservation_enabled ?? false),
+    order_entry_enabled: store.order_entry_enabled ?? (waitingEnabled || primaryTarget === 'order' || primaryTarget === 'waiting'),
+    theme_preset: store.theme_preset,
+    preview_target: store.preview_target,
+    hero_title: normalizeText(row.hero_title) || store.name,
+    hero_subtitle: normalizeText(row.hero_subtitle) || store.tagline,
+    hero_description: normalizeText(row.intro_text) || store.description,
+    primary_cta_label: normalizeText(row.cta_primary_label) || store.primary_cta_label,
+    mobile_cta_label: store.mobile_cta_label,
+    cta_config: {
+      inquiryEnabled: normalizeBoolean(row.inquiry_enabled, store.inquiry_enabled ?? true),
+      primaryTarget: primaryTarget || null,
+      reservationEnabled: normalizeBoolean(row.reservation_enabled, store.reservation_enabled ?? false),
+      waitingEnabled,
+    },
+    content_blocks: [],
+    seo_metadata: {
+      description: normalizeText(row.seo_description) || store.description,
+      title: normalizeText(row.seo_title) || normalizeText(row.page_title) || store.name,
+    },
+    media: [],
+    notices: [],
+    created_at: normalizeText(row.created_at) || store.created_at,
+    updated_at: normalizeText(row.updated_at) || store.updated_at,
+  };
+}
+
 export function createSupabaseRepository(clientOverride?: SupabaseClient | null): CanonicalMyBizRepository {
   function assertClient() {
     if (!clientOverride) {
@@ -462,11 +557,11 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     if (error) {
       throw new Error(`Failed to load store public page: ${error.message}`);
     }
+    const store = await findStoreById(storeId);
     if (data) {
-      return data as StorePublicPage;
+      return store ? mapAnyStorePublicPageRow(store, data as Record<string, unknown>) : (data as StorePublicPage);
     }
 
-    const store = await findStoreById(storeId);
     if (!store) {
       return null;
     }
@@ -814,7 +909,8 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
         throw new Error(`Failed to save store public page: ${error.message}`);
       }
 
-      return data as StorePublicPage;
+      const store = await findStoreById(page.store_id);
+      return store ? mapAnyStorePublicPageRow(store, data as Record<string, unknown>) : (data as StorePublicPage);
     },
     saveStoreSubscription: async (subscription) => {
       const client = assertClient();
