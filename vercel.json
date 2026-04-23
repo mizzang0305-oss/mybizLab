@@ -1,37 +1,56 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "src": "/api/public/store",
+      "dest": "/api/public?resource=store"
     },
     {
-      "source": "/@vite/(.*)",
-      "destination": "/@vite/$1"
+      "src": "/api/public/inquiry-form",
+      "dest": "/api/public?resource=inquiry-form"
     },
     {
-      "source": "/@react-refresh",
-      "destination": "/@react-refresh"
+      "src": "/api/public/consultation-form",
+      "dest": "/api/public?resource=consultation-form"
     },
     {
-      "source": "/@id/(.*)",
-      "destination": "/@id/$1"
+      "src": "/api/public/visitor-session",
+      "dest": "/api/public?resource=visitor-session"
     },
     {
-      "source": "/@fs/(.*)",
-      "destination": "/@fs/$1"
+      "src": "/api/public/inquiry",
+      "dest": "/api/public?resource=inquiry"
     },
     {
-      "source": "/src/(.*)",
-      "destination": "/src/$1"
+      "src": "/api/public/consultation",
+      "dest": "/api/public?resource=consultation"
     },
     {
-      "source": "/node_modules/(.*)",
-      "destination": "/node_modules/$1"
+      "src": "/api/public/reservation",
+      "dest": "/api/public?resource=reservation"
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/api/public/waiting",
+      "dest": "/api/public?resource=waiting"
+    },
+    {
+      "src": "/api/public/order",
+      "dest": "/api/public?resource=order"
+    },
+    {
+      "src": "/api/public/order-payment-checkout",
+      "dest": "/api/public?resource=order-payment-checkout"
+    },
+    {
+      "src": "/api/public/order-payment-verify",
+      "dest": "/api/public?resource=order-payment-verify"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
