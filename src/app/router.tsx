@@ -2,13 +2,22 @@ import { Suspense, lazy, type ComponentType, type ElementType } from 'react';
 import { Navigate, createBrowserRouter, RouterProvider, type RouteObject } from 'react-router-dom';
 
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
+import { RouteErrorBoundary } from '@/app/RouteErrorBoundary';
 import { PublicCompanionLayout } from '@/app/layouts/PublicCompanionLayout';
 import { DashboardLayout } from '@/app/layouts/DashboardLayout';
 import { PublicLayout } from '@/app/layouts/PublicLayout';
 import { StorePublicLayout } from '@/app/layouts/StorePublicLayout';
+import { PublicConsultationPage } from '@/modules/consultation/public-page';
+import { PublicInquiryPage } from '@/modules/inquiries/public-page';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
 import { LandingPage } from '@/pages/LandingPage';
 import { OnboardingPage } from '@/modules/onboarding/page';
+import { PublicReservationPage } from '@/modules/reservations/public-page';
+import { PublicSurveyResponsePage } from '@/modules/surveys/public-response-page';
+import { StoreHomePage } from '@/modules/table-order/public-home-page';
+import { StoreMenuPage } from '@/modules/table-order/public-menu-page';
+import { StoreOrderPage } from '@/modules/table-order/public-order-page';
+import { PublicWaitingPage } from '@/modules/waiting/public-page';
 import { PricingPage } from '@/pages/PricingPage';
 import { UiPreviewPage } from '@/pages/UiPreviewPage';
 
@@ -35,11 +44,13 @@ function lazyPage<TModule extends Record<string, unknown>>(
   });
 }
 
-function routeElement(Component: ElementType) {
+function routeElement(Component: ElementType, options?: { mode?: 'default' | 'public' }) {
   return (
-    <Suspense fallback={<RouteLoadingFallback />}>
-      <Component />
-    </Suspense>
+    <RouteErrorBoundary mode={options?.mode || 'default'}>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Component />
+      </Suspense>
+    </RouteErrorBoundary>
   );
 }
 
@@ -48,10 +59,6 @@ const AiReportsPage = lazyPage(() => import('@/modules/ai-report/page'), 'AiRepo
 const AdminUsersPage = lazyPage(() => import('@/modules/admin-users/page'), 'AdminUsersPage');
 const BillingPage = lazyPage(() => import('@/modules/billing/page'), 'BillingPage');
 const BrandPage = lazyPage(() => import('@/modules/brand/page'), 'BrandPage');
-const PublicConsultationPage = lazyPage(
-  () => import('@/modules/consultation/public-page'),
-  'PublicConsultationPage',
-);
 const ContractsPage = lazyPage(() => import('@/modules/contracts/page'), 'ContractsPage');
 const CustomersPage = lazyPage(() => import('@/modules/customers/page'), 'CustomersPage');
 const DashboardPage = lazyPage(() => import('@/modules/dashboard/page'), 'DashboardPage');
@@ -59,24 +66,11 @@ const KitchenPage = lazyPage(() => import('@/modules/kitchen/page'), 'KitchenPag
 const NotFoundPage = lazyPage(() => import('@/pages/NotFoundPage'), 'NotFoundPage');
 const OrdersPage = lazyPage(() => import('@/modules/orders/page'), 'OrdersPage');
 const PrivacyPage = lazyPage(() => import('@/pages/PrivacyPage'), 'PrivacyPage');
-const PublicInquiryPage = lazyPage(() => import('@/modules/inquiries/public-page'), 'PublicInquiryPage');
-const PublicReservationPage = lazyPage(
-  () => import('@/modules/reservations/public-page'),
-  'PublicReservationPage',
-);
-const PublicSurveyResponsePage = lazyPage(
-  () => import('@/modules/surveys/public-response-page'),
-  'PublicSurveyResponsePage',
-);
-const PublicWaitingPage = lazyPage(() => import('@/modules/waiting/public-page'), 'PublicWaitingPage');
 const RefundPage = lazyPage(() => import('@/pages/RefundPage'), 'RefundPage');
 const ReservationsPage = lazyPage(() => import('@/modules/reservations/page'), 'ReservationsPage');
 const SalesPage = lazyPage(() => import('@/modules/sales/page'), 'SalesPage');
 const SchedulesPage = lazyPage(() => import('@/modules/schedules/page'), 'SchedulesPage');
 const StoreDetailPage = lazyPage(() => import('@/modules/stores/detail-page'), 'StoreDetailPage');
-const StoreHomePage = lazyPage(() => import('@/modules/table-order/public-home-page'), 'StoreHomePage');
-const StoreMenuPage = lazyPage(() => import('@/modules/table-order/public-menu-page'), 'StoreMenuPage');
-const StoreOrderPage = lazyPage(() => import('@/modules/table-order/public-order-page'), 'StoreOrderPage');
 const StoreRequestDetailPage = lazyPage(
   () => import('@/modules/store-requests/detail-page'),
   'StoreRequestDetailPage',
@@ -231,23 +225,23 @@ export const appRoutes: RouteObject[] = [
     children: [
       {
         path: '/s/:storeId/survey/:formId',
-        element: routeElement(PublicSurveyResponsePage),
+        element: routeElement(PublicSurveyResponsePage, { mode: 'public' }),
       },
       {
         path: '/s/:storeId/inquiry',
-        element: routeElement(PublicInquiryPage),
+        element: routeElement(PublicInquiryPage, { mode: 'public' }),
       },
       {
         path: '/s/:storeId/consultation',
-        element: routeElement(PublicConsultationPage),
+        element: routeElement(PublicConsultationPage, { mode: 'public' }),
       },
       {
         path: '/s/:storeId/reservation',
-        element: routeElement(PublicReservationPage),
+        element: routeElement(PublicReservationPage, { mode: 'public' }),
       },
       {
         path: '/s/:storeId/waiting',
-        element: routeElement(PublicWaitingPage),
+        element: routeElement(PublicWaitingPage, { mode: 'public' }),
       },
       {
         path: '/:storeSlug',
@@ -255,15 +249,15 @@ export const appRoutes: RouteObject[] = [
         children: [
           {
             index: true,
-            element: routeElement(StoreHomePage),
+            element: routeElement(StoreHomePage, { mode: 'public' }),
           },
           {
             path: 'menu',
-            element: routeElement(StoreMenuPage),
+            element: routeElement(StoreMenuPage, { mode: 'public' }),
           },
           {
             path: 'order',
-            element: routeElement(StoreOrderPage),
+            element: routeElement(StoreOrderPage, { mode: 'public' }),
           },
         ],
       },
@@ -273,15 +267,15 @@ export const appRoutes: RouteObject[] = [
         children: [
           {
             index: true,
-            element: routeElement(StoreHomePage),
+            element: routeElement(StoreHomePage, { mode: 'public' }),
           },
           {
             path: 'menu',
-            element: routeElement(StoreMenuPage),
+            element: routeElement(StoreMenuPage, { mode: 'public' }),
           },
           {
             path: 'order',
-            element: routeElement(StoreOrderPage),
+            element: routeElement(StoreOrderPage, { mode: 'public' }),
           },
         ],
       },

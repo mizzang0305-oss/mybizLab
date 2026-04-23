@@ -39,7 +39,7 @@ export function PublicWaitingPage() {
 
   const publicStore = publicStoreQuery.data;
   const homePath = publicStore ? buildStoreIdPath(publicStore.store.id) : '/';
-  const waitingEnabled = Boolean(publicStore?.features.some((feature) => feature.feature_key === 'waiting_board' && feature.enabled));
+  const waitingEnabled = Boolean(publicStore?.capabilities.waitingEnabled);
 
   usePageMeta(
     publicStore ? `${publicStore.store.name} 웨이팅 등록` : '웨이팅 등록',
@@ -130,6 +130,27 @@ export function PublicWaitingPage() {
     return (
       <div className="page-shell py-16">
         <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">웨이팅 화면을 불러오는 중입니다.</div>
+      </div>
+    );
+  }
+
+  if (publicStoreQuery.isError) {
+    return (
+      <div className="page-shell py-16">
+        <EmptyState
+          action={
+            <div className="flex flex-wrap justify-center gap-3">
+              <button className="btn-primary" onClick={() => void publicStoreQuery.refetch()} type="button">
+                다시 시도
+              </button>
+              <Link className="btn-secondary" to="/">
+                홈으로 이동
+              </Link>
+            </div>
+          }
+          description={publicStoreQuery.error instanceof Error ? publicStoreQuery.error.message : '공개 웨이팅 화면을 불러오지 못했습니다.'}
+          title="공개 웨이팅 화면을 불러오지 못했습니다"
+        />
       </div>
     );
   }

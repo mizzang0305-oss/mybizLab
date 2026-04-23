@@ -51,6 +51,7 @@ export interface PublicPageCapabilities {
   consultationEnabled: boolean;
   inquiryEnabled: boolean;
   reservationEnabled: boolean;
+  waitingEnabled: boolean;
   orderEntryEnabled: boolean;
 }
 
@@ -245,6 +246,7 @@ export async function resolvePublicPageCapabilities(
     consultationEnabled: entitlements.public_store_page && page.consultation_enabled,
     inquiryEnabled: entitlements.public_inquiry && page.inquiry_enabled,
     reservationEnabled: entitlements.reservations && page.reservation_enabled,
+    waitingEnabled: entitlements.waiting_board,
     orderEntryEnabled: entitlements.public_store_page && page.order_entry_enabled,
   };
 }

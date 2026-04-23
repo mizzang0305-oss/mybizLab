@@ -46,7 +46,7 @@ export function StoreHomePage() {
   const inquiryPath = `/s/${publicStore.store.id}/inquiry`;
   const reservationPath = `/s/${publicStore.store.id}/reservation`;
   const waitingPath = `/s/${publicStore.store.id}/waiting`;
-  const waitingEnabled = publicStore.features.some((feature) => feature.feature_key === 'waiting_board' && feature.enabled);
+  const waitingEnabled = publicStore.capabilities.waitingEnabled;
   const canOrder = publicStore.capabilities.orderEntryEnabled;
   const canReserve = publicStore.capabilities.reservationEnabled;
   const canInquire = publicStore.capabilities.inquiryEnabled;

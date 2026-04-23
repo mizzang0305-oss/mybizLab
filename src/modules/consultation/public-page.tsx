@@ -248,6 +248,29 @@ export function PublicConsultationPage() {
     );
   }
 
+  if (consultationQuery.isError) {
+    return (
+      <div className="page-shell py-16">
+        <EmptyState
+          action={
+            <div className="flex flex-wrap justify-center gap-3">
+              <button className="btn-primary" onClick={() => void consultationQuery.refetch()} type="button">
+                다시 시도
+              </button>
+              <Link className="btn-secondary" to="/">
+                홈으로 이동
+              </Link>
+            </div>
+          }
+          description={
+            consultationQuery.error instanceof Error ? consultationQuery.error.message : '공개 AI 상담 화면을 불러오지 못했습니다.'
+          }
+          title="공개 AI 상담 화면을 불러오지 못했습니다"
+        />
+      </div>
+    );
+  }
+
   if (!consultationQuery.data) {
     return (
       <div className="page-shell py-16">
