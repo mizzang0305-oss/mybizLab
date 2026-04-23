@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type PropsWithChildren,
@@ -57,8 +58,10 @@ interface RectState {
 }
 
 interface FloatingRectInput {
+  compactMode: boolean;
   focusedElement: HTMLElement | null;
   manualHome: PointState | null;
+  quietMode: boolean;
   targetElement: HTMLElement | null;
 }
 
@@ -115,6 +118,22 @@ function rectCenterDistance(a: RectState, b: RectState) {
 function buildViewportRect() {
   if (typeof window === 'undefined') return null;
   return { height: window.innerHeight, left: 0, top: 0, width: window.innerWidth } satisfies RectState;
+}
+
+function getFloatingShellSize(viewport: RectState, compactMode: boolean) {
+  if (compactMode) {
+    return clamp(
+      viewport.width * (viewport.width < 720 ? 0.22 : 0.13),
+      viewport.width < 720 ? 104 : 128,
+      viewport.width < 720 ? 148 : 172,
+    );
+  }
+
+  return clamp(
+    viewport.width * (viewport.width < 720 ? 0.34 : 0.2),
+    viewport.width < 720 ? 156 : 214,
+    viewport.width < 720 ? 220 : 316,
+  );
 }
 
 function expandRect(rect: RectState, padding: number): RectState {
@@ -177,43 +196,58 @@ function uniqueRects(rects: RectState[]) {
   );
 }
 
-function collectAvoidRects(viewport: RectState, focusedElement: HTMLElement | null) {
+function collectAvoidRects(viewport: RectState, focusedElement: HTMLElement | null, compactMode: boolean) {
   const focusedRect =
-    focusedElement && focusedElement.isConnected ? expandRect(rectFromElement(focusedElement), 28) : null;
+    focusedElement && focusedElement.isConnected
+      ? expandRect(rectFromElement(focusedElement), compactMode ? 42 : 28)
+      : null;
+  const focusGroupRect =
+    compactMode && focusedElement?.isConnected
+      ? focusedElement.closest<HTMLElement>(
+          'label, [data-mybi-avoid], [data-mybi-important="true"], [data-mybi-stepper], [role="alert"], .section-card',
+        )
+      : null;
+  const expandedFocusGroupRect =
+    focusGroupRect && focusGroupRect !== focusedElement && focusGroupRect.isConnected
+      ? expandRect(rectFromElement(focusGroupRect), 18)
+      : null;
+  const selectors = compactMode
+    ? '[data-mybi-avoid], [data-mybi-important="true"], [data-mybi-stepper], [data-mybi-error], [role="alert"], [aria-invalid="true"], button, [role="button"], input, textarea, select, a.btn-primary, a.btn-secondary'
+    : '[data-mybi-avoid], [data-mybi-important="true"], button, [role="button"], input, textarea, select, a.btn-primary, a.btn-secondary';
 
-  const avoidRects = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      '[data-mybi-avoid], [data-mybi-important="true"], button, [role="button"], input, textarea, select, a.btn-primary, a.btn-secondary',
-    ),
-  )
+  const avoidRects = Array.from(document.querySelectorAll<HTMLElement>(selectors))
     .filter((element) => !element.closest('[data-mybi-panel="open"]'))
     .map((element) => rectFromElement(element))
     .filter((rect) => rect.width > 44 && rect.height > 24 && intersectionArea(rect, viewport) > rect.width * rect.height * 0.1);
 
   return {
-    avoidRects: focusedRect ? [focusedRect, ...avoidRects] : avoidRects,
+    avoidRects: uniqueRects(
+      [focusedRect, expandedFocusGroupRect, ...avoidRects].filter((rect): rect is RectState => Boolean(rect)),
+    ),
     focusedRect,
   };
 }
 
-function getFloatingRect({ focusedElement, manualHome, targetElement }: FloatingRectInput): FloatingRectResult | null {
+function getFloatingRect({
+  compactMode,
+  focusedElement,
+  manualHome,
+  quietMode,
+  targetElement,
+}: FloatingRectInput): FloatingRectResult | null {
   const viewport = buildViewportRect();
   if (!viewport) return null;
 
-  const size = clamp(
-    viewport.width * (viewport.width < 720 ? 0.34 : 0.2),
-    viewport.width < 720 ? 156 : 214,
-    viewport.width < 720 ? 220 : 316,
-  );
+  const size = getFloatingShellSize(viewport, compactMode);
   const safeZone = buildSafeZone(viewport, size);
   const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-mybi-anchor]'));
   const sourceElements = anchors.length ? anchors : [targetElement].filter((element): element is HTMLElement => Boolean(element));
-  const { avoidRects, focusedRect } = collectAvoidRects(viewport, focusedElement);
+  const { avoidRects, focusedRect } = collectAvoidRects(viewport, focusedElement, compactMode);
   const swimLane = clampRectToSafeZone(
     {
       height: size,
-      left: viewport.width * FLOATING_RIGHT_SWIM_RATIO - size / 2,
-      top: viewport.height * FLOATING_TOP_SWIM_RATIO - size / 2,
+      left: viewport.width * (compactMode ? 0.86 : FLOATING_RIGHT_SWIM_RATIO) - size / 2,
+      top: viewport.height * (compactMode ? 0.15 : FLOATING_TOP_SWIM_RATIO) - size / 2,
       width: size,
     },
     safeZone,
@@ -256,6 +290,14 @@ function getFloatingRect({ focusedElement, manualHome, targetElement }: Floating
     preferred,
     swimLane,
     topSwimZone,
+    compactMode
+      ? {
+          height: size,
+          left: viewport.width - size - FLOATING_PADDING,
+          top: safeZone.minTop + 6,
+          width: size,
+        }
+      : preferred,
     { ...swimLane, left: swimLane.left + 22, top: swimLane.top + 10 },
     { ...swimLane, left: swimLane.left - 18, top: swimLane.top + 18 },
     { ...swimLane, left: swimLane.left + 12, top: swimLane.top - 14 },
@@ -309,8 +351,13 @@ function getFloatingRect({ focusedElement, manualHome, targetElement }: Floating
     const swimLanePenalty = manualHome ? 0 : rectCenterDistance(candidate, swimLane) * 0.18;
     const topSwimPenalty = manualHome ? 0 : rectCenterDistance(candidate, topSwimZone) * 0.2;
     const leftDriftPenalty =
-      manualHome ? 0 : Math.max(0, viewport.width * 0.6 - (candidate.left + candidate.width / 2)) * 0.9;
-    const lowerBandPenalty = manualHome ? 0 : Math.max(0, candidate.top - viewport.height * 0.28) * 0.8;
+      manualHome
+        ? 0
+        : Math.max(0, viewport.width * (compactMode ? 0.72 : 0.6) - (candidate.left + candidate.width / 2)) *
+          (compactMode ? 1.1 : 0.9);
+    const lowerBandPenalty =
+      manualHome ? 0 : Math.max(0, candidate.top - viewport.height * (compactMode ? 0.24 : 0.28)) * 0.8;
+    const quietPenalty = quietMode ? Math.max(0, candidate.top - viewport.height * 0.22) * 0.9 : 0;
 
     return {
       rect: candidate,
@@ -323,7 +370,8 @@ function getFloatingRect({ focusedElement, manualHome, targetElement }: Floating
         swimLanePenalty +
         topSwimPenalty +
         leftDriftPenalty +
-        lowerBandPenalty,
+        lowerBandPenalty +
+        quietPenalty,
     };
   });
 
@@ -471,14 +519,18 @@ export function PersistentDiagnosisWorldProvider({
   );
 
   const tone = getMybiModeTone(resolvedScene.companionMode);
+  const compactFloatingMode = resolvedScene.layoutMode === 'floating' && resolvedScene.surfaceMode === 'compact';
+  const quietFloatingMode = compactFloatingMode || resolvedScene.quietMode || resolvedScene.companionMode === 'alert';
   const allowShellDrift =
     resolvedScene.layoutMode === 'floating' &&
+    !quietFloatingMode &&
     !isDragging &&
     !panelOpen &&
     !hovered &&
     !prefersReducedMotion;
   const allowInnerBreathing =
     resolvedScene.layoutMode !== 'hero' &&
+    !quietFloatingMode &&
     !panelOpen &&
     !hovered &&
     !prefersReducedMotion;
@@ -526,15 +578,21 @@ export function PersistentDiagnosisWorldProvider({
         const currentCenterX = rect.left + rect.width / 2;
         const currentSafelyFloating =
           intersectionArea(rect, focusRect) === 0 &&
-          rect.top < viewport.height * 0.34 &&
-          currentCenterX > viewport.width * 0.46;
+          rect.top < viewport.height * (compactFloatingMode ? 0.24 : 0.34) &&
+          currentCenterX > viewport.width * (compactFloatingMode ? 0.62 : 0.46);
 
         if (currentSafelyFloating) {
           return;
         }
       }
 
-      const nextRect = getFloatingRect({ focusedElement, manualHome, targetElement });
+      const nextRect = getFloatingRect({
+        compactMode: compactFloatingMode,
+        focusedElement,
+        manualHome,
+        quietMode: quietFloatingMode,
+        targetElement,
+      });
       if (nextRect) {
         setRect(nextRect.rect);
       }
@@ -560,7 +618,7 @@ export function PersistentDiagnosisWorldProvider({
       window.removeEventListener('resize', requestMeasure);
       window.removeEventListener('scroll', requestMeasure, true);
     };
-  }, [active, focusedElement, manualHome, rect, resolvedScene.layoutMode, setRect, targetElement]);
+  }, [active, compactFloatingMode, focusedElement, manualHome, quietFloatingMode, rect, resolvedScene.layoutMode, setRect, targetElement]);
 
   useEffect(() => {
     if (!active || typeof window === 'undefined') return;
@@ -615,7 +673,7 @@ export function PersistentDiagnosisWorldProvider({
   }, [active, compactViewport, prefersReducedMotion, ready]);
 
   useEffect(() => {
-    if (!active || typeof window === 'undefined' || resolvedScene.layoutMode !== 'floating' || prefersReducedMotion) return;
+    if (!active || typeof window === 'undefined' || resolvedScene.layoutMode !== 'floating' || prefersReducedMotion || quietFloatingMode) return;
     const interval = window.setInterval(() => {
       if (Date.now() - manualThemeAtRef.current < 45_000) return;
       setThemeIndex((current) => {
@@ -625,7 +683,7 @@ export function PersistentDiagnosisWorldProvider({
       });
     }, 28_000);
     return () => window.clearInterval(interval);
-  }, [active, prefersReducedMotion, resolvedScene.layoutMode]);
+  }, [active, prefersReducedMotion, quietFloatingMode, resolvedScene.layoutMode]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -846,8 +904,8 @@ export function PersistentDiagnosisWorldProvider({
       };
     }
 
-    const width = Math.min(392, window.innerWidth - 32);
-    const height = 428;
+    const width = Math.min(compactFloatingMode ? 344 : 392, window.innerWidth - 32);
+    const height = compactFloatingMode ? 404 : 428;
     const focusRect =
       focusedElement && focusedElement.isConnected ? expandRect(rectFromElement(focusedElement), 24) : null;
     const leftSpace = rect.left - FLOATING_PANEL_GAP;
@@ -876,10 +934,10 @@ export function PersistentDiagnosisWorldProvider({
 
     return {
       left,
-      top: clamp(rect.top + 10, 16, window.innerHeight - height - 16),
+      top: clamp(rect.top + (compactFloatingMode ? 6 : 10), 16, window.innerHeight - height - 16),
       width,
     };
-  }, [focusedElement, rect]);
+  }, [compactFloatingMode, focusedElement, rect]);
 
   const beginDrag = useCallback(
     (pointerId: number, startX: number, startY: number) => {
@@ -914,6 +972,15 @@ export function PersistentDiagnosisWorldProvider({
     [beginDrag],
   );
 
+  const handleTriggerKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    setPanelOpen((current) => !current);
+    setPanelTab('guide');
+    pushRecentActivity('MYBI 대화 열기');
+    runTimedMode('listening', 1_000);
+  }, [pushRecentActivity, runTimedMode]);
+
   const quickActions = useMemo(
     () => [
       { label: '지금 단계 설명', prompt: '지금 단계 설명' },
@@ -923,6 +990,8 @@ export function PersistentDiagnosisWorldProvider({
     ],
     [],
   );
+
+  const panelId = 'mybi-guide-panel';
 
   const contextValue = useMemo<PersistentDiagnosisWorldContextValue>(
     () => ({
@@ -950,7 +1019,7 @@ export function PersistentDiagnosisWorldProvider({
             animate={
               rect
                 ? {
-                    borderRadius: resolvedScene.layoutMode === 'hero' ? 0 : 36,
+                    borderRadius: resolvedScene.layoutMode === 'hero' ? 0 : compactFloatingMode ? 999 : 36,
                     height: rect.height,
                     left: rect.left,
                     opacity: 1,
@@ -962,7 +1031,9 @@ export function PersistentDiagnosisWorldProvider({
                 : { opacity: 0 }
             }
             className={`fixed overflow-visible ${resolvedScene.layoutMode === 'hero' ? 'z-20' : 'z-[55]'}`}
+            data-mybi-quiet={quietFloatingMode ? 'true' : 'false'}
             data-mybi-shell="active"
+            data-mybi-surface-mode={resolvedScene.surfaceMode || 'default'}
             initial={false}
             onHoverEnd={() => setHovered(false)}
             onHoverStart={() => setHovered(true)}
@@ -1006,42 +1077,94 @@ export function PersistentDiagnosisWorldProvider({
             </div>
 
             {resolvedScene.layoutMode === 'floating' ? (
-              <>
+              compactFloatingMode ? (
                 <button
+                  aria-controls={panelId}
+                  aria-expanded={panelOpen}
+                  aria-haspopup="dialog"
                   aria-label="MYBI 대화 열기 또는 위치 이동"
-                  className="absolute left-3 top-3 z-[56] rounded-full border border-white/14 bg-[#07101c]/84 px-3 py-2 text-left text-white shadow-[0_20px_60px_-38px_rgba(0,0,0,0.92)] backdrop-blur-xl transition hover:border-white/24 hover:bg-[#0a1627]/88"
+                  className="absolute inset-0 z-[56] flex h-full w-full cursor-grab flex-col justify-between rounded-[inherit] px-3 py-3 text-left text-white active:cursor-grabbing"
                   data-mybi-trigger="orb-handle"
+                  onKeyDown={handleTriggerKeyDown}
                   onMouseDown={handleTriggerMouseDown}
                   onPointerDown={handleTriggerPointerDown}
                   type="button"
                 >
-                  <p className="text-[10px] font-semibold tracking-[0.24em] text-slate-300">MYBI</p>
-                  <p className="mt-1 text-[11px] font-semibold text-white">{isDragging ? '이동 중' : panelOpen ? '닫기' : '열기 · 이동'}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="rounded-full border border-white/14 bg-[#07101c]/84 px-2.5 py-1 text-[10px] font-semibold tracking-[0.22em] text-slate-200 shadow-[0_20px_60px_-38px_rgba(0,0,0,0.92)] backdrop-blur-xl">
+                      MYBI
+                    </span>
+                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[0.18em] backdrop-blur ${tone.chip}`}>
+                      {tone.label}
+                    </span>
+                  </div>
+
+                  <div className="pointer-events-none flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/16 bg-white/[0.06] text-[11px] font-semibold tracking-[0.22em] text-white shadow-[0_18px_32px_-24px_rgba(34,211,238,0.65)]">
+                      MY
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-white">
+                        {isDragging ? '위치 이동 중' : panelOpen ? '대화 닫기' : '눌러서 열기'}
+                      </p>
+                      <p className="text-[10px] leading-4 text-slate-300">
+                        {resolvedScene.companionMode === 'alert'
+                          ? '오류를 같이 확인해드릴게요.'
+                          : '입력 흐름을 가리지 않게 조용히 대기합니다.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pointer-events-none flex items-end justify-between gap-2">
+                    <span className="max-w-full truncate rounded-full border border-white/10 bg-[#050b14]/70 px-3 py-1.5 text-[10px] font-medium leading-4 text-slate-200 backdrop-blur">
+                      {resolvedScene.stepLabel || '현재 단계'}
+                    </span>
+                  </div>
                 </button>
+              ) : (
+                <>
+                  <button
+                    aria-controls={panelId}
+                    aria-expanded={panelOpen}
+                    aria-haspopup="dialog"
+                    aria-label="MYBI 대화 열기 또는 위치 이동"
+                    className="absolute left-3 top-3 z-[56] rounded-full border border-white/14 bg-[#07101c]/84 px-3 py-2 text-left text-white shadow-[0_20px_60px_-38px_rgba(0,0,0,0.92)] backdrop-blur-xl transition hover:border-white/24 hover:bg-[#0a1627]/88"
+                    data-mybi-trigger="orb-handle"
+                    onKeyDown={handleTriggerKeyDown}
+                    onMouseDown={handleTriggerMouseDown}
+                    onPointerDown={handleTriggerPointerDown}
+                    type="button"
+                  >
+                    <p className="text-[10px] font-semibold tracking-[0.24em] text-slate-300">MYBI</p>
+                    <p className="mt-1 text-[11px] font-semibold text-white">{isDragging ? '이동 중' : panelOpen ? '닫기' : '열기 · 이동'}</p>
+                  </button>
 
-                <div className="pointer-events-none absolute right-3 top-3 z-[56] flex items-center gap-2">
-                  <div className={`rounded-full border px-3 py-1 text-[10px] font-semibold tracking-[0.18em] backdrop-blur ${tone.chip}`}>
-                    {tone.label}
+                  <div className="pointer-events-none absolute right-3 top-3 z-[56] flex items-center gap-2">
+                    <div className={`rounded-full border px-3 py-1 text-[10px] font-semibold tracking-[0.18em] backdrop-blur ${tone.chip}`}>
+                      {tone.label}
+                    </div>
                   </div>
-                </div>
 
-                <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[56] flex items-end justify-between gap-3">
-                  <div className="max-w-[72%] rounded-full border border-white/10 bg-[#050b14]/70 px-3 py-1.5 text-[11px] leading-5 text-slate-200 backdrop-blur">
-                    {resolvedScene.stepLabel || '현재 단계'}
+                  <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[56] flex items-end justify-between gap-3">
+                    <div className="max-w-[72%] rounded-full border border-white/10 bg-[#050b14]/70 px-3 py-1.5 text-[11px] leading-5 text-slate-200 backdrop-blur">
+                      {resolvedScene.stepLabel || '현재 단계'}
+                    </div>
+                    <div className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] text-slate-300 backdrop-blur">
+                      {resolvedScene.routeLabel || '현재 화면'}
+                    </div>
                   </div>
-                  <div className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] text-slate-300 backdrop-blur">
-                    {resolvedScene.routeLabel || '현재 화면'}
-                  </div>
-                </div>
-              </>
+                </>
+              )
             ) : null}
           </motion.div>
 
           {panelOpen && panelStyle ? (
             <motion.aside
+              aria-label="MYBI 대화 패널"
               animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
               className={`fixed z-[60] max-h-[440px] overflow-hidden rounded-[28px] border border-white/12 bg-[#06111d]/92 text-white backdrop-blur-2xl ${tone.panelGlow}`}
               data-mybi-panel="open"
+              id={panelId}
               initial={{ opacity: 0, scale: 0.94, x: 12, y: 10 }}
               style={panelStyle}
               transition={{ damping: 30, stiffness: 260, type: 'spring' }}
@@ -1088,6 +1211,26 @@ export function PersistentDiagnosisWorldProvider({
               <div className="max-h-[344px] space-y-4 overflow-y-auto px-5 py-4">
                 {panelTab === 'guide' ? (
                   <div className="space-y-4">
+                    {quietFloatingMode ? (
+                      <div
+                        className={[
+                          'rounded-3xl border px-4 py-3 text-sm leading-7',
+                          resolvedScene.companionMode === 'alert'
+                            ? 'border-rose-300/25 bg-rose-300/[0.08] text-rose-50'
+                            : 'border-cyan-200/15 bg-cyan-200/[0.06] text-cyan-50',
+                        ].join(' ')}
+                      >
+                        <p className="text-xs font-semibold tracking-[0.22em] text-current/80">
+                          {resolvedScene.companionMode === 'alert' ? '조용한 오류 지원' : '컴팩트 폼 모드'}
+                        </p>
+                        <p className="mt-2">
+                          {resolvedScene.companionMode === 'alert'
+                            ? '입력 흐름을 막지 않도록 조용히 대기하면서 현재 오류와 단계 기준으로 같이 원인을 좁혀봅니다.'
+                            : '폼 화면에서는 orb 상태로 대기하다가 눌렀을 때만 대화를 엽니다. 입력을 먼저 이어가고 필요할 때만 불러주세요.'}
+                        </p>
+                      </div>
+                    ) : null}
+
                     <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-slate-300">
                         <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">이 단계에서 하는 일</span>

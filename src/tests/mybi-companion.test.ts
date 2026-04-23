@@ -23,11 +23,16 @@ describe('MYBI companion helper', () => {
     title: '03 고객 기억 결합',
   });
 
+  it('keeps form-heavy scenes compact and quiet by default', () => {
+    expect(scene.surfaceMode).toBe('compact');
+    expect(scene.quietMode).toBe(true);
+  });
+
   it('builds a Korean-first intro', () => {
     const intro = buildMybiConversationIntro(scene);
 
     expect(intro).toContain('MYBI');
-    expect(intro).toContain('공개 유입');
+    expect(intro).toContain('작은 orb 상태');
     expect(intro).toContain('미즈 커피');
   });
 
@@ -36,6 +41,13 @@ describe('MYBI companion helper', () => {
 
     expect(reply).toContain('고객 기억 축');
     expect(reply).toContain('입력 하나');
+  });
+
+  it('stays quiet and helpful in compact error states', () => {
+    const reply = buildGuideReply('오류가 났어요', { ...scene, companionMode: 'alert' }, ['스토어명 입력']);
+
+    expect(reply).toContain('원인을 같이 좁혀볼게요');
+    expect(reply).toContain('문제 제보 탭');
   });
 
   it('builds a reviewed issue mail draft in Korean', () => {
