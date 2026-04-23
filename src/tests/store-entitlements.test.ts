@@ -21,9 +21,12 @@ describe('store entitlement resolution', () => {
       );
     });
 
+    const snapshot = await getStoreEntitlements('store_golden_coffee');
     const plan = await getStorePlan('store_golden_coffee');
 
     expect(plan).toBe('free');
+    expect(snapshot.degraded).toBe(true);
+    expect(snapshot.warningCode).toBe('canonical_row_missing');
   });
 
   it('prefers the canonical subscription row even when store fields drift', async () => {
@@ -43,6 +46,7 @@ describe('store entitlement resolution', () => {
 
     const entitlementSnapshot = await getStoreEntitlements('store_mint_bbq');
 
+    expect(entitlementSnapshot.degraded).toBe(false);
     expect(entitlementSnapshot.plan).toBe('pro');
     expect(entitlementSnapshot.entitlements.customer_memory).toBe(true);
     expect(entitlementSnapshot.entitlements.public_store_page).toBe(true);

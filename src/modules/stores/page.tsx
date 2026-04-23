@@ -144,7 +144,9 @@ export function StoresPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top text-slate-600">{item.store.admin_email}</td>
-                    <td className="px-4 py-4 align-top text-slate-600">{SUBSCRIPTION_PLAN_LABELS[item.billingRecord?.plan || item.store.subscription_plan]}</td>
+                    <td className="px-4 py-4 align-top text-slate-600">
+                      {item.billingRecord?.plan ? SUBSCRIPTION_PLAN_LABELS[item.billingRecord.plan] : 'canonical 확인 필요'}
+                    </td>
                     <td className="px-4 py-4 align-top">
                       {item.billingRecord ? (
                         <div className="space-y-2">

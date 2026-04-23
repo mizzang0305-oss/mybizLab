@@ -201,9 +201,9 @@ function getFloatingRect({ focusedElement, manualHome, targetElement }: Floating
   if (!viewport) return null;
 
   const size = clamp(
-    viewport.width * (viewport.width < 720 ? 0.34 : 0.2),
-    viewport.width < 720 ? 156 : 214,
-    viewport.width < 720 ? 220 : 316,
+    viewport.width * (viewport.width < 720 ? 0.28 : 0.16),
+    viewport.width < 720 ? 132 : 184,
+    viewport.width < 720 ? 184 : 272,
   );
   const safeZone = buildSafeZone(viewport, size);
   const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-mybi-anchor]'));
@@ -848,13 +848,13 @@ export function PersistentDiagnosisWorldProvider({
     if (window.innerWidth < MOBILE_PANEL_BREAKPOINT) {
       return {
         left: 16,
-        top: Math.max(16, window.innerHeight - 440),
+        top: Math.max(16, window.innerHeight - 396),
         width: window.innerWidth - 32,
       };
     }
 
-    const width = Math.min(392, window.innerWidth - 32);
-    const height = 428;
+    const width = Math.min(344, window.innerWidth - 32);
+    const height = 396;
     const focusRect =
       focusedElement && focusedElement.isConnected ? expandRect(rectFromElement(focusedElement), 24) : null;
     const leftSpace = rect.left - FLOATING_PANEL_GAP;
@@ -1055,7 +1055,7 @@ export function PersistentDiagnosisWorldProvider({
           {panelOpen && panelStyle ? (
             <motion.aside
               animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-              className={`fixed z-[60] max-h-[440px] overflow-hidden rounded-[28px] border border-white/12 bg-[#06111d]/92 text-white backdrop-blur-2xl ${tone.panelGlow}`}
+                className={`fixed z-[60] max-h-[396px] overflow-hidden rounded-[28px] border border-white/12 bg-[#06111d]/92 text-white backdrop-blur-2xl ${tone.panelGlow}`}
               data-mybi-panel="open"
               initial={{ opacity: 0, scale: 0.94, x: 12, y: 10 }}
               style={panelStyle}

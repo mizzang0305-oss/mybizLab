@@ -1,10 +1,10 @@
-import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
-import { createId } from '@/shared/lib/ids';
+import { getDatabase, updateDatabase } from '../mockDb.js';
+import { createId } from '../ids.js';
 import type {
   Profile,
   StoreMember,
-} from '@/shared/types/models';
-import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from '@/shared/lib/repositories/contracts';
+} from '../../types/models';
+import type { CanonicalMyBizRepository, ResolveStoreAccessInput, ResolvedStoreAccess } from './contracts';
 
 const PLATFORM_DEMO_PROFILE_ID = 'profile_platform_owner';
 
@@ -88,6 +88,20 @@ export const demoRepository: CanonicalMyBizRepository = {
   findStoreBySlug: async (slug) => {
     const normalizedSlug = slug.trim().toLowerCase();
     return getDatabase().stores.find((store) => store.slug.trim().toLowerCase() === normalizedSlug) || null;
+  },
+  resolveStoreSubscription: async (storeId) => {
+    const subscription = getDatabase().store_subscriptions.find((entry) => entry.store_id === storeId) || null;
+
+    return {
+      canonicalAvailable: true,
+      legacyFallbackUsed: false,
+      source: subscription ? 'canonical' : 'missing',
+      subscription,
+      warningCode: subscription ? undefined : 'canonical_row_missing',
+      warningMessage: subscription
+        ? undefined
+        : '이 스토어의 canonical store_subscriptions row가 아직 없어 FREE 기준으로만 표시됩니다.',
+    };
   },
   getStoreSubscription: async (storeId) => {
     return getDatabase().store_subscriptions.find((subscription) => subscription.store_id === storeId) || null;
@@ -303,17 +317,6 @@ export const demoRepository: CanonicalMyBizRepository = {
       } else {
         database.store_subscriptions.unshift(subscription);
       }
-
-      database.stores = database.stores.map((store) =>
-        store.id === subscription.store_id
-          ? {
-              ...store,
-              subscription_plan: subscription.plan,
-              plan: subscription.plan,
-              updated_at: subscription.updated_at,
-            }
-          : store,
-      );
     });
 
     return subscription;

@@ -16,6 +16,7 @@ import { repairOrderItemMenuName, repairPublicMenuCatalog } from '@/shared/lib/m
 import { getDatabase, saveDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { createSeedDatabase } from '@/shared/lib/mockSeed';
 import { requestPublicApi } from '@/shared/lib/publicApiClient';
+import { repairPublicStorePageCopy } from '@/shared/lib/publicStoreText';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
 import {
@@ -5918,14 +5919,18 @@ async function getPublicStoreSnapshot(store: Store) {
   const scoped = getStoreScopedData(store.id);
   const menu = await listMenu(store.id);
   const tables = await listStoreTables(store.id);
-  const canonicalPage =
-    (await getCanonicalStorePublicPage(store.id)) ||
-    buildDefaultStorePublicPage({
-      store,
-      features: scoped.features,
-      location: getPrimaryStoreLocation(scoped.locations),
-      media: getSortedStoreMedia(scoped.media),
-      notices: getPublishedStoreNotices(scoped.notices),
+    const canonicalPage = repairPublicStorePageCopy({
+      businessType: getStoreBrandConfig(store).business_type,
+      page:
+      (await getCanonicalStorePublicPage(store.id)) ||
+      buildDefaultStorePublicPage({
+        store,
+        features: scoped.features,
+        location: getPrimaryStoreLocation(scoped.locations),
+        media: getSortedStoreMedia(scoped.media),
+        notices: getPublishedStoreNotices(scoped.notices),
+      }),
+      storeName: store.name,
     });
   const capabilities = await resolvePublicPageCapabilities(store.id, canonicalPage);
   const notices = getPublishedStoreNotices(canonicalPage.notices);

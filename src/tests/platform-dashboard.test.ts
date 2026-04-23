@@ -123,7 +123,7 @@ describe('platform dashboard routes', () => {
         queryKey: [...queryKeys.dashboard('store_golden_coffee'), 'runtime-truth'],
         queryFn: async () => {
           const repository = getCanonicalMyBizRepository();
-          const [customers, inquiries, reservations, waitingEntries, timelineEvents, publicPage, subscription, entitlements] =
+          const [customers, inquiries, reservations, waitingEntries, timelineEvents, publicPage, entitlements] =
             await Promise.all([
               repository.listCustomers('store_golden_coffee'),
               repository.listInquiries('store_golden_coffee'),
@@ -131,7 +131,6 @@ describe('platform dashboard routes', () => {
               repository.listWaitingEntries('store_golden_coffee'),
               repository.listCustomerTimelineEvents('store_golden_coffee'),
               repository.getStorePublicPage('store_golden_coffee'),
-              repository.getStoreSubscription('store_golden_coffee'),
               getStoreEntitlements('store_golden_coffee', { repository }),
             ]);
 
@@ -143,7 +142,6 @@ describe('platform dashboard routes', () => {
             openInquiryCount: inquiries.filter((inquiry) => inquiry.status !== 'completed').length,
             publicPage,
             reservations,
-            subscription,
             timelineEvents,
             upcomingReservationCount: reservations.filter((reservation) => reservation.status !== 'cancelled').length,
             waitingEntries,
@@ -223,15 +221,7 @@ describe('platform dashboard routes', () => {
         queryKey: [...queryKeys.billingRecords, 'store_golden_coffee'],
         queryFn: async () => {
           const repository = getCanonicalMyBizRepository();
-          const [subscription, entitlements] = await Promise.all([
-            repository.getStoreSubscription('store_golden_coffee'),
-            getStoreEntitlements('store_golden_coffee', { repository }),
-          ]);
-
-          return {
-            entitlements,
-            subscription,
-          };
+          return getStoreEntitlements('store_golden_coffee', { repository });
         },
       });
     });

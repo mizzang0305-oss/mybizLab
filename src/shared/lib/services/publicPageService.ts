@@ -1,11 +1,12 @@
-import { createId } from '@/shared/lib/ids';
-import { IS_LIVE_RUNTIME } from '@/shared/lib/appConfig';
-import { requestPublicApi } from '@/shared/lib/publicApiClient';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { getStoreBrandConfig, getStoreRecordId } from '@/shared/lib/storeData';
-import type { Store, StoreFeature, StoreLocation, StoreMedia, StoreNotice, StorePublicPage, VisitorSession } from '@/shared/types/models';
-import { assertStoreEntitlement, getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
+import { createId } from '../ids.js';
+import { IS_LIVE_RUNTIME } from '../appConfig.js';
+import { requestPublicApi } from '../publicApiClient.js';
+import { repairPublicStorePageCopy } from '../publicStoreText.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts';
+import { getStoreBrandConfig, getStoreRecordId } from '../storeData.js';
+import type { Store, StoreFeature, StoreLocation, StoreMedia, StoreNotice, StorePublicPage, VisitorSession } from '../../types/models';
+import { assertStoreEntitlement, getStoreEntitlements } from './storeEntitlementsService.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -51,11 +52,16 @@ export interface PublicPageCapabilities {
   consultationEnabled: boolean;
   inquiryEnabled: boolean;
   reservationEnabled: boolean;
+  waitingEnabled: boolean;
   orderEntryEnabled: boolean;
 }
 
 function hasEnabledFeature(features: StoreFeature[] | undefined, key: StoreFeature['feature_key']) {
   return (features || []).some((feature) => feature.feature_key === key && feature.enabled);
+}
+
+function resolveWaitingEnabledFromPage(page: StorePublicPage) {
+  return page.cta_config.waitingEnabled === true;
 }
 
 function buildMedia(storeId: string, input: StorePublicPageUpsertInput, _timestamp: string): StoreMedia[] {
@@ -120,7 +126,9 @@ export function buildDefaultStorePublicPage(input: {
   const media = (input.media || []).filter((item) => item.store_id === storeId);
   const notices = (input.notices || []).filter((item) => item.store_id === storeId);
 
-  return {
+  return repairPublicStorePageCopy({
+    businessType: brandConfig.business_type,
+    page: {
     id: createId('store_public_page'),
     store_id: storeId,
     slug: input.store.slug,
@@ -151,7 +159,9 @@ export function buildDefaultStorePublicPage(input: {
     hero_description: input.store.description,
     primary_cta_label: input.store.primary_cta_label,
     mobile_cta_label: input.store.mobile_cta_label,
-    cta_config: {},
+    cta_config: {
+      waitingEnabled: hasEnabledFeature(input.features, 'waiting_board'),
+    },
     content_blocks: [],
     seo_metadata: {
       description: input.store.description,
@@ -161,7 +171,9 @@ export function buildDefaultStorePublicPage(input: {
     notices,
     created_at: input.store.created_at,
     updated_at: timestamp,
-  };
+    },
+    storeName: input.store.name,
+  });
 }
 
 export async function getCanonicalStorePublicPage(storeId: string, options?: PublicPageServiceOptions) {
@@ -218,6 +230,7 @@ export async function saveCanonicalStorePublicPage(
       inquiryEnabled: input.inquiryEnabled,
       orderEntryEnabled: input.orderEntryEnabled,
       reservationEnabled: input.reservationEnabled,
+      waitingEnabled: false,
     },
     content_blocks: [],
     seo_metadata: {
@@ -245,6 +258,7 @@ export async function resolvePublicPageCapabilities(
     consultationEnabled: entitlements.public_store_page && page.consultation_enabled,
     inquiryEnabled: entitlements.public_inquiry && page.inquiry_enabled,
     reservationEnabled: entitlements.reservations && page.reservation_enabled,
+    waitingEnabled: entitlements.waiting_board && resolveWaitingEnabledFromPage(page),
     orderEntryEnabled: entitlements.public_store_page && page.order_entry_enabled,
   };
 }

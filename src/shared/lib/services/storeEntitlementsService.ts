@@ -1,6 +1,6 @@
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import type { SubscriptionPlan } from '@/shared/types/models';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository, StoreSubscriptionResolution } from '../repositories/contracts';
+import type { StoreSubscription, SubscriptionPlan } from '../../types/models';
 
 export type StoreEntitlement =
   | 'public_store_page'
@@ -37,6 +37,18 @@ type StoreEntitlementsOptions = {
   repository?: CanonicalMyBizRepository;
 };
 
+export type StoreEntitlementMap = (typeof PLAN_ENTITLEMENTS)[SubscriptionPlan];
+
+export interface StoreEntitlementSnapshot {
+  degraded: boolean;
+  entitlements: StoreEntitlementMap;
+  plan: SubscriptionPlan;
+  resolution: StoreSubscriptionResolution;
+  subscription: StoreSubscription | null;
+  warningCode?: StoreSubscriptionResolution['warningCode'];
+  warningMessage?: string;
+}
+
 function normalizeStorePlan(value: unknown): SubscriptionPlan {
   if (value === 'free' || value === 'pro' || value === 'vip') {
     return value;
@@ -61,18 +73,33 @@ const ENTITLEMENT_ERROR_MESSAGE: Record<StoreEntitlement, string> = {
   waiting_board: '웨이팅 보드는 PRO 또는 VIP 플랜에서 사용할 수 있습니다.',
 };
 
-export async function getStorePlan(storeId: string, options?: StoreEntitlementsOptions) {
+function mapResolutionToSnapshot(resolution: StoreSubscriptionResolution): StoreEntitlementSnapshot {
+  const plan = normalizeStorePlan(resolution.subscription?.plan);
+
+  return {
+    degraded: resolution.source !== 'canonical',
+    entitlements: PLAN_ENTITLEMENTS[plan],
+    plan,
+    resolution,
+    subscription: resolution.subscription,
+    warningCode: resolution.warningCode,
+    warningMessage: resolution.warningMessage,
+  };
+}
+
+export async function getStoreEntitlementSnapshot(storeId: string, options?: StoreEntitlementsOptions) {
   const repository = options?.repository || getCanonicalMyBizRepository();
-  const subscription = await repository.getStoreSubscription(storeId);
-  return normalizeStorePlan(subscription?.plan);
+  const resolution = await repository.resolveStoreSubscription(storeId);
+  return mapResolutionToSnapshot(resolution);
+}
+
+export async function getStorePlan(storeId: string, options?: StoreEntitlementsOptions) {
+  const snapshot = await getStoreEntitlementSnapshot(storeId, options);
+  return snapshot.plan;
 }
 
 export async function getStoreEntitlements(storeId: string, options?: StoreEntitlementsOptions) {
-  const plan = await getStorePlan(storeId, options);
-  return {
-    entitlements: PLAN_ENTITLEMENTS[plan],
-    plan,
-  };
+  return getStoreEntitlementSnapshot(storeId, options);
 }
 
 export async function hasStoreEntitlement(storeId: string, entitlement: StoreEntitlement, options?: StoreEntitlementsOptions) {

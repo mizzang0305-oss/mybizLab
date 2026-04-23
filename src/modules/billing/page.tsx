@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { EmptyState } from '@/shared/components/EmptyState';
+import { InsightCallout } from '@/shared/components/InsightCallout';
 import { MetricCard } from '@/shared/components/MetricCard';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
@@ -11,7 +12,6 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { PUBLIC_RUNTIME_CONFIG } from '@/shared/lib/appConfig';
 import { formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import { getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
 
 const PLAN_LABELS: Record<string, string> = {
@@ -36,16 +36,7 @@ export function BillingPage() {
         throw new Error('현재 스토어가 선택되지 않았습니다.');
       }
 
-      const repository = getCanonicalMyBizRepository();
-      const [subscription, entitlements] = await Promise.all([
-        repository.getStoreSubscription(currentStore.id),
-        getStoreEntitlements(currentStore.id, { repository }),
-      ]);
-
-      return {
-        entitlements,
-        subscription,
-      };
+      return getStoreEntitlements(currentStore.id);
     },
   });
 
@@ -79,8 +70,9 @@ export function BillingPage() {
     );
   }
 
-  const { entitlements, subscription } = billingQuery.data;
-  const currentPlan = subscription?.plan || 'free';
+  const entitlementSnapshot = billingQuery.data;
+  const subscription = entitlementSnapshot.subscription;
+  const currentPlan = entitlementSnapshot.plan;
   const publicGatewayReady = Boolean(PUBLIC_RUNTIME_CONFIG.portone.storeId && PUBLIC_RUNTIME_CONFIG.portone.channelKey);
 
   return (
@@ -105,8 +97,21 @@ export function BillingPage() {
         <MetricCard accent="emerald" icon={<span className="text-lg">₩</span>} label="현재 플랜" value={PLAN_LABELS[currentPlan] || currentPlan.toUpperCase()} />
         <MetricCard accent="blue" icon={<span className="text-lg">◎</span>} label="구독 상태" value={subscription?.status ? subscription.status.replace(/_/g, ' ') : '미연결'} />
         <MetricCard accent="orange" icon={<span className="text-lg">↗</span>} label="결제 진입 공개값" value={publicGatewayReady ? '준비됨' : '미설정'} />
-        <MetricCard accent="slate" icon={<span className="text-lg">∞</span>} label="고객 메모리 권한" value={entitlements.entitlements.customer_memory ? '활성' : '제한'} />
+        <MetricCard accent="slate" icon={<span className="text-lg">∞</span>} label="고객 메모리 권한" value={entitlementSnapshot.entitlements.customer_memory ? '활성' : '제한'} />
       </div>
+
+      {entitlementSnapshot.degraded ? (
+        <InsightCallout
+          eyebrow="Canonical warning"
+          title="현재 플랜 표시는 canonical store_subscriptions 정렬 대기 상태입니다"
+          body={
+            entitlementSnapshot.warningMessage ||
+            'store_subscriptions canonical 정렬이 끝나기 전까지 legacy subscription 값을 임시로 읽고 있습니다.'
+          }
+          footer="결제 성공처럼 숨기지 않고, 현재 entitlement source를 그대로 표시합니다."
+          tone="warning"
+        />
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
         <Panel title="현재 구독 상태" subtitle="스토어와 store_subscriptions 기준으로 현재 결제/플랜 상태를 읽습니다.">
@@ -127,10 +132,10 @@ export function BillingPage() {
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">
               <p className="font-semibold text-slate-900">권한 기준</p>
               <p className="mt-2">
-                공개 페이지 {entitlements.entitlements.public_store_page ? '사용 가능' : '제한'} / 문의{' '}
-                {entitlements.entitlements.public_inquiry ? '사용 가능' : '제한'} / 예약{' '}
-                {entitlements.entitlements.reservations ? '사용 가능' : '제한'} / 웨이팅{' '}
-                {entitlements.entitlements.waiting_board ? '사용 가능' : '제한'}
+                공개 페이지 {entitlementSnapshot.entitlements.public_store_page ? '사용 가능' : '제한'} / 문의{' '}
+                {entitlementSnapshot.entitlements.public_inquiry ? '사용 가능' : '제한'} / 예약{' '}
+                {entitlementSnapshot.entitlements.reservations ? '사용 가능' : '제한'} / 웨이팅{' '}
+                {entitlementSnapshot.entitlements.waiting_board ? '사용 가능' : '제한'}
               </p>
             </div>
           </div>

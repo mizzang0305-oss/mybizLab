@@ -14,7 +14,7 @@ import type {
   StoreSubscription,
   VisitorSession,
   WaitingEntry,
-} from '@/shared/types/models';
+} from '../../types/models';
 
 export type CanonicalRepositoryProvider = 'demo' | 'supabase';
 
@@ -64,7 +64,20 @@ export interface CanonicalAccessRepository {
   resolveStoreAccess: (input: ResolveStoreAccessInput) => Promise<ResolvedStoreAccess | null>;
 }
 
+export type StoreSubscriptionResolutionSource = 'canonical' | 'legacy_compat' | 'missing';
+export type StoreSubscriptionResolutionWarningCode = 'canonical_row_missing' | 'canonical_table_missing';
+
+export interface StoreSubscriptionResolution {
+  canonicalAvailable: boolean;
+  legacyFallbackUsed: boolean;
+  source: StoreSubscriptionResolutionSource;
+  subscription: StoreSubscription | null;
+  warningCode?: StoreSubscriptionResolutionWarningCode;
+  warningMessage?: string;
+}
+
 export interface CanonicalPlanRepository {
+  resolveStoreSubscription: (storeId: string) => Promise<StoreSubscriptionResolution>;
   getStoreSubscription: (storeId: string) => Promise<StoreSubscription | null>;
   listStoreSubscriptions: (storeIds?: string[]) => Promise<StoreSubscription[]>;
   saveStoreSubscription: (subscription: StoreSubscription) => Promise<StoreSubscription>;

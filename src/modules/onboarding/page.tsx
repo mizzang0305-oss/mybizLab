@@ -1687,7 +1687,7 @@ export function OnboardingPage() {
                       </div>
                       <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.06] p-4">
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">생성 후 이동</p>
-                        <p className="mt-2 text-sm leading-6 text-slate-200">결제와 생성이 끝나면 선택된 demo storeId 기준 스토어 상세 화면으로 이동합니다.</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-200">생성이 끝나면 새로 연결된 매장 관리자 화면으로 이동합니다. 요청 단계에서 고른 플랜은 활성 entitlement truth가 아니라 결제 요청값입니다.</p>
                       </div>
                     </div>
                   </div>
@@ -1728,7 +1728,7 @@ export function OnboardingPage() {
           ) : null}
 
           {flow.step === 'payment' ? (
-            <Panel title="4. 구독 결제" subtitle="권장 플랜을 확인하고 PortOne 결제로 구독을 시작합니다. 결제가 완료되면 스토어 승인과 생성이 바로 이어집니다.">
+            <Panel title="4. 구독 결제" subtitle="권장 플랜을 확인하고 결제 요청을 진행합니다. 실제 활성 플랜은 store_subscriptions 반영이 끝난 뒤에만 확정됩니다.">
               <div className="grid gap-4 lg:grid-cols-3">
                 {planCards.map((plan) => {
                   const details = BILLING_PLAN_DETAILS[plan.code];
@@ -1754,6 +1754,9 @@ export function OnboardingPage() {
                     </button>
                   );
                 })}
+              </div>
+              <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm leading-7 text-amber-900">
+                이 단계에서 선택하는 플랜은 결제 요청값입니다. 점주 화면의 실제 플랜/권한 표시는 결제 완료 후 canonical <code>store_subscriptions</code> row가 반영된 뒤에만 활성 상태로 봐야 합니다.
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
           <button className="btn-primary" disabled={!flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
@@ -1906,7 +1909,7 @@ export function OnboardingPage() {
               {flow.step === 'diagnosis' && runDiagnosis.isPending && <p>AI가 입력값을 분석 중입니다. 잠시만 기다려주세요.</p>}
               {flow.step === 'result' && <p>결과 확인 후 <strong>다음 단계로 계속</strong>을 누르면 스토어 생성 단계로 이동합니다.</p>}
               {flow.step === 'request' && <p>모든 단계를 완료하고 <strong>요청 제출</strong>을 누르면 결제 단계로 이동합니다.</p>}
-              {flow.step === 'payment' && <p>플랜을 선택하고 결제하면 스토어가 즉시 생성됩니다.</p>}
+              {flow.step === 'payment' && <p>플랜을 선택해 결제 요청을 진행하세요. 실제 활성 플랜은 store_subscriptions 반영 후에만 확정됩니다.</p>}
               {flow.step === 'activation' && <p>대시보드로 이동하여 매장 운영을 시작하세요.</p>}
             </div>
           </Panel>

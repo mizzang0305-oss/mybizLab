@@ -57,8 +57,8 @@ export function StorePublicLayout() {
   usePageMeta(
     publicStore ? `${publicStore.store.name} 공개 스토어` : '공개 스토어',
     publicStore
-      ? `${publicStore.store.name}의 메뉴, 문의, 예약, 웨이팅, 주문 흐름을 한 번에 확인할 수 있는 공개 스토어입니다.`
-      : 'MyBiz 공개 스토어입니다.',
+      ? `${publicStore.store.name}의 메뉴와 방문 안내, 문의·예약·웨이팅·주문 시작 화면입니다.`
+      : '매장 공개 페이지입니다.',
   );
 
   useEffect(() => {
@@ -173,13 +173,16 @@ export function StorePublicLayout() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-600">
-                  {isStoreIdRoute ? publicStore.store.id : publicStore.store.slug}
+                  {publicStore.experience?.eyebrow || '매장 안내'}
                 </p>
                 {publicStore.store.public_status !== 'public' ? (
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">미리보기</span>
                 ) : null}
                 {tableNo ? (
                   <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">테이블 {tableNo}</span>
+                ) : null}
+                {publicStore.location?.opening_hours ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{publicStore.location.opening_hours}</span>
                 ) : null}
               </div>
               <h1 className="font-display text-3xl font-black text-slate-900 [word-break:keep-all]">
@@ -189,7 +192,10 @@ export function StorePublicLayout() {
                 {publicStore.store.tagline}
               </p>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 [word-break:keep-all]">
-                공개 유입을 문의, 예약, 웨이팅, 주문으로 연결하고 그 기록을 고객 메모리로 쌓는 MyBiz 공개 스토어입니다.
+                {publicStore.experience?.eventDescription || publicStore.store.description}
+              </p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 [word-break:keep-all]">
+                {publicStore.location?.address || publicStore.store.address || `/${publicStore.store.slug}`}
               </p>
             </div>
 

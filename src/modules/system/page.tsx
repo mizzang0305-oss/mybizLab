@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { EmptyState } from '@/shared/components/EmptyState';
+import { InsightCallout } from '@/shared/components/InsightCallout';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
@@ -17,7 +18,7 @@ import {
   isSupabaseConfigured,
 } from '@/shared/lib/appConfig';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
+import { getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
 
 function buildSystemChecks(accessibleStoreCount: number) {
   return [
@@ -72,7 +73,7 @@ export function SystemPage() {
   const subscriptionQuery = useQuery({
     enabled: Boolean(currentStore),
     queryKey: [...queryKeys.billingRecords, currentStore?.id || '', 'system-plan'],
-    queryFn: () => getCanonicalMyBizRepository().getStoreSubscription(currentStore!.id),
+    queryFn: () => getStoreEntitlements(currentStore!.id),
   });
 
   usePageMeta(
@@ -128,6 +129,19 @@ export function SystemPage() {
           </div>
         ))}
       </div>
+
+      {subscriptionQuery.data?.degraded ? (
+        <InsightCallout
+          eyebrow="Canonical warning"
+          title="이 스토어의 entitlement truth가 아직 canonical store_subscriptions로 완전히 정렬되지 않았습니다"
+          body={
+            subscriptionQuery.data.warningMessage ||
+            'legacy subscription compatibility가 남아 있어 plan UI를 임시로 읽고 있습니다.'
+          }
+          footer="live SQL migration/backfill 전까지는 결제 성공이나 정식 활성화처럼 해석하면 안 됩니다."
+          tone="warning"
+        />
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
         <Panel title="경로 / 접근 규칙" subtitle="공개 경로와 보호 경로의 역할을 현재 제품 전략 기준으로 정리했습니다.">

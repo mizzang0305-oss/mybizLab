@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { EmptyState } from '@/shared/components/EmptyState';
+import { InsightCallout } from '@/shared/components/InsightCallout';
 import { MetricCard } from '@/shared/components/MetricCard';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
@@ -18,7 +19,6 @@ import type {
   Inquiry,
   Reservation,
   StorePublicPage,
-  StoreSubscription,
   WaitingEntry,
 } from '@/shared/types/models';
 
@@ -30,7 +30,6 @@ interface DashboardRuntimeSnapshot {
   openInquiryCount: number;
   publicPage: StorePublicPage | null;
   reservations: Reservation[];
-  subscription: StoreSubscription | null;
   timelineEvents: CustomerTimelineEvent[];
   upcomingReservationCount: number;
   waitingEntries: WaitingEntry[];
@@ -126,7 +125,7 @@ export function DashboardPage() {
       }
 
       const repository = getCanonicalMyBizRepository();
-      const [customers, inquiries, reservations, waitingEntries, timelineEvents, publicPage, subscription, entitlements] =
+      const [customers, inquiries, reservations, waitingEntries, timelineEvents, publicPage, entitlements] =
         await Promise.all([
           repository.listCustomers(currentStore.id),
           repository.listInquiries(currentStore.id),
@@ -134,7 +133,6 @@ export function DashboardPage() {
           repository.listWaitingEntries(currentStore.id),
           repository.listCustomerTimelineEvents(currentStore.id),
           repository.getStorePublicPage(currentStore.id),
-          repository.getStoreSubscription(currentStore.id),
           getStoreEntitlements(currentStore.id, { repository }),
         ]);
 
@@ -146,7 +144,6 @@ export function DashboardPage() {
         openInquiryCount: inquiries.filter((inquiry) => inquiry.status !== 'completed').length,
         publicPage,
         reservations,
-        subscription,
         timelineEvents,
         upcomingReservationCount: reservations.filter(isUpcomingReservation).length,
         waitingEntries,
@@ -188,7 +185,7 @@ export function DashboardPage() {
     );
   }
 
-  const currentPlan = snapshot.subscription?.plan || 'free';
+  const currentPlan = snapshot.entitlements.plan;
   const publicStatus = snapshot.publicPage?.public_status || currentStore.public_status || 'private';
 
   return (
@@ -217,6 +214,19 @@ export function DashboardPage() {
         <MetricCard accent="blue" icon={<span className="text-lg">↗</span>} label="타임라인 이벤트" value={formatNumber(snapshot.timelineEvents.length)} />
       </div>
 
+      {snapshot.entitlements.degraded ? (
+        <InsightCallout
+          eyebrow="Canonical warning"
+          title="대시보드 플랜 표시는 canonical store_subscriptions 정렬 대기 상태입니다"
+          body={
+            snapshot.entitlements.warningMessage ||
+            'store_subscriptions canonical 정렬이 끝나기 전까지 legacy subscription 값을 임시로 읽고 있습니다.'
+          }
+          footer="고객 입력 채널은 계속 보여주되, entitlement source가 degraded인 상태를 숨기지 않습니다."
+          tone="warning"
+        />
+      ) : null}
+
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <Panel
           title="현재 운영 진실"
@@ -227,11 +237,11 @@ export function DashboardPage() {
               <p className="text-sm font-semibold text-slate-500">현재 플랜</p>
               <div className="mt-3 flex items-center gap-3">
                 <p className="text-2xl font-black text-slate-950">{PLAN_LABELS[currentPlan] || currentPlan.toUpperCase()}</p>
-                <StatusBadge status={snapshot.subscription?.status || 'active'} />
+                <StatusBadge status={snapshot.entitlements.subscription?.status || 'active'} />
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                {snapshot.subscription?.trial_ends_at
-                  ? `체험 종료 예정: ${formatDateTime(snapshot.subscription.trial_ends_at)}`
+                {snapshot.entitlements.subscription?.trial_ends_at
+                  ? `체험 종료 예정: ${formatDateTime(snapshot.entitlements.subscription.trial_ends_at)}`
                   : '체험 종료 일정이 설정되지 않았습니다.'}
               </p>
             </div>

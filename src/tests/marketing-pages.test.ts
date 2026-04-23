@@ -60,4 +60,12 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('data-mybi-world="standby"');
     expect(html).not.toContain('title="MYBI neural companion"');
   });
+
+  it('clarifies the merchant login split without falling back to browser-only auth wording', () => {
+    const html = renderRoute('/login');
+
+    expect(html).toContain('Admin Access');
+    expect(html).toContain('profiles + store_members');
+    expect(html).toContain('/pricing');
+  });
 });

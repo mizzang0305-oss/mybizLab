@@ -164,9 +164,9 @@ export function AdminLoginPage() {
             </span>
 
             <div className="space-y-4">
-              <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">운영 대시보드 로그인</h1>
+              <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">가게 관리자 로그인</h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                스토어 운영 현황, 고객 관리, 예약 흐름, 매출 분석, AI 운영 리포트를 한 화면에서 확인할 수 있는 관리자 진입 화면입니다.
+                점주와 매장 관리자가 고객, 문의, 예약, 웨이팅, 주문, AI 운영 리포트를 한 화면에서 확인하는 운영 진입 화면입니다.
               </p>
             </div>
 
@@ -184,6 +184,13 @@ export function AdminLoginPage() {
                 </p>
               </div>
             </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <p className="text-sm font-semibold text-orange-300">권한 구분</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                이 화면은 <strong className="text-white">가게/매장 관리자</strong>가 로그인하는 곳입니다. <strong className="text-white">MyBiz 운영자</strong>는 별도 내부 운영 경로를 사용하며, 실제 접근 권한은 <code className="text-orange-200">profiles + store_members</code> 기준으로 확인됩니다.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -195,7 +202,7 @@ export function AdminLoginPage() {
               </div>
               <h2 className="pt-2 font-display text-3xl font-black tracking-tight text-slate-900">로그인 방법 선택</h2>
               <p className="text-sm leading-6 text-slate-500">
-                필요한 방식으로 로그인하고 바로 관리자 대시보드로 이동하세요.
+                매장 관리자 로그인을 진행하면 접근 가능한 스토어만 운영 화면에 연결됩니다.
               </p>
             </div>
 

@@ -1,4 +1,5 @@
-import type { Store, StoreBrandConfig, StorePrioritySettings, StorePriorityWeights, SubscriptionPlan } from '@/shared/types/models';
+import type { Store, StoreBrandConfig, StorePrioritySettings, StorePriorityWeights, SubscriptionPlan } from '../types/models';
+import { repairStorefrontSummary } from './publicStoreText.js';
 
 export const DEFAULT_STORE_PRIORITY_WEIGHTS: StorePriorityWeights = {
   revenue: 28,
@@ -153,6 +154,16 @@ export function mapLiveStoreToAppStore(
   },
   existingStore?: Store | null,
 ): Store {
+  const summary = repairStorefrontSummary({
+    businessType:
+      (row.brand_config && typeof row.brand_config === 'object'
+        ? readString((row.brand_config as Record<string, unknown>).business_type)
+        : '') || existingStore?.business_type,
+    description: existingStore?.description,
+    storeName: row.name,
+    tagline: existingStore?.tagline,
+  });
+
   const base: Store = {
     id: row.store_id,
     store_id: row.store_id,
@@ -168,8 +179,8 @@ export function mapLiveStoreToAppStore(
     },
     logo_url: existingStore?.logo_url || '',
     brand_color: existingStore?.brand_color || '#ec5b13',
-    tagline: existingStore?.tagline || `${row.name} 운영 스토어`,
-    description: existingStore?.description || `${row.name} 운영 데이터를 확인하는 스토어입니다.`,
+    tagline: summary.tagline,
+    description: summary.description,
     public_status: existingStore?.public_status || 'public',
     homepage_visible: existingStore?.homepage_visible ?? true,
     consultation_enabled: existingStore?.consultation_enabled ?? true,
