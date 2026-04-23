@@ -20,7 +20,12 @@ import type {
 } from '../../types/models.js';
 import type { CanonicalMyBizRepository, ResolvedStoreAccess } from './contracts.js';
 import { getStoreBrandConfig, mapLiveStoreToAppStore } from '../storeData.js';
-import { getCustomerRecordId, normalizeCustomerRecord } from '../domain/customerMemory.js';
+import {
+  getCustomerRecordId,
+  normalizeCustomerEmail,
+  normalizeCustomerPhone,
+  normalizeCustomerRecord,
+} from '../domain/customerMemory.js';
 
 const LIVE_STORE_SELECT = 'store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan';
 const LIVE_CUSTOMER_SELECT =
@@ -85,6 +90,10 @@ type QueryErrorLike =
   | null
   | undefined;
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
 function normalizePlan(value: unknown, fallback: StoreSubscription['plan'] = 'free'): StoreSubscription['plan'] {
   if (value === 'free' || value === 'pro' || value === 'vip') {
     return value;
@@ -134,6 +143,27 @@ function toPrimitiveRecord(value: unknown) {
         : normalizeText(candidate) || null,
     ]),
   ) as Record<string, boolean | number | string | null>;
+}
+
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function createUuidLike() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = token === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
+function toLegacyUuidReference(value: unknown) {
+  const normalized = normalizeText(value);
+  return normalized && isUuidLike(normalized) ? normalized : null;
 }
 
 function normalizeStoreId(store: Pick<Store, 'id' | 'store_id'> | null | undefined) {
@@ -311,6 +341,58 @@ function preferStoreSubscriptionCandidate(left: StoreSubscription, right: StoreS
   }
 
   return left.id > right.id;
+}
+
+function getLegacyInquiryChannel(_source: Inquiry['source']) {
+  return 'public_page';
+}
+
+function getLegacyReservationSource(reservation: Reservation) {
+  return reservation.visitor_session_id ? 'phone' : 'manual';
+}
+
+function getLegacyReservationStatus(reservation: Reservation) {
+  switch (reservation.status) {
+    case 'booked':
+      return reservation.visitor_session_id ? 'requested' : 'confirmed';
+    case 'cancelled':
+      return 'canceled';
+    case 'completed':
+    case 'seated':
+    case 'no_show':
+      return reservation.status;
+    default:
+      return reservation.visitor_session_id ? 'requested' : 'confirmed';
+  }
+}
+
+function getLegacyWaitingEntrySource(_entry: WaitingEntry) {
+  return 'kiosk';
+}
+
+function getLegacyWaitingEntryStatus(entry: WaitingEntry) {
+  switch (entry.status) {
+    case 'cancelled':
+      return 'canceled';
+    case 'waiting':
+    case 'called':
+    case 'seated':
+      return entry.status;
+    default:
+      return 'waiting';
+  }
+}
+
+function getLegacyConversationMessageRole(sender: ConversationMessage['sender']) {
+  if (sender === 'customer') {
+    return 'user';
+  }
+
+  if (sender === 'assistant' || sender === 'staff' || sender === 'system') {
+    return sender;
+  }
+
+  return 'user';
 }
 
 function mapLegacyStoreHomeContentToPublicPage(store: Store, row: StoreHomeContentRow): StorePublicPage {
@@ -827,8 +909,26 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     saveConversationMessage: async (message) => {
       const client = assertClient();
       const { error } = await client.from('conversation_messages').upsert(message, { onConflict: 'id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save conversation message: ${error.message}`);
+      }
+
+      if (error) {
+        const legacyMessageId = isUuidLike(message.id) ? message.id : createUuidLike();
+        const legacyPayload = {
+          id: legacyMessageId,
+          conversation_session_id: toLegacyUuidReference(message.conversation_session_id),
+          role: getLegacyConversationMessageRole(message.sender),
+          content: message.body,
+          message_meta: message.metadata,
+          created_at: message.created_at,
+        };
+        const { error: legacyError } = await client.from('conversation_messages').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyError) {
+          throw new Error(`Failed to save conversation message: ${legacyError.message}`);
+        }
+
+        return legacyMessageId === message.id ? message : { ...message, id: legacyMessageId };
       }
 
       return message;
@@ -836,8 +936,29 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     saveConversationSession: async (session) => {
       const client = assertClient();
       const { error } = await client.from('conversation_sessions').upsert(session, { onConflict: 'id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save conversation session: ${error.message}`);
+      }
+
+      if (error) {
+        const legacySessionId = isUuidLike(session.id) ? session.id : createUuidLike();
+        const legacyPayload = {
+          id: legacySessionId,
+          store_id: session.store_id,
+          inquiry_id: toLegacyUuidReference(session.inquiry_id),
+          customer_id: toLegacyUuidReference(session.customer_id),
+          visitor_session_id: toLegacyUuidReference(session.visitor_session_id),
+          channel: 'support',
+          status: session.status,
+          started_at: session.created_at,
+          ended_at: session.status === 'closed' ? session.updated_at : null,
+        };
+        const { error: legacyError } = await client.from('conversation_sessions').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyError) {
+          throw new Error(`Failed to save conversation session: ${legacyError.message}`);
+        }
+
+        return legacySessionId === session.id ? session : { ...session, id: legacySessionId };
       }
 
       return session;
@@ -854,22 +975,74 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
         visit_count: normalizedCustomer.visit_count,
         last_visit_at: normalizedCustomer.last_visit_at || null,
         is_regular: normalizedCustomer.is_regular,
-        marketing_opt_in: normalizedCustomer.marketing_opt_in,
-        created_at: normalizedCustomer.created_at,
-        updated_at: normalizedCustomer.updated_at || null,
-      };
+          marketing_opt_in: normalizedCustomer.marketing_opt_in,
+          created_at: normalizedCustomer.created_at,
+          updated_at: normalizedCustomer.updated_at || null,
+        };
       const { error } = await client.from('customers').upsert(payload, { onConflict: 'customer_id' });
-      if (error) {
+      if (!error) {
+        return normalizedCustomer;
+      }
+
+      if (!isSchemaCompatError(error)) {
         throw new Error(`Failed to save customer: ${error.message}`);
       }
 
-      return normalizedCustomer;
+      const legacyCustomerId = isUuidLike(getCustomerRecordId(normalizedCustomer))
+        ? getCustomerRecordId(normalizedCustomer)
+        : createUuidLike();
+      const legacyPayload = {
+        customer_id: legacyCustomerId,
+        store_id: normalizedCustomer.store_id,
+        customer_key:
+          normalizeCustomerPhone(normalizedCustomer.phone) ||
+          normalizeCustomerEmail(normalizedCustomer.email) ||
+          legacyCustomerId,
+        first_seen_at: normalizedCustomer.created_at || normalizedCustomer.updated_at || nowIso(),
+        last_seen_at: normalizedCustomer.updated_at || normalizedCustomer.last_visit_at || normalizedCustomer.created_at || nowIso(),
+        quiet_mode: false,
+        quiet_until: null,
+        marketing_consent: normalizedCustomer.marketing_opt_in,
+        tags: [],
+      };
+      const { error: legacyError } = await client.from('customers').upsert(legacyPayload, { onConflict: 'customer_id' });
+      if (legacyError) {
+        throw new Error(`Failed to save customer: ${legacyError.message}`);
+      }
+
+      return legacyCustomerId === getCustomerRecordId(normalizedCustomer)
+        ? normalizedCustomer
+        : normalizeCustomerRecord({
+            ...normalizedCustomer,
+            id: legacyCustomerId,
+            customer_id: legacyCustomerId,
+          });
     },
     saveCustomerContact: async (contact) => {
       const client = assertClient();
       const { error } = await client.from('customer_contacts').upsert(contact, { onConflict: 'id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save customer contact: ${error.message}`);
+      }
+
+      if (error) {
+        const legacyContactId = isUuidLike(contact.id) ? contact.id : createUuidLike();
+        const legacyPayload = {
+          id: legacyContactId,
+          customer_id: toLegacyUuidReference(contact.customer_id),
+          contact_type: contact.type,
+          normalized_value: contact.normalized_value,
+          raw_value: contact.value,
+          is_primary: contact.is_primary,
+          is_verified: contact.is_verified,
+          created_at: contact.created_at,
+        };
+        const { error: legacyError } = await client.from('customer_contacts').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyError) {
+          throw new Error(`Failed to save customer contact: ${legacyError.message}`);
+        }
+
+        return legacyContactId === contact.id ? contact : { ...contact, id: legacyContactId };
       }
 
       return contact;
@@ -877,8 +1050,32 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     saveCustomerPreference: async (preference) => {
       const client = assertClient();
       const { error } = await client.from('customer_preferences').upsert(preference, { onConflict: 'customer_id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save customer preference: ${error.message}`);
+      }
+
+      if (error) {
+        const legacyPreferenceId = isUuidLike(preference.id) ? preference.id : createUuidLike();
+        const legacyPayload = {
+          id: legacyPreferenceId,
+          customer_id: toLegacyUuidReference(preference.customer_id),
+          favorite_menus: preference.preference_tags.filter((tag) => !tag.startsWith('avoid:')),
+          disliked_items: preference.preference_tags
+            .filter((tag) => tag.startsWith('avoid:'))
+            .map((tag) => tag.replace(/^avoid:/, '')),
+          allergy_notes: preference.dietary_notes || null,
+          seating_preferences: preference.seating_notes || null,
+          visit_time_preferences: null,
+          marketing_consent: preference.marketing_opt_in,
+          memory_summary: preference.preference_tags.join(', '),
+          updated_at: preference.updated_at,
+        };
+        const { error: legacyError } = await client.from('customer_preferences').upsert(legacyPayload, { onConflict: 'customer_id' });
+        if (legacyError) {
+          throw new Error(`Failed to save customer preference: ${legacyError.message}`);
+        }
+
+        return legacyPreferenceId === preference.id ? preference : { ...preference, id: legacyPreferenceId };
       }
 
       return preference;
@@ -886,8 +1083,36 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     saveInquiry: async (inquiry) => {
       const client = assertClient();
       const { error } = await client.from('inquiries').upsert(inquiry, { onConflict: 'id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save inquiry: ${error.message}`);
+      }
+
+      if (error) {
+        const legacyInquiryId = isUuidLike(inquiry.id) ? inquiry.id : createUuidLike();
+        const legacyPayload = {
+          id: legacyInquiryId,
+          store_id: inquiry.store_id,
+          customer_id: toLegacyUuidReference(inquiry.customer_id),
+          visitor_session_id: toLegacyUuidReference(inquiry.visitor_session_id),
+          conversation_session_id: toLegacyUuidReference(inquiry.conversation_session_id),
+          channel: getLegacyInquiryChannel(inquiry.source),
+          status: inquiry.status,
+          subject: inquiry.customer_name ? `${inquiry.customer_name} 문의` : '고객 문의',
+          summary: inquiry.message,
+          intent: inquiry.category,
+          priority_score: 0,
+          contact_name: inquiry.customer_name,
+          contact_phone: inquiry.phone,
+          contact_email: inquiry.email || null,
+          created_at: inquiry.created_at,
+          updated_at: inquiry.updated_at,
+        };
+        const { error: legacyError } = await client.from('inquiries').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyError) {
+          throw new Error(`Failed to save inquiry: ${legacyError.message}`);
+        }
+
+        return legacyInquiryId === inquiry.id ? inquiry : { ...inquiry, id: legacyInquiryId };
       }
 
       return inquiry;
@@ -895,8 +1120,31 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     saveReservation: async (reservation) => {
       const client = assertClient();
       const { error } = await client.from('reservations').upsert(reservation, { onConflict: 'id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save reservation: ${error.message}`);
+      }
+
+      if (error) {
+        const legacyReservationId = isUuidLike(reservation.id) ? reservation.id : createUuidLike();
+        const legacyPayload = {
+          id: legacyReservationId,
+          store_id: reservation.store_id,
+          customer_id: toLegacyUuidReference(reservation.customer_id),
+          visitor_session_id: toLegacyUuidReference(reservation.visitor_session_id),
+          source: getLegacyReservationSource(reservation),
+          party_size: reservation.party_size,
+          reserved_at: reservation.reserved_at,
+          status: getLegacyReservationStatus(reservation),
+          notes: reservation.note || null,
+          created_at: reservation.created_at || reservation.updated_at || nowIso(),
+          updated_at: reservation.updated_at || nowIso(),
+        };
+        const { error: legacyError } = await client.from('reservations').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyError) {
+          throw new Error(`Failed to save reservation: ${legacyError.message}`);
+        }
+
+        return legacyReservationId === reservation.id ? reservation : { ...reservation, id: legacyReservationId };
       }
 
       return reservation;
@@ -974,8 +1222,30 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     saveVisitorSession: async (session) => {
       const client = assertClient();
       const { error } = await client.from('visitor_sessions').upsert(session, { onConflict: 'id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save visitor session: ${error.message}`);
+      }
+
+      if (error) {
+        const legacySessionId = isUuidLike(session.id) ? session.id : createUuidLike();
+        const legacyPayload = {
+          id: legacySessionId,
+          store_id: session.store_id,
+          source: session.channel,
+          landing_path: session.entry_path,
+          referrer: session.referrer || null,
+          device_type: normalizeText(session.metadata.deviceType) || null,
+          ip_hash: session.visitor_token,
+          customer_id: toLegacyUuidReference(session.customer_id),
+          started_at: session.first_seen_at || session.created_at,
+          ended_at: session.last_seen_at || null,
+        };
+        const { error: legacyError } = await client.from('visitor_sessions').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyError) {
+          throw new Error(`Failed to save visitor session: ${legacyError.message}`);
+        }
+
+        return legacySessionId === session.id ? session : { ...session, id: legacySessionId };
       }
 
       return session;
@@ -983,8 +1253,32 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     saveWaitingEntry: async (entry) => {
       const client = assertClient();
       const { error } = await client.from('waiting_entries').upsert(entry, { onConflict: 'id' });
-      if (error) {
+      if (error && !isSchemaCompatError(error)) {
         throw new Error(`Failed to save waiting entry: ${error.message}`);
+      }
+
+      if (error) {
+        const legacyWaitingEntryId = isUuidLike(entry.id) ? entry.id : createUuidLike();
+        const legacyPayload = {
+          id: legacyWaitingEntryId,
+          store_id: entry.store_id,
+          customer_id: toLegacyUuidReference(entry.customer_id),
+          visitor_session_id: toLegacyUuidReference(entry.visitor_session_id),
+          source: getLegacyWaitingEntrySource(entry),
+          party_size: entry.party_size,
+          quoted_minutes: entry.quoted_wait_minutes,
+          status: getLegacyWaitingEntryStatus(entry),
+          phone_snapshot: entry.phone,
+          name_snapshot: entry.customer_name,
+          joined_at: entry.created_at,
+          seated_at: entry.status === 'seated' ? entry.updated_at || nowIso() : null,
+        };
+        const { error: legacyError } = await client.from('waiting_entries').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyError) {
+          throw new Error(`Failed to save waiting entry: ${legacyError.message}`);
+        }
+
+        return legacyWaitingEntryId === entry.id ? entry : { ...entry, id: legacyWaitingEntryId };
       }
 
       return entry;
