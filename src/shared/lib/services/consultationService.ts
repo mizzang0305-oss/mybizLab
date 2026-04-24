@@ -1,14 +1,14 @@
-import { createId } from '@/shared/lib/ids';
-import { publicConsultationReplySchema, publicConsultationStartSchema } from '@/shared/lib/consultationSchema';
-import { getCustomerRecordId } from '@/shared/lib/domain/customerMemory';
-import { normalizeInquiryTags } from '@/shared/lib/inquirySchema';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
-import { getPublicInquirySummary } from '@/shared/lib/services/inquiryService';
-import { getCanonicalStorePublicPage, touchVisitorSession } from '@/shared/lib/services/publicPageService';
-import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
-import type { ConversationMessage, ConversationSession, Customer, Inquiry } from '@/shared/types/models';
+import { createId } from '../ids.js';
+import { publicConsultationReplySchema, publicConsultationStartSchema } from '../consultationSchema.js';
+import { getCustomerRecordId } from '../domain/customerMemory.js';
+import { normalizeInquiryTags } from '../inquirySchema.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts';
+import { upsertCustomerMemory } from './customerMemoryService.js';
+import { getPublicInquirySummary } from './inquiryService.js';
+import { getCanonicalStorePublicPage, touchVisitorSession } from './publicPageService.js';
+import { assertStoreEntitlement } from './storeEntitlementsService.js';
+import type { ConversationMessage, ConversationSession, Customer, Inquiry } from '../../types/models';
 
 function nowIso() {
   return new Date().toISOString();

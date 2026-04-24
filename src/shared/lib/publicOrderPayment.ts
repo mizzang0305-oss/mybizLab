@@ -1,7 +1,9 @@
 import PortOne, { Currency, PaymentPayMethod, type PaymentRequest, type PaymentResponse } from '@portone/browser-sdk/v2';
 
-import { requestPublicApi } from '@/shared/lib/publicApiClient';
-import { PortOneCheckoutError } from '@/shared/lib/portoneCheckout';
+import { requestPublicApi } from './publicApiClient.js';
+import { PortOneCheckoutError } from './portoneCheckout.js';
+
+const PUBLIC_ORDER_PAYMENT_TIMEOUT_MS = 20000;
 
 export interface PublicOrderCheckoutSession {
   channelKey: string;
@@ -58,6 +60,7 @@ export async function launchPublicOrderPaymentCheckout(input: {
   }>('/api/public/order-payment-checkout', {
     body: input,
     method: 'POST',
+    timeoutMs: PUBLIC_ORDER_PAYMENT_TIMEOUT_MS,
   });
 
   const paymentRequest = buildPaymentRequest(payload.checkout);
@@ -85,6 +88,7 @@ export async function verifyPublicOrderPayment(input: {
   }>('/api/public/order-payment-verify', {
     body: input,
     method: 'POST',
+    timeoutMs: PUBLIC_ORDER_PAYMENT_TIMEOUT_MS,
   });
 
   if (!payload.order) {

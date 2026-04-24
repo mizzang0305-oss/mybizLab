@@ -1,6 +1,6 @@
-import type { SaveDiagnosisSessionInput } from '@/shared/lib/data/contracts';
-import { diagnosisSessionDocumentSchema } from '@/shared/lib/diagnosisSchema';
-import type { DiagnosisSession } from '@/shared/types/models';
+import type { SaveDiagnosisSessionInput } from './data/contracts.js';
+import { diagnosisSessionDocumentSchema } from './diagnosisSchema.js';
+import type { DiagnosisSession } from '../types/models.js';
 
 function createDiagnosisSessionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

@@ -2,7 +2,7 @@ import {
   buildDiagnosisResult,
   type DiagnosisInput,
   type DiagnosisResult,
-} from '@/shared/lib/onboardingFlow';
+} from './onboardingFlow.js';
 
 const DIAGNOSIS_ENDPOINT = '/api/ai/diagnosis';
 const MIN_DIAGNOSIS_DURATION_MS = 3400;

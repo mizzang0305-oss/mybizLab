@@ -1,6 +1,6 @@
-import { createId } from '@/shared/lib/ids';
-import { normalizeSurveyQuestions, surveyQuestionSchema } from '@/shared/lib/surveySchema';
-import type { Store, SurveyQuestion } from '@/shared/types/models';
+import { createId } from './ids.js';
+import { normalizeSurveyQuestions, surveyQuestionSchema } from './surveySchema.js';
+import type { Store, SurveyQuestion } from '../types/models.js';
 
 type SurveyPresetKind = 'cafe' | 'bbq' | 'buffet' | 'service' | 'restaurant';
 

@@ -1,4 +1,4 @@
-import { DEV_STORE_ROUTE_PREFIX, PUBLIC_SERVICE_ORIGIN } from '@/shared/lib/appConfig';
+import { DEV_STORE_ROUTE_PREFIX, PUBLIC_SERVICE_ORIGIN } from './appConfig.js';
 
 export const RESERVED_STORE_SLUGS = [
   'admin',

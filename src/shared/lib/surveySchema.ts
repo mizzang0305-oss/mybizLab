@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { createId } from '@/shared/lib/ids';
-import type { SurveyQuestion, SurveyQuestionType } from '@/shared/types/models';
+import { createId } from './ids.js';
+import type { SurveyQuestion, SurveyQuestionType } from '../types/models.js';
 
 export const SURVEY_QUESTION_TYPES = [
   'single_choice',

@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 
-import { supabase } from '@/integrations/supabase/client';
-import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PASSWORD, IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
-import { getDatabase } from '@/shared/lib/mockDb';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import { resolveServerApiUrl } from '@/shared/lib/serverApiUrl';
-import { useUiStore } from '@/shared/lib/uiStore';
-import type { Store, StoreMember } from '@/shared/types/models';
+import { supabase } from '../../integrations/supabase/client.js';
+import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PASSWORD, IS_DEMO_RUNTIME } from './appConfig.js';
+import { getDatabase } from './mockDb.js';
+import { getCanonicalMyBizRepository } from './repositories/index.js';
+import { resolveServerApiUrl } from './serverApiUrl.js';
+import { useUiStore } from './uiStore.js';
+import type { Store, StoreMember } from '../types/models.js';
 
 const DEFAULT_NEXT_PATH = '/dashboard';
 const DEMO_STORE_ORDER = ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'] as const;

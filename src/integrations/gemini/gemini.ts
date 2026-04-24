@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { readPublicEnv } from '@/shared/lib/publicEnv';
+import { readPublicEnv } from '../../shared/lib/publicEnv.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 

@@ -3,8 +3,8 @@
  * repository boundary. Keep this demo adapter contract only for legacy flows
  * until remaining onboarding helpers are migrated.
  */
-import type { DiagnosisInput, DiagnosisResult } from '@/shared/lib/onboardingFlow';
-import type { AdminUserRole, DiagnosisSession, Store } from '@/shared/types/models';
+import type { DiagnosisInput, DiagnosisResult } from '../onboardingFlow.js';
+import type { AdminUserRole, DiagnosisSession, Store } from '../../types/models.js';
 
 export type DemoDataAdapterId = 'local' | 'firebase';
 

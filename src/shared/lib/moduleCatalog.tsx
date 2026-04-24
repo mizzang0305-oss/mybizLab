@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 
-import { Icons } from '@/shared/components/Icons';
-import type { FeatureKey } from '@/shared/types/models';
+import { Icons } from '../components/Icons.js';
+import type { FeatureKey } from '../types/models.js';
 
 export type FeatureStatus = 'active' | 'coming_soon';
 

@@ -1,10 +1,10 @@
-import { getCustomerRecordId } from '@/shared/lib/domain/customerMemory';
-import { createId } from '@/shared/lib/ids';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
-import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
-import type { WaitingEntry, WaitingStatus } from '@/shared/types/models';
+import { getCustomerRecordId } from '../domain/customerMemory.js';
+import { createId } from '../ids.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts';
+import { upsertCustomerMemory } from './customerMemoryService.js';
+import { assertStoreEntitlement } from './storeEntitlementsService.js';
+import type { WaitingEntry, WaitingStatus } from '../../types/models';
 
 interface WaitingServiceOptions {
   repository?: CanonicalMyBizRepository;
@@ -41,8 +41,8 @@ async function syncWaitingVisitorSession(
 }
 
 export async function listStoreWaitingEntries(storeId: string, options?: WaitingServiceOptions) {
-  await assertStoreEntitlement(storeId, 'waiting_board');
   const repository = options?.repository || getCanonicalMyBizRepository();
+  await assertStoreEntitlement(storeId, 'waiting_board', undefined, { repository });
   const entries = await repository.listWaitingEntries(storeId);
 
   return entries
@@ -55,8 +55,8 @@ export async function saveStoreWaitingEntry(
   input: Omit<WaitingEntry, 'id' | 'store_id' | 'created_at'> & { id?: string; created_at?: string },
   options?: WaitingServiceOptions,
 ) {
-  await assertStoreEntitlement(storeId, 'waiting_board');
   const repository = options?.repository || getCanonicalMyBizRepository();
+  await assertStoreEntitlement(storeId, 'waiting_board', undefined, { repository });
   const timestamp = nowIso();
   const existing = input.id
     ? (await repository.listWaitingEntries(storeId)).find((entry) => entry.id === input.id) || null
@@ -78,7 +78,7 @@ export async function saveStoreWaitingEntry(
     source: visitorSessionId ? 'public_waiting' : 'waiting',
     storeId,
     summary: existing ? '?⑥씠???뺣낫媛 ?낅뜲?댄듃?섏뿀?듬땲??' : '?⑥씠???뺣낫媛 怨좉컼 硫붾え由ъ뿉 ?곌껐?섏뿀?듬땲??',
-  });
+  }, { repository });
   const customerId = getCustomerRecordId(memory.customer);
 
   const entry: WaitingEntry = {

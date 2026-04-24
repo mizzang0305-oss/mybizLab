@@ -1,5 +1,5 @@
-import { demoDataAdapters, getActiveDemoDataAdapter } from '@/shared/lib/data';
-import type { SaveDiagnosisSessionInput } from '@/shared/lib/data/contracts';
+import { demoDataAdapters, getActiveDemoDataAdapter } from './data/index.js';
+import type { SaveDiagnosisSessionInput } from './data/contracts.js';
 
 export async function persistDiagnosisSession(input: SaveDiagnosisSessionInput) {
   const adapter = getActiveDemoDataAdapter();

@@ -1,5 +1,5 @@
-import { DEFAULT_STORE_PRIORITY_WEIGHTS, getStoreBrandConfig } from '@/shared/lib/storeData';
-import type { AnalyticsPreset, Store, StorePriorityWeights } from '@/shared/types/models';
+import { DEFAULT_STORE_PRIORITY_WEIGHTS, getStoreBrandConfig } from './storeData.js';
+import type { AnalyticsPreset, Store, StorePriorityWeights } from '../types/models.js';
 
 type AnalyticsStoreInput = Pick<Store, 'id' | 'slug' | 'business_type'> & Partial<Pick<Store, 'brand_config'>>;
 

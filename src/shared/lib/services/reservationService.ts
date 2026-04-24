@@ -1,10 +1,10 @@
-import { getCustomerRecordId } from '@/shared/lib/domain/customerMemory';
-import { createId } from '@/shared/lib/ids';
-import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
-import type { CanonicalMyBizRepository } from '@/shared/lib/repositories/contracts';
-import { upsertCustomerMemory } from '@/shared/lib/services/customerMemoryService';
-import { assertStoreEntitlement } from '@/shared/lib/services/storeEntitlementsService';
-import type { Reservation, ReservationStatus } from '@/shared/types/models';
+import { getCustomerRecordId } from '../domain/customerMemory.js';
+import { createId } from '../ids.js';
+import { getCanonicalMyBizRepository } from '../repositories/index.js';
+import type { CanonicalMyBizRepository } from '../repositories/contracts';
+import { upsertCustomerMemory } from './customerMemoryService.js';
+import { assertStoreEntitlement } from './storeEntitlementsService.js';
+import type { Reservation, ReservationStatus } from '../../types/models';
 
 interface ReservationServiceOptions {
   repository?: CanonicalMyBizRepository;
@@ -41,8 +41,8 @@ async function syncReservationVisitorSession(
 }
 
 export async function listStoreReservations(storeId: string, options?: ReservationServiceOptions) {
-  await assertStoreEntitlement(storeId, 'reservations');
   const repository = options?.repository || getCanonicalMyBizRepository();
+  await assertStoreEntitlement(storeId, 'reservations', undefined, { repository });
   const reservations = await repository.listReservations(storeId);
 
   return reservations.slice().sort((left, right) => left.reserved_at.localeCompare(right.reserved_at));
@@ -53,8 +53,8 @@ export async function saveStoreReservation(
   input: Omit<Reservation, 'id' | 'store_id'> & { id?: string },
   options?: ReservationServiceOptions,
 ) {
-  await assertStoreEntitlement(storeId, 'reservations');
   const repository = options?.repository || getCanonicalMyBizRepository();
+  await assertStoreEntitlement(storeId, 'reservations', undefined, { repository });
   const timestamp = nowIso();
   const existing = input.id
     ? (await repository.listReservations(storeId)).find((reservation) => reservation.id === input.id) || null
@@ -75,7 +75,7 @@ export async function saveStoreReservation(
     source: 'reservation',
     storeId,
     summary: existing ? '?덉빟 ?뺣낫媛 ?낅뜲?댄듃?섏뿀?듬땲??' : '?덉빟??怨좉컼 硫붾え由ъ뿉 ?곌껐?섏뿀?듬땲??',
-  });
+  }, { repository });
   const customerId = getCustomerRecordId(memory.customer);
 
   const reservation: Reservation = {

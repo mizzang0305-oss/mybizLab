@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { diagnosisSessionDocumentSchema } from '@/shared/lib/diagnosisSchema';
-import { surveyFormSchema, surveyQuestionSchema } from '@/shared/lib/surveySchema';
-import { normalizeStoreRecord } from '@/shared/lib/storeData';
-import type { AdminUser, AIReport, DiagnosisSession, Store, Survey } from '@/shared/types/models';
+import { diagnosisSessionDocumentSchema } from '../diagnosisSchema.js';
+import { surveyFormSchema, surveyQuestionSchema } from '../surveySchema.js';
+import { normalizeStoreRecord } from '../storeData.js';
+import type { AdminUser, AIReport, DiagnosisSession, Store, Survey } from '../../types/models.js';
 
 const storeBrandConfigSchema = z.object({
   owner_name: z.string().default(''),

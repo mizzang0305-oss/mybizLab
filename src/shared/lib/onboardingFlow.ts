@@ -1,4 +1,4 @@
-import type { BillingPlanCode } from '@/shared/lib/billingPlans';
+import type { BillingPlanCode } from './billingPlans.js';
 import {
   getAvailableDataLabels,
   getConcernLabel,
@@ -15,11 +15,11 @@ import {
   type DiagnosisDataMode,
   type DiagnosisRecommendedStoreMode,
   type DiagnosisSelectedStoreMode,
-} from '@/shared/lib/diagnosisBlueprint';
-import { diagnosisInputSchema, diagnosisModelDraftSchema, type DiagnosisInputDocument } from '@/shared/lib/diagnosisSchema';
-import { getFeatureLabel } from '@/shared/lib/platformConsole';
-import type { StoreSetupPreviewTarget, StoreSetupTheme, StoreSetupWizardStep } from '@/shared/lib/storeSetupSchema';
-import type { FeatureKey } from '@/shared/types/models';
+} from './diagnosisBlueprint.js';
+import { diagnosisInputSchema, diagnosisModelDraftSchema, type DiagnosisInputDocument } from './diagnosisSchema.js';
+import { getFeatureLabel } from './platformConsole.js';
+import type { StoreSetupPreviewTarget, StoreSetupTheme, StoreSetupWizardStep } from './storeSetupSchema.js';
+import type { FeatureKey } from '../types/models.js';
 
 const STORAGE_KEY = 'mybizlab:onboarding-flow';
 

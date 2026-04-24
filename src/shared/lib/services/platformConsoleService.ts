@@ -1,10 +1,10 @@
-import { buildStoreFeatures } from '@/shared/lib/domain/features';
-import { DATA_PROVIDER, IS_PRODUCTION_RUNTIME } from '@/shared/lib/appConfig';
-import { createId } from '@/shared/lib/ids';
-import { getDatabase, updateDatabase } from '@/shared/lib/mockDb';
-import { deriveRequestedPlanFromSelectedFeatures } from '@/shared/lib/setupRequestPersistence';
-import { createStoreBrandConfig } from '@/shared/lib/storeData';
-import { ensureUniqueStoreSlug } from '@/shared/lib/storeSlug';
+import { buildStoreFeatures } from '../domain/features.js';
+import { DATA_PROVIDER, IS_PRODUCTION_RUNTIME } from '../appConfig.js';
+import { createId } from '../ids.js';
+import { getDatabase, updateDatabase } from '../mockDb.js';
+import { deriveRequestedPlanFromSelectedFeatures } from '../setupRequestPersistence.js';
+import { createStoreBrandConfig } from '../storeData.js';
+import { ensureUniqueStoreSlug } from '../storeSlug.js';
 import type {
   AdminUser,
   AdminUserRole,
@@ -17,7 +17,7 @@ import type {
   StoreFeature,
   StoreRequest,
   StoreVisibility,
-} from '@/shared/types/models';
+} from '../../types/models.js';
 
 function nowIso() {
   return new Date().toISOString();

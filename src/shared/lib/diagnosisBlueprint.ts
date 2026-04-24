@@ -1,4 +1,4 @@
-import type { FeatureKey } from '@/shared/types/models';
+import type { FeatureKey } from '../types/models.js';
 
 export type DiagnosisSelectedStoreMode = 'order_first' | 'survey_first' | 'hybrid' | 'brand_inquiry_first' | 'not_sure';
 export type DiagnosisRecommendedStoreMode = Exclude<DiagnosisSelectedStoreMode, 'not_sure'>;

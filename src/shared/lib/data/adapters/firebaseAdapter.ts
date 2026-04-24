@@ -5,10 +5,10 @@
  */
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from 'firebase/firestore';
 
-import { getFirebaseClientServices } from '@/integrations/firebase/client';
-import { buildDiagnosisSessionRecord } from '@/shared/lib/diagnosisSessionRecord';
-import type { DemoDataAdapterDescriptor } from '@/shared/lib/data/contracts';
-import { FIRESTORE_COLLECTIONS, parseFirestoreAdminUser, parseFirestoreStore } from '@/shared/lib/firebase/firestoreSchema';
+import { getFirebaseClientServices } from '../../../../integrations/firebase/client.js';
+import { buildDiagnosisSessionRecord } from '../../diagnosisSessionRecord.js';
+import type { DemoDataAdapterDescriptor } from '../contracts.js';
+import { FIRESTORE_COLLECTIONS, parseFirestoreAdminUser, parseFirestoreStore } from '../../firebase/firestoreSchema.js';
 
 export const firebaseAdapter: DemoDataAdapterDescriptor = {
   description: 'Uses Firebase Auth, Firestore, and Storage when browser Firebase config is available.',
