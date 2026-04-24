@@ -311,4 +311,76 @@ describe('live runtime order compatibility', () => {
     });
     expect(orderState.paymentEvents.some((event) => (event.raw as Record<string, unknown>)?.payment_status === 'paid')).toBe(true);
   });
+
+  it('keeps the newest compat customer link when payment_events arrive out of order', async () => {
+    orderState.paymentEvents.splice(
+      0,
+      orderState.paymentEvents.length,
+      {
+        id: 'payment_event_customer_linked',
+        provider: 'mybiz',
+        event_id: 'compat-customer:order_live_001:2',
+        order_id: 'order_live_001',
+        user_id: null,
+        status: 'pending',
+        amount: 18000,
+        raw: {
+          customer_id: 'customer_live_001',
+          items: [
+            {
+              id: 'compat_item_001',
+              menu_item_id: 'menu_live_001',
+              menu_name: '브런치 세트',
+              quantity: 1,
+              unit_price: 18000,
+              line_total: 18000,
+            },
+          ],
+          payment_method: 'card',
+          payment_source: 'mobile',
+          payment_status: 'pending',
+          table_no: 'A1',
+        },
+        created_at: '2026-04-23T09:05:00.000Z',
+      },
+      {
+        id: 'payment_event_created',
+        provider: 'mybiz',
+        event_id: 'public-order:created',
+        order_id: 'order_live_001',
+        user_id: null,
+        status: 'pending',
+        amount: 18000,
+        raw: {
+          customer_id: null,
+          items: [
+            {
+              id: 'compat_item_001',
+              menu_item_id: 'menu_live_001',
+              menu_name: '브런치 세트',
+              quantity: 1,
+              unit_price: 18000,
+              line_total: 18000,
+            },
+          ],
+          payment_method: 'card',
+          payment_source: 'mobile',
+          payment_status: 'pending',
+          table_no: 'A1',
+        },
+        created_at: '2026-04-23T09:00:00.000Z',
+      },
+    );
+
+    const service = await loadLiveRuntimeOrderService();
+    const orders = await service.listOrders('store-live-001');
+
+    expect(orders[0]).toMatchObject({
+      customer: expect.objectContaining({
+        id: 'customer_live_001',
+      }),
+      customer_id: 'customer_live_001',
+      id: 'order_live_001',
+    });
+  });
 });

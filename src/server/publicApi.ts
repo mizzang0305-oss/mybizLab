@@ -314,7 +314,8 @@ async function createLegacyPublicOrderSession(
 }
 
 function buildCompatOrderState(orderRow: Record<string, unknown>, paymentEventRows: Record<string, unknown>[]) {
-  const mergedRaw = paymentEventRows
+  const mergedRaw = [...paymentEventRows]
+    .sort((left, right) => normalizeText(left.created_at).localeCompare(normalizeText(right.created_at)))
     .map((row) => toRecord(row.raw))
     .reduce<Record<string, unknown>>((accumulator, raw) => ({ ...accumulator, ...raw }), {});
   const order = mapOrderRecord({

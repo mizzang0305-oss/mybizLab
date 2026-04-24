@@ -846,7 +846,8 @@ function buildCompatOrderItems(orderId: string, storeId: string, value: unknown)
 }
 
 function buildLiveCompatOrderState(orderRow: Record<string, unknown>, paymentEventRows: Record<string, unknown>[], tableNoById?: Map<string, string>) {
-  const mergedRaw = paymentEventRows
+  const mergedRaw = [...paymentEventRows]
+    .sort((left, right) => normalizeText(left.created_at).localeCompare(normalizeText(right.created_at)))
     .map((row) => toRecord(row.raw))
     .reduce<Record<string, unknown>>((accumulator, raw) => ({ ...accumulator, ...raw }), {});
   const order = mapLiveOrder({
