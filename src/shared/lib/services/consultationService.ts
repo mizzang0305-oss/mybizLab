@@ -387,6 +387,12 @@ export async function submitPublicConsultationMessage(
     updated_at: timestamp,
   });
 
+  const linkedConversationSession = await repository.saveConversationSession({
+    ...conversationSession,
+    inquiry_id: inquiry.id,
+    updated_at: inquiry.updated_at,
+  });
+
   const customerMessage = await repository.saveConversationMessage({
     id: createId('conversation_message'),
     store_id: input.storeId,
@@ -431,7 +437,7 @@ export async function submitPublicConsultationMessage(
     source: 'conversation',
     summary: '고객이 AI 상담을 시작했습니다.',
     metadata: {
-      conversationSessionId: conversationSession.id,
+      conversationSessionId: linkedConversationSession.id,
       inquiryId: inquiry.id,
       sender: 'customer',
     },
@@ -447,7 +453,7 @@ export async function submitPublicConsultationMessage(
     source: 'conversation',
     summary: 'AI 상담 첫 답변이 고객 기억에 추가되었습니다.',
     metadata: {
-      conversationSessionId: conversationSession.id,
+      conversationSessionId: linkedConversationSession.id,
       inquiryId: inquiry.id,
       sender: 'assistant',
     },
@@ -474,14 +480,14 @@ export async function submitPublicConsultationMessage(
     { repository },
   );
 
-  const messages = await repository.listConversationMessages(conversationSession.id);
+  const messages = await repository.listConversationMessages(linkedConversationSession.id);
   const summary = await getPublicInquirySummary(input.storeId, { repository });
 
   return {
     customer: memoryRecord.customer,
     inquiry,
     messages,
-    session: conversationSession,
+    session: linkedConversationSession,
     summary,
     visitorSessionId: visitorSession.id,
   };
