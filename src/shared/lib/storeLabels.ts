@@ -1,8 +1,9 @@
 export function getBusinessTypeLabel(rawValue?: string | null) {
-  const raw = (rawValue || '').toLowerCase();
+  const normalized = (rawValue || '').trim();
+  const raw = normalized.toLowerCase();
 
-  if (!rawValue) {
-    return '데모 매장';
+  if (!normalized) {
+    return '매장';
   }
 
   if (raw.includes('korean_buffet') || raw.includes('뷔페')) {
@@ -26,16 +27,16 @@ export function getBusinessTypeLabel(rawValue?: string | null) {
   }
 
   if (raw.includes('noodle')) {
-    return '면요리';
+    return '면요리 전문점';
   }
 
   if (raw.includes('salad')) {
-    return '샐러드';
+    return '샐러드 전문점';
   }
 
   if (raw.includes('bbq')) {
     return '고깃집';
   }
 
-  return rawValue;
+  return normalized;
 }

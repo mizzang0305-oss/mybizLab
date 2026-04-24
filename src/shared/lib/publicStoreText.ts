@@ -5,7 +5,7 @@ function normalizeText(value: string | null | undefined) {
 }
 
 function buildStorefrontLead(storeName: string, businessType?: string) {
-  const normalizedBusinessType = normalizeText(businessType);
+  const normalizedBusinessType = preferOptionalText(businessType);
   return normalizedBusinessType ? `${storeName} ${normalizedBusinessType}` : storeName;
 }
 
