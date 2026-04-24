@@ -3,7 +3,7 @@ import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
-import { PUBLIC_RUNTIME_CONFIG, isFirebaseConfigured } from '@/shared/lib/appConfig';
+import { PUBLIC_RUNTIME_CONFIG, isFirebaseConfigured } from '../../shared/lib/appConfig.js';
 
 export interface FirebaseClientServices {
   app: FirebaseApp;
