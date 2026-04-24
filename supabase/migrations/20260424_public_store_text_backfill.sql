@@ -2,16 +2,18 @@ do $$
 declare
   target_store_id uuid;
   target_store_name text;
-  target_business_type text;
 begin
   select
-    s.store_id,
-    s.name,
-    coalesce(nullif(trim((s.brand_config ->> 'business_type')), ''), nullif(trim(s.business_type), ''), '매장')
-  into target_store_id, target_store_name, target_business_type
+    case
+      when nullif(to_jsonb(s) ->> 'store_id', '') is not null then (to_jsonb(s) ->> 'store_id')::uuid
+      when nullif(to_jsonb(s) ->> 'id', '') is not null then (to_jsonb(s) ->> 'id')::uuid
+      else null
+    end,
+    coalesce(nullif(trim(to_jsonb(s) ->> 'name'), ''), 'MyBiz Live Cafe')
+  into target_store_id, target_store_name
   from public.stores s
-  where s.slug = 'mybiz-live-cafe'
-     or s.store_id = '20d95f47-bae6-43a2-a9c9-a190be176747'
+  where coalesce(to_jsonb(s) ->> 'slug', '') = 'mybiz-live-cafe'
+     or coalesce(to_jsonb(s) ->> 'store_id', to_jsonb(s) ->> 'id', '') = '20d95f47-bae6-43a2-a9c9-a190be176747'
   limit 1;
 
   if target_store_id is null then
@@ -38,7 +40,13 @@ begin
       else s.description
     end,
     updated_at = timezone('utc', now())
-  where s.store_id = target_store_id;
+  where (
+    case
+      when nullif(to_jsonb(s) ->> 'store_id', '') is not null then (to_jsonb(s) ->> 'store_id')::uuid
+      when nullif(to_jsonb(s) ->> 'id', '') is not null then (to_jsonb(s) ->> 'id')::uuid
+      else null
+    end
+  ) = target_store_id;
 
   update public.store_public_pages p
   set
@@ -102,24 +110,25 @@ begin
       then '바로 보기'
       else p.mobile_cta_label
     end,
-    seo_metadata = jsonb_build_object(
-      'title',
-      case
-        when trim(coalesce(p.seo_metadata ->> 'title', '')) = ''
-          or coalesce(p.seo_metadata ->> 'title', '') ~ '\?{2,}'
-          or lower(coalesce(p.seo_metadata ->> 'title', '')) in ('demo', 'test', 'sample', 'placeholder')
-        then format('%s 공개 스토어', target_store_name)
-        else p.seo_metadata ->> 'title'
-      end,
-      'description',
-      case
-        when trim(coalesce(p.seo_metadata ->> 'description', '')) = ''
-          or coalesce(p.seo_metadata ->> 'description', '') ~ '\?{2,}'
-          or lower(coalesce(p.seo_metadata ->> 'description', '')) in ('demo', 'test', 'sample', 'placeholder')
-        then format('%s의 메뉴와 방문 안내를 확인할 수 있는 공개 매장 페이지입니다.', target_store_name)
-        else p.seo_metadata ->> 'description'
-      end
-    ),
+    seo_metadata = coalesce(p.seo_metadata, '{}'::jsonb)
+      || jsonb_build_object(
+        'title',
+        case
+          when trim(coalesce(p.seo_metadata ->> 'title', '')) = ''
+            or coalesce(p.seo_metadata ->> 'title', '') ~ '\?{2,}'
+            or lower(coalesce(p.seo_metadata ->> 'title', '')) in ('demo', 'test', 'sample', 'placeholder')
+          then format('%s 공개 스토어', target_store_name)
+          else p.seo_metadata ->> 'title'
+        end,
+        'description',
+        case
+          when trim(coalesce(p.seo_metadata ->> 'description', '')) = ''
+            or coalesce(p.seo_metadata ->> 'description', '') ~ '\?{2,}'
+            or lower(coalesce(p.seo_metadata ->> 'description', '')) in ('demo', 'test', 'sample', 'placeholder')
+          then format('%s의 메뉴와 방문 안내를 확인할 수 있는 공개 매장 페이지입니다.', target_store_name)
+          else p.seo_metadata ->> 'description'
+        end
+      ),
     media = case
       when jsonb_typeof(coalesce(p.media, '[]'::jsonb)) = 'array' then (
         select coalesce(
@@ -135,7 +144,7 @@ begin
                       or lower(coalesce(media_item ->> 'title', '')) in ('demo', 'test', 'sample', 'placeholder')
                     then case coalesce(media_item ->> 'type', '')
                       when 'hero' then '대표 이미지'
-                      when 'storefront' then '매장 외관'
+                      when 'storefront' then '매장 전경'
                       when 'interior' then '매장 내부'
                       else '매장 이미지'
                     end
@@ -155,7 +164,7 @@ begin
                     target_store_name,
                     case coalesce(media_item ->> 'type', '')
                       when 'hero' then '대표 이미지'
-                      when 'storefront' then '매장 외관'
+                      when 'storefront' then '매장 전경'
                       when 'interior' then '매장 내부'
                       else '매장 이미지'
                     end
@@ -197,7 +206,7 @@ begin
                   when trim(coalesce(notice_item ->> 'content', '')) = ''
                     or coalesce(notice_item ->> 'content', '') ~ '\?{2,}'
                     or lower(coalesce(notice_item ->> 'content', '')) in ('demo', 'test', 'sample', 'placeholder')
-                  then format('%s 방문 전에 필요한 안내를 이곳에서 확인해 주세요.', target_store_name)
+                  then format('%s 방문 전에 필요한 안내를 공지에서 확인해 주세요.', target_store_name)
                   else notice_item ->> 'content'
                 end
               ),

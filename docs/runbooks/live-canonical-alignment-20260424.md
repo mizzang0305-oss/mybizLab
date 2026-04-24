@@ -16,10 +16,13 @@ This runbook closes that gap on the database side.
 - Confirm the target store exists:
 
 ```sql
-select store_id, slug, name
-from public.stores
-where slug = 'mybiz-live-cafe'
-   or store_id = '20d95f47-bae6-43a2-a9c9-a190be176747';
+select
+  coalesce(to_jsonb(s) ->> 'store_id', to_jsonb(s) ->> 'id') as store_pk,
+  to_jsonb(s) ->> 'slug' as slug,
+  to_jsonb(s) ->> 'name' as name
+from public.stores s
+where coalesce(to_jsonb(s) ->> 'slug', '') = 'mybiz-live-cafe'
+   or coalesce(to_jsonb(s) ->> 'store_id', to_jsonb(s) ->> 'id', '') = '20d95f47-bae6-43a2-a9c9-a190be176747';
 ```
 
 - Confirm whether legacy subscriptions still exist:
@@ -43,15 +46,22 @@ select to_regclass('public.store_subscriptions') as canonical_store_subscription
 ```sql
 select
   ss.store_id,
-  s.slug,
-  s.name,
+  to_jsonb(s) ->> 'slug' as slug,
+  to_jsonb(s) ->> 'name' as name,
   ss.plan,
   ss.status,
   ss.billing_provider,
   ss.updated_at
 from public.store_subscriptions ss
-join public.stores s on s.store_id = ss.store_id
-where s.slug = 'mybiz-live-cafe'
+join public.stores s
+  on (
+    case
+      when nullif(to_jsonb(s) ->> 'store_id', '') is not null then (to_jsonb(s) ->> 'store_id')::uuid
+      when nullif(to_jsonb(s) ->> 'id', '') is not null then (to_jsonb(s) ->> 'id')::uuid
+      else null
+    end
+  ) = ss.store_id
+where coalesce(to_jsonb(s) ->> 'slug', '') = 'mybiz-live-cafe'
 order by ss.updated_at desc;
 ```
 
@@ -67,22 +77,36 @@ with legacy as (
   group by sm.store_id
 )
 select
-  s.slug,
+  to_jsonb(s) ->> 'slug' as slug,
   ss.plan as canonical_plan,
   ss.status as canonical_status,
   ss.updated_at as canonical_updated_at,
   legacy.legacy_updated_at
 from public.stores s
-left join public.store_subscriptions ss on ss.store_id = s.store_id
-left join legacy on legacy.store_id = s.store_id
-where s.slug = 'mybiz-live-cafe';
+left join public.store_subscriptions ss
+  on ss.store_id = (
+    case
+      when nullif(to_jsonb(s) ->> 'store_id', '') is not null then (to_jsonb(s) ->> 'store_id')::uuid
+      when nullif(to_jsonb(s) ->> 'id', '') is not null then (to_jsonb(s) ->> 'id')::uuid
+      else null
+    end
+  )
+left join legacy
+  on legacy.store_id = (
+    case
+      when nullif(to_jsonb(s) ->> 'store_id', '') is not null then (to_jsonb(s) ->> 'store_id')::uuid
+      when nullif(to_jsonb(s) ->> 'id', '') is not null then (to_jsonb(s) ->> 'id')::uuid
+      else null
+    end
+  )
+where coalesce(to_jsonb(s) ->> 'slug', '') = 'mybiz-live-cafe';
 ```
 
 ### Public storefront copy
 
 ```sql
 select
-  s.slug,
+  to_jsonb(s) ->> 'slug' as slug,
   s.tagline as store_tagline,
   s.description as store_description,
   p.tagline as page_tagline,
@@ -94,8 +118,15 @@ select
   p.mobile_cta_label,
   p.seo_metadata
 from public.stores s
-left join public.store_public_pages p on p.store_id = s.store_id
-where s.slug = 'mybiz-live-cafe';
+left join public.store_public_pages p
+  on p.store_id = (
+    case
+      when nullif(to_jsonb(s) ->> 'store_id', '') is not null then (to_jsonb(s) ->> 'store_id')::uuid
+      when nullif(to_jsonb(s) ->> 'id', '') is not null then (to_jsonb(s) ->> 'id')::uuid
+      else null
+    end
+  )
+where coalesce(to_jsonb(s) ->> 'slug', '') = 'mybiz-live-cafe';
 ```
 
 ## 5. Expected Result In App
