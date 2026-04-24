@@ -3477,6 +3477,44 @@ export async function attachCustomerToOrder(
     visitIncrement: 1,
   });
 
+  if (shouldUseLiveOrderData()) {
+    const client = assertLiveSupabaseClient();
+    const { error } = await client
+      .from('orders')
+      .update({ customer_id: memoryRecord.customer.id })
+      .eq('id', orderId)
+      .eq('store_id', storeId);
+
+    if (error && !isSchemaCompatError(error)) {
+      throw new Error(`Failed to attach customer to live order: ${error.message}`);
+    }
+
+    if (error) {
+      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+      await persistLiveCompatOrderEvent({
+        amount: current?.total_amount || 0,
+        orderId,
+        paymentId: `compat-customer:${orderId}:${Date.now()}`,
+        raw: {
+          customer_id: memoryRecord.customer.id,
+          items: current?.items || [],
+          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
+          note: current?.note || null,
+          payment_method: current?.payment_method || null,
+          payment_recorded_at: current?.payment_recorded_at || null,
+          payment_source: current?.payment_source || null,
+          payment_status: current?.payment_status || 'pending',
+          placed_at: current?.placed_at || nowIso(),
+          table_id: current?.table_id || null,
+          table_no: current?.table_no || null,
+        },
+        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
+      });
+    }
+
+    return memoryRecord.customer;
+  }
+
   updateDatabase((database) => {
     database.orders = database.orders.map((order) =>
       order.id === orderId ? { ...order, customer_id: memoryRecord.customer.id } : order,
