@@ -3392,6 +3392,23 @@ export async function attachCustomerToOrder(
   orderId: string,
   input: { phone: string; name?: string; email?: string; marketingOptIn?: boolean },
 ): Promise<Customer | null> {
+  if (shouldUseLiveOrderData()) {
+    const response = await requestPublicApi<{ customer: Customer; order: Order }>('/api/public/order-customer', {
+      body: {
+        email: input.email,
+        marketingOptIn: input.marketingOptIn,
+        name: input.name,
+        orderId,
+        phone: input.phone,
+        storeId,
+      },
+      method: 'POST',
+      timeoutMs: PUBLIC_MUTATION_TIMEOUT_MS,
+    });
+
+    return response.customer;
+  }
+
   const memoryRecord = await upsertCustomerMemory({
     email: input.email,
     eventType: 'order_linked',
@@ -3403,44 +3420,6 @@ export async function attachCustomerToOrder(
     summary: '주문 고객 정보가 고객 메모리에 연결되었습니다.',
     visitIncrement: 1,
   });
-
-  if (shouldUseLiveOrderData()) {
-    const client = assertLiveSupabaseClient();
-    const { error } = await client
-      .from('orders')
-      .update({ customer_id: memoryRecord.customer.id })
-      .eq('id', orderId)
-      .eq('store_id', storeId);
-
-    if (error && !isSchemaCompatError(error)) {
-      throw new Error(`Failed to attach customer to live order: ${error.message}`);
-    }
-
-    if (error) {
-      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
-      await persistLiveCompatOrderEvent({
-        amount: current?.total_amount || 0,
-        orderId,
-        paymentId: `compat-customer:${orderId}:${Date.now()}`,
-        raw: {
-          customer_id: memoryRecord.customer.id,
-          items: current?.items || [],
-          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
-          note: current?.note || null,
-          payment_method: current?.payment_method || null,
-          payment_recorded_at: current?.payment_recorded_at || null,
-          payment_source: current?.payment_source || null,
-          payment_status: current?.payment_status || 'pending',
-          placed_at: current?.placed_at || nowIso(),
-          table_id: current?.table_id || null,
-          table_no: current?.table_no || null,
-        },
-        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
-      });
-    }
-
-    return memoryRecord.customer;
-  }
 
   updateDatabase((database) => {
     database.orders = database.orders.map((order) =>

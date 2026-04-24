@@ -81,6 +81,7 @@ describe('public order payment helpers', () => {
         storeSlug: 'golden-coffee',
       },
       method: 'POST',
+      timeoutMs: 20000,
     });
     expect(requestPaymentMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -124,6 +125,7 @@ describe('public order payment helpers', () => {
         storeSlug: 'golden-coffee',
       },
       method: 'POST',
+      timeoutMs: 20000,
     });
     expect(result.order).toMatchObject({
       id: 'order_001',

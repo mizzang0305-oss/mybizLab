@@ -173,13 +173,20 @@ export function StoreOrderPage() {
         name: customerForm.name,
         phone: customerForm.phone,
       }),
-    onSuccess: () => {
+    onError: (error) => {
+      setMessage({
+        tone: 'error',
+        text: error instanceof Error ? error.message : '고객 정보를 주문에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      });
+    },
+    onSuccess: async () => {
       setModalOpen(false);
       setCustomerForm({ email: '', marketingOptIn: true, name: '', phone: '' });
       setMessage({
         tone: 'success',
         text: '주문이 고객 메모리와 연결되었습니다. 운영 화면에서 다음 응대를 이어갈 수 있습니다.',
       });
+      await invalidatePublicStore();
     },
   });
 

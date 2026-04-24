@@ -19,6 +19,7 @@ import {
   resolvePublicPageCapabilities,
   touchVisitorSession,
 } from '../shared/lib/services/publicPageService.js';
+import { upsertCustomerMemory } from '../shared/lib/services/customerMemoryService.js';
 import { repairPublicStorePageCopy } from '../shared/lib/publicStoreText.js';
 import { saveStoreReservation } from '../shared/lib/services/reservationService.js';
 import { saveStoreWaitingEntry } from '../shared/lib/services/waitingService.js';
@@ -375,6 +376,70 @@ async function loadPublicOrderState(client: SupabaseClient, storeId: string, ord
 
   const paymentEvents = await loadOrderPaymentEvents(client, orderId);
   return buildCompatOrderState(orderResult.data as Record<string, unknown>, paymentEvents);
+}
+
+async function updatePublicOrderCustomerLink(
+  client: SupabaseClient,
+  input: {
+    currentState: NonNullable<Awaited<ReturnType<typeof loadPublicOrderState>>>;
+    customerId: string;
+    orderId: string;
+    storeId: string;
+  },
+) {
+  let updateResult = await client
+    .from('orders')
+    .update({ customer_id: input.customerId })
+    .eq('id', input.orderId)
+    .eq('store_id', input.storeId)
+    .select('*')
+    .maybeSingle();
+
+  if (updateResult.error && isSchemaCompatError(updateResult.error)) {
+    updateResult = await client
+      .from('orders')
+      .update({ customer_id: input.customerId })
+      .eq('order_id', input.orderId)
+      .eq('store_id', input.storeId)
+      .select('*')
+      .maybeSingle();
+  }
+
+  if (!updateResult.error && updateResult.data) {
+    return buildCompatOrderState(updateResult.data as Record<string, unknown>, await loadOrderPaymentEvents(client, input.orderId));
+  }
+
+  if (updateResult.error && isSchemaCompatError(updateResult.error)) {
+    await persistCompatPaymentEvent(client, {
+      amount: input.currentState.order.total_amount,
+      orderId: input.orderId,
+      paymentId: `compat-customer:${input.orderId}:${Date.now()}`,
+      provider: 'mybiz',
+      raw: {
+        customer_id: input.customerId,
+        items: input.currentState.items,
+        kitchen_status:
+          input.currentState.ticket?.status ||
+          (input.currentState.order.status === 'completed' ? 'completed' : input.currentState.order.status || 'pending'),
+        note: input.currentState.order.note || null,
+        payment_method: input.currentState.order.payment_method || null,
+        payment_recorded_at: input.currentState.order.payment_recorded_at || null,
+        payment_source: input.currentState.order.payment_source || null,
+        payment_status: input.currentState.order.payment_status || 'pending',
+        placed_at: input.currentState.order.placed_at || nowIso(),
+        table_id: input.currentState.order.table_id || null,
+        table_no: input.currentState.order.table_no || null,
+      },
+      status: input.currentState.order.payment_status === 'paid' ? 'paid' : 'pending',
+    });
+
+    return buildCompatOrderState(
+      input.currentState.order as unknown as Record<string, unknown>,
+      await loadOrderPaymentEvents(client, input.orderId),
+    );
+  }
+
+  throw new Error(`Failed to attach customer to public order: ${updateResult.error?.message || 'Unknown update error'}`);
 }
 
 async function persistCompatPaymentEvent(
@@ -1311,6 +1376,75 @@ export async function handlePublicOrderRequest(request: PublicApiRequestLike) {
         items: resolvedItems,
         order,
         ticket: resolvedTicket,
+      },
+    });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+export async function handlePublicOrderCustomerRequest(request: PublicApiRequestLike) {
+  try {
+    const body = await parseJsonBody<{
+      email?: string;
+      marketingOptIn?: boolean;
+      name?: string;
+      orderId: string;
+      phone: string;
+      storeId: string;
+    }>(request);
+
+    const storeId = normalizeText(body.storeId);
+    const orderId = normalizeText(body.orderId);
+    const phone = normalizeText(body.phone);
+
+    if (!storeId) {
+      return createPublicApiErrorResponse(new Error('storeId is required.'), 400);
+    }
+
+    if (!orderId) {
+      return createPublicApiErrorResponse(new Error('orderId is required.'), 400);
+    }
+
+    if (!phone) {
+      return createPublicApiErrorResponse(new Error('phone is required.'), 400);
+    }
+
+    const adminClient = getSupabaseAdminClient();
+    const repository = createSupabaseRepository(adminClient);
+    const orderState = await loadPublicOrderState(adminClient, storeId, orderId);
+
+    if (!orderState) {
+      return createPublicApiErrorResponse(new Error('Public order could not be found.'), 404);
+    }
+
+    const memoryRecord = await upsertCustomerMemory(
+      {
+        email: normalizeText(body.email) || undefined,
+        eventType: 'order_linked',
+        marketingOptIn: body.marketingOptIn,
+        name: normalizeText(body.name) || undefined,
+        phone,
+        source: 'public_order',
+        storeId,
+        summary: '주문 고객 정보가 고객 메모리에 연결되었습니다.',
+        visitIncrement: 1,
+      },
+      { repository },
+    );
+
+    const nextOrderState = await updatePublicOrderCustomerLink(adminClient, {
+      currentState: orderState,
+      customerId: memoryRecord.customer.id,
+      orderId,
+      storeId,
+    });
+
+    return responseJson({
+      ok: true,
+      data: {
+        customer: memoryRecord.customer,
+        order: nextOrderState.order,
       },
     });
   } catch (error) {
