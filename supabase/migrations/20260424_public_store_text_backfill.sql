@@ -51,7 +51,7 @@ begin
       and table_name = 'stores'
       and column_name = 'tagline'
   ) then
-    store_assignments := store_assignments || format(
+    store_assignments := array_append(store_assignments, format(
       $sql$tagline = case
         when trim(coalesce(tagline, '')) = ''
           or tagline ~ '\?{2,}'
@@ -62,7 +62,7 @@ begin
       end$sql$,
       broken_store_pattern,
       store_tagline_fallback
-    );
+    ));
   end if;
 
   if exists (
@@ -72,7 +72,7 @@ begin
       and table_name = 'stores'
       and column_name = 'description'
   ) then
-    store_assignments := store_assignments || format(
+    store_assignments := array_append(store_assignments, format(
       $sql$description = case
         when trim(coalesce(description, '')) = ''
           or description ~ '\?{2,}'
@@ -83,7 +83,7 @@ begin
       end$sql$,
       broken_description_pattern,
       store_description_fallback
-    );
+    ));
   end if;
 
   if exists (
@@ -93,7 +93,7 @@ begin
       and table_name = 'stores'
       and column_name = 'updated_at'
   ) then
-    store_assignments := store_assignments || 'updated_at = timezone(''utc'', now())';
+    store_assignments := array_append(store_assignments, 'updated_at = timezone(''utc'', now())');
   end if;
 
   if coalesce(array_length(store_assignments, 1), 0) > 0 then
@@ -122,7 +122,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'brand_name'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$brand_name = case
           when trim(coalesce(brand_name, '')) = ''
             or brand_name ~ '\?{2,}'
@@ -131,7 +131,7 @@ begin
           else brand_name
         end$sql$,
         target_store_name
-      );
+      ));
     end if;
 
     if exists (
@@ -141,7 +141,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'tagline'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$tagline = case
           when trim(coalesce(tagline, '')) = ''
             or tagline ~ '\?{2,}'
@@ -152,7 +152,7 @@ begin
         end$sql$,
         broken_store_pattern,
         store_tagline_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -162,7 +162,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'description'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$description = case
           when trim(coalesce(description, '')) = ''
             or description ~ '\?{2,}'
@@ -173,7 +173,7 @@ begin
         end$sql$,
         broken_description_pattern,
         store_description_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -183,7 +183,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'hero_title'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$hero_title = case
           when trim(coalesce(hero_title, '')) = ''
             or hero_title ~ '\?{2,}'
@@ -192,7 +192,7 @@ begin
           else hero_title
         end$sql$,
         target_store_name
-      );
+      ));
     end if;
 
     if exists (
@@ -202,7 +202,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'hero_subtitle'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$hero_subtitle = case
           when trim(coalesce(hero_subtitle, '')) = ''
             or hero_subtitle ~ '\?{2,}'
@@ -213,7 +213,7 @@ begin
         end$sql$,
         broken_store_pattern,
         hero_subtitle_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -223,7 +223,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'hero_description'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$hero_description = case
           when trim(coalesce(hero_description, '')) = ''
             or hero_description ~ '\?{2,}'
@@ -234,7 +234,7 @@ begin
         end$sql$,
         broken_description_pattern,
         hero_description_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -244,13 +244,13 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'primary_cta_label'
     ) then
-      page_assignments := page_assignments || $sql$primary_cta_label = case
+      page_assignments := array_append(page_assignments, $sql$primary_cta_label = case
         when trim(coalesce(primary_cta_label, '')) = ''
           or primary_cta_label ~ '\?{2,}'
           or lower(primary_cta_label) in ('demo', 'test', 'sample', 'placeholder')
         then '메뉴 보기'
         else primary_cta_label
-      end$sql$;
+      end$sql$);
     end if;
 
     if exists (
@@ -260,13 +260,13 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'mobile_cta_label'
     ) then
-      page_assignments := page_assignments || $sql$mobile_cta_label = case
+      page_assignments := array_append(page_assignments, $sql$mobile_cta_label = case
         when trim(coalesce(mobile_cta_label, '')) = ''
           or mobile_cta_label ~ '\?{2,}'
           or lower(mobile_cta_label) in ('demo', 'test', 'sample', 'placeholder')
         then '바로 보기'
         else mobile_cta_label
-      end$sql$;
+      end$sql$);
     end if;
 
     if exists (
@@ -276,7 +276,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'seo_metadata'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$seo_metadata = coalesce(seo_metadata, '{}'::jsonb)
           || jsonb_build_object(
             'title',
@@ -298,7 +298,7 @@ begin
           )$sql$,
         seo_title_fallback,
         seo_description_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -308,7 +308,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'media'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$media = case
           when jsonb_typeof(coalesce(media, '[]'::jsonb)) = 'array' then (
             select coalesce(
@@ -358,7 +358,7 @@ begin
           else media
         end$sql$,
         target_store_name
-      );
+      ));
     end if;
 
     if exists (
@@ -368,7 +368,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'notices'
     ) then
-      page_assignments := page_assignments || format(
+      page_assignments := array_append(page_assignments, format(
         $sql$notices = case
           when jsonb_typeof(coalesce(notices, '[]'::jsonb)) = 'array' then (
             select coalesce(
@@ -408,7 +408,7 @@ begin
           else notices
         end$sql$,
         notice_content_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -418,7 +418,7 @@ begin
         and table_name = 'store_public_pages'
         and column_name = 'updated_at'
     ) then
-      page_assignments := page_assignments || 'updated_at = timezone(''utc'', now())';
+      page_assignments := array_append(page_assignments, 'updated_at = timezone(''utc'', now())');
     end if;
 
     if coalesce(array_length(page_assignments, 1), 0) > 0 then
@@ -443,7 +443,7 @@ begin
         and table_name = 'store_brand_profiles'
         and column_name = 'brand_name'
     ) then
-      brand_assignments := brand_assignments || format(
+      brand_assignments := array_append(brand_assignments, format(
         $sql$brand_name = case
           when trim(coalesce(brand_name, '')) = ''
             or brand_name ~ '\?{2,}'
@@ -452,7 +452,7 @@ begin
           else brand_name
         end$sql$,
         target_store_name
-      );
+      ));
     end if;
 
     if exists (
@@ -462,7 +462,7 @@ begin
         and table_name = 'store_brand_profiles'
         and column_name = 'tagline'
     ) then
-      brand_assignments := brand_assignments || format(
+      brand_assignments := array_append(brand_assignments, format(
         $sql$tagline = case
           when trim(coalesce(tagline, '')) = ''
             or tagline ~ '\?{2,}'
@@ -473,7 +473,7 @@ begin
         end$sql$,
         broken_store_pattern,
         store_tagline_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -483,7 +483,7 @@ begin
         and table_name = 'store_brand_profiles'
         and column_name = 'description'
     ) then
-      brand_assignments := brand_assignments || format(
+      brand_assignments := array_append(brand_assignments, format(
         $sql$description = case
           when trim(coalesce(description, '')) = ''
             or description ~ '\?{2,}'
@@ -494,7 +494,7 @@ begin
         end$sql$,
         broken_description_pattern,
         store_description_fallback
-      );
+      ));
     end if;
 
     if exists (
@@ -504,7 +504,7 @@ begin
         and table_name = 'store_brand_profiles'
         and column_name = 'updated_at'
     ) then
-      brand_assignments := brand_assignments || 'updated_at = timezone(''utc'', now())';
+      brand_assignments := array_append(brand_assignments, 'updated_at = timezone(''utc'', now())');
     end if;
 
     if coalesce(array_length(brand_assignments, 1), 0) > 0 then
