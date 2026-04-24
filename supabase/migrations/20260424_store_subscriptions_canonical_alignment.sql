@@ -1,18 +1,58 @@
 create extension if not exists pgcrypto;
 
-create table if not exists public.store_subscriptions (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid not null references public.stores(store_id) on delete cascade,
-  plan text not null check (plan in ('free', 'pro', 'vip')),
-  status text not null check (status in ('trialing', 'active', 'past_due', 'cancelled')),
-  billing_provider text,
-  trial_ends_at timestamptz,
-  current_period_starts_at timestamptz,
-  current_period_ends_at timestamptz,
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now()),
-  unique (store_id)
-);
+do $$
+declare
+  stores_pk_column text;
+begin
+  if to_regclass('public.stores') is null then
+    raise exception 'public.stores does not exist. Cannot align canonical store_subscriptions.';
+  end if;
+
+  select case
+    when exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'stores'
+        and column_name = 'store_id'
+    ) then 'store_id'
+    when exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'stores'
+        and column_name = 'id'
+    ) then 'id'
+    else null
+  end
+  into stores_pk_column;
+
+  if stores_pk_column is null then
+    raise exception 'public.stores must expose either store_id or id to align canonical store_subscriptions.';
+  end if;
+
+  if to_regclass('public.store_subscriptions') is null then
+    execute format(
+      $sql$
+      create table public.store_subscriptions (
+        id uuid primary key default gen_random_uuid(),
+        store_id uuid not null references public.stores(%I) on delete cascade,
+        plan text not null check (plan in ('free', 'pro', 'vip')),
+        status text not null check (status in ('trialing', 'active', 'past_due', 'cancelled')),
+        billing_provider text,
+        trial_ends_at timestamptz,
+        current_period_starts_at timestamptz,
+        current_period_ends_at timestamptz,
+        created_at timestamptz not null default timezone('utc', now()),
+        updated_at timestamptz not null default timezone('utc', now()),
+        unique (store_id)
+      )
+      $sql$,
+      stores_pk_column
+    );
+  end if;
+end;
+$$;
 
 alter table public.store_subscriptions
   add column if not exists billing_provider text,
@@ -36,6 +76,8 @@ begin
     create trigger trg_store_subscriptions_set_updated_at
     before update on public.store_subscriptions
     for each row execute function public.set_updated_at();
+  else
+    raise notice 'Skipping store_subscriptions updated_at trigger because public.set_updated_at() is not available.';
   end if;
 end;
 $$;
@@ -56,14 +98,24 @@ begin
     for all
     using (public.is_store_member(store_id))
     with check (public.is_store_member(store_id));
+  else
+    raise notice 'Skipping store_subscriptions RLS policy because public.is_store_member(uuid) is not available.';
   end if;
 end;
 $$;
 
 do $$
+declare
+  subscriptions_table_exists boolean := to_regclass('public.subscriptions') is not null;
+  store_members_table_exists boolean := to_regclass('public.store_members') is not null;
 begin
-  if to_regclass('public.subscriptions') is null then
+  if not subscriptions_table_exists then
     raise notice 'Skipping legacy subscription backfill because public.subscriptions does not exist.';
+    return;
+  end if;
+
+  if not store_members_table_exists then
+    raise notice 'Skipping legacy subscription backfill because public.store_members does not exist.';
     return;
   end if;
 
@@ -81,43 +133,71 @@ begin
   )
   with ranked_legacy as (
     select
-      sm.store_id,
-      s.id as legacy_subscription_id,
+      nullif(coalesce(to_jsonb(sm) ->> 'store_id', to_jsonb(sm) ->> 'id'), '')::uuid as store_id,
       case
-        when coalesce(s.tier, s.plan, '') in ('free', 'pro', 'vip') then coalesce(s.tier, s.plan)
-        when coalesce(s.tier, s.plan, '') = 'starter' then 'free'
-        when coalesce(s.tier, s.plan, '') in ('business', 'enterprise') then 'vip'
+        when coalesce(nullif(to_jsonb(s) ->> 'tier', ''), nullif(to_jsonb(s) ->> 'plan', ''), '') in ('free', 'pro', 'vip') then coalesce(nullif(to_jsonb(s) ->> 'tier', ''), nullif(to_jsonb(s) ->> 'plan', ''))
+        when coalesce(nullif(to_jsonb(s) ->> 'tier', ''), nullif(to_jsonb(s) ->> 'plan', ''), '') = 'starter' then 'free'
+        when coalesce(nullif(to_jsonb(s) ->> 'tier', ''), nullif(to_jsonb(s) ->> 'plan', ''), '') in ('business', 'enterprise') then 'vip'
         else 'free'
       end as canonical_plan,
       case
-        when coalesce(s.status, '') in ('trialing', 'active', 'past_due', 'cancelled') then s.status
-        when coalesce(s.last_payment_status, '') = 'paid' then 'active'
-        when coalesce(s.last_payment_status, '') in ('failed', 'past_due') then 'past_due'
-        when coalesce(s.status, '') in ('canceled', 'cancelled') then 'cancelled'
-        when s.expires_at is not null and s.expires_at > timezone('utc', now()) then 'trialing'
+        when coalesce(to_jsonb(s) ->> 'status', '') in ('trialing', 'active', 'past_due', 'cancelled') then to_jsonb(s) ->> 'status'
+        when coalesce(to_jsonb(s) ->> 'status', '') in ('canceled', 'cancelled') then 'cancelled'
+        when coalesce(to_jsonb(s) ->> 'last_payment_status', '') = 'paid' then 'active'
+        when coalesce(to_jsonb(s) ->> 'last_payment_status', '') in ('failed', 'past_due') then 'past_due'
+        when nullif(to_jsonb(s) ->> 'expires_at', '') is not null
+          and (to_jsonb(s) ->> 'expires_at')::timestamptz > timezone('utc', now()) then 'trialing'
         else 'trialing'
       end as canonical_status,
       case
-        when nullif(s.billing_key, '') is not null then 'portone'
+        when nullif(coalesce(to_jsonb(s) ->> 'billing_provider', to_jsonb(s) ->> 'provider'), '') is not null then coalesce(to_jsonb(s) ->> 'billing_provider', to_jsonb(s) ->> 'provider')
+        when nullif(to_jsonb(s) ->> 'billing_key', '') is not null then 'portone'
         else 'manual'
       end as billing_provider,
-      s.expires_at as trial_ends_at,
-      coalesce(s.started_at, s.created_at, timezone('utc', now())) as current_period_starts_at,
-      s.expires_at as current_period_ends_at,
-      coalesce(s.created_at, s.started_at, timezone('utc', now())) as created_at,
-      coalesce(s.updated_at, s.started_at, timezone('utc', now())) as updated_at,
+      case
+        when nullif(to_jsonb(s) ->> 'expires_at', '') is not null then (to_jsonb(s) ->> 'expires_at')::timestamptz
+        else null
+      end as trial_ends_at,
+      coalesce(
+        case when nullif(to_jsonb(s) ->> 'started_at', '') is not null then (to_jsonb(s) ->> 'started_at')::timestamptz else null end,
+        case when nullif(to_jsonb(s) ->> 'current_period_starts_at', '') is not null then (to_jsonb(s) ->> 'current_period_starts_at')::timestamptz else null end,
+        case when nullif(to_jsonb(s) ->> 'created_at', '') is not null then (to_jsonb(s) ->> 'created_at')::timestamptz else null end,
+        timezone('utc', now())
+      ) as current_period_starts_at,
+      coalesce(
+        case when nullif(to_jsonb(s) ->> 'expires_at', '') is not null then (to_jsonb(s) ->> 'expires_at')::timestamptz else null end,
+        case when nullif(to_jsonb(s) ->> 'current_period_ends_at', '') is not null then (to_jsonb(s) ->> 'current_period_ends_at')::timestamptz else null end
+      ) as current_period_ends_at,
+      coalesce(
+        case when nullif(to_jsonb(s) ->> 'created_at', '') is not null then (to_jsonb(s) ->> 'created_at')::timestamptz else null end,
+        case when nullif(to_jsonb(s) ->> 'started_at', '') is not null then (to_jsonb(s) ->> 'started_at')::timestamptz else null end,
+        timezone('utc', now())
+      ) as created_at,
+      coalesce(
+        case when nullif(to_jsonb(s) ->> 'updated_at', '') is not null then (to_jsonb(s) ->> 'updated_at')::timestamptz else null end,
+        case when nullif(to_jsonb(s) ->> 'started_at', '') is not null then (to_jsonb(s) ->> 'started_at')::timestamptz else null end,
+        case when nullif(to_jsonb(s) ->> 'created_at', '') is not null then (to_jsonb(s) ->> 'created_at')::timestamptz else null end,
+        timezone('utc', now())
+      ) as updated_at,
       row_number() over (
-        partition by sm.store_id
+        partition by nullif(coalesce(to_jsonb(sm) ->> 'store_id', to_jsonb(sm) ->> 'id'), '')::uuid
         order by
-          case sm.role when 'owner' then 3 when 'manager' then 2 else 1 end desc,
-          coalesce(s.updated_at, s.started_at, timezone('utc', now())) desc,
-          s.id desc
+          case coalesce(to_jsonb(sm) ->> 'role', '') when 'owner' then 3 when 'manager' then 2 else 1 end desc,
+          coalesce(
+            case when nullif(to_jsonb(s) ->> 'updated_at', '') is not null then (to_jsonb(s) ->> 'updated_at')::timestamptz else null end,
+            case when nullif(to_jsonb(s) ->> 'started_at', '') is not null then (to_jsonb(s) ->> 'started_at')::timestamptz else null end,
+            case when nullif(to_jsonb(s) ->> 'created_at', '') is not null then (to_jsonb(s) ->> 'created_at')::timestamptz else null end,
+            timezone('utc', now())
+          ) desc
       ) as row_rank
     from public.store_members sm
-    join public.subscriptions s on s.user_id = sm.profile_id
+    join public.subscriptions s
+      on coalesce(to_jsonb(s) ->> 'user_id', to_jsonb(s) ->> 'profile_id', to_jsonb(s) ->> 'owner_id', '') =
+         coalesce(to_jsonb(sm) ->> 'profile_id', to_jsonb(sm) ->> 'user_id', '')
+    where nullif(coalesce(to_jsonb(sm) ->> 'store_id', to_jsonb(sm) ->> 'id'), '') is not null
   )
   select
-    coalesce(legacy_subscription_id, gen_random_uuid()),
+    gen_random_uuid(),
     store_id,
     canonical_plan,
     canonical_status,
@@ -128,7 +208,8 @@ begin
     created_at,
     updated_at
   from ranked_legacy
-  where row_rank = 1
+  where store_id is not null
+    and row_rank = 1
   on conflict (store_id) do update
     set
       plan = excluded.plan,

@@ -13,5 +13,26 @@ alter table public.orders
 alter table public.orders
   add column if not exists payment_recorded_at timestamptz;
 
-create index if not exists orders_store_payment_status_idx
-  on public.orders (store_id, payment_status, placed_at desc);
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'orders'
+      and column_name = 'placed_at'
+  ) then
+    execute 'create index if not exists orders_store_payment_status_idx on public.orders (store_id, payment_status, placed_at desc)';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'orders'
+      and column_name = 'created_at'
+  ) then
+    execute 'create index if not exists orders_store_payment_status_idx on public.orders (store_id, payment_status, created_at desc)';
+  else
+    execute 'create index if not exists orders_store_payment_status_idx on public.orders (store_id, payment_status)';
+  end if;
+end;
+$$;
