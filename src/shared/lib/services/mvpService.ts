@@ -3509,6 +3509,7 @@ export async function attachCustomerToOrder(
           table_no: current?.table_no || null,
         },
         status: current?.payment_status === 'paid' ? 'paid' : 'pending',
+        storeId,
       });
     }
 
