@@ -38,6 +38,10 @@
       "dest": "/api/public?resource=order"
     },
     {
+      "src": "/api/public/order-customer",
+      "dest": "/api/public?resource=order-customer"
+    },
+    {
       "src": "/api/public/order-payment-checkout",
       "dest": "/api/public?resource=order-payment-checkout"
     },
