@@ -50,6 +50,10 @@
       "dest": "/api/public?resource=order-payment-verify"
     },
     {
+      "src": "/api/merchant/order-event",
+      "dest": "/api/merchant?resource=order-event"
+    },
+    {
       "handle": "filesystem"
     },
     {

@@ -74,6 +74,7 @@ export function DashboardLayout() {
   const currentNavDescription = currentNav ? getDashboardNavigationDescription(currentNav.route) : '현재 운영 화면에서 필요한 내용을 바로 확인할 수 있습니다.';
   const adminDisplayName = session?.fullName === 'Platform Owner' ? '운영 관리자' : session?.fullName || '운영 관리자';
   const adminDisplayEmail = session?.email || 'admin@mybiz.ai.kr';
+  const currentStoreAddressLabel = currentStoreConfig?.address || '주소 설정 필요';
 
   function handleSignOut() {
     void signOut().finally(() => {
@@ -128,7 +129,7 @@ export function DashboardLayout() {
           <p className="text-xs font-semibold tracking-[0.16em] text-slate-500">현재 보고 있는 매장</p>
           <p className="mt-2 break-words font-semibold text-white">{currentStore.name}</p>
           <p className="mt-1 break-words text-sm leading-6 text-slate-400 [word-break:keep-all]">
-            {getBusinessTypeLabel(currentStoreConfig?.business_type)} · {currentStoreConfig?.address || '-'}
+            {getBusinessTypeLabel(currentStoreConfig?.business_type)} · {currentStoreAddressLabel}
           </p>
           <Link className="mt-3 inline-flex min-h-9 items-center text-sm font-bold text-orange-300" to={buildStorePath(currentStore.slug)}>
             공개 매장 보기

@@ -862,6 +862,8 @@ function buildLiveCompatOrderState(orderRow: Record<string, unknown>, paymentEve
       mergedRaw.payment_status ||
       (paymentEventRows.some((row) => normalizeText(row.status).toLowerCase() === 'paid') ? 'paid' : 'pending'),
     placed_at: orderRow.placed_at || mergedRaw.placed_at || orderRow.created_at || orderRow.submitted_at,
+    status: mergedRaw.status || orderRow.status,
+    completed_at: orderRow.completed_at || mergedRaw.completed_at,
     table_no: orderRow.table_no || mergedRaw.table_no || (tableNoById ? tableNoById.get(normalizeText(orderRow.table_id)) : undefined),
   });
   const items = buildCompatOrderItems(order.id, order.store_id, mergedRaw.items);
@@ -883,6 +885,68 @@ function buildLiveCompatOrderState(orderRow: Record<string, unknown>, paymentEve
   return { items, order, ticket };
 }
 
+function resolveTimelineOrderId(event: CustomerTimelineEvent) {
+  const metadata = event.metadata || {};
+  return normalizeText(metadata.order_id || metadata.orderId || metadata.orderID);
+}
+
+function buildOrderCustomerIdByTimeline(events: CustomerTimelineEvent[]) {
+  return events.reduce<Map<string, string>>((map, event) => {
+    if (event.event_type !== 'order_linked') {
+      return map;
+    }
+
+    const orderId = resolveTimelineOrderId(event);
+    if (!orderId || !event.customer_id) {
+      return map;
+    }
+
+    map.set(orderId, event.customer_id);
+    return map;
+  }, new Map<string, string>());
+}
+
+function buildOrderMetadataByTimeline(events: CustomerTimelineEvent[]) {
+  return events.reduce<Map<string, Record<string, unknown>>>((map, event) => {
+    if (event.event_type !== 'order_linked') {
+      return map;
+    }
+
+    const orderId = resolveTimelineOrderId(event);
+    if (!orderId) {
+      return map;
+    }
+
+    map.set(orderId, event.metadata || {});
+    return map;
+  }, new Map<string, Record<string, unknown>>());
+}
+
+function buildTimelineOrderItems(orderId: string, storeId: string, metadata: Record<string, unknown>, totalAmount: number) {
+  const compatItems = buildCompatOrderItems(orderId, storeId, metadata.items);
+  if (compatItems.length) {
+    return compatItems;
+  }
+
+  const summary = normalizeText(metadata.items_summary || metadata.menu_summary);
+  if (!summary) {
+    return [] as OrderItem[];
+  }
+
+  return [
+    repairOrderItemMenuName({
+      id: `compat_timeline_item_${orderId}`,
+      line_total: totalAmount,
+      menu_item_id: 'timeline_summary',
+      menu_name: summary,
+      order_id: orderId,
+      quantity: 1,
+      store_id: storeId,
+      unit_price: totalAmount,
+    }),
+  ];
+}
+
 async function listLiveOrders(storeId: string) {
   const client = assertLiveSupabaseClient();
   const ordersResult = await client.from('orders').select('*').eq('store_id', storeId);
@@ -900,12 +964,13 @@ async function listLiveOrders(storeId: string) {
       Boolean(normalizeText(row.submitted_at) || normalizeText(row.created_at)),
   );
 
-  const [itemsResult, customers, tablesResult] = await Promise.all([
+  const [itemsResult, customers, tablesResult, timelineEvents] = await Promise.all([
     useCompatOrderItemsOnly
       ? Promise.resolve({ data: [] as Record<string, unknown>[], error: null })
       : client.from('order_items').select('*').eq('store_id', storeId),
     listStoreCustomers(storeId),
     client.from('store_tables').select('*').eq('store_id', storeId),
+    listCustomerTimelineEvents(storeId),
   ]);
 
   if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
@@ -930,20 +995,29 @@ async function listLiveOrders(storeId: string) {
   );
   const paymentEvents = (paymentEventsResult.data || []) as Record<string, unknown>[];
   const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+  const timelineCustomerIdByOrderId = buildOrderCustomerIdByTimeline(timelineEvents);
+  const timelineMetadataByOrderId = buildOrderMetadataByTimeline(timelineEvents);
 
   return orderRows
     .map((row) => {
       const orderId = normalizeText(row.id || row.order_id);
+      const timelineMetadata = timelineMetadataByOrderId.get(orderId) || {};
       const compat = buildLiveCompatOrderState(
         row,
         paymentEvents.filter((event) => normalizeText(event.order_id) === orderId),
         tableNoById,
       );
       const canonicalItems = items.filter((item) => item.order_id === orderId);
+      const timelineItems = buildTimelineOrderItems(orderId, compat.order.store_id, timelineMetadata, compat.order.total_amount);
+      const candidateCustomerId = compat.order.customer_id || timelineCustomerIdByOrderId.get(orderId);
+      const customer = candidateCustomerId ? customerById.get(candidateCustomerId) : undefined;
       return {
         ...compat.order,
-        items: canonicalItems.length ? canonicalItems : compat.items,
-        customer: compat.order.customer_id ? customerById.get(compat.order.customer_id) : undefined,
+        customer_id: customer ? candidateCustomerId : undefined,
+        payment_method: compat.order.payment_method || (normalizeText(timelineMetadata.payment_method) as OrderPaymentMethod | undefined),
+        payment_source: compat.order.payment_source || (normalizeText(timelineMetadata.payment_source) as OrderPaymentSource | undefined),
+        items: canonicalItems.length ? canonicalItems : compat.items.length ? compat.items : timelineItems,
+        customer,
       };
     })
     .sort((left, right) => right.placed_at.localeCompare(left.placed_at));
@@ -970,7 +1044,7 @@ async function listLiveStoreTables(storeId: string) {
 async function listLiveMenu(storeId: string) {
   const client = assertLiveSupabaseClient();
   let [categoriesResult, itemsResult] = await Promise.all([
-    client.from('menu_categories').select('*').eq('store_id', storeId).order('sort_order', { ascending: true }),
+    client.from('menu_categories').select('*').eq('store_id', storeId),
     client.from('menu_items').select('*').eq('store_id', storeId).order('name', { ascending: true }),
   ]);
 
@@ -4996,7 +5070,7 @@ export async function getTableLiveBoard(storeId: string): Promise<TableLiveBoard
     return tables
       .map((table) => {
         const tableOrders = orders
-          .filter((order) => order.table_id === table.id)
+          .filter((order) => order.table_id === table.id || (!!order.table_no && order.table_no === table.table_no))
           .slice()
           .sort((left, right) => right.placed_at.localeCompare(left.placed_at))
           .map((order) => ({
@@ -5005,7 +5079,7 @@ export async function getTableLiveBoard(storeId: string): Promise<TableLiveBoard
           }));
         const activeOrders = tableOrders.filter((order) => order.status !== 'completed' && order.status !== 'cancelled');
         const latestTicket = kitchenTickets
-          .filter((ticket) => ticket.table_id === table.id)
+          .filter((ticket) => ticket.table_id === table.id || (!!ticket.table_no && ticket.table_no === table.table_no))
           .slice()
           .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
         const latestCustomerId = tableOrders.find((order) => order.customer_id)?.customer_id;
@@ -5125,8 +5199,50 @@ async function persistLiveCompatOrderEvent(input: {
   paymentId: string;
   raw: Record<string, unknown>;
   status: string;
+  storeId: string;
 }) {
   const client = assertLiveSupabaseClient();
+  const session = typeof client.auth?.getSession === 'function' ? await client.auth.getSession().catch(() => null) : null;
+  const accessToken = session?.data?.session?.access_token;
+
+  if (accessToken) {
+    const response = await fetch(resolveServerApiUrl('/api/merchant/order-event'), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: input.amount,
+        orderId: input.orderId,
+        paymentId: input.paymentId,
+        raw: input.raw,
+        status: input.status,
+        storeId: input.storeId,
+      }),
+    });
+    const rawText = await response.text();
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('text/html') || rawText.trimStart().startsWith('<!doctype html') || rawText.trimStart().startsWith('<html')) {
+      throw new Error('Merchant API returned HTML instead of JSON. Please verify production API routing.');
+    }
+
+    let payload: { error?: string; message?: string; ok?: boolean };
+
+    try {
+      payload = rawText.trim() ? (JSON.parse(rawText) as { error?: string; message?: string; ok?: boolean }) : {};
+    } catch {
+      throw new Error('Merchant API returned an unreadable response. Please retry after the latest deployment finishes.');
+    }
+
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.error || payload.message || `Merchant API request failed with ${response.status}.`);
+    }
+
+    return;
+  }
+
   const { error } = await client.from('payment_events').insert({
     provider: 'mybiz',
     event_id: input.paymentId,
@@ -5175,50 +5291,30 @@ export async function recordOrderPayment(
   },
 ) {
   if (shouldUseLiveOrderData()) {
-    const client = assertLiveSupabaseClient();
     const paymentRecordedAt = nowIso();
-    const { data, error } = await client
-      .from('orders')
-      .update({
-        payment_method: input.paymentMethod || (input.paymentSource === 'counter' ? 'cash' : 'card'),
+    const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+    await persistLiveCompatOrderEvent({
+      amount: current?.total_amount || 0,
+      orderId,
+      paymentId: `compat-payment:${orderId}:${Date.now()}`,
+      raw: {
+        customer_id: current?.customer_id || null,
+        items: current?.items || [],
+        kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
+        note: current?.note || null,
+        payment_method: input.paymentMethod || current?.payment_method || (input.paymentSource === 'counter' ? 'cash' : 'card'),
         payment_recorded_at: paymentRecordedAt,
         payment_source: input.paymentSource,
         payment_status: 'paid',
-      })
-      .eq('id', orderId)
-      .eq('store_id', storeId)
-      .select('*')
-      .single();
-
-    if (error && !isSchemaCompatError(error)) {
-      throw new Error(`Failed to record live order payment: ${error.message}`);
-    }
-
-    if (error) {
-      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
-      await persistLiveCompatOrderEvent({
-        amount: current?.total_amount || 0,
-        orderId,
-        paymentId: `compat-payment:${orderId}:${Date.now()}`,
-        raw: {
-          customer_id: current?.customer_id || null,
-          items: current?.items || [],
-          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
-          note: current?.note || null,
-          payment_method: input.paymentMethod || current?.payment_method || (input.paymentSource === 'counter' ? 'cash' : 'card'),
-          payment_recorded_at: paymentRecordedAt,
-          payment_source: input.paymentSource,
-          payment_status: 'paid',
-          placed_at: current?.placed_at || nowIso(),
-          table_id: current?.table_id || null,
-          table_no: current?.table_no || null,
-        },
-        status: 'paid',
-      });
-      return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
-    }
-
-    return data ? mapLiveOrder(data as Record<string, unknown>) : null;
+        placed_at: current?.placed_at || nowIso(),
+        status: current?.status || 'pending',
+        table_id: current?.table_id || null,
+        table_no: current?.table_no || null,
+      },
+      status: 'paid',
+      storeId,
+    });
+    return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
   }
 
   let updatedOrder: Order | null = null;
@@ -5257,66 +5353,32 @@ export async function recordOrderPayment(
 
 export async function updateOrderStatus(storeId: string, orderId: string, status: OrderStatus) {
   if (shouldUseLiveOrderData()) {
-    const client = assertLiveSupabaseClient();
     const completedAt = status === 'completed' ? nowIso() : null;
-    const { data, error } = await client
-      .from('orders')
-      .update({
-        completed_at: completedAt,
-        status,
-      })
-      .eq('id', orderId)
-      .eq('store_id', storeId)
-      .select('*')
-      .single();
-
-    if (error && !isSchemaCompatError(error)) {
-      throw new Error(`Failed to update live order status: ${error.message}`);
-    }
-
     const ticketStatus = status === 'cancelled' ? null : status === 'completed' ? 'completed' : status;
-    if (!error && ticketStatus) {
-      const { error: ticketError } = await client
-        .from('kitchen_tickets')
-        .update({
-          status: ticketStatus,
-          updated_at: nowIso(),
-        })
-        .eq('order_id', orderId)
-        .eq('store_id', storeId);
-
-      if (ticketError) {
-        throw new Error(`Failed to sync live kitchen ticket status: ${ticketError.message}`);
-      }
-    }
-
-    if (error) {
-      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
-      await persistLiveCompatOrderEvent({
-        amount: current?.total_amount || 0,
-        orderId,
-        paymentId: `compat-status:${orderId}:${Date.now()}`,
-        raw: {
-          completed_at: completedAt,
-          customer_id: current?.customer_id || null,
-          items: current?.items || [],
-          kitchen_status: ticketStatus || null,
-          note: current?.note || null,
-          payment_method: current?.payment_method || null,
-          payment_recorded_at: current?.payment_recorded_at || null,
-          payment_source: current?.payment_source || null,
-          payment_status: current?.payment_status || 'pending',
-          placed_at: current?.placed_at || nowIso(),
-          status,
-          table_id: current?.table_id || null,
-          table_no: current?.table_no || null,
-        },
-        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
-      });
-      return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
-    }
-
-    return data ? mapLiveOrder(data as Record<string, unknown>) : null;
+    const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
+    await persistLiveCompatOrderEvent({
+      amount: current?.total_amount || 0,
+      orderId,
+      paymentId: `compat-status:${orderId}:${Date.now()}`,
+      raw: {
+        completed_at: completedAt,
+        customer_id: current?.customer_id || null,
+        items: current?.items || [],
+        kitchen_status: ticketStatus || null,
+        note: current?.note || null,
+        payment_method: current?.payment_method || null,
+        payment_recorded_at: current?.payment_recorded_at || null,
+        payment_source: current?.payment_source || null,
+        payment_status: current?.payment_status || 'pending',
+        placed_at: current?.placed_at || nowIso(),
+        status,
+        table_id: current?.table_id || null,
+        table_no: current?.table_no || null,
+      },
+      status: current?.payment_status === 'paid' ? 'paid' : 'pending',
+      storeId,
+    });
+    return (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
   }
 
   let updatedOrder: Order | null = null;
@@ -5356,49 +5418,22 @@ export async function updateOrderStatus(storeId: string, orderId: string, status
 
 export async function listKitchenTickets(storeId: string) {
   if (shouldUseLiveOrderData()) {
-    const client = assertLiveSupabaseClient();
-    const [ticketsResult, orders, itemsResult] = await Promise.all([
-      client.from('kitchen_tickets').select('*').eq('store_id', storeId).order('created_at', { ascending: false }),
-      listLiveOrders(storeId),
-      client.from('order_items').select('*').eq('store_id', storeId),
-    ]);
+    const orders = await listLiveOrders(storeId);
 
-    if (ticketsResult.error && !isSchemaCompatError(ticketsResult.error)) {
-      throw new Error(`Failed to load live kitchen tickets: ${ticketsResult.error.message}`);
-    }
-
-    if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
-      throw new Error(`Failed to load live order items for kitchen tickets: ${itemsResult.error.message}`);
-    }
-
-    const orderMap = new Map(orders.map((order) => [order.id, order]));
-    const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
-
-    if (ticketsResult.error || !(ticketsResult.data || []).length) {
-      return orders
-        .filter((order) => order.status !== 'cancelled')
-        .map((order) => ({
-          created_at: order.placed_at,
-          id: `compat_ticket_${order.id}`,
-          items: order.items.length ? order.items : items.filter((item) => item.order_id === order.id),
-          order,
-          order_id: order.id,
-          status: (order.status === 'completed' ? 'completed' : order.status) as KitchenTicket['status'],
-          store_id: order.store_id,
-          table_id: order.table_id,
-          table_no: order.table_no,
-          updated_at: order.completed_at || order.payment_recorded_at || order.placed_at,
-        }));
-    }
-
-    return ((ticketsResult.data || []) as Record<string, unknown>[]).map((row) => {
-      const ticket = mapLiveKitchenTicket(row);
-      return {
-        ...ticket,
-        order: orderMap.get(ticket.order_id),
-        items: items.filter((item) => item.order_id === ticket.order_id),
-      };
-    });
+    return orders
+      .filter((order) => order.status !== 'cancelled')
+      .map((order) => ({
+        created_at: order.placed_at,
+        id: `compat_ticket_${order.id}`,
+        items: order.items,
+        order,
+        order_id: order.id,
+        status: (order.status === 'completed' ? 'completed' : order.status) as KitchenTicket['status'],
+        store_id: order.store_id,
+        table_id: order.table_id,
+        table_no: order.table_no,
+        updated_at: order.completed_at || order.payment_recorded_at || order.placed_at,
+      }));
   }
 
   const data = getStoreScopedData(storeId);
@@ -5414,6 +5449,11 @@ export async function listKitchenTickets(storeId: string) {
 
 export async function updateKitchenTicketStatus(storeId: string, ticketId: string, status: KitchenTicket['status']) {
   if (shouldUseLiveOrderData()) {
+    if (ticketId.startsWith('compat_ticket_')) {
+      await updateOrderStatus(storeId, ticketId.replace(/^compat_ticket_/, ''), status === 'completed' ? 'completed' : status);
+      return;
+    }
+
     const client = assertLiveSupabaseClient();
     const { data, error } = await client
       .from('kitchen_tickets')

@@ -239,6 +239,16 @@ describe('public order customer attachment', () => {
     expect(routeMocks.upsertCustomerMemory).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'order_linked',
+        metadata: expect.objectContaining({
+          items_count: expect.any(Number),
+          items_summary: expect.any(String),
+          order_id: 'order_live_001',
+          payment_source: 'counter',
+          payment_status: 'pending',
+          table_id: 'table_live_001',
+          table_no: '1',
+          total_amount: 19500,
+        }),
         phone: '010-7777-0429',
         source: 'public_order',
         storeId: 'store_live_001',

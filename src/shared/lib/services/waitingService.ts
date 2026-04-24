@@ -77,7 +77,7 @@ export async function saveStoreWaitingEntry(
     phone: input.phone,
     source: visitorSessionId ? 'public_waiting' : 'waiting',
     storeId,
-    summary: existing ? '?⑥씠???뺣낫媛 ?낅뜲?댄듃?섏뿀?듬땲??' : '?⑥씠???뺣낫媛 怨좉컼 硫붾え由ъ뿉 ?곌껐?섏뿀?듬땲??',
+    summary: existing ? '웨이팅 정보가 고객 메모리에서 업데이트되었습니다.' : '웨이팅 정보가 고객 메모리에 연결되었습니다.',
   }, { repository });
   const customerId = getCustomerRecordId(memory.customer);
 

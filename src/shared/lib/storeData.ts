@@ -1,5 +1,5 @@
 import type { Store, StoreBrandConfig, StorePrioritySettings, StorePriorityWeights, SubscriptionPlan } from '../types/models';
-import { repairStorefrontSummary } from './publicStoreText.js';
+import { isBrokenPublicStoreText, repairStorefrontSummary } from './publicStoreText.js';
 
 export const DEFAULT_STORE_PRIORITY_WEIGHTS: StorePriorityWeights = {
   revenue: 28,
@@ -12,6 +12,11 @@ export const DEFAULT_STORE_PRIORITY_WEIGHTS: StorePriorityWeights = {
 
 function readString(value: unknown) {
   return typeof value === 'string' ? value : '';
+}
+
+function readHealthyString(value: unknown) {
+  const text = readString(value).trim();
+  return isBrokenPublicStoreText(text) ? '' : text;
 }
 
 function readPlan(value: unknown, fallback: SubscriptionPlan = 'free'): SubscriptionPlan {
@@ -43,12 +48,12 @@ export function getStoreBrandConfig(
   const rawConfig = store?.brand_config && typeof store.brand_config === 'object' ? store.brand_config : {};
 
   return {
-    owner_name: readString((rawConfig as Record<string, unknown>).owner_name) || store?.owner_name || '',
-    business_number: readString((rawConfig as Record<string, unknown>).business_number) || store?.business_number || '',
-    phone: readString((rawConfig as Record<string, unknown>).phone) || store?.phone || '',
-    email: readString((rawConfig as Record<string, unknown>).email) || store?.email || '',
-    address: readString((rawConfig as Record<string, unknown>).address) || store?.address || '',
-    business_type: readString((rawConfig as Record<string, unknown>).business_type) || store?.business_type || '',
+    owner_name: readHealthyString((rawConfig as Record<string, unknown>).owner_name) || readHealthyString(store?.owner_name),
+    business_number: readHealthyString((rawConfig as Record<string, unknown>).business_number) || readHealthyString(store?.business_number),
+    phone: readHealthyString((rawConfig as Record<string, unknown>).phone) || readHealthyString(store?.phone),
+    email: readHealthyString((rawConfig as Record<string, unknown>).email) || readHealthyString(store?.email),
+    address: readHealthyString((rawConfig as Record<string, unknown>).address) || readHealthyString(store?.address),
+    business_type: readHealthyString((rawConfig as Record<string, unknown>).business_type) || readHealthyString(store?.business_type),
   };
 }
 

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
@@ -17,13 +18,24 @@ import {
   listStoreTables,
 } from '@/shared/lib/services/mvpService';
 import { buildStorePath } from '@/shared/lib/storeSlug';
-import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
+
+function getPaymentSourceLabel(source?: string) {
+  if (source === 'counter') {
+    return '카운터 결제';
+  }
+
+  if (source === 'mobile') {
+    return '모바일 결제';
+  }
+
+  return '결제 방식 미확정';
+}
 
 export function TableOrderAdminPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
   const [tableForm, setTableForm] = useState({ table_no: 'A1', seats: 4 });
-  const [categoryName, setCategoryName] = useState('디저트');
+  const [categoryName, setCategoryName] = useState('대표 메뉴');
   const [menuForm, setMenuForm] = useState({
     category_id: '',
     name: '',
@@ -91,8 +103,8 @@ export function TableOrderAdminPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="테이블 주문"
-        title="테이블 주문"
-        description="테이블 목록, 메뉴, QR 주문 링크를 관리하고 고객용 주문 화면으로 바로 연결합니다."
+        title="테이블 주문 운영"
+        description="테이블, QR 주문 링크, 메뉴, 고객 기억 연결 상태를 실데이터 기준으로 확인합니다."
         actions={
           <Link className="btn-primary" to={buildStorePath(currentStore.slug, 'order')}>
             공개 주문 화면 보기
@@ -112,7 +124,7 @@ export function TableOrderAdminPage() {
                 <span className="field-label">좌석 수</span>
                 <input className="input-base" min={1} onChange={(event) => setTableForm((current) => ({ ...current, seats: Number(event.target.value) }))} type="number" value={tableForm.seats} />
               </label>
-              <button className="btn-primary" onClick={() => tableMutation.mutate()} type="button">
+              <button className="btn-primary" disabled={tableMutation.isPending} onClick={() => tableMutation.mutate()} type="button">
                 테이블 저장
               </button>
             </div>
@@ -121,7 +133,7 @@ export function TableOrderAdminPage() {
           <Panel title="메뉴 카테고리 추가">
             <div className="flex flex-col gap-3 sm:flex-row">
               <input className="input-base" onChange={(event) => setCategoryName(event.target.value)} value={categoryName} />
-              <button className="btn-secondary" onClick={() => categoryMutation.mutate()} type="button">
+              <button className="btn-secondary" disabled={categoryMutation.isPending} onClick={() => categoryMutation.mutate()} type="button">
                 카테고리 생성
               </button>
             </div>
@@ -153,9 +165,9 @@ export function TableOrderAdminPage() {
               </label>
               <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-700">
                 <input checked={menuForm.is_popular} className="h-4 w-4 accent-orange-600" onChange={(event) => setMenuForm((current) => ({ ...current, is_popular: event.target.checked }))} type="checkbox" />
-                인기 메뉴 표시
+                인기 메뉴로 표시
               </label>
-              <button className="btn-primary" onClick={() => menuMutation.mutate()} type="button">
+              <button className="btn-primary" disabled={menuMutation.isPending} onClick={() => menuMutation.mutate()} type="button">
                 메뉴 저장
               </button>
             </div>
@@ -163,7 +175,7 @@ export function TableOrderAdminPage() {
         </div>
 
         <div className="space-y-8">
-          <Panel title="테이블 라이브 보드" subtitle="주문, 결제, 고객 기억이 테이블 기준으로 어디까지 연결됐는지 바로 확인합니다.">
+          <Panel title="테이블 라이브 보드" subtitle="주문, 결제, 고객 기억이 테이블 기준으로 어디까지 연결됐는지 확인합니다.">
             <div className="space-y-3">
               {liveBoardQuery.data?.map((row) => (
                 <div key={row.tableId} className="rounded-3xl border border-slate-200 p-4">
@@ -196,11 +208,9 @@ export function TableOrderAdminPage() {
                             <div className="flex flex-wrap items-center gap-2">
                               <StatusBadge status={order.status} />
                               <StatusBadge status={order.payment_status} />
-                              {order.payment_source ? (
-                                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                                  {order.payment_source === 'counter' ? '카운터 결제' : '모바일 결제'}
-                                </span>
-                              ) : null}
+                              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                                {getPaymentSourceLabel(order.payment_source)}
+                              </span>
                             </div>
                             <p className="mt-3 text-sm font-semibold text-slate-900">
                               {getCustomerDisplayLabel({
@@ -209,7 +219,7 @@ export function TableOrderAdminPage() {
                               })}{' '}
                               · {formatCurrency(order.total_amount)}
                             </p>
-                            <p className="mt-2 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
+                            <p className="mt-2 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ') || '주문 메뉴 정보 없음'}</p>
                             <p className="mt-2 text-xs text-slate-400">{formatDateTime(order.placed_at)}</p>
                           </div>
                         ))}
@@ -230,8 +240,8 @@ export function TableOrderAdminPage() {
                           ) : (
                             <p className="mt-3 text-sm text-slate-500">
                               {row.tableOrders.some((order) => Boolean(order.customer_id))
-                                ? '고객 메모리는 연결되었지만 최근 타임라인 이벤트를 아직 찾지 못했습니다.'
-                                : '연결된 고객 기억이 아직 없습니다.'}
+                                ? '고객은 연결됐지만 최근 타임라인 이벤트를 아직 찾지 못했습니다.'
+                                : '아직 연결된 고객 기억이 없습니다.'}
                             </p>
                           )}
                         </div>

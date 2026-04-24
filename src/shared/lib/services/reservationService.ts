@@ -74,7 +74,7 @@ export async function saveStoreReservation(
     phone: input.phone,
     source: 'reservation',
     storeId,
-    summary: existing ? '?덉빟 ?뺣낫媛 ?낅뜲?댄듃?섏뿀?듬땲??' : '?덉빟??怨좉컼 硫붾え由ъ뿉 ?곌껐?섏뿀?듬땲??',
+    summary: existing ? '예약 정보가 고객 메모리에서 업데이트되었습니다.' : '예약이 고객 메모리에 연결되었습니다.',
   }, { repository });
   const customerId = getCustomerRecordId(memory.customer);
 
@@ -108,8 +108,8 @@ export async function updateStoreReservationStatus(
   return saveStoreReservation(
     storeId,
     {
-    ...current,
-    status,
+      ...current,
+      status,
     },
     { repository },
   );
