@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  buildDefaultStorePublicPage,
   createSupabaseRepository,
   getCanonicalStorePublicPage,
   getPublicInquiryFormSnapshot,
@@ -11,6 +12,7 @@ const {
   submitCanonicalPublicInquiry,
   touchVisitorSession,
 } = vi.hoisted(() => ({
+  buildDefaultStorePublicPage: vi.fn(),
   createSupabaseRepository: vi.fn(),
   getCanonicalStorePublicPage: vi.fn(),
   getPublicInquiryFormSnapshot: vi.fn(),
@@ -31,7 +33,7 @@ vi.mock('../shared/lib/repositories/supabaseRepository.js', () => ({
 }));
 
 vi.mock('../shared/lib/services/publicPageService.js', () => ({
-  buildDefaultStorePublicPage: vi.fn(),
+  buildDefaultStorePublicPage,
   getCanonicalStorePublicPage,
   resolvePublicPageCapabilities,
   touchVisitorSession,
@@ -63,6 +65,7 @@ import {
 describe('public API node runtime compatibility', () => {
   beforeEach(() => {
     getSupabaseAdminClient.mockReset();
+    buildDefaultStorePublicPage.mockReset();
     createSupabaseRepository.mockReset();
     getCanonicalStorePublicPage.mockReset();
     touchVisitorSession.mockReset();
@@ -72,11 +75,25 @@ describe('public API node runtime compatibility', () => {
     saveStoreReservation.mockReset();
     saveStoreWaitingEntry.mockReset();
 
-    getSupabaseAdminClient.mockReturnValue({});
+    getSupabaseAdminClient.mockReturnValue({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(async () => ({ data: [], error: null })),
+            then: undefined,
+            catch: undefined,
+            finally: undefined,
+            async *[Symbol.asyncIterator]() {},
+          })),
+        })),
+      })),
+    });
     createSupabaseRepository.mockReturnValue({});
     resolvePublicPageCapabilities.mockResolvedValue({
+      consultationEnabled: true,
+      homepageVisible: true,
       inquiryEnabled: true,
-      publicPageEnabled: true,
+      orderEntryEnabled: true,
       reservationEnabled: true,
       waitingEnabled: true,
     });
@@ -111,6 +128,114 @@ describe('public API node runtime compatibility', () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
       error: 'storeId is required.',
+    });
+  });
+
+  it('repairs broken public page text before returning the public store response', async () => {
+    const store = {
+      id: 'store-live',
+      store_id: 'store-live',
+      name: 'MyBiz Live Cafe',
+      slug: 'mybiz-live-cafe',
+      brand_color: '#ec5b13',
+      logo_url: '',
+      tagline: '운영 스토어',
+      description: '???',
+      business_type: '??? ??',
+      phone: '010-1111-2222',
+      email: 'live@example.com',
+      address: '?? ??? ???? 18',
+      public_status: 'public',
+      homepage_visible: true,
+      consultation_enabled: true,
+      inquiry_enabled: true,
+      reservation_enabled: true,
+      order_entry_enabled: true,
+      preview_target: 'storefront',
+      theme_preset: 'light',
+      brand_config: {
+        owner_name: '??? ??',
+        business_number: '',
+        phone: '010-1111-2222',
+        email: 'live@example.com',
+        address: '?? ??? ???? 18',
+        business_type: '??? ??',
+      },
+      created_at: '2026-04-24T00:00:00.000Z',
+      updated_at: '2026-04-24T00:00:00.000Z',
+    };
+
+    createSupabaseRepository.mockReturnValue({
+      findStoreById: vi.fn().mockResolvedValue(null),
+      findStoreBySlug: vi.fn().mockResolvedValue(store),
+      getStorePublicPage: vi.fn().mockResolvedValue({
+        id: 'page-live',
+        store_id: 'store-live',
+        slug: 'mybiz-live-cafe',
+        brand_name: '???',
+        brand_color: '#ec5b13',
+        tagline: '???',
+        description: '???',
+        business_type: '??? ??',
+        phone: '010-1111-2222',
+        email: 'live@example.com',
+        address: '?? ??? ???? 18',
+        directions: '',
+        opening_hours: '',
+        parking_note: '',
+        public_status: 'public',
+        homepage_visible: true,
+        consultation_enabled: true,
+        inquiry_enabled: true,
+        reservation_enabled: true,
+        order_entry_enabled: true,
+        theme_preset: 'light',
+        preview_target: 'storefront',
+        hero_title: '???',
+        hero_subtitle: '???',
+        hero_description: '???',
+        primary_cta_label: '???',
+        mobile_cta_label: '???',
+        cta_config: {
+          waitingEnabled: true,
+        },
+        content_blocks: [],
+        seo_metadata: {},
+        media: [],
+        notices: [],
+        created_at: '2026-04-24T00:00:00.000Z',
+        updated_at: '2026-04-24T00:00:00.000Z',
+      }),
+      listInquiries: vi.fn().mockResolvedValue([]),
+    });
+    buildDefaultStorePublicPage.mockImplementation(() => {
+      throw new Error('default page fallback should not run when a canonical page row exists');
+    });
+
+    const response = await handlePublicStoreRequest({
+      headers: {
+        host: 'example.com',
+      },
+      method: 'GET',
+      url: '/api/public/store?slug=mybiz-live-cafe',
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        store: {
+          name: 'MyBiz Live Cafe',
+          tagline: expect.stringContaining('메뉴와 방문 안내'),
+          description: expect.stringContaining('문의, 예약, 웨이팅, 주문 안내'),
+          business_type: '',
+          address: '',
+          primary_cta_label: '메뉴 보기',
+        },
+        location: {
+          address: '',
+        },
+      },
     });
   });
 

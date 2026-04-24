@@ -83,18 +83,18 @@ describe('public store text repair', () => {
       page: createPage({
         address: '서울시 중구 세종대로 18',
         brand_name: 'MyBiz Live Cafe',
-        description: '브런치 커피와 방문 안내를 공개 스토어에서 확인할 수 있습니다.',
+        description: '브런치 카페의 메뉴와 방문 안내를 공개 스토어에서 확인할 수 있습니다.',
         hero_description: '대표 메뉴와 방문 안내를 먼저 확인해 보세요.',
-        hero_subtitle: '브런치 커피와 방문 안내를 먼저 확인해 보세요.',
+        hero_subtitle: '브런치 카페의 방문 안내를 먼저 확인해 보세요.',
         hero_title: 'MyBiz Live Cafe',
         mobile_cta_label: '예약 보기',
         primary_cta_label: '예약 요청',
-        tagline: '브런치 커피와 방문 안내를 먼저 확인해 보세요.',
+        tagline: '브런치 카페의 방문 안내를 먼저 확인해 보세요.',
       }),
       storeName: 'MyBiz Live Cafe',
     });
 
-    expect(repaired.tagline).toBe('브런치 커피와 방문 안내를 먼저 확인해 보세요.');
+    expect(repaired.tagline).toBe('브런치 카페의 방문 안내를 먼저 확인해 보세요.');
     expect(repaired.primary_cta_label).toBe('예약 요청');
     expect(repaired.mobile_cta_label).toBe('예약 보기');
     expect(repaired.address).toBe('서울시 중구 세종대로 18');

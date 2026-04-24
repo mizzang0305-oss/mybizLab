@@ -39,6 +39,8 @@ export function StoreHomePage() {
   const heroMedia = publicStore.media.find((media) => media.type === 'hero') || publicStore.media[0];
   const galleryMedia = publicStore.media.filter((media) => media.type !== 'hero');
   const config = getStoreBrandConfig(publicStore.store);
+  const businessTypeLabel = getBusinessTypeLabel(publicStore.store.business_type || config.business_type);
+  const displayAddress = publicStore.location?.address || publicStore.store.address || '';
   const featureLabelMap = new Map(featureDefinitions.map((feature) => [feature.key, feature.label]));
   const surveyPath = publicStore.surveySummary?.survey.id
     ? `/s/${publicStore.store.id}/survey/${publicStore.surveySummary.survey.id}${tableNo ? `?tableCode=${encodeURIComponent(tableNo)}` : ''}`
@@ -68,7 +70,7 @@ export function StoreHomePage() {
                   <p className="max-w-2xl text-sm leading-7 text-white/85 sm:text-base">{publicStore.store.tagline}</p>
                 </div>
                 <span className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-bold ${theme.chip}`}>
-                  {getBusinessTypeLabel(config.business_type)} · {publicStore.store.public_status === 'public' ? '공개 운영 중' : '미리보기'}
+                  {businessTypeLabel} · {publicStore.store.public_status === 'public' ? '공개 운영 중' : '미리보기'}
                 </span>
               </div>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-white/80">
@@ -148,7 +150,7 @@ export function StoreHomePage() {
 
               <div className="rounded-[28px] border border-slate-200 bg-white p-5">
                 <p className="text-sm font-semibold text-slate-500">방문 정보</p>
-                <p className="mt-3 text-lg font-bold text-slate-900">{publicStore.location?.address || config.address || '주소 준비 중'}</p>
+                <p className="mt-3 text-lg font-bold text-slate-900">{displayAddress || '주소 준비 중'}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{formatOpeningHours(publicStore.location?.opening_hours)}</p>
               </div>
             </div>
@@ -265,12 +267,12 @@ export function StoreHomePage() {
               <p>
                 <span className="font-semibold text-slate-900">업종</span>
                 <br />
-                {getBusinessTypeLabel(config.business_type)}
+                {businessTypeLabel}
               </p>
               <p className="mt-3">
                 <span className="font-semibold text-slate-900">주소</span>
                 <br />
-                {publicStore.location?.address || config.address || '-'}
+                {displayAddress || '-'}
               </p>
               <p className="mt-3">
                 <span className="font-semibold text-slate-900">운영 시간</span>

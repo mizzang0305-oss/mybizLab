@@ -19,6 +19,7 @@ import {
   resolvePublicPageCapabilities,
   touchVisitorSession,
 } from '../shared/lib/services/publicPageService.js';
+import { repairPublicStorePageCopy } from '../shared/lib/publicStoreText.js';
 import { saveStoreReservation } from '../shared/lib/services/reservationService.js';
 import { saveStoreWaitingEntry } from '../shared/lib/services/waitingService.js';
 import { repairOrderItemMenuName, repairPublicMenuCatalog } from '../shared/lib/menuText.js';
@@ -811,15 +812,19 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
   const sortedMedia = sortMedia(media);
   const publishedNotices = sortNotices(notices);
   const primaryLocation = getPrimaryLocation(locations);
-  const canonicalPage =
-    page ||
-    buildDefaultStorePublicPage({
-      store,
-      features,
-      location: primaryLocation,
-      media: sortedMedia,
-      notices: publishedNotices,
-    });
+  const canonicalPage = repairPublicStorePageCopy({
+    businessType: getStoreBrandConfig(store).business_type,
+    page:
+      page ||
+      buildDefaultStorePublicPage({
+        store,
+        features,
+        location: primaryLocation,
+        media: sortedMedia,
+        notices: publishedNotices,
+      }),
+    storeName: store.name,
+  });
   const capabilities = await resolvePublicPageCapabilities(store.id, canonicalPage, { repository });
   const publicStoreRecord = normalizeStoreRecord({
     ...store,
@@ -845,7 +850,7 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     brand_config: {
       ...getStoreBrandConfig(store),
       address: canonicalPage.address,
-      business_type: canonicalPage.business_type || getStoreBrandConfig(store).business_type,
+      business_type: canonicalPage.business_type,
       email: canonicalPage.email,
       phone: canonicalPage.phone,
     },
