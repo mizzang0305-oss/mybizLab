@@ -34,6 +34,14 @@ export function isBrokenPublicStoreText(value: string | null | undefined) {
   );
 }
 
+function preferText(value: string | null | undefined, fallback: string) {
+  return isBrokenPublicStoreText(value) ? fallback : normalizeText(value);
+}
+
+function preferOptionalText(value: string | null | undefined) {
+  return isBrokenPublicStoreText(value) ? '' : normalizeText(value);
+}
+
 export function createPublicStoreCopyFallback(input: {
   storeName: string;
   businessType?: string;
@@ -43,8 +51,8 @@ export function createPublicStoreCopyFallback(input: {
   return {
     brandName: input.storeName,
     description: `${lead}의 메뉴, 문의, 예약, 웨이팅, 주문 안내를 한 번에 확인할 수 있습니다.`,
-    heroDescription: `${lead} 방문 전에 필요한 안내와 고객 입력 채널을 이 화면에서 바로 확인할 수 있습니다.`,
-    heroSubtitle: `${lead}의 대표 메뉴와 방문 안내를 먼저 확인해 보세요.`,
+    heroDescription: `${lead} 방문 전에 필요한 메뉴와 이용 안내, 문의·예약·웨이팅·주문 시작 화면을 한곳에서 확인할 수 있습니다.`,
+    heroSubtitle: `${lead}의 메뉴와 방문 안내를 먼저 확인해 보세요.`,
     heroTitle: input.storeName,
     mediaCaption: `${input.storeName} 대표 이미지`,
     mediaTitle: '대표 이미지',
@@ -56,10 +64,6 @@ export function createPublicStoreCopyFallback(input: {
     seoTitle: `${input.storeName} 공개 스토어`,
     tagline: `${lead}의 메뉴와 방문 안내를 먼저 확인해 보세요.`,
   };
-}
-
-function preferText(value: string | null | undefined, fallback: string) {
-  return isBrokenPublicStoreText(value) ? fallback : normalizeText(value);
 }
 
 export function repairPublicStorePageCopy(input: {
@@ -86,7 +90,9 @@ export function repairPublicStorePageCopy(input: {
 
   return {
     ...input.page,
+    address: preferOptionalText(input.page.address),
     brand_name: preferText(input.page.brand_name, fallback.brandName),
+    business_type: preferOptionalText(input.page.business_type),
     description: preferText(input.page.description, fallback.description),
     hero_description: preferText(input.page.hero_description, fallback.heroDescription),
     hero_subtitle: preferText(input.page.hero_subtitle, fallback.heroSubtitle),
