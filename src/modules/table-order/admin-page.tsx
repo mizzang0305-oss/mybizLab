@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
@@ -202,7 +203,11 @@ export function TableOrderAdminPage() {
                               ) : null}
                             </div>
                             <p className="mt-3 text-sm font-semibold text-slate-900">
-                              {order.customer?.name || '미등록 고객'} · {formatCurrency(order.total_amount)}
+                              {getCustomerDisplayLabel({
+                                customer: order.customer,
+                                customerId: order.customer_id,
+                              })}{' '}
+                              · {formatCurrency(order.total_amount)}
                             </p>
                             <p className="mt-2 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
                             <p className="mt-2 text-xs text-slate-400">{formatDateTime(order.placed_at)}</p>
@@ -223,7 +228,11 @@ export function TableOrderAdminPage() {
                               ))}
                             </div>
                           ) : (
-                            <p className="mt-3 text-sm text-slate-500">연결된 고객 기억이 아직 없습니다.</p>
+                            <p className="mt-3 text-sm text-slate-500">
+                              {row.tableOrders.some((order) => Boolean(order.customer_id))
+                                ? '고객 메모리는 연결되었지만 최근 타임라인 이벤트를 아직 찾지 못했습니다.'
+                                : '연결된 고객 기억이 아직 없습니다.'}
+                            </p>
                           )}
                         </div>
 

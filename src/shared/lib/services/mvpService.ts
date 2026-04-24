@@ -900,20 +900,16 @@ async function listLiveOrders(storeId: string) {
       Boolean(normalizeText(row.submitted_at) || normalizeText(row.created_at)),
   );
 
-  const [itemsResult, customersResult, tablesResult] = await Promise.all([
+  const [itemsResult, customers, tablesResult] = await Promise.all([
     useCompatOrderItemsOnly
       ? Promise.resolve({ data: [] as Record<string, unknown>[], error: null })
       : client.from('order_items').select('*').eq('store_id', storeId),
-    client.from('customers').select('*').eq('store_id', storeId),
+    listStoreCustomers(storeId),
     client.from('store_tables').select('*').eq('store_id', storeId),
   ]);
 
   if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
     throw new Error(`Failed to load live order items: ${itemsResult.error.message}`);
-  }
-
-  if (customersResult.error) {
-    throw new Error(`Failed to load live customers for orders: ${customersResult.error.message}`);
   }
 
   if (tablesResult.error && !isSchemaCompatError(tablesResult.error)) {
@@ -929,21 +925,6 @@ async function listLiveOrders(storeId: string) {
   }
 
   const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
-  const customers = ((customersResult.data || []) as Record<string, unknown>[]).map((row) =>
-    normalizeCustomerRecord({
-      id: normalizeText(row.id || row.customer_id),
-      store_id: normalizeText(row.store_id),
-      name: normalizeText(row.name),
-      phone: normalizeText(row.phone),
-      email: normalizeText(row.email) || undefined,
-      visit_count: normalizeInteger(row.visit_count),
-      last_visit_at: normalizeText(row.last_visit_at) || undefined,
-      is_regular: row.is_regular === true,
-      marketing_opt_in: row.marketing_opt_in === true,
-      created_at: normalizeText(row.created_at),
-      updated_at: normalizeText(row.updated_at) || undefined,
-    }),
-  );
   const tableNoById = new Map(
     ((tablesResult.data || []) as Record<string, unknown>[]).map((row) => [normalizeText(row.id || row.table_id), normalizeText(row.table_no)] as const),
   );

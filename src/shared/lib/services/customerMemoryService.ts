@@ -191,6 +191,7 @@ export async function upsertCustomerMemory(
       eventType: input.eventType || (created ? 'customer_created' : 'contact_captured'),
       metadata: {
         email: input.email?.trim().toLowerCase() || null,
+        name: input.name?.trim() || null,
         normalizedEmail: match.normalizedEmail || null,
         normalizedPhone: match.normalizedPhone || null,
         phone: input.phone?.trim() || null,

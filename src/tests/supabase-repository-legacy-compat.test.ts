@@ -252,6 +252,69 @@ describe('supabase repository legacy compatibility', () => {
     ]);
   });
 
+  it('enriches legacy customers with contact values when the live row omits display fields', async () => {
+    const repository = createSupabaseRepository(
+      createMockSupabaseClient({
+        customer_contacts: [
+          {
+            id: 'contact_phone_live_002',
+            customer_id: 'customer_live_002',
+            contact_type: 'phone',
+            normalized_value: '01070001005',
+            raw_value: '010-7000-1005',
+            is_primary: true,
+            is_verified: false,
+            created_at: '2026-04-24T05:56:57.722+00:00',
+          },
+          {
+            id: 'contact_email_live_002',
+            customer_id: 'customer_live_002',
+            contact_type: 'email',
+            normalized_value: 'qa.order.link@mybiz.ai',
+            raw_value: 'qa.order.link@mybiz.ai',
+            is_primary: false,
+            is_verified: false,
+            created_at: '2026-04-24T05:56:57.722+00:00',
+          },
+        ],
+        customer_timeline_events: [
+          {
+            id: 'timeline_live_002',
+            store_id: 'store_live_002',
+            customer_id: 'customer_live_002',
+            event_type: 'order_linked',
+            payload: {
+              source: 'public_order',
+              summary: '주문 고객 정보가 고객 메모리에 연결되었습니다.',
+            },
+            created_at: '2026-04-24T05:56:57.722+00:00',
+          },
+        ],
+        customers: [
+          {
+            customer_id: 'customer_live_002',
+            store_id: 'store_live_002',
+            customer_key: '01070001005',
+            first_seen_at: '2026-04-24T05:56:57.722+00:00',
+            last_seen_at: '2026-04-24T05:56:57.722+00:00',
+            marketing_consent: true,
+            tags: [],
+          },
+        ],
+      }) as never,
+    );
+
+    await expect(repository.listCustomers('store_live_002')).resolves.toEqual([
+      expect.objectContaining({
+        customer_id: 'customer_live_002',
+        email: 'qa.order.link@mybiz.ai',
+        name: '고객',
+        phone: '010-7000-1005',
+        store_id: 'store_live_002',
+      }),
+    ]);
+  });
+
   it('prefers the live subscription from any membership on the store instead of the first owner row', async () => {
     const repository = createSupabaseRepository(
       createMockSupabaseClient({

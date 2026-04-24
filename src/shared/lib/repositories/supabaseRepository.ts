@@ -635,6 +635,56 @@ function mapAnyCustomerContactRow(row: Record<string, unknown>, storeId: string)
   };
 }
 
+function pickCustomerNameFromTimeline(events: CustomerTimelineEvent[]) {
+  for (const event of events) {
+    const metadata = event.metadata || {};
+    const candidate =
+      normalizeText(metadata.name) ||
+      normalizeText(metadata.customer_name) ||
+      normalizeText(metadata.customerName) ||
+      normalizeText(metadata.contact_name) ||
+      normalizeText(metadata.contactName);
+
+    if (candidate && candidate !== '고객') {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
+function enrichCustomerRecord(
+  customer: Customer,
+  contacts: CustomerContact[],
+  timelineEvents: CustomerTimelineEvent[],
+): Customer {
+  const customerId = getCustomerRecordId(customer);
+  const currentName = normalizeText(customer.name);
+  const currentPhone = normalizeText(customer.phone);
+  const currentEmail = normalizeText(customer.email);
+
+  const phoneContact =
+    contacts.find((contact) => contact.customer_id === customerId && contact.type === 'phone' && contact.is_primary) ||
+    contacts.find((contact) => contact.customer_id === customerId && contact.type === 'phone');
+  const emailContact =
+    contacts.find((contact) => contact.customer_id === customerId && contact.type === 'email' && contact.is_primary) ||
+    contacts.find((contact) => contact.customer_id === customerId && contact.type === 'email');
+
+  const nameFromTimeline = pickCustomerNameFromTimeline(
+    timelineEvents
+      .filter((event) => event.customer_id === customerId)
+      .slice()
+      .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at)),
+  );
+
+  return normalizeCustomerRecord({
+    ...customer,
+    email: currentEmail || emailContact?.value || undefined,
+    name: currentName && currentName !== '고객' ? currentName : nameFromTimeline || '고객',
+    phone: currentPhone || phoneContact?.value || '',
+  });
+}
+
 function mapAnyCustomerPreferenceRow(row: Record<string, unknown>, storeId: string): CustomerPreference {
   return {
     id: normalizeText(row.id) || normalizeText(row.customer_id) || crypto.randomUUID(),
@@ -982,7 +1032,33 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
       throw new Error(`Failed to load customers: ${error.message}`);
     }
 
-    return ((data || []) as Record<string, unknown>[]).map((row) => mapAnyCustomerRow(row));
+    const customers = ((data || []) as Record<string, unknown>[]).map((row) => mapAnyCustomerRow(row));
+    const customerIds = customers.map((customer) => getCustomerRecordId(customer)).filter(Boolean);
+    if (!customerIds.length) {
+      return customers;
+    }
+
+    const [contactsResult, timelineEventsResult] = await Promise.all([
+      client.from('customer_contacts').select('*').in('customer_id', customerIds),
+      client.from('customer_timeline_events').select('*').eq('store_id', storeId).in('customer_id', customerIds),
+    ]);
+
+    if (contactsResult.error && !isSchemaCompatError(contactsResult.error)) {
+      throw new Error(`Failed to load customer contacts for enrichment: ${contactsResult.error.message}`);
+    }
+
+    if (timelineEventsResult.error && !isSchemaCompatError(timelineEventsResult.error)) {
+      throw new Error(`Failed to load customer timeline events for enrichment: ${timelineEventsResult.error.message}`);
+    }
+
+    const contacts = contactsResult.error
+      ? []
+      : ((contactsResult.data || []) as Record<string, unknown>[]).map((row) => mapAnyCustomerContactRow(row, storeId));
+    const timelineEvents = timelineEventsResult.error
+      ? []
+      : ((timelineEventsResult.data || []) as Record<string, unknown>[]).map((row) => mapAnyTimelineEventRow(row));
+
+    return customers.map((customer) => enrichCustomerRecord(customer, contacts, timelineEvents));
   }
 
   async function loadCustomerMap(storeId: string) {

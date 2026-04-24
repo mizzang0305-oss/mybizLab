@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { listOrders, recordOrderPayment, updateOrderStatus } from '@/shared/lib/services/mvpService';
@@ -143,7 +144,12 @@ export function OrdersPage() {
                   {selectedOrder.payment_method ? ` · ${paymentMethodLabelMap[selectedOrder.payment_method]}` : ''}
                 </p>
                 <p className="mt-2 text-sm text-slate-500">고객</p>
-                <p className="font-semibold text-slate-700">{selectedOrder.customer?.name || '미등록 고객'}</p>
+                <p className="font-semibold text-slate-700">
+                  {getCustomerDisplayLabel({
+                    customer: selectedOrder.customer,
+                    customerId: selectedOrder.customer_id,
+                  })}
+                </p>
               </div>
               <div className="rounded-3xl border border-slate-200 p-4">
                 {selectedOrder.items.map((item) => (
