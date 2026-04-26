@@ -9,7 +9,7 @@ import { useAccessibleStores } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
 import { createDemoAdminSession, refreshAdminSession } from '@/shared/lib/adminSession';
-import { BILLING_PLAN_DETAILS } from '@/shared/lib/billingPlans';
+import { BILLING_PLAN_DETAILS, SUBSCRIPTION_TEST_PRODUCT, type BillingCheckoutProductCode } from '@/shared/lib/billingPlans';
 import { requestStructuredDiagnosis } from '@/shared/lib/diagnosisClient';
 import {
   DIAGNOSIS_AVAILABLE_DATA_OPTIONS,
@@ -112,6 +112,14 @@ const planCards = [
     features: ['주간 운영 리포트', '통합 운영 분석', '브랜드 확장 준비'],
   },
 ];
+
+const subscriptionTestPlanCard = {
+  billingProductCode: SUBSCRIPTION_TEST_PRODUCT.code,
+  code: SUBSCRIPTION_TEST_PRODUCT.plan,
+  desc: 'PortOne 구독 결제 연결을 확인하는 100원 테스트 상품입니다. 실제 plan truth는 PRO로 유지됩니다.',
+  features: ['100원 결제 요청', 'PortOne return/verify 테스트', 'store_subscriptions 반영 확인용'],
+  title: 'TEST 100',
+} as const;
 
 function businessNumber(seed: string) {
   const hash = Array.from(seed).reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 1_000_000_000, 13);
@@ -337,6 +345,7 @@ export function OnboardingPage() {
   const setSelectedStoreId = useUiStore((state) => state.setSelectedStoreId);
   const [flow, setFlow] = useState(() => readOnboardingFlowState());
   const [message, setMessage] = useState<MessageState | null>(null);
+  const [billingProductCode, setBillingProductCode] = useState<BillingCheckoutProductCode | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
   const redirectHandledRef = useRef(false);
 
@@ -406,6 +415,11 @@ export function OnboardingPage() {
     };
   }, [autoSuggestedSlug, existingSlugs, existingSlugSet, flow.requestDraft.requestedSlug]);
   const slugPreview = slugState.preview;
+  const subscriptionTestProductEnabled = searchParams.get('billingTest') === '100' || searchParams.get('subscriptionTest') === '100';
+  const visiblePlanCards = useMemo(
+    () => (subscriptionTestProductEnabled ? [...planCards, subscriptionTestPlanCard] : planCards),
+    [subscriptionTestProductEnabled],
+  );
 
   useEffect(() => {
     persistOnboardingFlowState(flow);
@@ -745,13 +759,20 @@ export function OnboardingPage() {
       setFlow((current) => ({ ...current, paymentStatus: 'processing' }));
       setMessage({ tone: 'info', text: '결제창을 준비하고 있습니다. 결제가 끝나면 승인과 스토어 생성이 바로 이어집니다.' });
       const { payment } = await launchPortOneCheckout(flow.selectedPlan, {
+        billingProductCode: billingProductCode ?? undefined,
         customer: {
           email: flow.requestDraft.email.trim(),
           fullName: flow.requestDraft.ownerName.trim(),
           phoneNumber: flow.requestDraft.phone.trim(),
         },
-        customData: { requestId: flow.requestId, slug: slugPreview },
-        orderName: `${flow.requestDraft.storeName.trim()} ${planCards.find((item) => item.code === flow.selectedPlan)?.title || '구독'} 결제`,
+        customData: {
+          ...(billingProductCode ? { billingProductCode } : {}),
+          requestId: flow.requestId,
+          slug: slugPreview,
+        },
+        orderName: billingProductCode
+          ? `${flow.requestDraft.storeName.trim()} 구독 결제 테스트 100원`
+          : `${flow.requestDraft.storeName.trim()} ${planCards.find((item) => item.code === flow.selectedPlan)?.title || '구독'} 결제`,
         redirectPath: '/onboarding?step=payment',
         source: 'onboarding-flow',
       });
@@ -1730,18 +1751,31 @@ export function OnboardingPage() {
           {flow.step === 'payment' ? (
             <Panel title="4. 구독 결제" subtitle="권장 플랜을 확인하고 결제 요청을 진행합니다. 실제 활성 플랜은 store_subscriptions 반영이 끝난 뒤에만 확정됩니다.">
               <div className="grid gap-4 lg:grid-cols-3">
-                {planCards.map((plan) => {
-                  const details = BILLING_PLAN_DETAILS[plan.code];
-                  const selected = flow.selectedPlan === plan.code;
+                {visiblePlanCards.map((plan) => {
+                  const testBillingProductCode = 'billingProductCode' in plan ? plan.billingProductCode : null;
+                  const details = testBillingProductCode ? SUBSCRIPTION_TEST_PRODUCT : BILLING_PLAN_DETAILS[plan.code];
+                  const selected = flow.selectedPlan === plan.code && billingProductCode === testBillingProductCode;
                   const recommended = flow.diagnosisResult?.recommendedPlan === plan.code;
                   return (
-                    <button key={plan.code} className={`rounded-3xl border p-5 text-left ${selected ? 'border-orange-300 bg-orange-50 shadow-[0_20px_45px_-30px_rgba(236,91,19,0.45)]' : 'border-slate-200 bg-white'}`} onClick={() => setFlow((current) => ({ ...current, selectedPlan: plan.code }))} type="button">
+                    <button
+                      key={testBillingProductCode ?? plan.code}
+                      className={`rounded-3xl border p-5 text-left ${selected ? 'border-orange-300 bg-orange-50 shadow-[0_20px_45px_-30px_rgba(236,91,19,0.45)]' : 'border-slate-200 bg-white'}`}
+                      onClick={() => {
+                        setBillingProductCode(testBillingProductCode);
+                        setFlow((current) => ({ ...current, selectedPlan: plan.code }));
+                      }}
+                      type="button"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-bold uppercase tracking-[0.16em] text-orange-600">{plan.title}</p>
                           <p className="mt-3 font-display text-3xl font-black text-slate-900">월 {details.amount.toLocaleString()}원</p>
                         </div>
-                        {recommended ? <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-white">추천</span> : null}
+                        {testBillingProductCode ? (
+                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">테스트</span>
+                        ) : recommended ? (
+                          <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-white">추천</span>
+                        ) : null}
                       </div>
                       <p className="mt-4 text-sm leading-6 text-slate-600">{plan.desc}</p>
                       <div className="mt-5 space-y-2">
@@ -1757,6 +1791,11 @@ export function OnboardingPage() {
               </div>
               <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm leading-7 text-amber-900">
                 이 단계에서 선택하는 플랜은 결제 요청값입니다. 점주 화면의 실제 플랜/권한 표시는 결제 완료 후 canonical <code>store_subscriptions</code> row가 반영된 뒤에만 활성 상태로 봐야 합니다.
+                {subscriptionTestProductEnabled ? (
+                  <p className="mt-2 font-semibold">
+                    테스트 상품은 <code>billingTest=100</code> URL에서만 보이며, PortOne 구독 결제 연결을 100원으로 확인하기 위한 내부용 상품입니다.
+                  </p>
+                ) : null}
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
           <button className="btn-primary" disabled={!flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
@@ -1766,7 +1805,9 @@ export function OnboardingPage() {
                 : '결제창 준비 중...'
               : flow.selectedPlan === 'free'
                 ? 'FREE 플랜 바로 시작'
-                : 'PortOne 결제 진행'}
+                : billingProductCode
+                  ? '100원 테스트 결제 진행'
+                  : 'PortOne 결제 진행'}
           </button>
                 <button className="btn-secondary" onClick={() => setFlow((current) => ({ ...current, requestWizardStep: 'summary', step: 'request' }))} type="button">
                   요청 정보 수정

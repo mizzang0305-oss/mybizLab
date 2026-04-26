@@ -1,6 +1,6 @@
 import PortOne, { Currency, PaymentPayMethod, type PaymentRequest, type PaymentResponse } from '@portone/browser-sdk/v2';
 
-import type { BillingPlanCode } from './billingPlans';
+import type { BillingCheckoutProductCode, BillingPlanCode } from './billingPlans';
 import { isAsciiSerializableJson } from './checkoutCustomData';
 import { readPublicEnv } from './publicEnv';
 import { resolveServerApiUrl } from './serverApiUrl';
@@ -45,6 +45,7 @@ export interface CheckoutSessionResponse {
 }
 
 export interface CheckoutSessionRequestOptions {
+  billingProductCode?: BillingCheckoutProductCode;
   customData?: Record<string, unknown>;
   customer?: Partial<CheckoutCustomerPayload>;
   orderName?: string;
@@ -229,6 +230,7 @@ function buildCheckoutSessionRequestBody(plan: BillingPlanCode, options?: Checko
 
   return {
     browserContext,
+    billingProductCode: options?.billingProductCode,
     customData: options?.customData,
     customer: buildCheckoutSessionRequestCustomer(options?.customer),
     orderName: options?.orderName,

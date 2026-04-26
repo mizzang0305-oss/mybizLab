@@ -133,7 +133,7 @@ describe('PortOne checkout client helpers', () => {
     const result = await launchPortOneCheckout('pro');
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/billing/checkout',
+      'https://mybiz.ai.kr/api/billing/checkout',
       expect.objectContaining({
         body: expect.any(String),
         method: 'POST',
@@ -247,6 +247,53 @@ describe('PortOne checkout client helpers', () => {
       redirectPath: '/onboarding?step=payment',
       source: 'onboarding-flow',
     });
+  });
+
+  it('forwards the 100 KRW subscription test product to the billing checkout API', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify(createValidCheckoutSessionResponse({
+          customData: {
+            billingProductCode: 'subscription_test_100',
+            billingProductType: 'subscription_test',
+            planKey: 'pro',
+            sessionId: 'subscription-pro-001',
+          },
+          orderName: '\uad6c\ub3c5 \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
+          totalAmount: 100,
+        })),
+        {
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+          status: 200,
+        },
+      ),
+    ) as typeof fetch;
+    requestPaymentMock.mockResolvedValue({
+      paymentId: 'subscription-pro-001',
+      transactionType: 'PAYMENT',
+    });
+
+    await launchPortOneCheckout('pro', {
+      billingProductCode: 'subscription_test_100',
+      redirectPath: '/onboarding?step=payment&billingTest=100',
+      source: 'onboarding-flow',
+    });
+
+    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
+    const requestBody = JSON.parse(String(fetchCall?.[1]?.body));
+
+    expect(requestBody).toMatchObject({
+      billingProductCode: 'subscription_test_100',
+      plan: 'pro',
+      redirectPath: '/onboarding?step=payment&billingTest=100',
+      source: 'onboarding-flow',
+    });
+    expect(requestPaymentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderName: '\uad6c\ub3c5 \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
+        totalAmount: 100,
+      }),
+    );
   });
 
   it('uses the corrected business representative as the default checkout customer', async () => {
@@ -523,7 +570,7 @@ describe('PortOne checkout client helpers', () => {
       verifiedPaid: true,
     });
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/billing/verify',
+      'https://mybiz.ai.kr/api/billing/verify',
       expect.objectContaining({
         body: JSON.stringify({ paymentId: 'payment-paid-001' }),
         method: 'POST',

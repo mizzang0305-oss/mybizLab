@@ -382,6 +382,61 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
   });
 
+  it('creates the 100 KRW subscription test product without changing canonical plan truth', async () => {
+    const response = await billingHandler(
+      new Request('https://example.com/api/billing/checkout', {
+        body: JSON.stringify({
+          billingProductCode: 'subscription_test_100',
+          plan: 'pro',
+          redirectPath: '/onboarding?step=payment&billingTest=100',
+          source: 'onboarding-flow',
+        }),
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      ok: true,
+      plan: 'pro',
+      checkout: {
+        customData: {
+          billingProductCode: 'subscription_test_100',
+          billingProductType: 'subscription_test',
+          planKey: 'pro',
+        },
+        orderName: '\uad6c\ub3c5 \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
+        plan: 'pro',
+        totalAmount: 100,
+      },
+    });
+    expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
+    expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
+  });
+
+  it('rejects the 100 KRW subscription test product when it is mapped to the wrong plan', async () => {
+    const response = await billingHandler(
+      new Request('https://example.com/api/billing/checkout', {
+        body: JSON.stringify({
+          billingProductCode: 'subscription_test_100',
+          plan: 'vip',
+        }),
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload).toMatchObject({
+      code: 'INVALID_BILLING_PRODUCT_PLAN',
+      ok: false,
+      stage: 'request-body',
+    });
+  });
+
   it('accepts a node-style parsed body object without request.text()', async () => {
     const response = await billingHandler({
       body: {

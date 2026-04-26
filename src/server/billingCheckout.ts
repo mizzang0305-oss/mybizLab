@@ -1,4 +1,10 @@
-import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../shared/lib/billingPlans.js';
+import {
+  SUBSCRIPTION_TEST_PRODUCT,
+  getBillingPlan,
+  isBillingCheckoutProductCode,
+  isBillingPlanCode,
+  type BillingPlanCode,
+} from '../shared/lib/billingPlans.js';
 import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData.js';
 import { BUSINESS_INFO } from '../shared/lib/siteConfig.js';
 
@@ -628,6 +634,42 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
   return requestedPlan;
 }
 
+function resolveRequestedCheckoutProduct(body: Record<string, unknown>, plan: BillingPlanCode) {
+  const requestedProduct = normalizeNonEmptyString(body.billingProductCode);
+
+  if (!requestedProduct) {
+    return null;
+  }
+
+  if (!isBillingCheckoutProductCode(requestedProduct)) {
+    throw new CheckoutApiError({
+      code: 'INVALID_BILLING_PRODUCT',
+      details: {
+        receivedBillingProductCode: requestedProduct,
+      },
+      message: 'Checkout billingProductCode is not supported.',
+      stage: 'request-body',
+      status: 400,
+    });
+  }
+
+  if (plan !== SUBSCRIPTION_TEST_PRODUCT.plan) {
+    throw new CheckoutApiError({
+      code: 'INVALID_BILLING_PRODUCT_PLAN',
+      details: {
+        billingProductCode: requestedProduct,
+        expectedPlan: SUBSCRIPTION_TEST_PRODUCT.plan,
+        receivedPlan: plan,
+      },
+      message: 'The requested billing test product must stay mapped to its canonical entitlement plan.',
+      stage: 'request-body',
+      status: 400,
+    });
+  }
+
+  return SUBSCRIPTION_TEST_PRODUCT;
+}
+
 function readCheckoutRequestId(customData: Record<string, unknown>) {
   return normalizeNonEmptyString(customData.requestId);
 }
@@ -655,12 +697,14 @@ function buildCheckoutMerchantData(
   body: Record<string, unknown>,
   plan: BillingPlanCode,
   paymentId: string,
+  billingProductCode?: string,
 ) {
   const customData = readCheckoutCustomData(body);
   const requestId = readCheckoutRequestId(customData);
   const slug = readCheckoutSlug(customData);
 
   return sanitizeCheckoutCustomData({
+    ...(billingProductCode ? { billingProductCode, billingProductType: 'subscription_test' } : {}),
     ...(requestId ? { requestId } : {}),
     ...(slug ? { slug } : {}),
     planKey: plan,
@@ -727,7 +771,8 @@ export async function handleCheckoutRequest(request: CheckoutRequestLike) {
   assertBrowserContextMatchesEnv(readBrowserCheckoutContext(body), env);
 
   const requestedPlan = resolveRequestedPlan(body);
-  const billingPlan = getBillingPlan(requestedPlan);
+  const checkoutProduct = resolveRequestedCheckoutProduct(body, requestedPlan);
+  const billingPlan = checkoutProduct ?? getBillingPlan(requestedPlan);
   const paymentId = createCheckoutPaymentId(requestedPlan);
   const redirectPath = readCheckoutRedirectPath(body);
   const orderName = readCheckoutOrderName(body, billingPlan.orderName);
@@ -736,7 +781,7 @@ export async function handleCheckoutRequest(request: CheckoutRequestLike) {
     checkout: {
       channelKey: env.channelKey,
       currency: 'KRW',
-      customData: buildCheckoutMerchantData(body, requestedPlan, paymentId),
+      customData: buildCheckoutMerchantData(body, requestedPlan, paymentId, checkoutProduct?.code),
       customer: readCheckoutCustomer(body),
       noticeUrls: [`${env.appBaseUrl}/api/billing/webhook`],
       orderName,
