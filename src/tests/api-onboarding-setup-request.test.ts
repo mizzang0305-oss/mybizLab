@@ -9,7 +9,7 @@ const routeMocks = vi.hoisted(() => {
     limit: vi.fn(() => Promise.resolve(selectResultQueue.shift() || { data: [], error: null })),
   };
 
-  const insert = vi.fn((payload: unknown) => Promise.resolve(insertResultQueue.shift() || { error: null }));
+  const insert = vi.fn((_payload: unknown) => Promise.resolve(insertResultQueue.shift() || { error: null }));
   const from = vi.fn(() => ({
     insert,
     select: vi.fn(() => queryBuilder),

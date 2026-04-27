@@ -23,7 +23,7 @@ function createMockSupabaseClient(fixtures: TableFixtures) {
   function createBuilder(table: string) {
     const fixture = readFixture(table);
     let rows = [...fixture.rows];
-    let error = fixture.error;
+    const error = fixture.error;
 
     const builder = {
       eq(column: string, value: unknown) {

@@ -6,8 +6,15 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
+import {
+  getOrderNextAction,
+  getOrderStatusLabel,
+  getPaymentSourceLabel,
+  getPaymentStatusLabel,
+} from '@/shared/lib/merchantOperations';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   createMenuCategory,
@@ -18,18 +25,7 @@ import {
   listStoreTables,
 } from '@/shared/lib/services/mvpService';
 import { buildStorePath } from '@/shared/lib/storeSlug';
-
-function getPaymentSourceLabel(source?: string) {
-  if (source === 'counter') {
-    return '카운터 결제';
-  }
-
-  if (source === 'mobile') {
-    return '모바일 결제';
-  }
-
-  return '결제 방식 미확정';
-}
+import type { OrderStatus } from '@/shared/types/models';
 
 export function TableOrderAdminPage() {
   const { currentStore } = useCurrentStore();
@@ -43,6 +39,8 @@ export function TableOrderAdminPage() {
     description: '',
     is_popular: false,
   });
+
+  usePageMeta('테이블 주문', '테이블별 주문, 결제, 고객 기억 연결 상태를 먼저 확인하고 바로 처리하는 점주용 화면입니다.');
 
   const tablesQuery = useQuery({
     queryKey: queryKeys.storeTables(currentStore?.id || ''),
@@ -99,12 +97,16 @@ export function TableOrderAdminPage() {
     return null;
   }
 
+  const liveBoardRows = liveBoardQuery.data || [];
+  const totalActiveOrders = liveBoardRows.reduce((total, row) => total + row.activeOrderCount, 0);
+  const totalPendingPayments = liveBoardRows.reduce((total, row) => total + row.pendingPaymentCount, 0);
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="테이블 주문"
-        title="테이블 주문 운영"
-        description="테이블, QR 주문 링크, 메뉴, 고객 기억 연결 상태를 실데이터 기준으로 확인합니다."
+        title="테이블 주문 현황"
+        description="테이블별 주문, 결제, 고객 기억 연결 상태를 먼저 확인하고 바로 처리합니다."
         actions={
           <Link className="btn-primary" to={buildStorePath(currentStore.slug, 'order')}>
             공개 주문 화면 보기
@@ -175,19 +177,24 @@ export function TableOrderAdminPage() {
         </div>
 
         <div className="space-y-8">
-          <Panel title="테이블 라이브 보드" subtitle="주문, 결제, 고객 기억이 테이블 기준으로 어디까지 연결됐는지 확인합니다.">
+          <Panel
+            title="테이블 한눈에 보기"
+            subtitle={`진행 주문 ${totalActiveOrders}건 · 결제 대기 ${totalPendingPayments}건 · 테이블 ${liveBoardRows.length}개`}
+          >
             <div className="space-y-3">
-              {liveBoardQuery.data?.map((row) => (
+              {liveBoardRows.map((row) => (
                 <div key={row.tableId} className="rounded-3xl border border-slate-200 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-bold text-slate-900">테이블 {row.tableNo}</p>
-                        <StatusBadge status={row.activeOrderCount ? 'active' : 'pending'} />
-                        {row.latestTicketStatus ? <StatusBadge status={row.latestTicketStatus} /> : null}
+                        <StatusBadge label={row.activeOrderCount ? '주문 있음' : '빈 테이블'} status={row.activeOrderCount ? 'active' : 'inactive'} />
+                        {row.latestTicketStatus ? (
+                          <StatusBadge label={getOrderStatusLabel(row.latestTicketStatus as OrderStatus)} status={row.latestTicketStatus} />
+                        ) : null}
                       </div>
                       <p className="mt-2 text-sm text-slate-500">
-                        좌석 {row.seats}석 · 진행중 주문 {row.activeOrderCount}건 · 미결제 {row.pendingPaymentCount}건 · 결제완료 {row.paidOrderCount}건
+                        좌석 {row.seats}석 · 진행 주문 {row.activeOrderCount}건 · 결제 대기 {row.pendingPaymentCount}건 · 결제 완료 {row.paidOrderCount}건
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -206,8 +213,8 @@ export function TableOrderAdminPage() {
                         {row.tableOrders.slice(0, 3).map((order) => (
                           <div key={order.id} className="rounded-2xl bg-slate-50 p-4">
                             <div className="flex flex-wrap items-center gap-2">
-                              <StatusBadge status={order.status} />
-                              <StatusBadge status={order.payment_status} />
+                              <StatusBadge label={getOrderStatusLabel(order.status)} status={order.status} />
+                              <StatusBadge label={getPaymentStatusLabel(order.payment_status)} status={order.payment_status} />
                               <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                                 {getPaymentSourceLabel(order.payment_source)}
                               </span>
@@ -220,6 +227,7 @@ export function TableOrderAdminPage() {
                               · {formatCurrency(order.total_amount)}
                             </p>
                             <p className="mt-2 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ') || '주문 메뉴 정보 없음'}</p>
+                            <p className="mt-2 text-sm font-semibold text-orange-700">다음: {getOrderNextAction(order).label}</p>
                             <p className="mt-2 text-xs text-slate-400">{formatDateTime(order.placed_at)}</p>
                           </div>
                         ))}
@@ -272,6 +280,11 @@ export function TableOrderAdminPage() {
                   )}
                 </div>
               ))}
+              {!liveBoardQuery.isLoading && !liveBoardRows.length ? (
+                <p className="rounded-3xl bg-slate-50 p-5 text-sm text-slate-500">
+                  등록된 테이블이 없습니다. 테이블을 먼저 저장하면 QR 주문 링크와 상태 보드가 연결됩니다.
+                </p>
+              ) : null}
             </div>
           </Panel>
 

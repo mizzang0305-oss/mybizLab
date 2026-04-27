@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { getWaitingNextAction, getWaitingStatusLabel } from '@/shared/lib/merchantOperations';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { listWaitingEntries, saveWaitingEntry, updateWaitingStatus } from '@/shared/lib/services/mvpService';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
@@ -17,17 +19,12 @@ const initialForm = {
   status: 'waiting' as WaitingStatus,
 };
 
-const waitingStatusLabelMap: Record<WaitingStatus, string> = {
-  waiting: '대기중',
-  called: '호출 완료',
-  seated: '입장 완료',
-  cancelled: '취소',
-};
-
 export function WaitingPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initialForm);
+
+  usePageMeta('웨이팅 관리', '대기 고객, 예상 시간, 다음 처리를 빠르게 확인하는 점주용 웨이팅 관리 화면입니다.');
 
   const waitingQuery = useQuery({
     queryKey: queryKeys.waiting(currentStore?.id || ''),
@@ -59,8 +56,8 @@ export function WaitingPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="웨이팅 현황"
-        title="웨이팅보드"
-        description="대기 등록부터 호출, 입장 처리까지 현장 웨이팅 흐름을 한 화면에서 관리합니다."
+        title="웨이팅 관리"
+        description="대기 고객, 예상 시간, 다음 처리만 먼저 보고 호출·입장을 빠르게 처리합니다."
       />
 
       <div className="grid gap-8 xl:grid-cols-[0.75fr_1.25fr]">
@@ -90,32 +87,47 @@ export function WaitingPage() {
 
         <Panel title="웨이팅 리스트">
           <div className="space-y-3">
-            {waitingQuery.data?.map((entry) => (
-              <div key={entry.id} className="rounded-3xl border border-slate-200 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {entry.customer_name} · {entry.party_size}명
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">{entry.phone}</p>
-                    <p className="mt-1 text-sm text-slate-500">예상 대기 {entry.quoted_wait_minutes}분</p>
+            {waitingQuery.data?.map((entry) => {
+              const nextAction = getWaitingNextAction(entry.status);
+
+              return (
+                <div key={entry.id} className="rounded-3xl border border-slate-200 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        {entry.customer_name || entry.phone || '고객 정보 없음'} · {entry.party_size}명
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">{entry.phone || '전화번호 없음'}</p>
+                      <p className="mt-1 text-sm text-slate-500">예상 대기 {entry.quoted_wait_minutes}분</p>
+                      {nextAction ? <p className="mt-2 text-sm font-semibold text-orange-700">다음: {nextAction.label}</p> : null}
+                    </div>
+                    <StatusBadge label={getWaitingStatusLabel(entry.status)} status={entry.status} />
                   </div>
-                  <StatusBadge status={entry.status} />
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {nextAction?.nextStatus ? (
+                      <button
+                        className="btn-primary"
+                        disabled={updateStatusMutation.isPending}
+                        onClick={() => updateStatusMutation.mutate({ waitingId: entry.id, status: nextAction.nextStatus! })}
+                        type="button"
+                      >
+                        {nextAction.label}
+                      </button>
+                    ) : null}
+                    {entry.status !== 'seated' && entry.status !== 'cancelled' ? (
+                      <button
+                        className="btn-secondary"
+                        disabled={updateStatusMutation.isPending}
+                        onClick={() => updateStatusMutation.mutate({ waitingId: entry.id, status: 'cancelled' })}
+                        type="button"
+                      >
+                        대기 취소
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {(['waiting', 'called', 'seated', 'cancelled'] as WaitingStatus[]).map((status) => (
-                    <button
-                      key={status}
-                      className="btn-secondary"
-                      onClick={() => updateStatusMutation.mutate({ waitingId: entry.id, status })}
-                      type="button"
-                    >
-                      {waitingStatusLabelMap[status]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Panel>
       </div>
