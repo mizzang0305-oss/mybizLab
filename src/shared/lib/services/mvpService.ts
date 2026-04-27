@@ -59,18 +59,15 @@ import {
 } from '../storeData.js';
 import { buildLiveStoreSetupRequestInsertPayload } from '../setupRequestPersistence.js';
 import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '../storeSlug.js';
-import { normalizeCustomerRecord } from '../domain/customerMemory.js';
 import type {
   AIReport,
   BillingEvent,
   BillingEventStatus,
   CartItemInput,
-  ConversationMessage,
   ConversationSession,
   Contract,
   Customer,
   CustomerTimelineEvent,
-  FeatureKey,
   Inquiry,
   KitchenTicket,
   MenuCategory,
@@ -748,19 +745,6 @@ function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
   });
 }
 
-function mapLiveKitchenTicket(row: Record<string, unknown>): KitchenTicket {
-  return {
-    id: normalizeText(row.id) || `compat_ticket_${normalizeText(row.order_id)}`,
-    store_id: normalizeText(row.store_id),
-    order_id: normalizeText(row.order_id),
-    table_id: normalizeText(row.table_id) || undefined,
-    table_no: normalizeText(row.table_no) || undefined,
-    status: (normalizeText(row.status) || 'pending') as KitchenTicket['status'],
-    created_at: normalizeText(row.created_at),
-    updated_at: normalizeText(row.updated_at),
-  };
-}
-
 function mapLiveStoreTable(row: Record<string, unknown>): StoreTable {
   const tableNo = normalizeText(row.table_no);
   return {
@@ -1043,10 +1027,11 @@ async function listLiveStoreTables(storeId: string) {
 
 async function listLiveMenu(storeId: string) {
   const client = assertLiveSupabaseClient();
-  let [categoriesResult, itemsResult] = await Promise.all([
+  const [initialCategoriesResult, itemsResult] = await Promise.all([
     client.from('menu_categories').select('*').eq('store_id', storeId),
     client.from('menu_items').select('*').eq('store_id', storeId).order('name', { ascending: true }),
   ]);
+  let categoriesResult = initialCategoriesResult;
 
   if (categoriesResult.error && isSchemaCompatError(categoriesResult.error)) {
     categoriesResult = await client.from('menu_categories').select('*').eq('store_id', storeId);

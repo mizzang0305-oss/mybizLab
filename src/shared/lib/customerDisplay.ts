@@ -7,9 +7,21 @@ type CustomerDisplayInput = {
   customerId?: string;
 };
 
+export function isBrokenCustomerDisplayText(value: string | undefined | null) {
+  const normalized = value?.trim() || '';
+  if (!normalized || normalized === '고객') {
+    return true;
+  }
+
+  const compact = normalized.replace(/\s+/g, '');
+  const placeholderCount = [...compact].filter((character) => character === '?' || character === '\uFFFD').length;
+
+  return placeholderCount >= Math.max(2, Math.ceil(compact.length / 2));
+}
+
 export function getCustomerDisplayLabel(input: CustomerDisplayInput) {
   const name = input.customer?.name?.trim();
-  if (name && name !== '고객') {
+  if (name && !isBrokenCustomerDisplayText(name)) {
     return name;
   }
 
