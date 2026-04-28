@@ -4,6 +4,7 @@ import { AppFooter } from '@/shared/components/AppFooter';
 import { Icons } from '@/shared/components/Icons';
 import { PersistentDiagnosisWorldProvider } from '@/shared/components/PersistentDiagnosisWorldShell';
 import { DIAGNOSIS_CORRIDOR_LINK_STATE, isDiagnosisShellPath } from '@/shared/lib/diagnosisCorridor';
+import { ENABLE_MYBI_COMPANION } from '@/shared/lib/mybiFeatureFlag';
 import { SERVICE_TAGLINE, SITE_NAME, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const navigationLinks = [
@@ -14,8 +15,6 @@ const navigationLinks = [
   { label: '환불정책', href: '/refund' },
 ] as const;
 
-const ENABLE_PUBLIC_MYBI_COMPANION = false;
-
 export function PublicLayout() {
   const location = useLocation();
   const isLandingPage = location.pathname === '/';
@@ -23,7 +22,8 @@ export function PublicLayout() {
   const isPublicCinematicSurface = isDiagnosisShell;
   const hasMybiCompanion =
     !location.pathname.startsWith('/login') &&
-    (!isPublicCinematicSurface || ENABLE_PUBLIC_MYBI_COMPANION);
+    ENABLE_MYBI_COMPANION &&
+    !isPublicCinematicSurface;
 
   return (
     <PersistentDiagnosisWorldProvider active={hasMybiCompanion} pathname={location.pathname}>

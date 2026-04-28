@@ -167,6 +167,7 @@ function ProductStoryFlow() {
     <section
       className="relative overflow-hidden bg-[#02050a] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10 lg:py-24"
       data-product-story-flow="connected-panels"
+      id="services"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_32%,rgba(251,146,60,0.12),transparent_24%),radial-gradient(circle_at_78%_50%,rgba(96,165,250,0.14),transparent_28%),linear-gradient(180deg,#02050a_0%,#07101d_52%,#02050a_100%)]" />
       <div className="pointer-events-none absolute left-[10%] right-[10%] top-1/2 hidden h-px bg-gradient-to-r from-transparent via-orange-300/70 to-transparent md:block" />
@@ -369,20 +370,36 @@ export function LandingPage() {
         <div className="pointer-events-none absolute inset-x-[-10%] bottom-[8%] h-40 rotate-[-6deg] bg-[linear-gradient(90deg,transparent,rgba(96,165,250,0.2),rgba(251,146,60,0.28),transparent)] blur-sm" />
 
         <div className="relative z-40 mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-[96rem] flex-col">
-          <header className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.035] px-4 py-3 backdrop-blur-xl">
+          <header className="relative z-50 flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.035] px-4 py-3 backdrop-blur-xl">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 font-display text-xl font-black text-white shadow-[0_0_28px_rgba(251,146,60,0.42)]">
                 M
               </div>
               <p className="font-display text-xl font-black tracking-[-0.04em] text-white">MyBiz</p>
             </div>
-            <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-300 lg:flex" aria-label="주요 메뉴">
+            <nav
+              aria-label="주요 메뉴"
+              className="hidden items-center gap-5 text-sm font-semibold text-slate-300 lg:flex xl:gap-7"
+              data-homepage-nav="primary"
+            >
               <a className="transition hover:text-white" href="#services">서비스</a>
               <a className="transition hover:text-white" href="#features">기능</a>
               <Link className="transition hover:text-white" to="/pricing">요금제</Link>
-              <a className="transition hover:text-white" href="#story">고객 사례</a>
+              <a className="transition hover:text-white" href="#cases">고객 사례</a>
+              <a className="transition hover:text-white" href="#resources">리소스</a>
+              <button
+                className="transition hover:text-white"
+                data-demo-trigger="homepage-nav"
+                onClick={() => setDemoOpen(true)}
+                type="button"
+              >
+                데모 보기
+              </button>
             </nav>
             <div className="flex items-center gap-2">
+              <Link className="hidden rounded-2xl border border-white/12 px-4 py-2 text-sm font-bold text-slate-100 transition hover:bg-white/[0.08] xl:inline-flex" to="/dashboard">
+                개발자 대시보드
+              </Link>
               <Link className="hidden rounded-2xl border border-white/12 px-4 py-2 text-sm font-bold text-slate-100 transition hover:bg-white/[0.08] sm:inline-flex" to="/login">
                 점주 로그인
               </Link>
@@ -391,7 +408,7 @@ export function LandingPage() {
                 state={DIAGNOSIS_CORRIDOR_LINK_STATE}
                 to={SUBSCRIPTION_START_PATH}
               >
-                시작하기
+                공개 스토어 시작하기
               </Link>
             </div>
           </header>
@@ -470,7 +487,10 @@ export function LandingPage() {
       <div className="bg-[#f6f2ea] text-slate-900">
         <ProductStoryFlow />
 
-        <section className="relative overflow-hidden bg-[#02050a] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10 lg:py-24">
+        <section
+          className="relative overflow-hidden bg-[#02050a] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10 lg:py-24"
+          id="story"
+        >
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
             <div className="lg:sticky lg:top-24">
               <p className="text-[11px] font-bold tracking-[0.24em] text-orange-300">실시간 진단 월드</p>
@@ -528,7 +548,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-10">
+        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-10" id="features">
           <div className="text-center">
             <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-500">핵심 기능</p>
             <h2 className="mt-3 break-keep font-display text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
@@ -557,6 +577,55 @@ export function LandingPage() {
                 </div>
               );
             })}
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-10" id="cases">
+          <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr] lg:items-end">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-500">고객 사례</p>
+              <h2 className="mt-3 break-keep font-display text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+                매장별 고객 기억이 운영 액션으로 이어지는 흐름
+              </h2>
+              <p className="mt-4 break-keep text-base leading-7 text-slate-500">
+                공개 스토어, 문의, 예약, 웨이팅, 주문이 흩어지지 않고 고객별 맥락으로 쌓일 때 점주는 다음 행동을 더 빨리 결정할 수 있습니다.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                ['카페', '웨이팅 문의가 단골 고객 기억으로 연결'],
+                ['예약 매장', '예약 사유와 방문 이력이 함께 정리'],
+                ['테이블 주문', 'QR 주문이 고객 선호 메뉴 힌트로 축적'],
+              ].map(([title, body]) => (
+                <article key={title} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.24)]">
+                  <p className="text-xs font-black text-orange-600">{title}</p>
+                  <p className="mt-3 break-keep text-sm font-semibold leading-6 text-slate-700">{body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-10" id="resources">
+          <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_22px_55px_-40px_rgba(15,23,42,0.35)] sm:p-8">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">리소스</p>
+                <h2 className="mt-3 break-keep font-display text-3xl font-black tracking-tight text-slate-900">
+                  시작 전에 확인할 수 있는 핵심 안내
+                </h2>
+                <p className="mt-3 max-w-2xl break-keep text-sm leading-7 text-slate-600 sm:text-base">
+                  플랜, 공개 스토어 진단, 로그인 경로를 한 번에 확인할 수 있게 정리했습니다.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link className="btn-secondary" to="/pricing">요금제 보기</Link>
+                <Link className="btn-secondary" to="/login">점주 로그인</Link>
+                <Link className="btn-primary" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
+                  공개 스토어 시작
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
 
