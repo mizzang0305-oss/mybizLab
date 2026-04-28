@@ -159,6 +159,14 @@ describe('public diagnosis surfaces', () => {
     expectNoMybiCompanion(html);
   });
 
+  it('routes the FREE pricing CTA to onboarding instead of paid checkout', () => {
+    const html = renderRoute('/pricing');
+
+    expect(html).toContain('href="/onboarding?plan=free"');
+    expect(html).toContain('FREE 시작');
+    expect(html).not.toContain('data-plan="free" disabled');
+  });
+
   it('keeps public store/form routes reachable without mounting MYBI', () => {
     const publicStoreHtml = renderRoute('/mybiz-live-cafe');
     const inquiryHtml = renderRoute('/s/20d95f47-bae6-43a2-a9c9-a190be176747/inquiry');

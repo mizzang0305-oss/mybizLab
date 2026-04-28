@@ -269,17 +269,23 @@ export function PricingPage() {
                 </ul>
 
                 <div className="mt-8 space-y-3">
-                  <button
-                    className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
-                    data-plan={planCode}
-                    disabled={isDisabled}
-                    onClick={() => {
-                      void handleCheckout(planCode);
-                    }}
-                    type="button"
-                  >
-                    {isBusy ? '결제창 준비 중...' : plan.name === 'FREE' ? 'FREE 시작' : '구독 결제'}
-                  </button>
+                  {planCode === 'free' ? (
+                    <Link className="btn-primary w-full justify-center" data-plan={planCode} to="/onboarding?plan=free">
+                      FREE 시작
+                    </Link>
+                  ) : (
+                    <button
+                      className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
+                      data-plan={planCode}
+                      disabled={isDisabled}
+                      onClick={() => {
+                        void handleCheckout(planCode);
+                      }}
+                      type="button"
+                    >
+                      {isBusy ? '결제창 준비 중...' : '구독 결제'}
+                    </button>
+                  )}
                   <p className="text-xs leading-6 text-slate-500">
                     {plan.name === 'FREE'
                       ? 'FREE는 공개 유입과 기본 진단을 중심으로 시작하는 플랜입니다.'
