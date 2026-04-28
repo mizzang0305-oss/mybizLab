@@ -70,7 +70,7 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
     return {
       companionMode: 'hero',
       contextSummary: '공개 유입이 들어오면 문의, 예약, 웨이팅, 주문 같은 채널을 따라 고객 기억 축이 형성됩니다.',
-      layoutMode: 'hero',
+      layoutMode: 'floating',
       meaning: '지금 보이는 월드는 MyBiz의 공개 유입, 고객 기억, AI 운영 제안 구조를 한 화면으로 보여주는 메인 엔진입니다.',
       memoryNote: '방문 이력, 문의 내용, 예약 상태, 주문 흐름이 고객 타임라인으로 쌓이고 AI는 그 위에서 요약, 분류, 추천, 리포트를 만듭니다.',
       nextAction: '무료 진단을 시작하면 같은 세계가 MYBI 동반자 모드로 이어지면서 현재 단계에 맞게 반응합니다.',
@@ -79,8 +79,8 @@ export function buildSceneFallback(pathname: string): MybiSceneState {
       routeLabel: '랜딩 히어로',
       selectedHighlights: ['공개 유입', '고객 기억 축', 'AI 운영 제안'],
       stepIndex: 0,
-      stepLabel: '01 스토어 / 공개 유입',
-      title: 'MYBI 히어로',
+      stepLabel: '01 가게 현황 파악',
+      title: 'MYBI 동반자',
     };
   }
 
@@ -127,19 +127,19 @@ export function describeMybiStep(stepIndex: number): Partial<MybiSceneState> {
         contextSummary: '지금은 스토어와 공개 유입을 확인하는 시작 단계입니다.',
         meaning: '01단계는 스토어와 공개 유입을 점검하는 단계입니다. 무료 유입이 고객 기억 축으로 들어오는 입구를 여는 시간입니다.',
         memoryNote: '아직 고객 기억 축이 짧더라도 첫 유입 경로를 정확히 잡아야 이후 채널 분기와 운영 판단이 선명해집니다.',
-        nextAction: '스토어 맥락을 분명히 하고 inquiry, reservation, waiting, order 중 핵심 채널을 먼저 정하세요.',
-        stepLabel: '01 스토어 / 공개 유입',
-        title: '01 스토어 / 공개 유입',
+        nextAction: '스토어 맥락을 분명히 하고 문의, 예약, 웨이팅, 주문 중 핵심 채널을 먼저 정하세요.',
+        stepLabel: '01 가게 현황 파악',
+        title: '01 가게 현황 파악',
       };
     case 1:
       return {
         changedAfterInput: '문의, 예약, 웨이팅 같은 채널이 서로 다른 입력 경로로 갈라지기 시작합니다.',
         contextSummary: '지금 단계에서는 각 입력 채널의 역할을 구분하는 것이 중요합니다.',
-        meaning: '02단계는 inquiry, reservation, waiting, order 신호를 수집하고 채널별 목적을 구분하는 단계입니다.',
+        meaning: '02단계는 문의, 예약, 웨이팅, 주문, 상담, 결제 신호를 수집하고 채널별 목적을 구분하는 단계입니다.',
         memoryNote: '같은 고객 접점이라도 채널에 따라 관심도와 긴급도가 달라지고, 그 차이가 이후 기억 결합 품질을 바꿉니다.',
         nextAction: '어떤 채널이 가장 중요한지 먼저 정리하면 다음 제안이 훨씬 정확해집니다.',
-        stepLabel: '02 신호 수집',
-        title: '02 신호 수집',
+        stepLabel: '02 고객 신호 수집',
+        title: '02 고객 신호 수집',
       };
     case 2:
       return {
@@ -168,8 +168,8 @@ export function describeMybiStep(stepIndex: number): Partial<MybiSceneState> {
         meaning: '05단계는 운영 대시보드 payoff입니다. 스토어 셸과 대시보드가 고객 기억 축 위에 정착합니다.',
         memoryNote: '이제 공개 유입, 입력 채널, 고객 타임라인, AI 운영 레이어가 하나의 시스템으로 연결됩니다.',
         nextAction: '생성된 스토어와 대시보드에서 실제 운영 루프를 시작해보세요.',
-        stepLabel: '05 운영 대시보드',
-        title: '05 운영 대시보드',
+        stepLabel: '05 운영 대시보드 생성',
+        title: '05 운영 대시보드 생성',
       };
   }
 }

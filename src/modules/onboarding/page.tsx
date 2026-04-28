@@ -1,7 +1,13 @@
 ﻿import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useReducedMotion } from 'motion/react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
+import {
+  ConnectedServicesBoard,
+  ConsultationAnalysisPanel,
+  ConsultationStoryPath,
+} from '@/shared/components/ConsultationCinematicScene';
 import { DiagnosisLoadingPanel } from '@/shared/components/DiagnosisLoadingPanel';
 import { Panel } from '@/shared/components/Panel';
 import { usePersistentDiagnosisWorldSurface } from '@/shared/components/PersistentDiagnosisWorldShell';
@@ -10,6 +16,7 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
 import { createDemoAdminSession, refreshAdminSession } from '@/shared/lib/adminSession';
 import { BILLING_PLAN_DETAILS, SUBSCRIPTION_TEST_PRODUCT, type BillingCheckoutProductCode } from '@/shared/lib/billingPlans';
+import { CONSULTATION_STORY_STEPS } from '@/shared/lib/cinematicScenes';
 import { requestStructuredDiagnosis } from '@/shared/lib/diagnosisClient';
 import {
   DIAGNOSIS_AVAILABLE_DATA_OPTIONS,
@@ -339,6 +346,7 @@ function FeatureSelectionCard({
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const storesQuery = useAccessibleStores();
@@ -347,9 +355,20 @@ export function OnboardingPage() {
   const [message, setMessage] = useState<MessageState | null>(null);
   const [billingProductCode, setBillingProductCode] = useState<BillingCheckoutProductCode | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
+  const [autoCinematicSceneIndex, setAutoCinematicSceneIndex] = useState(0);
   const redirectHandledRef = useRef(false);
 
   usePageMeta('스토어 AI 진단 신청', 'AI 진단을 통해 매장에 맞는 운영 전략과 플랜을 추천받고, 스토어를 생성하는 과정입니다.');
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const timer = window.setInterval(() => {
+      setAutoCinematicSceneIndex((current) => (current + 1) % CONSULTATION_STORY_STEPS.length);
+    }, 4_200);
+
+    return () => window.clearInterval(timer);
+  }, [prefersReducedMotion]);
 
   const existingSlugs = useMemo(() => (storesQuery.data || []).map((store) => store.slug), [storesQuery.data]);
   const existingSlugSet = useMemo(() => new Set(existingSlugs.map((slug) => normalizeStoreSlug(slug))), [existingSlugs]);
@@ -827,7 +846,6 @@ export function OnboardingPage() {
   const diagnosisValid = Boolean(flow.diagnosisInput.region.trim()) && flow.diagnosisInput.availableData.length > 0;
   const currentIndex = steps.findIndex((item) => item.key === flow.step);
   const currentRequestWizardIndex = requestWizardSteps.findIndex((item) => item.key === flow.requestWizardStep);
-  const suggestionLabels = featureLabels(flow.diagnosisResult?.recommendedModules ?? []);
   const currentPlanTitle = planCards.find((plan) => plan.code === flow.selectedPlan)?.title || 'FREE';
   const recommendedFeatureSet = useMemo(
     () => new Set(flow.diagnosisResult?.recommendedModules ?? []),
@@ -843,10 +861,13 @@ export function OnboardingPage() {
         ? 3
         : flow.step === 'payment' || flow.step === 'activation'
           ? 4
-          : diagnosisValid
-            ? 1
-            : 0;
+            : diagnosisValid
+              ? 1
+              : 0;
   const worldStep = getDiagnosisCorridorStep(worldStepIndex);
+  const cinematicSceneIndex = prefersReducedMotion
+    ? worldStepIndex
+    : (autoCinematicSceneIndex + worldStepIndex) % CONSULTATION_STORY_STEPS.length;
   const mybiCompanionMode =
     message?.tone === 'error'
       ? 'alert'
@@ -892,7 +913,7 @@ export function OnboardingPage() {
   });
 
   return (
-    <main className="relative min-h-screen bg-[#f6f2ea]" data-onboarding-layout="mybi-flow">
+    <main className="relative min-h-screen bg-[#f6f2ea] [overflow-wrap:normal] [word-break:keep-all]" data-onboarding-layout="cinematic-flow">
       <div ref={worldSurfaceRef} className="pointer-events-none absolute inset-0" aria-hidden />
 
       <div className="page-shell relative space-y-7 py-8 sm:py-10 lg:py-12">
@@ -985,15 +1006,26 @@ export function OnboardingPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-8 xl:grid-cols-[1.18fr_0.82fr]">
-        <div className="space-y-6" data-mybi-anchor="onboarding-active-flow">
+      <div
+        className="relative overflow-hidden rounded-[2.25rem] border border-slate-950/10 bg-[#02050a] p-4 text-white shadow-[0_30px_110px_-72px_rgba(15,23,42,0.92)] sm:p-5 lg:p-6"
+        data-cinematic-auto-scene={cinematicSceneIndex}
+        data-consultation-cinema-layout="layered-stage"
+        data-diagnosis-experience="cinematic"
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_12%,rgba(251,146,60,0.16),transparent_26%),radial-gradient(circle_at_84%_20%,rgba(96,165,250,0.18),transparent_30%),linear-gradient(180deg,#07101d_0%,#02050a_100%)]" />
+        <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.36fr)] xl:items-start">
+          <div className="space-y-6">
+            <ConsultationStoryPath activeIndex={cinematicSceneIndex} />
+
+            <div className="space-y-6" data-diagnosis-left-panel="consultation" data-mybi-anchor="onboarding-active-flow">
+              <ConsultationAnalysisPanel activeStoryIndex={cinematicSceneIndex} currentProgressIndex={Math.max(0, currentIndex)}>
           {flow.step === 'diagnosis' && !runDiagnosis.isPending ? (
             <Panel
               title="AI 매장 진단"
               subtitle="업종, 운영 방식, 현재 고민, 보유 데이터, 원하는 결과 — 5가지를 선택하면 AI가 맞춤 운영 전략을 분석합니다."
             >
               <div className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
                   <label>
                     <span className="field-label">지역</span>
                     <input
@@ -1036,7 +1068,7 @@ export function OnboardingPage() {
                     </div>
                     <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">필수</span>
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {DIAGNOSIS_INDUSTRY_OPTIONS.map((option) => (
                       <DiagnosisChoiceCard
                         key={option.value}
@@ -1058,7 +1090,7 @@ export function OnboardingPage() {
                       <p className="mt-1 text-sm leading-6 text-slate-500">주문 중심인지, 예약 중심인지, 아직 모르겠어도 괜찮습니다.</p>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {DIAGNOSIS_STORE_MODE_OPTIONS.map((option) => (
                       <DiagnosisChoiceCard
                         key={option.value}
@@ -1080,7 +1112,7 @@ export function OnboardingPage() {
                       <p className="mt-1 text-sm leading-6 text-slate-500">선택하신 고민을 기준으로 AI가 우선 개선 방향을 제안합니다.</p>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {DIAGNOSIS_CONCERN_OPTIONS.map((option) => (
                       <DiagnosisChoiceCard
                         key={option.value}
@@ -1126,7 +1158,7 @@ export function OnboardingPage() {
                       <p className="mt-1 text-sm leading-6 text-slate-500">목표에 따라 AI가 추천하는 기능과 전략이 달라집니다.</p>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {DIAGNOSIS_DESIRED_OUTCOME_OPTIONS.map((option) => (
                       <DiagnosisChoiceCard
                         key={option.value}
@@ -1163,7 +1195,7 @@ export function OnboardingPage() {
               title="AI 진단 결과"
               subtitle="운영 점수, 핵심 병목, 매출 개선 포인트, 즉시 실행 액션을 한 번에 확인하세요."
             >
-              <div className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
+              <div className="grid gap-4 2xl:grid-cols-[1.02fr_0.98fr]">
                 <div className="space-y-4">
                   <div className="overflow-hidden rounded-2xl bg-slate-950 text-white">
                     <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
@@ -1322,7 +1354,7 @@ export function OnboardingPage() {
               title="스토어 생성"
               subtitle="기본 정보, 운영 모드, 앱 선택, 공개 화면 설정을 단계별로 입력합니다. AI 진단 결과가 기본값으로 채워져 있습니다."
             >
-              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid gap-3 md:grid-cols-3 2xl:grid-cols-6">
                 {requestWizardSteps.map((step, index) => {
                   const done = index < currentRequestWizardIndex;
                   const current = index === currentRequestWizardIndex;
@@ -1481,7 +1513,7 @@ export function OnboardingPage() {
 
               {flow.requestWizardStep === 'storeMode' ? (
                 <div className="mt-6 space-y-5">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
                     {storeModeWizardOptions.map((option) => (
                       <DiagnosisChoiceCard
                         key={option.value}
@@ -1499,7 +1531,7 @@ export function OnboardingPage() {
 
               {flow.requestWizardStep === 'dataMode' ? (
                 <div className="mt-6 space-y-5">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {STORE_SETUP_DATA_MODE_OPTIONS.map((option) => (
                       <DiagnosisChoiceCard
                         key={option.value}
@@ -1532,7 +1564,7 @@ export function OnboardingPage() {
                       </button>
                     ) : null}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {featureDefinitions.map((feature) => (
                       <FeatureSelectionCard
                         key={feature.key}
@@ -1844,116 +1876,13 @@ export function OnboardingPage() {
               ) : null}
             </Panel>
           ) : null}
-        </div>
-
-        <div className="space-y-5" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
-
-          {/* AI 상태 카드 */}
-          <div className="section-card bg-white p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
-                  <span className="text-sm">🤖</span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-500">MyBiz AI</p>
-                  <p className="text-[11px] text-slate-400">{worldStep.number} {worldStep.label}</p>
-                </div>
-              </div>
-              <span className={[
-                'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase',
-                mybiCompanionMode === 'thinking' ? 'bg-violet-100 text-violet-700' :
-                mybiCompanionMode === 'listening' ? 'bg-blue-100 text-blue-700' :
-                mybiCompanionMode === 'alert' ? 'bg-red-100 text-red-700' :
-                'bg-slate-100 text-slate-600',
-              ].join(' ')}>
-                {mybiCompanionMode === 'thinking' ? '분석 중' :
-                 mybiCompanionMode === 'listening' ? '입력 대기' :
-                 mybiCompanionMode === 'alert' ? '오류' : '안내 중'}
-              </span>
-            </div>
-            <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3">
-              <p className="text-sm leading-6 text-slate-600">{worldStep.supportLine}</p>
+              </ConsultationAnalysisPanel>
             </div>
           </div>
 
-          {/* 진단 요약 */}
-          <Panel title="진단 요약" subtitle="현재까지 입력한 정보를 확인하세요.">
-            <div className="space-y-3">
-              <div className="rounded-2xl bg-slate-950 p-4 text-white">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-300">추천 플랜</p>
-                <p className="mt-1.5 font-display text-2xl font-black">{currentPlanTitle}</p>
-                <p className="mt-1.5 text-xs leading-5 text-slate-400">
-                  {flow.diagnosisResult ? 'AI 진단 기준 최적 플랜' : '진단 완료 후 자동 추천'}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">입력 현황</p>
-                <div className="mt-3 space-y-2">
-                  {[
-                    { label: '업종', value: selectedIndustryLabel },
-                    { label: '지역', value: flow.diagnosisInput.region || '미입력' },
-                    { label: '고민', value: selectedConcernLabel },
-                    { label: '목표', value: selectedDesiredOutcomeLabel },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="flex items-center gap-2 text-sm">
-                      <span className="w-10 shrink-0 text-[11px] font-semibold text-slate-400">{label}</span>
-                      <span className="truncate text-slate-700">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {flow.diagnosisResult && !runDiagnosis.isPending ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">AI 분석 요약</p>
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${analysisToneClasses(flow.diagnosisResult.analysisSource)}`}>
-                      {diagnosisSourceLabel(flow.diagnosisResult.analysisSource)}
-                    </span>
-                  </div>
-                  <p className="mt-2.5 text-sm leading-6 text-slate-600">{flow.diagnosisResult.reportSummary}</p>
-                </div>
-              ) : null}
-
-              {flow.requestDraft.storeName ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">스토어 정보</p>
-                  <div className="mt-3 space-y-1.5 text-sm text-slate-700">
-                    <div className="flex gap-2"><span className="w-12 shrink-0 text-slate-400">이름</span><span className="font-medium">{flow.requestDraft.storeName}</span></div>
-                    <div className="flex gap-2"><span className="w-12 shrink-0 text-slate-400">주소</span><span className="font-mono text-xs text-slate-600">/{slugPreview}</span></div>
-                    <div className="flex gap-2"><span className="w-12 shrink-0 text-slate-400">운영</span><span>{getRecommendedStoreModeLabel(flow.requestDraft.storeMode)}</span></div>
-                  </div>
-                </div>
-              ) : null}
-
-              {suggestionLabels.length && !runDiagnosis.isPending ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">AI 추천 기능</p>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {suggestionLabels.map((item) => (
-                      <span key={item} className="rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </Panel>
-
-          {/* 다음 단계 안내 */}
-          <Panel title="다음 단계" subtitle="현재 단계에서 이어질 내용을 안내합니다.">
-            <div className="rounded-xl bg-slate-50 px-4 py-3.5 text-sm leading-7 text-slate-600">
-              {flow.step === 'diagnosis' && !runDiagnosis.isPending && <p>5가지 질문을 모두 선택하고 <strong>AI 진단 결과 보기</strong>를 누르세요.</p>}
-              {flow.step === 'diagnosis' && runDiagnosis.isPending && <p>AI가 입력값을 분석 중입니다. 잠시만 기다려주세요.</p>}
-              {flow.step === 'result' && <p>결과 확인 후 <strong>다음 단계로 계속</strong>을 누르면 스토어 생성 단계로 이동합니다.</p>}
-              {flow.step === 'request' && <p>모든 단계를 완료하고 <strong>요청 제출</strong>을 누르면 결제 단계로 이동합니다.</p>}
-              {flow.step === 'payment' && <p>플랜을 선택해 결제 요청을 진행하세요. 실제 활성 플랜은 store_subscriptions 반영 후에만 확정됩니다.</p>}
-              {flow.step === 'activation' && <p>대시보드로 이동하여 매장 운영을 시작하세요.</p>}
-            </div>
-          </Panel>
+          <div className="xl:sticky xl:top-8 xl:self-start" data-mybi-avoid>
+            <ConnectedServicesBoard activeStepIndex={cinematicSceneIndex} />
+          </div>
         </div>
       </div>
       </div>
