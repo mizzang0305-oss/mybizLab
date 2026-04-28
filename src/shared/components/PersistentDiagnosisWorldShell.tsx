@@ -472,12 +472,7 @@ export function PersistentDiagnosisWorldProvider({
 
   const tone = getMybiModeTone(resolvedScene.companionMode);
   const shouldMountWorld = active && (resolvedScene.layoutMode === 'hero' || panelOpen);
-  const allowShellDrift =
-    resolvedScene.layoutMode === 'floating' &&
-    !isDragging &&
-    !panelOpen &&
-    !hovered &&
-    !prefersReducedMotion;
+  const allowShellDrift = false;
   const allowInnerBreathing =
     resolvedScene.layoutMode !== 'hero' &&
     !panelOpen &&

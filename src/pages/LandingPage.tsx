@@ -1,8 +1,11 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { CinematicServiceWorld } from '@/shared/components/CinematicServiceWorld';
 import { Icons } from '@/shared/components/Icons';
 import { usePersistentDiagnosisWorldSurface } from '@/shared/components/PersistentDiagnosisWorldShell';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { CINEMATIC_SCENES } from '@/shared/lib/cinematicScenes';
 import { DIAGNOSIS_CORRIDOR_LINK_STATE } from '@/shared/lib/diagnosisCorridor';
 import { PRICING_PLANS, SERVICE_DESCRIPTION, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
@@ -65,11 +68,13 @@ const STEPS = [
 
 export function LandingPage() {
   usePageMeta(META_TITLE, META_DESCRIPTION);
+  const [activeSceneIndex, setActiveSceneIndex] = useState(0);
+  const sceneRefs = useRef<Array<HTMLElement | null>>([]);
 
   const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
     companionMode: 'hero',
     contextSummary: '문의, 예약, 웨이팅, 주문이 같은 고객 기억 축으로 들어와 AI 운영 제안으로 이어집니다.',
-    layoutMode: 'hero',
+    layoutMode: 'floating',
     meaning: 'MyBiz는 소상공인 매장의 고객 입력 채널을 하나의 고객 기억 구조로 연결하는 시스템입니다.',
     memoryNote: '고객 타임라인이 쌓여야 반복 방문, 객단가, 후속 응대가 모두 더 정확해집니다.',
     nextAction: '무료 진단을 시작하고 현재 매장의 고객 입력 구조를 먼저 확인해보세요.',
@@ -78,15 +83,50 @@ export function LandingPage() {
     routeLabel: '메인',
     selectedHighlights: ['공개 유입', '고객 기억 축', 'AI 운영 제안'],
     stepIndex: 0,
-    stepLabel: '01 스토어 확인',
-    title: 'MYBI 히어로',
+    stepLabel: '01 가게 현황 파악',
+    title: 'MYBI 동반자',
   });
 
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntry = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (!visibleEntry) return;
+        const nextIndex = Number((visibleEntry.target as HTMLElement).dataset.cinematicSceneIndex || '0');
+        setActiveSceneIndex(nextIndex);
+      },
+      { rootMargin: '-28% 0px -42%', threshold: [0.24, 0.42, 0.64] },
+    );
+
+    sceneRefs.current.forEach((element) => {
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const activeScene = CINEMATIC_SCENES[activeSceneIndex];
+
   return (
-    <main className="relative overflow-hidden bg-[#02050a] text-white" data-landing-mode="hero-engine">
+    <main
+      className="relative overflow-hidden bg-[#02050a] text-white"
+      data-cinematic-home="true"
+      data-cinematic-scene={activeScene.id}
+      data-landing-mode="hero-engine"
+    >
       <section className="relative min-h-screen overflow-hidden" data-mybi-anchor="landing-hero">
         <div ref={worldSurfaceRef} aria-hidden className="absolute inset-0" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(125,211,252,0.08),transparent_22%),radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.08),transparent_18%),linear-gradient(180deg,rgba(2,5,10,0.08)_0%,rgba(2,5,10,0.14)_48%,rgba(2,5,10,0.76)_100%)]" />
+        <div className="pointer-events-none absolute bottom-10 right-4 z-30 hidden w-[min(46vw,40rem)] lg:block xl:right-10">
+          <CinematicServiceWorld compact stepIndex={activeSceneIndex} />
+        </div>
 
         <div className="pointer-events-none relative z-40 flex min-h-screen flex-col justify-between px-5 py-5 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
           <div className="pointer-events-auto flex items-center gap-3">
@@ -95,24 +135,25 @@ export function LandingPage() {
             </div>
             <div>
               <p className="font-display text-xl font-black tracking-[-0.04em] text-white">MyBiz</p>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">customer-memory revenue system</p>
+              <p className="text-[11px] font-semibold tracking-[0.22em] text-slate-400">고객 기억 기반 매출 시스템</p>
             </div>
           </div>
 
-          <div className="pointer-events-auto max-w-[40rem] space-y-7 pb-4 sm:pb-10 lg:pb-14">
+          <div className="pointer-events-auto max-w-[42rem] space-y-7 pb-4 sm:pb-10 lg:pb-14">
             <div className="space-y-4">
               <span className="inline-block rounded-full border border-orange-400/30 bg-orange-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-orange-400">
                 고객 기억을 매출로 바꾸는 운영 시스템
               </span>
-              <h1 className="break-keep font-display text-[2.8rem] font-black leading-[0.92] tracking-[-0.06em] text-white sm:text-[4.2rem]">
-                공개 유입부터
+              <h1
+                aria-label="고객을 기억하는 AI 디지털 점장"
+                className="break-keep font-display text-[2.8rem] font-black leading-[0.92] tracking-[-0.06em] text-white sm:text-[4.2rem]"
+              >
+                고객을 기억하는
                 <br />
-                고객 기억까지
-                <br />
-                한 흐름으로 운영합니다
+                AI 디지털 점장
               </h1>
               <p className="max-w-[32rem] break-keep text-base leading-8 text-slate-300">
-                MyBiz는 문의, 예약, 웨이팅, 주문을 하나의 고객 타임라인으로 연결하고 AI가 다음 운영 액션을 제안하는 고객-메모리 매출 시스템입니다.
+                MyBiz는 문의·예약·웨이팅·주문·상담·결제를 고객 기억 축으로 연결해 재방문과 객단가를 높이는 AI 운영 시스템입니다.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -121,21 +162,87 @@ export function LandingPage() {
                 state={DIAGNOSIS_CORRIDOR_LINK_STATE}
                 to={SUBSCRIPTION_START_PATH}
               >
-                공개 스토어 진단 생성
+                공개 스토어 진단 시작
               </Link>
               <Link
                 className="rounded-full border border-white/20 bg-white/[0.06] px-6 py-4 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/[0.12]"
-                to="/pricing"
+                to="/golden-coffee"
               >
-                요금제 보기
+                데모 보기
+              </Link>
+              <Link
+                className="rounded-full border border-white/20 bg-white/[0.04] px-6 py-4 text-sm font-bold text-white/90 backdrop-blur-sm transition hover:bg-white/[0.1]"
+                to="/login"
+              >
+                점주 로그인
               </Link>
             </div>
-            <p className="text-xs text-slate-500">가치 제안은 고객 기억과 매출 개선에 있고, 인프라는 신뢰 레이어로 뒤에서 받칩니다.</p>
+            <p className="text-xs leading-6 text-slate-500">
+              온프레미스·보안 구조는 신뢰를 받치는 레이어입니다. 첫 가치는 고객 기억이 매출 행동으로 바뀌는 데 있습니다.
+            </p>
           </div>
         </div>
       </section>
 
       <div className="bg-[#f6f2ea] text-slate-900">
+        <section className="relative overflow-hidden bg-[#02050a] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10 lg:py-24">
+          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
+            <div className="lg:sticky lg:top-24">
+              <p className="text-[11px] font-bold tracking-[0.24em] text-orange-300">실시간 진단 월드</p>
+              <h2 className="mt-4 break-keep font-display text-3xl font-black leading-tight tracking-[-0.04em] sm:text-4xl">
+                스크롤하면 같은 세계가
+                <br />
+                고객 기억 시스템으로 변합니다
+              </h2>
+              <p className="mt-4 max-w-xl break-keep text-sm leading-7 text-slate-300">
+                정적인 소개 카드가 아니라, 가게 현황 → 고객 신호 → 고객 기억 → 실행안 → 운영 대시보드가 하나의 월드 안에서 이어지도록 구성했습니다.
+              </p>
+              <div className="mt-8 space-y-3">
+                {CINEMATIC_SCENES.map((scene, index) => (
+                  <button
+                    key={scene.id}
+                    className={[
+                      'w-full rounded-3xl border px-5 py-4 text-left transition',
+                      index === activeSceneIndex
+                        ? 'border-orange-300/44 bg-orange-300/[0.12] text-white shadow-[0_22px_70px_-46px_rgba(251,146,60,0.9)]'
+                        : 'border-white/10 bg-white/[0.035] text-slate-300 hover:border-white/18 hover:bg-white/[0.06]',
+                    ].join(' ')}
+                    data-cinematic-scene-index={index}
+                    onClick={() => setActiveSceneIndex(index)}
+                    onFocus={() => setActiveSceneIndex(index)}
+                    onMouseEnter={() => setActiveSceneIndex(index)}
+                    type="button"
+                  >
+                    <span className="text-[11px] font-bold tracking-[0.22em] text-orange-300">
+                      {scene.number} {scene.label}
+                    </span>
+                    <span className="mt-2 block break-keep text-sm font-semibold leading-6">{scene.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="lg:sticky lg:top-20">
+              <CinematicServiceWorld stepIndex={activeSceneIndex} />
+            </div>
+          </div>
+          <div className="mx-auto mt-10 grid max-w-7xl gap-4 md:grid-cols-5">
+            {CINEMATIC_SCENES.map((scene, index) => (
+              <article
+                key={`scroll-${scene.id}`}
+                ref={(element) => {
+                  sceneRefs.current[index] = element;
+                }}
+                className="min-h-36 rounded-3xl border border-white/10 bg-white/[0.035] p-5 text-white/90"
+                data-cinematic-scene-index={index}
+              >
+                <p className="text-xs font-bold text-orange-300">{scene.number}</p>
+                <h3 className="mt-2 break-keep text-base font-bold">{scene.label}</h3>
+                <p className="mt-2 break-keep text-sm leading-6 text-slate-400">{scene.actionCaption}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-10">
           <div className="text-center">
             <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-500">운영 흐름</p>

@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState, type MutableRefOb
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 import DiagnosisCinemaStage from '@/shared/components/DiagnosisCinemaStage';
+import { getCinematicScene } from '@/shared/lib/cinematicScenes';
 import {
   DIAGNOSIS_AUTOPLAY_INTRO_VEIL_MS,
   DIAGNOSIS_CORRIDOR_LAST_INDEX,
@@ -85,6 +86,7 @@ export function DiagnosisCinemaShell({
 
   const activeStep = getDiagnosisCorridorStep(currentStepIndex);
   const sceneState = getDiagnosisSceneState(currentStepIndex);
+  const cinematicScene = getCinematicScene(currentStepIndex);
   const isFinalStep = isDiagnosisCorridorFinalStep(currentStepIndex);
   const isFrozen = isFinalStep && isFinalCtaVisible;
 
@@ -141,6 +143,7 @@ export function DiagnosisCinemaShell({
       data-diagnosis-interaction="manual"
       data-diagnosis-morphing={isMorphing}
       data-diagnosis-shell="cinema"
+      data-diagnosis-stage-label={cinematicScene.label}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(129,140,248,0.12),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(96,165,250,0.08),transparent_22%),radial-gradient(circle_at_84%_24%,rgba(255,255,255,0.07),transparent_18%),linear-gradient(180deg,#02050a_0%,#030711_52%,#02050a_100%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,5,10,0)_0%,rgba(2,5,10,0.18)_35%,rgba(2,5,10,0.84)_100%)]" />
@@ -168,7 +171,7 @@ export function DiagnosisCinemaShell({
               initial={{ opacity: 0, y: 8 }}
               transition={{ duration: 0.28, delay: 0.08, ease: 'easeOut' }}
             >
-              MyBiz Crystal Network
+              MYBI 고객 기억 월드
             </motion.p>
           </motion.div>
         ) : null}
@@ -259,6 +262,13 @@ export function DiagnosisCinemaShell({
                 ))}
               </h1>
               <p className="mt-3 max-w-[26ch] break-keep text-sm leading-6 text-slate-300">{activeStep.supportLine}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {cinematicScene.activeChannels.map((channel) => (
+                  <span key={channel} className="rounded-full border border-white/12 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-slate-200">
+                    {channel}
+                  </span>
+                ))}
+              </div>
             </motion.div>
           </AnimatePresence>
 

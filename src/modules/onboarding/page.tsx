@@ -2,6 +2,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { CinematicServiceWorld } from '@/shared/components/CinematicServiceWorld';
 import { DiagnosisLoadingPanel } from '@/shared/components/DiagnosisLoadingPanel';
 import { Panel } from '@/shared/components/Panel';
 import { usePersistentDiagnosisWorldSurface } from '@/shared/components/PersistentDiagnosisWorldShell';
@@ -26,6 +27,7 @@ import {
   type DiagnosisAvailableDataKey,
 } from '@/shared/lib/diagnosisBlueprint';
 import { persistDiagnosisSession } from '@/shared/lib/diagnosisSessions';
+import { CINEMATIC_SCENES, getCinematicSceneForDiagnosisStep } from '@/shared/lib/cinematicScenes';
 import { getDiagnosisCorridorStep } from '@/shared/lib/diagnosisCorridor';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
 import {
@@ -843,10 +845,11 @@ export function OnboardingPage() {
         ? 3
         : flow.step === 'payment' || flow.step === 'activation'
           ? 4
-          : diagnosisValid
-            ? 1
-            : 0;
+            : diagnosisValid
+              ? 1
+              : 0;
   const worldStep = getDiagnosisCorridorStep(worldStepIndex);
+  const cinematicScene = getCinematicSceneForDiagnosisStep(flow.step, diagnosisValid || Boolean(flow.diagnosisResult));
   const mybiCompanionMode =
     message?.tone === 'error'
       ? 'alert'
@@ -985,8 +988,8 @@ export function OnboardingPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-8 xl:grid-cols-[1.18fr_0.82fr]">
-        <div className="space-y-6" data-mybi-anchor="onboarding-active-flow">
+      <div className="grid gap-8 xl:grid-cols-[1.12fr_0.88fr]" data-diagnosis-experience="cinematic">
+        <div className="space-y-6" data-diagnosis-left-panel="consultation" data-mybi-anchor="onboarding-active-flow">
           {flow.step === 'diagnosis' && !runDiagnosis.isPending ? (
             <Panel
               title="AI 매장 진단"
@@ -1846,7 +1849,33 @@ export function OnboardingPage() {
           ) : null}
         </div>
 
-        <div className="space-y-5" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
+        <aside className="space-y-5 xl:sticky xl:top-8" data-diagnosis-world-panel="sticky" data-mybi-anchor="onboarding-sidebar" data-mybi-avoid>
+          <CinematicServiceWorld compact stepIndex={worldStepIndex} />
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.4)]">
+            <p className="text-[11px] font-bold tracking-[0.22em] text-orange-500">현재 장면</p>
+            <h2 className="mt-2 break-keep text-lg font-black text-slate-950">{cinematicScene.label}</h2>
+            <p className="mt-2 break-keep text-sm leading-6 text-slate-500">{cinematicScene.description}</p>
+            <div className="mt-4 grid grid-cols-5 gap-1.5" aria-label="진단 장면 순서">
+              {CINEMATIC_SCENES.map((scene) => (
+                <span
+                  key={scene.id}
+                  className={[
+                    'rounded-full px-2 py-1 text-center text-[10px] font-bold',
+                    cinematicScene.id === scene.id ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-500',
+                  ].join(' ')}
+                >
+                  {scene.label}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {cinematicScene.activeChannels.map((channel) => (
+                <span key={channel} className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700">
+                  {channel}
+                </span>
+              ))}
+            </div>
+          </div>
 
           {/* AI 상태 카드 */}
           <div className="section-card bg-white p-5">
@@ -1954,7 +1983,7 @@ export function OnboardingPage() {
               {flow.step === 'activation' && <p>대시보드로 이동하여 매장 운영을 시작하세요.</p>}
             </div>
           </Panel>
-        </div>
+        </aside>
       </div>
       </div>
     </main>

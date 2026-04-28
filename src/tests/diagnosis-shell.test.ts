@@ -26,19 +26,19 @@ function renderShell({ startCompleted = false }: { startCompleted?: boolean } = 
 describe('diagnosis cinema manual shell', () => {
   it('uses the new five-step synced world sequence', () => {
     expect(DIAGNOSIS_CORRIDOR_STEPS.map((step) => `${step.number} ${step.label}`)).toEqual([
-      '01 스토어 확인',
-      '02 신호 수집',
+      '01 가게 현황 파악',
+      '02 고객 신호 수집',
       '03 고객 기억 결합',
       '04 실행안 도출',
-      '05 운영 대시보드',
+      '05 운영 대시보드 생성',
     ]);
 
     expect(DIAGNOSIS_CORRIDOR_STEPS.map((step) => step.headlineLines)).toEqual([
-      ['스토어의 바깥을', '첫 번째 신호로', '불러옵니다'],
-      ['문의와 예약, 웨이팅이', '세 갈래 신호로', '갈라집니다'],
-      ['흩어지던 반응이', '고객 기억 코어로', '강하게 모입니다'],
-      ['실행해야 할 액션이', '광선처럼 뽑혀 나와', '선명해집니다'],
-      ['스토어 쉘이 결정되고', '대시보드가 옆에 자리 잡으며', '운영 세계가 완성됩니다'],
+      ['우리 가게의 현재 신호를', 'AI가 먼저 읽고', '운영 지도를 엽니다'],
+      ['문의·예약·웨이팅·주문·상담·결제가', '고객 신호로 흐르며', '한 장면 안에 모입니다'],
+      ['흩어진 행동이', '고객 기억 코어로', '결합됩니다'],
+      ['기억 위에서', '오늘 실행할 액션이', '선명하게 추출됩니다'],
+      ['스토어와 대시보드가', '운영 루프로 정착하고', '다음 매출 행동을 보여줍니다'],
     ]);
   });
 

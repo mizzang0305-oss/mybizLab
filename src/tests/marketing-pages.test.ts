@@ -28,8 +28,17 @@ describe('public diagnosis surfaces', () => {
     const html = renderRoute('/');
 
     expect(html).toContain('data-landing-mode="hero-engine"');
+    expect(html).toContain('data-cinematic-home="true"');
+    expect(html).toContain('data-cinematic-world="service-memory"');
+    expect(html).toContain('고객을 기억하는 AI 디지털 점장');
+    expect(html).toContain('공개 스토어 진단 시작');
+    expect(html).toContain('데모 보기');
+    expect(html).toContain('점주 로그인');
+    expect(html).toContain('문의·예약·웨이팅·주문·상담·결제');
     expect(html).toContain('data-mybi-shell="active"');
-    expect(html).toContain('title="MYBI neural companion"');
+    expect(html).toContain('data-mybi-trigger="orb-handle"');
+    expect(html).toContain('data-mybi-world="standby"');
+    expect(html).not.toContain('title="MYBI neural companion"');
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
   });
 
@@ -42,12 +51,17 @@ describe('public diagnosis surfaces', () => {
 
     expect(html).toContain('data-public-shell-theme="diagnosis"');
     expect(html).toContain('data-onboarding-layout="mybi-flow"');
+    expect(html).toContain('data-diagnosis-experience="cinematic"');
+    expect(html).toContain('data-diagnosis-left-panel="consultation"');
+    expect(html).toContain('data-diagnosis-world-panel="sticky"');
+    expect(html).toContain('data-cinematic-world="service-memory"');
+    expect(html).toContain('가게 현황 파악');
+    expect(html).toContain('고객 신호 수집');
     expect(html).toContain('data-mybi-shell="active"');
     expect(html).toContain('data-mybi-trigger="orb-handle"');
     expect(html).toContain('data-mybi-anchor="onboarding-active-flow"');
     expect(html).toContain('data-mybi-world="standby"');
     expect(html).not.toContain('title="MYBI neural companion"');
-    expect(html).not.toContain('data-diagnosis-world-panel="sticky"');
   });
 
   it('keeps pricing reachable while preserving MYBI', () => {
