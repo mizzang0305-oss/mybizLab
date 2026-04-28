@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 
 import { appRoutes } from '@/app/router';
+import { DemoPreviewModal } from '@/pages/LandingPage';
 
 function renderRoute(pathname: string) {
   const queryClient = new QueryClient({
@@ -21,6 +22,22 @@ function renderRoute(pathname: string) {
   return renderToStaticMarkup(
     createElement(QueryClientProvider, { client: queryClient }, createElement(RouterProvider, { router })),
   );
+}
+
+function renderWithRouter(element: React.ReactElement) {
+  const router = createMemoryRouter(
+    [
+      {
+        element,
+        path: '/',
+      },
+    ],
+    {
+      initialEntries: ['/'],
+    },
+  );
+
+  return renderToStaticMarkup(createElement(RouterProvider, { router }));
 }
 
 describe('public diagnosis surfaces', () => {
@@ -48,14 +65,15 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('공개 스토어 / 고객 접점');
     expect(html).toContain('점주 운영 대시보드');
     expect(html).toContain('고객 기억 / 반복 매출 엔진');
-    expect(html).toContain('data-mybi-shell="active"');
-    expect(html).toContain('data-mybi-trigger="orb-handle"');
-    expect(html).toContain('data-mybi-world="standby"');
+    expect(html).toContain('data-demo-trigger="homepage"');
+    expect(html).not.toContain('data-mybi-shell="active"');
+    expect(html).not.toContain('data-mybi-trigger="orb-handle"');
+    expect(html).not.toContain('data-mybi-world="standby"');
     expect(html).not.toContain('title="MYBI neural companion"');
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
   });
 
-  it('mounts /onboarding with the floating MYBI layout', () => {
+  it('mounts /onboarding as a readable layered cinematic stage without MYBI', () => {
     let html = '';
 
     expect(() => {
@@ -63,9 +81,9 @@ describe('public diagnosis surfaces', () => {
     }).not.toThrow();
 
     expect(html).toContain('data-public-shell-theme="diagnosis"');
-    expect(html).toContain('data-onboarding-layout="mybi-flow"');
+    expect(html).toContain('data-onboarding-layout="cinematic-flow"');
     expect(html).toContain('data-diagnosis-experience="cinematic"');
-    expect(html).toContain('data-consultation-cinema-layout="three-zone"');
+    expect(html).toContain('data-consultation-cinema-layout="layered-stage"');
     expect(html).toContain('data-diagnosis-left-panel="consultation"');
     expect(html).toContain('data-consultation-panel="analysis"');
     expect(html).toContain('data-consultation-story-path="center"');
@@ -84,11 +102,30 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('연결된 서비스 9개');
     expect(html).toContain('데이터 파이프라인 정상');
     expect(html).toContain('보안 상태 안전');
-    expect(html).toContain('data-mybi-shell="active"');
-    expect(html).toContain('data-mybi-trigger="orb-handle"');
+    expect(html).toContain('data-cinematic-auto-scene="');
+    expect(html).not.toContain('data-mybi-shell="active"');
+    expect(html).not.toContain('data-mybi-trigger="orb-handle"');
     expect(html).toContain('data-mybi-anchor="onboarding-active-flow"');
-    expect(html).toContain('data-mybi-world="standby"');
+    expect(html).not.toContain('data-mybi-world="standby"');
     expect(html).not.toContain('title="MYBI neural companion"');
+  });
+
+  it('renders the homepage demo preview when the demo trigger opens it', () => {
+    const html = renderWithRouter(
+      createElement(DemoPreviewModal, {
+        onClose: () => undefined,
+        open: true,
+      }),
+    );
+
+    expect(html).toContain('data-demo-modal="homepage"');
+    expect(html).toContain('MyBiz 데모 보기');
+    expect(html).toContain('공개 스토어 보기');
+    expect(html).toContain('점주 화면 미리보기');
+    expect(html).toContain('AI 상담 데모');
+    expect(html).toContain('닫기');
+    expect(html).not.toContain('Pending');
+    expect(html).not.toContain('Unknown');
   });
 
   it('keeps pricing reachable while preserving MYBI', () => {

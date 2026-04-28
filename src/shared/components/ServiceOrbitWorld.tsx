@@ -32,7 +32,7 @@ export function ServiceOrbitWorld({
   return (
     <div
       className={[
-        'relative isolate min-h-[35rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[#030712] text-white shadow-[0_34px_120px_-60px_rgba(15,23,42,0.94)]',
+        'relative isolate min-h-[28rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[#030712] text-white shadow-[0_34px_120px_-60px_rgba(15,23,42,0.94)] [overflow-wrap:normal] [word-break:keep-all] sm:min-h-[35rem]',
         className,
       ].join(' ')}
       data-reduced-motion={prefersReducedMotion ? 'true' : 'false'}
@@ -156,7 +156,7 @@ export function ServiceOrbitWorld({
               scale: active ? 1.06 : 1,
               y: prefersReducedMotion ? 0 : [0, index % 2 === 0 ? -4 : 4, 0],
             }}
-            className="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/14 bg-[#07101d]/78 px-3.5 py-2.5 text-left text-xs font-bold text-white shadow-[0_18px_50px_-34px_rgba(0,0,0,0.9)] backdrop-blur-xl transition hover:border-[var(--node-color)] focus:outline-none focus:ring-2 focus:ring-orange-300/70"
+            className="absolute z-10 min-w-max -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/14 bg-[#07101d]/78 px-3.5 py-2.5 text-left text-xs font-bold text-white shadow-[0_18px_50px_-34px_rgba(0,0,0,0.9)] backdrop-blur-xl transition hover:border-[var(--node-color)] focus:outline-none focus:ring-2 focus:ring-orange-300/70"
             data-service-orbit-node={node.label}
             onBlur={() => setHoveredLabel(null)}
             onFocus={() => setHoveredLabel(node.label)}
@@ -169,7 +169,7 @@ export function ServiceOrbitWorld({
             }}
             type="button"
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 whitespace-nowrap">
               <span className="h-2 w-2 rounded-full bg-[var(--node-color)] shadow-[0_0_16px_var(--node-color)]" />
               {node.label}
             </span>

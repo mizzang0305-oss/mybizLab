@@ -1,5 +1,6 @@
 ﻿import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useReducedMotion } from 'motion/react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import {
@@ -15,6 +16,7 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
 import { createDemoAdminSession, refreshAdminSession } from '@/shared/lib/adminSession';
 import { BILLING_PLAN_DETAILS, SUBSCRIPTION_TEST_PRODUCT, type BillingCheckoutProductCode } from '@/shared/lib/billingPlans';
+import { CONSULTATION_STORY_STEPS } from '@/shared/lib/cinematicScenes';
 import { requestStructuredDiagnosis } from '@/shared/lib/diagnosisClient';
 import {
   DIAGNOSIS_AVAILABLE_DATA_OPTIONS,
@@ -344,6 +346,7 @@ function FeatureSelectionCard({
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const storesQuery = useAccessibleStores();
@@ -352,9 +355,20 @@ export function OnboardingPage() {
   const [message, setMessage] = useState<MessageState | null>(null);
   const [billingProductCode, setBillingProductCode] = useState<BillingCheckoutProductCode | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
+  const [autoCinematicSceneIndex, setAutoCinematicSceneIndex] = useState(0);
   const redirectHandledRef = useRef(false);
 
   usePageMeta('스토어 AI 진단 신청', 'AI 진단을 통해 매장에 맞는 운영 전략과 플랜을 추천받고, 스토어를 생성하는 과정입니다.');
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const timer = window.setInterval(() => {
+      setAutoCinematicSceneIndex((current) => (current + 1) % CONSULTATION_STORY_STEPS.length);
+    }, 4_200);
+
+    return () => window.clearInterval(timer);
+  }, [prefersReducedMotion]);
 
   const existingSlugs = useMemo(() => (storesQuery.data || []).map((store) => store.slug), [storesQuery.data]);
   const existingSlugSet = useMemo(() => new Set(existingSlugs.map((slug) => normalizeStoreSlug(slug))), [existingSlugs]);
@@ -851,6 +865,9 @@ export function OnboardingPage() {
               ? 1
               : 0;
   const worldStep = getDiagnosisCorridorStep(worldStepIndex);
+  const cinematicSceneIndex = prefersReducedMotion
+    ? worldStepIndex
+    : (autoCinematicSceneIndex + worldStepIndex) % CONSULTATION_STORY_STEPS.length;
   const mybiCompanionMode =
     message?.tone === 'error'
       ? 'alert'
@@ -896,7 +913,7 @@ export function OnboardingPage() {
   });
 
   return (
-    <main className="relative min-h-screen bg-[#f6f2ea]" data-onboarding-layout="mybi-flow">
+    <main className="relative min-h-screen bg-[#f6f2ea] [overflow-wrap:normal] [word-break:keep-all]" data-onboarding-layout="cinematic-flow">
       <div ref={worldSurfaceRef} className="pointer-events-none absolute inset-0" aria-hidden />
 
       <div className="page-shell relative space-y-7 py-8 sm:py-10 lg:py-12">
@@ -990,12 +1007,18 @@ export function OnboardingPage() {
       ) : null}
 
       <div
-        className="grid gap-5 xl:grid-cols-[minmax(29rem,0.98fr)_minmax(21rem,0.76fr)_minmax(22rem,0.8fr)]"
-        data-consultation-cinema-layout="three-zone"
+        className="relative overflow-hidden rounded-[2.25rem] border border-slate-950/10 bg-[#02050a] p-4 text-white shadow-[0_30px_110px_-72px_rgba(15,23,42,0.92)] sm:p-5 lg:p-6"
+        data-cinematic-auto-scene={cinematicSceneIndex}
+        data-consultation-cinema-layout="layered-stage"
         data-diagnosis-experience="cinematic"
       >
-        <div className="space-y-6" data-diagnosis-left-panel="consultation" data-mybi-anchor="onboarding-active-flow">
-          <ConsultationAnalysisPanel currentProgressIndex={Math.max(0, currentIndex)}>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_12%,rgba(251,146,60,0.16),transparent_26%),radial-gradient(circle_at_84%_20%,rgba(96,165,250,0.18),transparent_30%),linear-gradient(180deg,#07101d_0%,#02050a_100%)]" />
+        <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.36fr)] xl:items-start">
+          <div className="space-y-6">
+            <ConsultationStoryPath activeIndex={cinematicSceneIndex} />
+
+            <div className="space-y-6" data-diagnosis-left-panel="consultation" data-mybi-anchor="onboarding-active-flow">
+              <ConsultationAnalysisPanel activeStoryIndex={cinematicSceneIndex} currentProgressIndex={Math.max(0, currentIndex)}>
           {flow.step === 'diagnosis' && !runDiagnosis.isPending ? (
             <Panel
               title="AI 매장 진단"
@@ -1853,14 +1876,14 @@ export function OnboardingPage() {
               ) : null}
             </Panel>
           ) : null}
-          </ConsultationAnalysisPanel>
-        </div>
+              </ConsultationAnalysisPanel>
+            </div>
+          </div>
 
-        <div className="xl:sticky xl:top-8 xl:self-start" data-mybi-avoid>
-          <ConsultationStoryPath activeIndex={worldStepIndex} />
+          <div className="xl:sticky xl:top-8 xl:self-start" data-mybi-avoid>
+            <ConnectedServicesBoard activeStepIndex={cinematicSceneIndex} />
+          </div>
         </div>
-
-        <ConnectedServicesBoard activeStepIndex={worldStepIndex} />
       </div>
       </div>
     </main>

@@ -36,17 +36,20 @@ const toneClasses: Record<'blue' | 'green' | 'orange' | 'purple', { dot: string;
 };
 
 export function ConsultationAnalysisPanel({
+  activeStoryIndex = 0,
   children,
   currentProgressIndex,
 }: {
+  activeStoryIndex?: number;
   children: ReactNode;
   currentProgressIndex: number;
 }) {
   const reducedMotion = useReducedMotion() ?? false;
+  const activeMetricIndex = activeStoryIndex % 3;
 
   return (
     <section
-      className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#050b14] p-4 text-white shadow-[0_24px_90px_-58px_rgba(15,23,42,0.95)] sm:p-5"
+      className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#050b14]/96 p-4 text-white shadow-[0_24px_90px_-58px_rgba(15,23,42,0.95)] [overflow-wrap:normal] [word-break:keep-all] sm:p-5"
       data-consultation-panel="analysis"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_8%,rgba(251,146,60,0.16),transparent_24%),radial-gradient(circle_at_90%_12%,rgba(96,165,250,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_34%)]" />
@@ -63,12 +66,17 @@ export function ConsultationAnalysisPanel({
 
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4" aria-label="상담 진행 상황">
           <p className="text-xs font-bold text-slate-300">상담 진행 상황</p>
-          <div className="mt-4 grid grid-cols-5 gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             {CONSULTATION_PROGRESS_LABELS.map((label, index) => {
               const active = index <= currentProgressIndex;
               return (
-                <div key={label} className="min-w-0">
-                  <div className="flex items-center gap-1.5">
+                <div
+                  key={label}
+                  className={[
+                    'flex min-w-[8.5rem] flex-1 items-center gap-2 rounded-2xl border px-3 py-2',
+                    active ? 'border-orange-300/32 bg-orange-300/[0.12]' : 'border-white/10 bg-white/[0.035]',
+                  ].join(' ')}
+                >
                     <span
                       className={[
                         'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-black',
@@ -77,11 +85,7 @@ export function ConsultationAnalysisPanel({
                     >
                       {index + 1}
                     </span>
-                    {index < CONSULTATION_PROGRESS_LABELS.length - 1 ? (
-                      <span className={active ? 'h-px flex-1 bg-orange-300/46' : 'h-px flex-1 bg-white/10'} />
-                    ) : null}
-                  </div>
-                  <p className={['mt-2 break-keep text-[10px] font-semibold leading-4', active ? 'text-slate-100' : 'text-slate-500'].join(' ')}>
+                  <p className={['whitespace-nowrap text-[11px] font-semibold', active ? 'text-slate-100' : 'text-slate-500'].join(' ')}>
                     {label}
                   </p>
                 </div>
@@ -125,13 +129,19 @@ export function ConsultationAnalysisPanel({
               실시간 분석 중
             </span>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             {[
               ['고객 유입', '+12.4%', 'text-sky-100'],
               ['재방문율', '-18.7%', 'text-orange-200'],
               ['객단가', '+8.3%', 'text-emerald-200'],
-            ].map(([label, value, color]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            ].map(([label, value, color], index) => (
+              <div
+                key={label}
+                className={[
+                  'rounded-2xl border p-3 transition',
+                  index === activeMetricIndex ? 'border-orange-300/34 bg-orange-300/[0.1]' : 'border-white/10 bg-white/[0.04]',
+                ].join(' ')}
+              >
                 <p className="text-[11px] font-semibold text-slate-400">{label}</p>
                 <p className={`mt-1 font-display text-2xl font-black ${color}`}>{value}</p>
               </div>
@@ -150,7 +160,7 @@ export function ConsultationAnalysisPanel({
 
         <div className="space-y-3">
           <p className="text-xs font-bold text-slate-300">추천 액션</p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3">
             {['웨이팅 최적화', '단골 혜택 캠페인', '메뉴 추천 고도화'].map((action) => (
               <button
                 key={action}
@@ -196,21 +206,32 @@ export function ConsultationAnalysisPanel({
 
 export function ConsultationStoryPath({ activeIndex = 1 }: { activeIndex?: number }) {
   const reducedMotion = useReducedMotion() ?? false;
+  const safeActiveIndex = Math.abs(activeIndex) % CONSULTATION_STORY_STEPS.length;
+  const activeStep = CONSULTATION_STORY_STEPS[safeActiveIndex];
+  const activeTone = toneClasses[activeStep.tone];
 
   return (
     <section
-      className="relative min-h-[46rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[#02050a] p-5 text-white shadow-[0_24px_90px_-58px_rgba(15,23,42,0.95)]"
+      className="relative min-h-[23rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[#02050a] p-5 text-white shadow-[0_24px_90px_-58px_rgba(15,23,42,0.95)] [overflow-wrap:normal] [word-break:keep-all] sm:p-6"
+      data-active-story-label={activeStep.label}
       data-consultation-story-path="center"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_54%_8%,rgba(96,165,250,0.18),transparent_22%),radial-gradient(circle_at_42%_52%,rgba(251,146,60,0.16),transparent_27%),linear-gradient(180deg,#03101e_0%,#02050a_100%)]" />
+      <motion.div
+        animate={{
+          opacity: reducedMotion ? 0.9 : [0.72, 0.96, 0.82],
+          scale: reducedMotion ? 1 : [1, 1.025, 1],
+        }}
+        className="absolute inset-0 bg-[radial-gradient(circle_at_54%_8%,rgba(96,165,250,0.18),transparent_22%),radial-gradient(circle_at_42%_52%,rgba(251,146,60,0.16),transparent_27%),linear-gradient(180deg,#03101e_0%,#02050a_100%)]"
+        transition={{ duration: 4.2, ease: 'easeInOut', repeat: reducedMotion ? 0 : Number.POSITIVE_INFINITY }}
+      />
       <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(115deg,rgba(96,165,250,0.08),transparent_32%,rgba(251,146,60,0.1)_50%,transparent_72%)]" />
-      <svg aria-hidden className="absolute inset-0 h-full w-full" fill="none" viewBox="0 0 100 140">
+      <svg aria-hidden className="absolute inset-0 h-full w-full" fill="none" viewBox="0 0 100 100">
         <motion.path
           animate={{ pathLength: reducedMotion ? 1 : [0.76, 1, 0.86] }}
-          d="M50 6 C18 26, 80 38, 48 56 C18 76, 82 86, 50 104 C28 118, 56 130, 50 136"
+          d="M8 72 C24 30, 46 22, 50 50 C58 76, 78 76, 92 30"
           stroke="url(#consultation-story-glow)"
           strokeLinecap="round"
-          strokeWidth="1.1"
+          strokeWidth="1.2"
           transition={{ duration: 6, ease: 'easeInOut', repeat: reducedMotion ? 0 : Number.POSITIVE_INFINITY }}
         />
         <defs>
@@ -222,36 +243,66 @@ export function ConsultationStoryPath({ activeIndex = 1 }: { activeIndex?: numbe
         </defs>
       </svg>
 
-      <div className="relative z-10">
+      <div className="relative z-10 max-w-2xl">
         <p className="text-[11px] font-black tracking-[0.22em] text-orange-300">고객 기억 스토리</p>
         <h2 className="mt-3 break-keep font-display text-2xl font-black leading-tight tracking-[-0.04em]">
           고객 행동이 운영 개선과 매출 인사이트로 흐릅니다
         </h2>
       </div>
 
-      <div className="relative z-10 mt-8 space-y-5">
+      <div className="relative z-10 mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.72fr)] lg:items-center">
+        <div className="flex min-h-44 items-center justify-center">
+          <motion.div
+            animate={{
+              boxShadow: reducedMotion
+                ? '0 0 70px rgba(251,146,60,0.34)'
+                : ['0 0 54px rgba(96,165,250,0.26)', '0 0 104px rgba(251,146,60,0.46)', '0 0 66px rgba(167,139,250,0.32)'],
+              scale: reducedMotion ? 1 : [1, 1.045, 1],
+            }}
+            className="relative flex h-44 w-44 items-center justify-center rounded-full border border-white/14 bg-white/[0.045] text-center backdrop-blur-xl"
+            transition={{ duration: 3.8, ease: 'easeInOut', repeat: reducedMotion ? 0 : Number.POSITIVE_INFINITY }}
+          >
+            <span className={['absolute inset-5 rounded-full border border-white/12', activeTone.glow].join(' ')} />
+            <div className="relative px-5">
+              <p className="text-[11px] font-black tracking-[0.2em] text-orange-300">SCENE 0{safeActiveIndex + 1}</p>
+              <h3 className="mt-2 break-keep text-xl font-black text-white">{activeStep.label}</h3>
+            </div>
+          </motion.div>
+        </div>
+
+        <motion.article
+          key={activeStep.label}
+          animate={{ opacity: 1, y: 0 }}
+          className={['rounded-[1.75rem] border p-5 backdrop-blur-xl', activeTone.panel].join(' ')}
+          initial={{ opacity: 0, y: reducedMotion ? 0 : 10 }}
+          transition={{ duration: reducedMotion ? 0.12 : 0.42, ease: 'easeOut' }}
+        >
+          <p className="text-[11px] font-black tracking-[0.22em] text-orange-200">현재 분석 장면</p>
+          <h3 className={['mt-3 break-keep text-2xl font-black', activeTone.text].join(' ')}>{activeStep.label}</h3>
+          <p className="mt-3 break-keep text-sm leading-7 text-slate-200">{activeStep.caption}</p>
+        </motion.article>
+      </div>
+
+      <div className="relative z-10 mt-6 flex flex-wrap gap-2">
         {CONSULTATION_STORY_STEPS.map((step, index) => {
-          const active = index <= activeIndex + 1;
+          const active = index === safeActiveIndex;
           const tone = toneClasses[step.tone];
           return (
-            <motion.article
+            <motion.div
               key={step.label}
-              animate={{ opacity: active ? 1 : 0.46, x: reducedMotion ? 0 : index % 2 === 0 ? [0, 4, 0] : [0, -4, 0] }}
+              animate={{ opacity: active ? 1 : 0.64, y: reducedMotion || !active ? 0 : [0, -3, 0] }}
               className={[
-                'relative flex gap-3 rounded-3xl border p-4 backdrop-blur-xl',
-                tone.panel,
-                active ? 'shadow-[0_18px_60px_-44px_rgba(251,146,60,0.75)]' : '',
+                'flex min-w-max items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold backdrop-blur-xl',
+                active ? tone.panel : 'border-white/10 bg-white/[0.035] text-slate-400',
               ].join(' ')}
-              transition={{ duration: reducedMotion ? 0.16 : 4.6 + index * 0.12, repeat: reducedMotion ? 0 : Number.POSITIVE_INFINITY }}
+              transition={{ duration: reducedMotion ? 0.16 : 3.8, repeat: reducedMotion ? 0 : Number.POSITIVE_INFINITY }}
             >
-              <span className={['mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black text-slate-950', tone.dot, active ? tone.glow : ''].join(' ')}>
+              <span className={['h-2 w-2 rounded-full', active ? tone.dot : 'bg-white/20'].join(' ')} />
+              <span className="whitespace-nowrap">
                 {index + 1}
               </span>
-              <div>
-                <h3 className={['text-base font-black', tone.text].join(' ')}>{step.label}</h3>
-                <p className="mt-1 break-keep text-sm leading-6 text-slate-300">{step.caption}</p>
-              </div>
-            </motion.article>
+              <span className="whitespace-nowrap">{step.label}</span>
+            </motion.div>
           );
         })}
       </div>
@@ -262,7 +313,7 @@ export function ConsultationStoryPath({ activeIndex = 1 }: { activeIndex?: numbe
 export function ConnectedServicesBoard({ activeStepIndex = 1 }: { activeStepIndex?: number }) {
   return (
     <aside
-      className="space-y-4 rounded-[2rem] border border-white/10 bg-[#050b14] p-4 text-white shadow-[0_24px_90px_-58px_rgba(15,23,42,0.95)]"
+      className="space-y-4 rounded-[2rem] border border-white/10 bg-[#050b14]/96 p-4 text-white shadow-[0_24px_90px_-58px_rgba(15,23,42,0.95)] [overflow-wrap:normal] [word-break:keep-all]"
       data-connected-services-board="right"
       data-mybi-avoid
     >
@@ -277,9 +328,9 @@ export function ConnectedServicesBoard({ activeStepIndex = 1 }: { activeStepInde
         </span>
       </div>
 
-      <CinematicServiceWorld className="min-h-[20rem]" compact stepIndex={activeStepIndex} />
+      <CinematicServiceWorld className="min-h-[18rem]" compact stepIndex={activeStepIndex} />
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
         {CONNECTED_SERVICE_CARDS.map((card, index) => {
           const tone = toneClasses[card.tone];
           const active = index % 4 === activeStepIndex % 4 || card.title === '고객 기억';
@@ -293,8 +344,8 @@ export function ConnectedServicesBoard({ activeStepIndex = 1 }: { activeStepInde
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-black text-white">{card.title}</h3>
-                  <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">{card.metric}</p>
+                  <h3 className="break-keep text-sm font-black text-white">{card.title}</h3>
+                  <p className="mt-2 break-keep text-xl font-black tracking-[-0.04em] text-white sm:text-2xl">{card.metric}</p>
                 </div>
                 <span className={['mt-1 h-2.5 w-2.5 rounded-full', tone.dot].join(' ')} />
               </div>

@@ -14,11 +14,16 @@ const navigationLinks = [
   { label: '환불정책', href: '/refund' },
 ] as const;
 
+const ENABLE_PUBLIC_MYBI_COMPANION = false;
+
 export function PublicLayout() {
   const location = useLocation();
   const isLandingPage = location.pathname === '/';
   const isDiagnosisShell = isDiagnosisShellPath(location.pathname);
-  const hasMybiCompanion = !location.pathname.startsWith('/login');
+  const isPublicCinematicSurface = isDiagnosisShell;
+  const hasMybiCompanion =
+    !location.pathname.startsWith('/login') &&
+    (!isPublicCinematicSurface || ENABLE_PUBLIC_MYBI_COMPANION);
 
   return (
     <PersistentDiagnosisWorldProvider active={hasMybiCompanion} pathname={location.pathname}>

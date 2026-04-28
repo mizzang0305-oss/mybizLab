@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Link } from 'react-router-dom';
 
 import { CinematicServiceWorld } from '@/shared/components/CinematicServiceWorld';
@@ -66,6 +67,100 @@ const FEATURES: Feature[] = [
 ];
 
 const TRUST_CHIPS = ['20,000+ 사장님이 선택', '99.9% 안정적 서비스', '24/7 AI 운영 지원'] as const;
+const HERO_FOCUS_SEQUENCE: HomepageServiceNodeLabel[][] = [
+  ['공개 스토어', '문의'],
+  ['예약', '웨이팅'],
+  ['QR 주문', '결제'],
+  ['고객 기억', '점주 운영 화면'],
+];
+
+const DEMO_PREVIEW_ITEMS = [
+  {
+    body: '고객이 메뉴와 매장 정보를 보고 문의·예약·웨이팅·QR 주문을 시작하는 첫 화면입니다.',
+    cta: '공개 스토어 보기',
+    title: '공개 스토어',
+    to: '/mybiz-live-cafe',
+  },
+  {
+    body: '점주가 오늘 예약, 웨이팅, 주문, 고객 기억 상태를 한눈에 확인하는 운영 화면입니다.',
+    cta: '점주 화면 미리보기',
+    title: '점주 운영 대시보드',
+    to: '/login',
+  },
+  {
+    body: 'AI가 가게 현황을 읽고 재방문, 웨이팅, 메뉴 구성 액션을 제안하는 상담 흐름입니다.',
+    cta: 'AI 상담 데모',
+    title: 'AI 상담 화면',
+    to: SUBSCRIPTION_START_PATH,
+  },
+] as const;
+
+export function DemoPreviewModal({ onClose, open }: { onClose: () => void; open: boolean }) {
+  if (!open) return null;
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#02050a]/86 px-4 py-6 text-white backdrop-blur-2xl"
+      data-demo-modal="homepage"
+      role="dialog"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(251,146,60,0.22),transparent_28%),radial-gradient(circle_at_78%_18%,rgba(96,165,250,0.2),transparent_30%)]" />
+      <motion.div
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/12 bg-[#06101d]/94 p-5 shadow-[0_40px_140px_-64px_rgba(0,0,0,0.95)] sm:p-7"
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        transition={{ duration: 0.24, ease: 'easeOut' }}
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-[11px] font-black tracking-[0.24em] text-orange-300">LIVE PREVIEW</p>
+            <h2 className="mt-2 break-keep font-display text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+              MyBiz 데모 보기
+            </h2>
+            <p className="mt-3 max-w-2xl break-keep text-sm leading-7 text-slate-300">
+              공개 스토어에서 고객 신호가 들어오고, 점주 화면과 고객 기억으로 이어지는 흐름을 짧게 확인해 보세요.
+            </p>
+          </div>
+          <button
+            className="self-start rounded-2xl border border-white/14 bg-white/[0.06] px-4 py-2 text-sm font-bold text-slate-100 transition hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-orange-300/70"
+            onClick={onClose}
+            type="button"
+          >
+            닫기
+          </button>
+        </div>
+
+        <div className="mt-7 grid gap-4 md:grid-cols-3">
+          {DEMO_PREVIEW_ITEMS.map((item, index) => (
+            <article
+              key={item.title}
+              className="rounded-[1.5rem] border border-white/12 bg-white/[0.055] p-5 shadow-[0_24px_80px_-58px_rgba(0,0,0,0.95)]"
+            >
+              <p className="text-[11px] font-black tracking-[0.18em] text-orange-300">0{index + 1}</p>
+              <h3 className="mt-3 break-keep text-lg font-black text-white">{item.title}</h3>
+              <p className="mt-2 break-keep text-sm leading-6 text-slate-300">{item.body}</p>
+              <Link
+                className="mt-5 inline-flex rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-black text-white transition hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/70"
+                onClick={onClose}
+                state={item.to === SUBSCRIPTION_START_PATH ? DIAGNOSIS_CORRIDOR_LINK_STATE : undefined}
+                to={item.to}
+              >
+                {item.cta}
+              </Link>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-6 rounded-[1.5rem] border border-emerald-300/18 bg-emerald-300/[0.08] p-4">
+          <p className="break-keep text-sm font-bold leading-6 text-emerald-100">
+            데모는 실제 결제나 실매장 데이터를 변경하지 않는 미리보기입니다.
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 function ProductStoryFlow() {
   return (
@@ -188,8 +283,11 @@ function ProductStoryFlow() {
 
 export function LandingPage() {
   usePageMeta(META_TITLE, META_DESCRIPTION);
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
-  const [heroFocus, setHeroFocus] = useState<HomepageServiceNodeLabel[]>(['고객 기억']);
+  const [autoHeroIndex, setAutoHeroIndex] = useState(0);
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [heroFocus, setHeroFocus] = useState<HomepageServiceNodeLabel[] | null>(null);
   const sceneRefs = useRef<Array<HTMLElement | null>>([]);
 
   const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
@@ -207,6 +305,27 @@ export function LandingPage() {
     stepLabel: '01 가게 현황 파악',
     title: 'MYBI 동반자',
   });
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const timer = window.setInterval(() => {
+      setAutoHeroIndex((current) => (current + 1) % HERO_FOCUS_SEQUENCE.length);
+    }, 3_800);
+
+    return () => window.clearInterval(timer);
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    if (!demoOpen || typeof window === 'undefined') return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDemoOpen(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [demoOpen]);
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') {
@@ -234,10 +353,12 @@ export function LandingPage() {
   }, []);
 
   const activeScene = CINEMATIC_SCENES[activeSceneIndex];
+  const activeHeroFocus = heroFocus ?? HERO_FOCUS_SEQUENCE[autoHeroIndex];
 
   return (
     <main
-      className="relative overflow-hidden bg-[#02050a] text-white"
+      className="relative overflow-hidden bg-[#02050a] text-white [overflow-wrap:normal] [word-break:keep-all]"
+      data-auto-hero-scene={autoHeroIndex}
       data-cinematic-home="true"
       data-cinematic-scene={activeScene.id}
       data-landing-mode="hero-engine"
@@ -297,31 +418,33 @@ export function LandingPage() {
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <Link
                   className="rounded-2xl bg-orange-500 px-7 py-4 text-base font-black text-white shadow-[0_28px_90px_-42px_rgba(251,146,60,0.86)] transition hover:-translate-y-0.5 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/70"
-                  onBlur={() => setHeroFocus(['고객 기억'])}
+                  onBlur={() => setHeroFocus(null)}
                   onFocus={() => setHeroFocus(['공개 스토어', '문의', '예약', '웨이팅', 'QR 주문'])}
                   onMouseEnter={() => setHeroFocus(['공개 스토어', '문의', '예약', '웨이팅', 'QR 주문'])}
-                  onMouseLeave={() => setHeroFocus(['고객 기억'])}
+                  onMouseLeave={() => setHeroFocus(null)}
                   state={DIAGNOSIS_CORRIDOR_LINK_STATE}
                   to={SUBSCRIPTION_START_PATH}
                 >
                   공개 스토어 시작하기
                 </Link>
-                <Link
+                <button
                   className="rounded-2xl border border-white/18 bg-white/[0.055] px-6 py-4 text-sm font-bold text-white backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-sky-300/60"
-                  onBlur={() => setHeroFocus(['고객 기억'])}
+                  data-demo-trigger="homepage"
+                  onBlur={() => setHeroFocus(null)}
+                  onClick={() => setDemoOpen(true)}
                   onFocus={() => setHeroFocus(['점주 운영 화면', '고객 기억'])}
                   onMouseEnter={() => setHeroFocus(['점주 운영 화면', '고객 기억'])}
-                  onMouseLeave={() => setHeroFocus(['고객 기억'])}
-                  to="/golden-coffee"
+                  onMouseLeave={() => setHeroFocus(null)}
+                  type="button"
                 >
                   데모 보기
-                </Link>
+                </button>
                 <Link
                   className="rounded-2xl border border-white/18 bg-white/[0.035] px-6 py-4 text-sm font-bold text-white/90 backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-slate-300/60"
-                  onBlur={() => setHeroFocus(['고객 기억'])}
+                  onBlur={() => setHeroFocus(null)}
                   onFocus={() => setHeroFocus(['점주 운영 화면'])}
                   onMouseEnter={() => setHeroFocus(['점주 운영 화면'])}
-                  onMouseLeave={() => setHeroFocus(['고객 기억'])}
+                  onMouseLeave={() => setHeroFocus(null)}
                   to="/login"
                 >
                   점주 로그인
@@ -337,10 +460,12 @@ export function LandingPage() {
               </div>
             </div>
 
-            <ServiceOrbitWorld highlightLabels={heroFocus} />
+            <ServiceOrbitWorld highlightLabels={activeHeroFocus} />
           </div>
         </div>
       </section>
+
+      <DemoPreviewModal onClose={() => setDemoOpen(false)} open={demoOpen} />
 
       <div className="bg-[#f6f2ea] text-slate-900">
         <ProductStoryFlow />

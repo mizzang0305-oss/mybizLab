@@ -49,7 +49,7 @@ export function CinematicServiceWorld({
   return (
     <div
       className={[
-        'relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#02050a] text-white shadow-[0_30px_120px_-62px_rgba(15,23,42,0.95)]',
+        'relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#02050a] text-white shadow-[0_30px_120px_-62px_rgba(15,23,42,0.95)] [overflow-wrap:normal] [word-break:keep-all]',
         compact ? 'min-h-[28rem]' : 'min-h-[34rem]',
         className,
       ].join(' ')}
@@ -136,13 +136,15 @@ export function CinematicServiceWorld({
                 y: reducedMotion ? 0 : [0, index % 2 === 0 ? -5 : 5, 0],
               }}
               className={[
-                'absolute -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-3 py-2 text-xs font-bold backdrop-blur-xl',
+                'absolute min-w-max -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-3 py-2 text-xs font-bold backdrop-blur-xl',
                 active ? 'border-white/18 bg-white/[0.09] text-white' : 'border-white/8 bg-white/[0.035] text-slate-500',
               ].join(' ')}
               style={position}
               transition={{ duration: reducedMotion ? 0.18 : 5.4 + index * 0.18, ease: 'easeInOut', repeat: reducedMotion ? 0 : Number.POSITIVE_INFINITY }}
             >
+              <span className="whitespace-nowrap">
               {label}
+              </span>
             </motion.div>
           );
         })}
@@ -209,7 +211,7 @@ export function CinematicServiceWorld({
           </h3>
         </div>
         <span className="rounded-full border border-white/12 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-slate-200 backdrop-blur">
-          MYBI 반응 중
+          운영 신호 분석
         </span>
       </div>
 
