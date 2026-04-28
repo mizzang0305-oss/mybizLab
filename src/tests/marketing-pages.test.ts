@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 
 import { appRoutes } from '@/app/router';
 import { DemoPreviewModal } from '@/pages/LandingPage';
+import { PersistentDiagnosisWorldProvider } from '@/shared/components/PersistentDiagnosisWorldShell';
 
 function renderRoute(pathname: string) {
   const queryClient = new QueryClient({
@@ -40,6 +41,14 @@ function renderWithRouter(element: React.ReactElement) {
   return renderToStaticMarkup(createElement(RouterProvider, { router }));
 }
 
+function expectNoMybiCompanion(html: string) {
+  expect(html).not.toContain('data-mybi-shell="active"');
+  expect(html).not.toContain('data-mybi-trigger="orb-handle"');
+  expect(html).not.toContain('data-mybi-world="standby"');
+  expect(html).not.toContain('data-mybi-panel="open"');
+  expect(html).not.toContain('title="MYBI neural companion"');
+}
+
 describe('public diagnosis surfaces', () => {
   it('renders the landing page as a fullscreen hero-world entry', () => {
     const html = renderRoute('/');
@@ -66,11 +75,27 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('점주 운영 대시보드');
     expect(html).toContain('고객 기억 / 반복 매출 엔진');
     expect(html).toContain('data-demo-trigger="homepage"');
-    expect(html).not.toContain('data-mybi-shell="active"');
-    expect(html).not.toContain('data-mybi-trigger="orb-handle"');
-    expect(html).not.toContain('data-mybi-world="standby"');
-    expect(html).not.toContain('title="MYBI neural companion"');
+    expectNoMybiCompanion(html);
     expect(html).not.toContain('data-diagnosis-shell="cinema"');
+  });
+
+  it('renders working homepage navigation targets and routes', () => {
+    const html = renderRoute('/');
+
+    expect(html).toContain('data-homepage-nav="primary"');
+    expect(html).toContain('href="#services"');
+    expect(html).toContain('href="#features"');
+    expect(html).toContain('href="#cases"');
+    expect(html).toContain('href="#resources"');
+    expect(html).toContain('href="/pricing"');
+    expect(html).toContain('href="/login"');
+    expect(html).toContain('href="/dashboard"');
+    expect(html).toContain('href="/onboarding"');
+    expect(html).toContain('data-demo-trigger="homepage-nav"');
+    expect(html).toContain('id="services"');
+    expect(html).toContain('id="features"');
+    expect(html).toContain('id="cases"');
+    expect(html).toContain('id="resources"');
   });
 
   it('mounts /onboarding as a readable layered cinematic stage without MYBI', () => {
@@ -103,11 +128,8 @@ describe('public diagnosis surfaces', () => {
     expect(html).toContain('데이터 파이프라인 정상');
     expect(html).toContain('보안 상태 안전');
     expect(html).toContain('data-cinematic-auto-scene="');
-    expect(html).not.toContain('data-mybi-shell="active"');
-    expect(html).not.toContain('data-mybi-trigger="orb-handle"');
+    expectNoMybiCompanion(html);
     expect(html).toContain('data-mybi-anchor="onboarding-active-flow"');
-    expect(html).not.toContain('data-mybi-world="standby"');
-    expect(html).not.toContain('title="MYBI neural companion"');
   });
 
   it('renders the homepage demo preview when the demo trigger opens it', () => {
@@ -128,15 +150,43 @@ describe('public diagnosis surfaces', () => {
     expect(html).not.toContain('Unknown');
   });
 
-  it('keeps pricing reachable while preserving MYBI', () => {
+  it('keeps pricing reachable without mounting MYBI', () => {
     const html = renderRoute('/pricing');
 
     expect(html).toContain('FREE');
     expect(html).toContain('PRO');
     expect(html).toContain('VIP');
-    expect(html).toContain('data-mybi-shell="active"');
-    expect(html).toContain('data-mybi-world="standby"');
-    expect(html).not.toContain('title="MYBI neural companion"');
+    expectNoMybiCompanion(html);
+  });
+
+  it('keeps public store/form routes reachable without mounting MYBI', () => {
+    const publicStoreHtml = renderRoute('/mybiz-live-cafe');
+    const inquiryHtml = renderRoute('/s/20d95f47-bae6-43a2-a9c9-a190be176747/inquiry');
+
+    expect(publicStoreHtml).not.toContain('Unexpected Application Error');
+    expect(inquiryHtml).not.toContain('Unexpected Application Error');
+    expectNoMybiCompanion(publicStoreHtml);
+    expectNoMybiCompanion(inquiryHtml);
+  });
+
+  it('keeps active MYBI providers renderless behind the global kill switch', () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        PersistentDiagnosisWorldProvider,
+        { active: true, pathname: '/' },
+        createElement('main', { 'data-testid': 'provider-child' }, 'provider child'),
+      ),
+    );
+
+    expect(html).toContain('provider child');
+    expectNoMybiCompanion(html);
+  });
+
+  it('does not mount MYBI on protected merchant routes while auth redirects resolve', () => {
+    const html = renderRoute('/dashboard');
+
+    expect(html).not.toContain('Unexpected Application Error');
+    expectNoMybiCompanion(html);
   });
 
   it('clarifies the merchant login split without falling back to browser-only auth wording', () => {

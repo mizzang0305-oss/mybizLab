@@ -24,6 +24,7 @@ import {
   type MybiSceneState,
 } from '@/shared/lib/mybiCompanion';
 import { sendMybiMessage, type MybiChatMessage } from '@/shared/lib/mybiChatClient';
+import { ENABLE_MYBI_COMPANION } from '@/shared/lib/mybiFeatureFlag';
 
 type MybiPanelTab = 'controls' | 'guide' | 'issue';
 type MybiMessageRole = 'assistant' | 'user';
@@ -344,6 +345,7 @@ export function PersistentDiagnosisWorldProvider({
   children,
   pathname,
 }: PropsWithChildren<PersistentDiagnosisWorldProviderProps>) {
+  const companionActive = active && ENABLE_MYBI_COMPANION;
   const prefersReducedMotion = useReducedMotion();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -471,7 +473,7 @@ export function PersistentDiagnosisWorldProvider({
   );
 
   const tone = getMybiModeTone(resolvedScene.companionMode);
-  const shouldMountWorld = active && (resolvedScene.layoutMode === 'hero' || panelOpen);
+  const shouldMountWorld = companionActive && (resolvedScene.layoutMode === 'hero' || panelOpen);
   const allowShellDrift = false;
   const allowInnerBreathing =
     resolvedScene.layoutMode !== 'hero' &&
@@ -500,7 +502,7 @@ export function PersistentDiagnosisWorldProvider({
   }, [resolvedScene]);
 
   useEffect(() => {
-    if (!active || typeof window === 'undefined') return;
+    if (!companionActive || typeof window === 'undefined') return;
 
     let raf = 0;
     let observer: ResizeObserver | null = null;
@@ -556,10 +558,10 @@ export function PersistentDiagnosisWorldProvider({
       window.removeEventListener('resize', requestMeasure);
       window.removeEventListener('scroll', requestMeasure, true);
     };
-  }, [active, focusedElement, manualHome, rect, resolvedScene.layoutMode, setRect, targetElement]);
+  }, [companionActive, focusedElement, manualHome, rect, resolvedScene.layoutMode, setRect, targetElement]);
 
   useEffect(() => {
-    if (!active || typeof window === 'undefined') return;
+    if (!companionActive || typeof window === 'undefined') return;
 
     const handleClick = (event: MouseEvent) =>
       pushRecentActivity(pickLabel(event.target instanceof HTMLElement ? event.target : null));
@@ -594,7 +596,7 @@ export function PersistentDiagnosisWorldProvider({
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
     };
-  }, [active, pushRecentActivity]);
+  }, [companionActive, pushRecentActivity]);
 
   useEffect(() => {
     if (!shouldMountWorld) {
@@ -603,21 +605,21 @@ export function PersistentDiagnosisWorldProvider({
   }, [shouldMountWorld]);
 
   useEffect(() => {
-    if (!active || !ready) return;
+    if (!companionActive || !ready) return;
     postToWorld(iframeRef.current, 'mybi-world:update', resolvedScene);
-  }, [active, ready, resolvedScene]);
+  }, [companionActive, ready, resolvedScene]);
 
   useEffect(() => {
-    if (!active || !ready) return;
+    if (!companionActive || !ready) return;
     postToWorld(iframeRef.current, 'mybi-world:command', {
       command: 'setRenderProfile',
       lowPower: compactViewport,
       reducedMotion: Boolean(prefersReducedMotion),
     });
-  }, [active, compactViewport, prefersReducedMotion, ready]);
+  }, [companionActive, compactViewport, prefersReducedMotion, ready]);
 
   useEffect(() => {
-    if (!active || typeof window === 'undefined' || resolvedScene.layoutMode !== 'floating' || prefersReducedMotion) return;
+    if (!companionActive || typeof window === 'undefined' || resolvedScene.layoutMode !== 'floating' || prefersReducedMotion) return;
     const interval = window.setInterval(() => {
       if (Date.now() - manualThemeAtRef.current < 45_000) return;
       setThemeIndex((current) => {
@@ -627,7 +629,7 @@ export function PersistentDiagnosisWorldProvider({
       });
     }, 28_000);
     return () => window.clearInterval(interval);
-  }, [active, prefersReducedMotion, resolvedScene.layoutMode]);
+  }, [companionActive, prefersReducedMotion, resolvedScene.layoutMode]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -655,7 +657,7 @@ export function PersistentDiagnosisWorldProvider({
   }, []);
 
   useEffect(() => {
-    if (!active || typeof window === 'undefined') return;
+    if (!companionActive || typeof window === 'undefined') return;
 
     const updateDrag = (pointerId: number, clientX: number, clientY: number) => {
       const dragState = dragStateRef.current;
@@ -721,7 +723,7 @@ export function PersistentDiagnosisWorldProvider({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseFinish);
     };
-  }, [active, pushRecentActivity, rect, runTimedMode, setRect]);
+  }, [companionActive, pushRecentActivity, rect, runTimedMode, setRect]);
 
   const sendCommand = useCallback(
     (command: string, payload: Record<string, unknown> = {}, pulseMode = true) => {
@@ -946,7 +948,7 @@ export function PersistentDiagnosisWorldProvider({
     <PersistentDiagnosisWorldContext.Provider value={contextValue}>
       {children}
 
-      {active ? (
+      {companionActive ? (
         <>
           <motion.div
             animate={
