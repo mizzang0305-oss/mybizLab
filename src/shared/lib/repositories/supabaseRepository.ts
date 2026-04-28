@@ -27,8 +27,6 @@ import { getStoreBrandConfig, mapLiveStoreToAppStore } from '../storeData.js';
 import { getCustomerRecordId, normalizeCustomerEmail, normalizeCustomerPhone, normalizeCustomerRecord } from '../domain/customerMemory.js';
 
 const LIVE_STORE_SELECT = 'store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan';
-const LIVE_CUSTOMER_SELECT =
-  'customer_id,store_id,name,phone,email,visit_count,last_visit_at,is_regular,marketing_opt_in,created_at,updated_at';
 
 type StoreRow = {
   store_id: string;
@@ -39,20 +37,6 @@ type StoreRow = {
   slug: string | null;
   trial_ends_at: string | null;
   plan: string | null;
-};
-
-type CustomerRow = {
-  customer_id: string;
-  store_id: string;
-  name: string;
-  phone: string;
-  email: string | null;
-  visit_count: number;
-  last_visit_at: string | null;
-  is_regular: boolean;
-  marketing_opt_in: boolean;
-  created_at: string;
-  updated_at: string | null;
 };
 
 type StoreHomeContentRow = {
@@ -178,17 +162,6 @@ function createUuidLike() {
     const value = token === 'x' ? random : (random & 0x3) | 0x8;
     return value.toString(16);
   });
-}
-
-function extractMissingSchemaColumn(error: QueryErrorLike) {
-  const message = error?.message || '';
-  const quotedColumnMatch = message.match(/'([^']+)' column/i);
-  if (quotedColumnMatch?.[1]) {
-    return quotedColumnMatch[1];
-  }
-
-  const genericMatch = message.match(/column ['"]?([a-z0-9_]+)['"]?/i);
-  return genericMatch?.[1] || null;
 }
 
 function toLegacyUuidReference(value: unknown) {
@@ -873,23 +846,6 @@ function mapStoreRow(row: StoreRow): Store {
   return mapLiveStoreToAppStore(row, null);
 }
 
-function mapCustomerRow(row: CustomerRow): Customer {
-  return normalizeCustomerRecord({
-    id: row.customer_id,
-    customer_id: row.customer_id,
-    store_id: row.store_id,
-    name: row.name,
-    phone: row.phone,
-    email: row.email || undefined,
-    visit_count: row.visit_count,
-    last_visit_at: row.last_visit_at || undefined,
-    is_regular: row.is_regular,
-    marketing_opt_in: row.marketing_opt_in,
-    created_at: row.created_at,
-    updated_at: row.updated_at || undefined,
-  });
-}
-
 function mapStoreSubscriptionRow(row: StoreSubscriptionRow): StoreSubscription {
   return {
     id: row.id,
@@ -1381,7 +1337,7 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
         return [];
       }
 
-      let query = client.from('customer_contacts').select('*').in('customer_id', customerIds);
+      const query = client.from('customer_contacts').select('*').in('customer_id', customerIds);
 
       const { data, error } = await query;
       if (error) {
@@ -1397,7 +1353,7 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
         return [];
       }
 
-      let query = client.from('customer_preferences').select('*').in('customer_id', customerIds);
+      const query = client.from('customer_preferences').select('*').in('customer_id', customerIds);
 
       const { data, error } = await query;
       if (error) {
@@ -1604,7 +1560,7 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
         updated_at: normalizedCustomer.updated_at || null,
       };
 
-      let compatPayload: Record<string, unknown> = { ...payload };
+      const compatPayload: Record<string, unknown> = { ...payload };
       while (true) {
         const { error } = await client.from('customers').upsert(compatPayload, { onConflict: 'customer_id' });
         if (!error) {

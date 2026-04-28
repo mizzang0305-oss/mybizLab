@@ -7,6 +7,7 @@ import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { toDateInputValue } from '@/shared/lib/format';
+import { getReservationNextAction, getReservationStatusLabel } from '@/shared/lib/merchantOperations';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { listReservations, saveReservation, updateReservationStatus } from '@/shared/lib/services/mvpService';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
@@ -19,14 +20,6 @@ const initialForm = {
   reserved_at: `${toDateInputValue()}T18:00`,
   status: 'booked' as ReservationStatus,
   note: '',
-};
-
-const reservationStatusLabelMap: Record<ReservationStatus, string> = {
-  booked: '예약 완료',
-  seated: '착석',
-  completed: '방문 완료',
-  cancelled: '취소',
-  no_show: '노쇼',
 };
 
 export function ReservationsPage() {
@@ -74,9 +67,9 @@ export function ReservationsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="운영 대시보드"
+        eyebrow="예약 현황"
         title="예약 관리"
-        description="예약 등록, 상태 변경, 방문 메모를 한 번에 관리해 현장 운영 흐름을 정리합니다."
+        description="예약자, 방문 시간, 다음 처리만 먼저 보고 착석·완료를 빠르게 처리합니다."
       />
 
       <div className="grid gap-8 xl:grid-cols-[0.75fr_1.25fr]">
@@ -110,33 +103,58 @@ export function ReservationsPage() {
 
         <Panel title="예약 리스트">
           <div className="space-y-3">
-            {reservationsQuery.data?.map((reservation) => (
-              <div key={reservation.id} className="rounded-3xl border border-slate-200 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {reservation.customer_name} · {reservation.party_size}명
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">{new Date(reservation.reserved_at).toLocaleString('ko-KR')}</p>
-                    <p className="mt-1 text-sm text-slate-500">{reservation.phone}</p>
-                    {reservation.note ? <p className="mt-2 text-sm text-slate-500">{reservation.note}</p> : null}
+            {reservationsQuery.data?.map((reservation) => {
+              const nextAction = getReservationNextAction(reservation.status);
+
+              return (
+                <div key={reservation.id} className="rounded-3xl border border-slate-200 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        {reservation.customer_name || reservation.phone || '고객 정보 없음'} · {reservation.party_size}명
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">{new Date(reservation.reserved_at).toLocaleString('ko-KR')}</p>
+                      <p className="mt-1 text-sm text-slate-500">{reservation.phone || '전화번호 없음'}</p>
+                      {reservation.note ? <p className="mt-2 text-sm text-slate-500">{reservation.note}</p> : null}
+                      {nextAction ? <p className="mt-2 text-sm font-semibold text-orange-700">다음: {nextAction.label}</p> : null}
+                    </div>
+                    <StatusBadge label={getReservationStatusLabel(reservation.status)} status={reservation.status} />
                   </div>
-                  <StatusBadge status={reservation.status} />
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {nextAction?.nextStatus ? (
+                      <button
+                        className="btn-primary"
+                        disabled={updateStatusMutation.isPending}
+                        onClick={() => updateStatusMutation.mutate({ reservationId: reservation.id, status: nextAction.nextStatus! })}
+                        type="button"
+                      >
+                        {nextAction.label}
+                      </button>
+                    ) : null}
+                    {reservation.status !== 'completed' && reservation.status !== 'cancelled' ? (
+                      <button
+                        className="btn-secondary"
+                        disabled={updateStatusMutation.isPending}
+                        onClick={() => updateStatusMutation.mutate({ reservationId: reservation.id, status: 'cancelled' })}
+                        type="button"
+                      >
+                        예약 취소
+                      </button>
+                    ) : null}
+                    {reservation.status === 'booked' ? (
+                      <button
+                        className="btn-secondary"
+                        disabled={updateStatusMutation.isPending}
+                        onClick={() => updateStatusMutation.mutate({ reservationId: reservation.id, status: 'no_show' })}
+                        type="button"
+                      >
+                        노쇼 처리
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {(['booked', 'seated', 'completed', 'cancelled', 'no_show'] as ReservationStatus[]).map((status) => (
-                    <button
-                      key={status}
-                      className="btn-secondary"
-                      onClick={() => updateStatusMutation.mutate({ reservationId: reservation.id, status })}
-                      type="button"
-                    >
-                      {reservationStatusLabelMap[status]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Panel>
       </div>

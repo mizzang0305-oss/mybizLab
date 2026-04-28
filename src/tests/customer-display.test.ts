@@ -37,6 +37,18 @@ describe('customer display label', () => {
     ).toBe('qa.order.link@mybiz.ai');
   });
 
+  it('does not expose corrupted customer names on merchant order surfaces', () => {
+    expect(
+      getCustomerDisplayLabel({
+        customer: {
+          name: '???? ??',
+          phone: '010-7000-1005',
+        },
+        customerId: 'customer_live_001',
+      }),
+    ).toBe('010-7000-1005');
+  });
+
   it('uses a linked-customer label when a customer id exists but no display fields survive', () => {
     expect(getCustomerDisplayLabel({ customerId: 'customer_live_001' })).toBe('연결 고객');
     expect(getCustomerDisplayLabel({})).toBe('미등록 고객');

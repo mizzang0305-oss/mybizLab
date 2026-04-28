@@ -192,10 +192,8 @@ export function PublicConsultationPage() {
     },
   });
 
-  const homePath = useMemo(
-    () => (consultationQuery.data?.store.id ? buildStoreIdPath(consultationQuery.data.store.id) : '/'),
-    [consultationQuery.data?.store.id],
-  );
+  const storeIdForHomePath = consultationQuery.data?.store.id;
+  const homePath = useMemo(() => (storeIdForHomePath ? buildStoreIdPath(storeIdForHomePath) : '/'), [storeIdForHomePath]);
 
   function setStartField<K extends keyof PublicConsultationStartFormInput>(
     field: K,

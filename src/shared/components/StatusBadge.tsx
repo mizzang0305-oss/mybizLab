@@ -1,4 +1,5 @@
 import { cn } from '@/shared/lib/format';
+import { getMerchantStatusLabel, normalizeMerchantStatus } from '@/shared/lib/merchantOperations';
 
 const statusMap: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
@@ -39,6 +40,10 @@ const statusMap: Record<string, string> = {
   inactive: 'bg-slate-200 text-slate-700',
   warning: 'bg-amber-100 text-amber-700',
   error: 'bg-rose-100 text-rose-700',
+  failed: 'bg-rose-100 text-rose-700',
+  unknown: 'bg-slate-100 text-slate-700',
+  open: 'bg-blue-100 text-blue-700',
+  closed: 'bg-slate-200 text-slate-700',
 };
 
 const statusLabelMap: Record<string, string> = {
@@ -80,12 +85,22 @@ const statusLabelMap: Record<string, string> = {
   inactive: '비활성',
   warning: '주의',
   error: '오류',
+  failed: '처리 실패',
+  unknown: '고객 정보 없음',
+  open: '열림',
+  closed: '종료',
 };
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ label, status }: { label?: string; status: string }) {
+  const normalizedStatus = normalizeMerchantStatus(status);
+  const fallbackLabel =
+    status.trim() === normalizedStatus
+      ? statusLabelMap[normalizedStatus] || getMerchantStatusLabel(normalizedStatus)
+      : getMerchantStatusLabel(status);
+
   return (
-    <span className={cn('status-badge', statusMap[status] || 'bg-slate-100 text-slate-700')}>
-      {statusLabelMap[status] || status.replace(/_/g, ' ')}
+    <span className={cn('status-badge', statusMap[normalizedStatus] || 'bg-slate-100 text-slate-700')}>
+      {label || fallbackLabel}
     </span>
   );
 }

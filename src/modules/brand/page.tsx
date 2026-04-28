@@ -6,6 +6,7 @@ import { DEFAULT_PRIORITY_WEIGHTS } from '@/shared/lib/analyticsProfiles';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { useAccessibleStores, useCurrentStore } from '@/shared/hooks/useCurrentStore';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { getStoreBrandConfig, getStorePriorityWeights } from '@/shared/lib/storeData';
 import {
@@ -95,6 +96,8 @@ export function BrandPage() {
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [priorityWeights, setPriorityWeights] = useState<StorePriorityWeights>(() => ({ ...DEFAULT_PRIORITY_WEIGHTS }));
   const [priorityMessage, setPriorityMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
+
+  usePageMeta('매장 설정', '공개 매장에 필요한 기본 정보와 고객 행동 버튼을 정리하는 점주용 매장 설정 화면입니다.');
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.brand(currentStore?.id || ''),
@@ -249,9 +252,16 @@ export function BrandPage() {
     return null;
   }
 
-  const canSave =
-    Boolean(form.storeName.trim() && form.phone.trim() && form.email.trim() && form.address.trim() && form.businessType.trim()) &&
-    slugState.available;
+  const missingRequiredFields = [
+    ['매장명', form.storeName],
+    ['업종', form.businessType],
+    ['연락처', form.phone],
+    ['대표 이메일', form.email],
+    ['매장 위치', form.address],
+  ]
+    .filter(([, value]) => !String(value || '').trim())
+    .map(([label]) => label);
+  const canSave = missingRequiredFields.length === 0 && slugState.available;
   const publicStorePath = buildStorePath(slugState.preview || currentStore.slug);
   const analyticsProfile = settingsQuery.data?.analyticsProfile;
 
@@ -260,7 +270,7 @@ export function BrandPage() {
       <PageHeader
         eyebrow="매장 설정"
         title="매장 설정"
-        description="기본 정보, 공개 매장 주소, 브랜딩, CTA, 운영 우선순위를 한 화면에서 관리합니다."
+        description="공개 매장에 필요한 기본 정보와 고객 행동 버튼을 한 번에 정리합니다."
         actions={
           <>
             <Link className="btn-secondary" to={publicStorePath}>
@@ -282,6 +292,12 @@ export function BrandPage() {
           }`}
         >
           {message.text}
+        </div>
+      ) : null}
+
+      {!canSave ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          저장 전 확인: {missingRequiredFields.length ? `${missingRequiredFields.join(', ')} 입력 필요` : slugState.message}
         </div>
       ) : null}
 
@@ -391,10 +407,10 @@ export function BrandPage() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
                 ['homepageVisible', '홈페이지 노출', '공개 매장 홈을 외부 방문자가 바로 볼 수 있게 합니다.'],
-                ['consultationEnabled', '상담 버튼', '전화 상담 CTA를 공개 매장 상단에 노출합니다.'],
-                ['inquiryEnabled', '문의 버튼', '이메일 문의 CTA를 함께 노출합니다.'],
+                ['consultationEnabled', 'AI 상담 버튼', '고객이 공개 매장에서 상담을 바로 시작할 수 있게 합니다.'],
+                ['inquiryEnabled', '문의 버튼', '고객 문의를 고객 기억으로 저장합니다.'],
                 ['reservationEnabled', '예약 버튼', '예약 문의 CTA를 공개 매장에 표시합니다.'],
-                ['orderEntryEnabled', '주문 진입', '메뉴/주문 진입 버튼을 공개 매장에 노출합니다.'],
+                ['orderEntryEnabled', '주문 진입', '메뉴와 QR 주문 진입 버튼을 공개 매장에 노출합니다.'],
               ].map(([field, label, description]) => (
                 <label className="flex items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4" key={field}>
                   <input

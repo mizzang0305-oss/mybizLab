@@ -21,7 +21,6 @@ import { getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsSer
 import { useUiStore } from '@/shared/lib/uiStore';
 import { listAccessibleStores } from '@/shared/lib/services/mvpService';
 import {
-  getBillingConsoleSnapshot,
   getInternalAppAccessSnapshot,
   getPlatformStoreDetail,
   getStoreRequestDetail,

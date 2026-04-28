@@ -11,6 +11,11 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { formatDateTime, formatNumber } from '@/shared/lib/format';
+import {
+  getInquiryStatusLabel,
+  getReservationStatusLabel,
+  getWaitingStatusLabel,
+} from '@/shared/lib/merchantOperations';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { getCanonicalMyBizRepository } from '@/shared/lib/repositories';
 import { getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
@@ -100,6 +105,18 @@ function buildRecentActivity(snapshot: DashboardRuntimeSnapshot) {
   }));
 
   return sortByDateDesc([...inquiryItems, ...reservationItems, ...waitingItems], (item) => item.occurredAt).slice(0, 8);
+}
+
+function getRecentActivityStatusLabel(item: ReturnType<typeof buildRecentActivity>[number]) {
+  if (item.source === '문의') {
+    return getInquiryStatusLabel(item.status as Inquiry['status']);
+  }
+
+  if (item.source === '예약') {
+    return getReservationStatusLabel(item.status as Reservation['status']);
+  }
+
+  return getWaitingStatusLabel(item.status as WaitingEntry['status']);
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -192,31 +209,33 @@ export function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="고객 메모리 운영"
-        title="실데이터 기준 운영 상태"
-        description={`${currentStore.name}의 문의·예약·웨이팅·고객 타임라인만으로 현재 운영 상태를 정리했습니다.`}
+        title="오늘 먼저 볼 운영 상태"
+        description={`${currentStore.name}의 문의·예약·웨이팅·고객 기억을 실데이터 기준으로 정리했습니다.`}
         actions={
           <>
             <Link className="btn-secondary" to="/dashboard/brand">
               공개 페이지 설정
             </Link>
+            <Link className="btn-secondary" to="/dashboard/orders">
+              주문 보기
+            </Link>
             <Link className="btn-primary" to="/dashboard/customers">
-              고객/문의 보기
+              고객 기억 보기
             </Link>
           </>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard accent="orange" icon={<span className="text-lg">◎</span>} label="전체 고객" value={formatNumber(snapshot.customersCount)} />
         <MetricCard accent="blue" icon={<span className="text-lg">?</span>} label="열린 문의" value={formatNumber(snapshot.openInquiryCount)} />
         <MetricCard accent="emerald" icon={<span className="text-lg">◷</span>} label="예정 예약" value={formatNumber(snapshot.upcomingReservationCount)} />
         <MetricCard accent="slate" icon={<span className="text-lg">≋</span>} label="활성 웨이팅" value={formatNumber(snapshot.activeWaitingCount)} />
-        <MetricCard accent="blue" icon={<span className="text-lg">↗</span>} label="타임라인 이벤트" value={formatNumber(snapshot.timelineEvents.length)} />
       </div>
 
       {snapshot.entitlements.degraded ? (
         <InsightCallout
-          eyebrow="Canonical warning"
+          eyebrow="플랜 표시 경고"
           title="대시보드 플랜 표시는 canonical store_subscriptions 정렬 대기 상태입니다"
           body={
             snapshot.entitlements.warningMessage ||
@@ -230,7 +249,7 @@ export function DashboardPage() {
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <Panel
           title="현재 운영 진실"
-          subtitle="데모 숫자를 채우지 않고, 지금 저장소에 실제로 있는 스토어/플랜/공개 상태/입력 채널만 표시합니다."
+          subtitle="데모 숫자 없이 실제 저장소의 플랜, 공개 상태, 입력 채널만 표시합니다."
         >
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -331,7 +350,7 @@ export function DashboardPage() {
                       </p>
                       <p className="mt-1 text-sm leading-6 text-slate-500">{item.summary}</p>
                     </div>
-                    <StatusBadge status={item.status} />
+                    <StatusBadge label={getRecentActivityStatusLabel(item)} status={item.status} />
                   </div>
                   <p className="mt-3 text-xs text-slate-400">{formatDateTime(item.occurredAt) || '시간 정보 없음'}</p>
                 </div>

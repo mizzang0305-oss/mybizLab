@@ -8,8 +8,15 @@ import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from '@/shared/lib/inquirySchema';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
+import {
+  getInquiryStatusLabel,
+  getOrderChannelLabel,
+  getOrderStatusLabel,
+  getPaymentStatusLabel,
+} from '@/shared/lib/merchantOperations';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   listConversationMessages,
@@ -45,13 +52,6 @@ const inquiryCategoryLabelMap: Record<string, string> = {
   brand: '브랜드 문의',
 };
 
-const orderChannelLabelMap: Record<string, string> = {
-  delivery: '배달',
-  reservation: '예약 주문',
-  table: '테이블 주문',
-  walk_in: '매장 방문',
-};
-
 const conversationChannelLabelMap: Record<string, string> = {
   ai_chat: 'AI 상담',
   dashboard_manual: '수기 상담',
@@ -72,7 +72,7 @@ export function CustomersPage() {
   const [inquiryMessage, setInquiryMessage] = useState<string | null>(null);
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState('');
 
-  usePageMeta('고객 관리', '문의함, 응대 상태, 고객 정보, 최근 주문 흐름을 한 화면에서 보는 점주용 고객 관리 화면입니다.');
+  usePageMeta('고객 기억 관리', '문의함, 응대 상태, 고객 정보, 최근 주문 흐름을 한 화면에서 보는 점주용 고객 기억 화면입니다.');
 
   const customersQuery = useQuery({
     queryKey: queryKeys.customers(currentStore?.id || ''),
@@ -163,7 +163,13 @@ export function CustomersPage() {
     customers.find((customer) => customer.id === selectedInquiry?.customer_id) ||
     customers[0] ||
     null;
-  const relatedOrders = orders.filter((order) => order.customer?.id === selectedCustomer?.id);
+  const selectedCustomerLabel = selectedCustomer
+    ? getCustomerDisplayLabel({
+        customer: selectedCustomer,
+        customerId: selectedCustomer.id,
+      })
+    : '';
+  const relatedOrders = orders.filter((order) => order.customer?.id === selectedCustomer?.id || order.customer_id === selectedCustomer?.id);
   const relatedConversationSessions = conversationSessions.filter((session) => {
     if (selectedInquiry?.id && session.inquiry_id === selectedInquiry.id) {
       return true;
@@ -235,8 +241,8 @@ export function CustomersPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="고객 관리"
-        title="고객/문의 관리"
-        description="문의 고객, 단골 손님, 후속 연락 메모, 최근 주문 흐름을 한 화면에서 바로 확인하세요."
+        title="고객 기억 관리"
+        description="문의, 상담, 주문, 타임라인을 고객 기준으로 묶어 다음 응대를 바로 정리합니다."
       />
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -262,8 +268,8 @@ export function CustomersPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold text-slate-900">{inquiry.customer_name}</p>
-                        <StatusBadge status={inquiry.status} />
+                        <p className="font-bold text-slate-900">{inquiry.customer_name || inquiry.phone || '고객 정보 없음'}</p>
+                        <StatusBadge label={getInquiryStatusLabel(inquiry.status)} status={inquiry.status} />
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
                           {inquiryCategoryLabelMap[inquiry.category] || inquiry.category}
                         </span>
@@ -292,8 +298,8 @@ export function CustomersPage() {
             <div className="space-y-5">
               <div className="rounded-[28px] border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xl font-black text-slate-900">{selectedInquiry.customer_name}</p>
-                  <StatusBadge status={selectedInquiry.status} />
+                  <p className="text-xl font-black text-slate-900">{selectedInquiry.customer_name || selectedInquiry.phone || '고객 정보 없음'}</p>
+                  <StatusBadge label={getInquiryStatusLabel(selectedInquiry.status)} status={selectedInquiry.status} />
                 </div>
                 <p className="mt-3 text-sm leading-7 text-slate-600">{selectedInquiry.message}</p>
                 <div className="mt-4 grid gap-3 text-sm text-slate-500 sm:grid-cols-2">
@@ -386,40 +392,47 @@ export function CustomersPage() {
         <Panel title="고객 목록" subtitle="단골 고객과 문의 리드를 한 화면에서 함께 찾을 수 있게 정리했습니다.">
           {customers.length ? (
             <div className="space-y-3">
-              {customers.map((customer) => (
-                <button
-                  className={`w-full rounded-[28px] border p-4 text-left transition ${
-                    selectedCustomer?.id === customer.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white'
-                  }`}
-                  key={customer.id}
-                  onClick={() => {
-                    setSelectedCustomerId(customer.id);
-                    setCustomerForm({
-                      id: customer.id,
-                      name: customer.name,
-                      phone: customer.phone,
-                      email: customer.email || '',
-                      marketing_opt_in: customer.marketing_opt_in,
-                    });
-                    setCustomerErrors({});
-                    setCustomerMessage(null);
-                  }}
-                  type="button"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-bold">{customer.name}</p>
-                      <p className={`mt-1 text-sm ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>{customer.phone}</p>
+              {customers.map((customer) => {
+                const customerLabel = getCustomerDisplayLabel({
+                  customer,
+                  customerId: customer.id,
+                });
+
+                return (
+                  <button
+                    className={`w-full rounded-[28px] border p-4 text-left transition ${
+                      selectedCustomer?.id === customer.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white'
+                    }`}
+                    key={customer.id}
+                    onClick={() => {
+                      setSelectedCustomerId(customer.id);
+                      setCustomerForm({
+                        id: customer.id,
+                        name: customer.name,
+                        phone: customer.phone,
+                        email: customer.email || '',
+                        marketing_opt_in: customer.marketing_opt_in,
+                      });
+                      setCustomerErrors({});
+                      setCustomerMessage(null);
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold">{customerLabel}</p>
+                        <p className={`mt-1 text-sm ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>{customer.phone || '전화번호 없음'}</p>
+                      </div>
+                      <div className="text-right">
+                        {customer.is_regular ? <StatusBadge label="단골" status="ready" /> : null}
+                        <p className={`mt-2 text-sm font-semibold ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>
+                          {customer.visit_count}회 방문
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {customer.is_regular ? <StatusBadge status="ready" /> : null}
-                      <p className={`mt-2 text-sm font-semibold ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>
-                        {customer.visit_count}회 방문
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <EmptyState title="아직 고객 정보가 없습니다" description="주문, 문의, 수기 등록으로 고객 정보가 생기면 이곳에서 바로 관리할 수 있습니다." />
@@ -527,8 +540,8 @@ export function CustomersPage() {
             {selectedCustomer ? (
               <div className="space-y-3">
                 <div className="rounded-[28px] border border-slate-200 bg-white p-5">
-                  <p className="text-xl font-black text-slate-900">{selectedCustomer.name}</p>
-                  <p className="mt-2 text-sm text-slate-500">{selectedCustomer.phone}</p>
+                  <p className="text-xl font-black text-slate-900">{selectedCustomerLabel}</p>
+                  <p className="mt-2 text-sm text-slate-500">{selectedCustomer.phone || '전화번호 없음'}</p>
                   <p className="mt-2 text-sm text-slate-500">{selectedCustomer.email || '이메일이 아직 없습니다.'}</p>
                 </div>
 
@@ -538,13 +551,16 @@ export function CustomersPage() {
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="font-bold text-slate-900">
-                            {order.table_no ? `테이블 ${order.table_no}` : orderChannelLabelMap[order.channel] || order.channel}
+                            {order.table_no ? `테이블 ${order.table_no}` : getOrderChannelLabel(order.channel)}
                           </p>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
                           <p className="mt-2 text-xs text-slate-400">{formatDateTime(order.placed_at)}</p>
                         </div>
                         <div className="text-left sm:text-right">
-                          <StatusBadge status={order.status} />
+                          <div className="flex flex-wrap gap-2 sm:justify-end">
+                            <StatusBadge label={getOrderStatusLabel(order.status)} status={order.status} />
+                            <StatusBadge label={getPaymentStatusLabel(order.payment_status)} status={order.payment_status} />
+                          </div>
                           <p className="mt-2 text-sm font-semibold text-slate-700">{formatCurrency(order.total_amount)}</p>
                         </div>
                       </div>
