@@ -4,8 +4,13 @@ import { Link } from 'react-router-dom';
 import { CinematicServiceWorld } from '@/shared/components/CinematicServiceWorld';
 import { Icons } from '@/shared/components/Icons';
 import { usePersistentDiagnosisWorldSurface } from '@/shared/components/PersistentDiagnosisWorldShell';
+import { ServiceOrbitWorld } from '@/shared/components/ServiceOrbitWorld';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
-import { CINEMATIC_SCENES } from '@/shared/lib/cinematicScenes';
+import {
+  CINEMATIC_SCENES,
+  PRODUCT_STORY_PANELS,
+  type HomepageServiceNodeLabel,
+} from '@/shared/lib/cinematicScenes';
 import { DIAGNOSIS_CORRIDOR_LINK_STATE } from '@/shared/lib/diagnosisCorridor';
 import { PRICING_PLANS, SERVICE_DESCRIPTION, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
@@ -60,15 +65,131 @@ const FEATURES: Feature[] = [
   },
 ];
 
-const STEPS = [
-  { num: '01', title: '공개 유입 확보', desc: '공개 페이지로 첫 방문과 첫 관심 신호를 받습니다.' },
-  { num: '02', title: '입력 채널 연결', desc: '문의·예약·웨이팅·주문을 실제 고객 입력 채널로 연결합니다.' },
-  { num: '03', title: '고객 기억 축 형성', desc: '반복 방문과 운영 판단에 필요한 기억 구조를 고객별로 쌓습니다.' },
-];
+const TRUST_CHIPS = ['20,000+ 사장님이 선택', '99.9% 안정적 서비스', '24/7 AI 운영 지원'] as const;
+
+function ProductStoryFlow() {
+  return (
+    <section
+      className="relative overflow-hidden bg-[#02050a] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10 lg:py-24"
+      data-product-story-flow="connected-panels"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_32%,rgba(251,146,60,0.12),transparent_24%),radial-gradient(circle_at_78%_50%,rgba(96,165,250,0.14),transparent_28%),linear-gradient(180deg,#02050a_0%,#07101d_52%,#02050a_100%)]" />
+      <div className="pointer-events-none absolute left-[10%] right-[10%] top-1/2 hidden h-px bg-gradient-to-r from-transparent via-orange-300/70 to-transparent md:block" />
+      <div className="relative mx-auto max-w-7xl">
+        <div className="max-w-3xl">
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-300">운영 흐름</p>
+          <h2 className="mt-3 break-keep font-display text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
+            공개 스토어에서 고객 기억, 운영 액션까지 한 흐름으로 이어집니다
+          </h2>
+          <p className="mt-4 break-keep text-sm leading-7 text-slate-300">
+            고객이 만나는 접점, 점주가 처리하는 운영 화면, 다시 방문을 만드는 고객 기억이 하나의 매출 루프로 연결됩니다.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          {PRODUCT_STORY_PANELS.map((panel, index) => (
+            <article
+              key={panel.title}
+              className="relative overflow-hidden rounded-[1.75rem] border border-white/12 bg-white/[0.055] p-5 shadow-[0_24px_90px_-62px_rgba(0,0,0,0.95)] backdrop-blur-xl"
+            >
+              {index < PRODUCT_STORY_PANELS.length - 1 ? (
+                <div className="absolute -right-4 top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-orange-300/36 bg-orange-300/16 text-orange-100 lg:flex">
+                  →
+                </div>
+              ) : null}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black tracking-[0.18em] text-orange-300">0{index + 1}</p>
+                  <h3 className="mt-2 break-keep text-lg font-black text-white">{panel.title}</h3>
+                  <p className="mt-2 break-keep text-sm leading-6 text-slate-300">{panel.body}</p>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-bold text-slate-200">
+                  {panel.metric}
+                </span>
+              </div>
+
+              {panel.type === 'storefront' ? (
+                <div className="mt-5 grid gap-4 sm:grid-cols-[0.85fr_1fr] lg:grid-cols-1 xl:grid-cols-[0.85fr_1fr]">
+                  <div className="rounded-[1.5rem] border border-white/12 bg-white/[0.08] p-3">
+                    <div className="rounded-[1.1rem] bg-slate-100 p-3 text-slate-950">
+                      <p className="text-xs font-black">모닝브루 커피</p>
+                      <div className="mt-3 h-24 rounded-xl bg-[radial-gradient(circle_at_28%_24%,rgba(251,146,60,0.44),transparent_32%),linear-gradient(135deg,#3b2a1e,#111827)]" />
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-bold">
+                        <span className="rounded-lg bg-orange-500 px-2 py-2 text-center text-white">예약하기</span>
+                        <span className="rounded-lg bg-slate-200 px-2 py-2 text-center text-slate-700">웨이팅 등록</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    {panel.highlights.map((item) => (
+                      <button key={item} className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-left text-sm font-bold text-white" type="button">
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {panel.type === 'dashboard' ? (
+                <div className="mt-5 rounded-[1.5rem] border border-white/12 bg-slate-950/66 p-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ['예약', '128'],
+                      ['웨이팅', '32'],
+                      ['주문', '245'],
+                      ['매출', '3,450,000원'],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.055] p-3">
+                        <p className="text-[11px] text-slate-400">{label}</p>
+                        <p className="mt-1 font-display text-xl font-black text-white">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 h-24 rounded-2xl border border-sky-300/14 bg-[linear-gradient(160deg,rgba(96,165,250,0.16),rgba(251,146,60,0.08))] p-3">
+                    <div className="mt-10 h-10 rounded-full bg-[linear-gradient(90deg,rgba(96,165,250,0.2),rgba(96,165,250,0.72),rgba(251,146,60,0.8))]" />
+                  </div>
+                </div>
+              ) : null}
+
+              {panel.type === 'customer-memory' ? (
+                <div className="mt-5 rounded-[1.5rem] border border-orange-300/18 bg-orange-300/[0.08] p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-200 to-sky-200 font-black text-slate-950">
+                      김
+                    </div>
+                    <div>
+                      <p className="font-black text-white">김지연님</p>
+                      <p className="text-xs text-slate-400">최근 방문 3일 전 · 방문 12회</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {panel.highlights.map((item) => (
+                      <span key={item} className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-bold text-slate-200">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    {['재방문 유도 메시지 발송', '맞춤 쿠폰 제공', '선호 메뉴 추천 알림'].map((item) => (
+                      <button key={item} className="rounded-2xl bg-white/[0.08] px-3 py-3 text-left text-xs font-bold text-orange-50" type="button">
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function LandingPage() {
   usePageMeta(META_TITLE, META_DESCRIPTION);
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
+  const [heroFocus, setHeroFocus] = useState<HomepageServiceNodeLabel[]>(['고객 기억']);
   const sceneRefs = useRef<Array<HTMLElement | null>>([]);
 
   const worldSurfaceRef = usePersistentDiagnosisWorldSurface({
@@ -121,70 +242,109 @@ export function LandingPage() {
       data-cinematic-scene={activeScene.id}
       data-landing-mode="hero-engine"
     >
-      <section className="relative min-h-screen overflow-hidden" data-mybi-anchor="landing-hero">
+      <section className="relative min-h-screen overflow-hidden px-5 py-5 sm:px-8 sm:py-7 lg:px-10" data-mybi-anchor="landing-hero">
         <div ref={worldSurfaceRef} aria-hidden className="absolute inset-0" />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(125,211,252,0.08),transparent_22%),radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.08),transparent_18%),linear-gradient(180deg,rgba(2,5,10,0.08)_0%,rgba(2,5,10,0.14)_48%,rgba(2,5,10,0.76)_100%)]" />
-        <div className="pointer-events-none absolute bottom-10 right-4 z-30 hidden w-[min(46vw,40rem)] lg:block xl:right-10">
-          <CinematicServiceWorld compact stepIndex={activeSceneIndex} />
-        </div>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(251,146,60,0.18),transparent_24%),radial-gradient(circle_at_72%_18%,rgba(96,165,250,0.2),transparent_25%),radial-gradient(circle_at_72%_72%,rgba(167,139,250,0.12),transparent_28%),linear-gradient(180deg,rgba(2,5,10,0.05)_0%,rgba(2,5,10,0.32)_58%,rgba(2,5,10,0.9)_100%)]" />
+        <div className="pointer-events-none absolute inset-x-[-10%] bottom-[8%] h-40 rotate-[-6deg] bg-[linear-gradient(90deg,transparent,rgba(96,165,250,0.2),rgba(251,146,60,0.28),transparent)] blur-sm" />
 
-        <div className="pointer-events-none relative z-40 flex min-h-screen flex-col justify-between px-5 py-5 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-          <div className="pointer-events-auto flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.08] text-white backdrop-blur-xl">
-              <Icons.Store size={20} />
-            </div>
-            <div>
+        <div className="relative z-40 mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-[96rem] flex-col">
+          <header className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.035] px-4 py-3 backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 font-display text-xl font-black text-white shadow-[0_0_28px_rgba(251,146,60,0.42)]">
+                M
+              </div>
               <p className="font-display text-xl font-black tracking-[-0.04em] text-white">MyBiz</p>
-              <p className="text-[11px] font-semibold tracking-[0.22em] text-slate-400">고객 기억 기반 매출 시스템</p>
             </div>
-          </div>
-
-          <div className="pointer-events-auto max-w-[42rem] space-y-7 pb-4 sm:pb-10 lg:pb-14">
-            <div className="space-y-4">
-              <span className="inline-block rounded-full border border-orange-400/30 bg-orange-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-orange-400">
-                고객 기억을 매출로 바꾸는 운영 시스템
-              </span>
-              <h1
-                aria-label="고객을 기억하는 AI 디지털 점장"
-                className="break-keep font-display text-[2.8rem] font-black leading-[0.92] tracking-[-0.06em] text-white sm:text-[4.2rem]"
-              >
-                고객을 기억하는
-                <br />
-                AI 디지털 점장
-              </h1>
-              <p className="max-w-[32rem] break-keep text-base leading-8 text-slate-300">
-                MyBiz는 문의·예약·웨이팅·주문·상담·결제를 고객 기억 축으로 연결해 재방문과 객단가를 높이는 AI 운영 시스템입니다.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-300 lg:flex" aria-label="주요 메뉴">
+              <a className="transition hover:text-white" href="#services">서비스</a>
+              <a className="transition hover:text-white" href="#features">기능</a>
+              <Link className="transition hover:text-white" to="/pricing">요금제</Link>
+              <a className="transition hover:text-white" href="#story">고객 사례</a>
+            </nav>
+            <div className="flex items-center gap-2">
+              <Link className="hidden rounded-2xl border border-white/12 px-4 py-2 text-sm font-bold text-slate-100 transition hover:bg-white/[0.08] sm:inline-flex" to="/login">
+                점주 로그인
+              </Link>
               <Link
-                className="btn-primary min-w-[220px] rounded-full px-7 py-4 text-base shadow-[0_28px_90px_-40px_rgba(236,91,19,0.8)]"
+                className="rounded-2xl bg-orange-500 px-4 py-2 text-sm font-black text-white shadow-[0_18px_52px_-28px_rgba(251,146,60,0.75)] transition hover:bg-orange-400"
                 state={DIAGNOSIS_CORRIDOR_LINK_STATE}
                 to={SUBSCRIPTION_START_PATH}
               >
-                공개 스토어 진단 시작
-              </Link>
-              <Link
-                className="rounded-full border border-white/20 bg-white/[0.06] px-6 py-4 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/[0.12]"
-                to="/golden-coffee"
-              >
-                데모 보기
-              </Link>
-              <Link
-                className="rounded-full border border-white/20 bg-white/[0.04] px-6 py-4 text-sm font-bold text-white/90 backdrop-blur-sm transition hover:bg-white/[0.1]"
-                to="/login"
-              >
-                점주 로그인
+                시작하기
               </Link>
             </div>
-            <p className="text-xs leading-6 text-slate-500">
-              온프레미스·보안 구조는 신뢰를 받치는 레이어입니다. 첫 가치는 고객 기억이 매출 행동으로 바뀌는 데 있습니다.
-            </p>
+          </header>
+
+          <div className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.88fr_1.12fr] lg:py-10 xl:gap-14">
+            <div className="space-y-4">
+              <span className="inline-flex rounded-full border border-orange-400/30 bg-orange-400/10 px-3 py-1 text-[11px] font-black tracking-[0.22em] text-orange-300">
+                AI 운영 플랫폼, MyBiz
+              </span>
+              <h1
+                aria-label="매장을 이해하고, 고객을 기억하고, 운영을 움직이는 AI"
+                className="break-keep font-display text-[2.95rem] font-black leading-[0.98] tracking-[-0.065em] text-white sm:text-[4.55rem]"
+              >
+                매장을 이해하고,
+                <br />
+                고객을 기억하고,
+                <br />
+                운영을 움직이는 <span className="text-orange-400">AI</span>
+              </h1>
+              <p className="max-w-[38rem] break-keep text-base leading-8 text-slate-300 sm:text-lg">
+                공개 스토어, 문의, 예약, 웨이팅, QR 주문, 결제, 고객 기억, 점주 운영 화면을 하나의 흐름으로 연결합니다.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <Link
+                  className="rounded-2xl bg-orange-500 px-7 py-4 text-base font-black text-white shadow-[0_28px_90px_-42px_rgba(251,146,60,0.86)] transition hover:-translate-y-0.5 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/70"
+                  onBlur={() => setHeroFocus(['고객 기억'])}
+                  onFocus={() => setHeroFocus(['공개 스토어', '문의', '예약', '웨이팅', 'QR 주문'])}
+                  onMouseEnter={() => setHeroFocus(['공개 스토어', '문의', '예약', '웨이팅', 'QR 주문'])}
+                  onMouseLeave={() => setHeroFocus(['고객 기억'])}
+                  state={DIAGNOSIS_CORRIDOR_LINK_STATE}
+                  to={SUBSCRIPTION_START_PATH}
+                >
+                  공개 스토어 시작하기
+                </Link>
+                <Link
+                  className="rounded-2xl border border-white/18 bg-white/[0.055] px-6 py-4 text-sm font-bold text-white backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-sky-300/60"
+                  onBlur={() => setHeroFocus(['고객 기억'])}
+                  onFocus={() => setHeroFocus(['점주 운영 화면', '고객 기억'])}
+                  onMouseEnter={() => setHeroFocus(['점주 운영 화면', '고객 기억'])}
+                  onMouseLeave={() => setHeroFocus(['고객 기억'])}
+                  to="/golden-coffee"
+                >
+                  데모 보기
+                </Link>
+                <Link
+                  className="rounded-2xl border border-white/18 bg-white/[0.035] px-6 py-4 text-sm font-bold text-white/90 backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-slate-300/60"
+                  onBlur={() => setHeroFocus(['고객 기억'])}
+                  onFocus={() => setHeroFocus(['점주 운영 화면'])}
+                  onMouseEnter={() => setHeroFocus(['점주 운영 화면'])}
+                  onMouseLeave={() => setHeroFocus(['고객 기억'])}
+                  to="/login"
+                >
+                  점주 로그인
+                </Link>
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-3">
+                {TRUST_CHIPS.map((chip) => (
+                  <span key={chip} className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-bold text-slate-200 backdrop-blur">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <ServiceOrbitWorld highlightLabels={heroFocus} />
           </div>
         </div>
       </section>
 
       <div className="bg-[#f6f2ea] text-slate-900">
+        <ProductStoryFlow />
+
         <section className="relative overflow-hidden bg-[#02050a] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-10 lg:py-24">
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
             <div className="lg:sticky lg:top-24">
@@ -239,31 +399,6 @@ export function LandingPage() {
                 <h3 className="mt-2 break-keep text-base font-bold">{scene.label}</h3>
                 <p className="mt-2 break-keep text-sm leading-6 text-slate-400">{scene.actionCaption}</p>
               </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-10">
-          <div className="text-center">
-            <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-500">운영 흐름</p>
-            <h2 className="mt-3 break-keep font-display text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-              유입, 입력, 기억, 액션이 하나로 이어집니다
-            </h2>
-          </div>
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
-            {STEPS.map((step, index) => (
-              <div key={step.num} className="relative">
-                {index < STEPS.length - 1 ? (
-                  <div className="absolute left-[calc(50%+3rem)] top-7 hidden h-px w-[calc(100%-6rem)] bg-slate-200 sm:block" />
-                ) : null}
-                <div className="flex flex-col items-center text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ec5b13] font-display text-lg font-black text-white shadow-[0_8px_24px_-6px_rgba(236,91,19,0.4)]">
-                    {step.num}
-                  </div>
-                  <h3 className="mt-4 text-lg font-bold text-slate-900">{step.title}</h3>
-                  <p className="mt-2 max-w-[220px] break-keep text-sm leading-6 text-slate-500">{step.desc}</p>
-                </div>
-              </div>
             ))}
           </div>
         </section>

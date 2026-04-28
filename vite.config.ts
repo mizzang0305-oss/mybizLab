@@ -8,6 +8,21 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/');
+
+          if (
+            normalizedId.includes('/src/pages/LandingPage.tsx') ||
+            normalizedId.includes('/src/modules/onboarding/page.tsx') ||
+            normalizedId.includes('/src/shared/components/CinematicServiceWorld.tsx') ||
+            normalizedId.includes('/src/shared/components/ConsultationCinematicScene.tsx') ||
+            normalizedId.includes('/src/shared/components/DiagnosisCinemaShell.tsx') ||
+            normalizedId.includes('/src/shared/components/ServiceOrbitWorld.tsx') ||
+            normalizedId.includes('/src/shared/lib/cinematicScenes.ts') ||
+            normalizedId.includes('/src/shared/lib/diagnosisCorridor.ts')
+          ) {
+            return 'cinematic-experience';
+          }
+
           if (!id.includes('node_modules')) {
             return undefined;
           }
