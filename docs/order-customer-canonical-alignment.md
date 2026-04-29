@@ -23,6 +23,7 @@ Migration:
 - Compare order IDs as text during backfill (`orders.order_id::text = order_id_text`) to avoid uuid/text operator errors.
 - Validate legacy UUID strings with a regex before casting `customer_id_text::uuid`.
 - Read `payment_events.order_id` through `to_jsonb(payment_events) ->> 'order_id'` so the runbook can also tolerate legacy shapes where the column is absent and only raw JSON is available.
+- Preview customer labels through `to_jsonb(customers)` instead of direct columns like `customers.name`, because live customer schemas can differ.
 - Add an index on `(store_id, customer_id)`.
 - Keep compat read path until production verification proves the column is populated.
 
@@ -31,6 +32,7 @@ Risks:
 - Live schema drift may expose `payment_events.order_id` as text, so direct `orders.order_id = payment_events.order_id` comparisons are unsafe.
 - Backfill must enforce `orders.store_id = customers.store_id`.
 - Invalid UUID-like strings in raw JSON must be filtered before casting, or the migration can fail before updating any rows.
+- Verification queries must not assume optional label columns such as `customers.name`; inspect `information_schema.columns` and use schema-safe label fallbacks.
 
 Rollback:
 - Drop the index.

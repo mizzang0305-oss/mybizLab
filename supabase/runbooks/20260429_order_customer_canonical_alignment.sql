@@ -3,6 +3,18 @@
 -- Purpose: Make orders.customer_id canonical without breaking the existing compat read path.
 -- Status: MANUAL RUNBOOK ONLY. Do not apply automatically during app deploy.
 
+-- 0) Pre-check live customer schema before running the migration body.
+-- Live customers may not have columns such as name/customer_name/display_name.
+-- The preview query below uses to_jsonb(c) so missing label columns do not break verification.
+select
+  column_name,
+  data_type,
+  is_nullable
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'customers'
+order by ordinal_position;
+
 begin;
 
 -- 1) Add nullable canonical link. This is non-destructive and keeps legacy orders valid.
@@ -97,6 +109,15 @@ candidate_links as (
     o.order_id,
     o.store_id,
     c.customer_id,
+    coalesce(
+      nullif(to_jsonb(c) ->> 'name', ''),
+      nullif(to_jsonb(c) ->> 'customer_name', ''),
+      nullif(to_jsonb(c) ->> 'display_name', ''),
+      nullif(to_jsonb(c) ->> 'full_name', ''),
+      nullif(to_jsonb(c) ->> 'phone', ''),
+      nullif(to_jsonb(c) ->> 'email', ''),
+      '고객 정보 없음'
+    ) as customer_label,
     p.order_id_text,
     p.customer_id_text,
     'payment_events.raw.customer_id'::text as source,
@@ -107,7 +128,7 @@ candidate_links as (
     on o.order_id::text = p.order_id_text
   join public.customers c
     on c.customer_id = p.customer_id_text::uuid
-   and c.store_id = o.store_id
+   and c.store_id::text = o.store_id::text
   where o.customer_id is null
 
   union all
@@ -116,6 +137,15 @@ candidate_links as (
     o.order_id,
     o.store_id,
     c.customer_id,
+    coalesce(
+      nullif(to_jsonb(c) ->> 'name', ''),
+      nullif(to_jsonb(c) ->> 'customer_name', ''),
+      nullif(to_jsonb(c) ->> 'display_name', ''),
+      nullif(to_jsonb(c) ->> 'full_name', ''),
+      nullif(to_jsonb(c) ->> 'phone', ''),
+      nullif(to_jsonb(c) ->> 'email', ''),
+      '고객 정보 없음'
+    ) as customer_label,
     t.order_id_text,
     t.customer_id_text,
     'customer_timeline_events.order_linked'::text as source,
@@ -124,10 +154,10 @@ candidate_links as (
   from public.orders o
   join timeline_order_links t
     on o.order_id::text = t.order_id_text
-   and o.store_id = t.store_id
+   and o.store_id::text = t.store_id::text
   join public.customers c
     on c.customer_id = t.customer_id
-   and c.store_id = o.store_id
+   and c.store_id::text = o.store_id::text
   where o.customer_id is null
 ),
 ranked_candidates as (
@@ -143,6 +173,7 @@ select
   order_id,
   store_id,
   customer_id,
+  customer_label,
   order_id_text,
   customer_id_text,
   source,
@@ -163,6 +194,7 @@ select
   order_id,
   store_id,
   customer_id,
+  customer_label,
   source,
   order_id_text,
   customer_id_text,
@@ -176,12 +208,13 @@ update public.orders o
 set customer_id = candidate.customer_id
 from pg_temp.tmp_order_customer_backfill_candidates candidate
 where o.order_id = candidate.order_id
-  and o.store_id = candidate.store_id
+  and o.store_id::text = candidate.store_id::text
   and o.customer_id is null
 returning
   o.order_id,
   o.store_id,
   o.customer_id,
+  candidate.customer_label,
   candidate.source;
 
 -- 7) Index for merchant order/customer reads.
