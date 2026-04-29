@@ -3,8 +3,10 @@
 ## Current Production Truth
 
 - Live `orders` rows use `order_id` and do not currently expose `customer_id`.
+- Live legacy `payment_events.order_id` may be text even when `orders.order_id` is uuid.
 - Public order customer attach is operationally visible through:
   - `payment_events.raw.customer_id`
+  - `payment_events.order_id` or `payment_events.raw.order_id`
   - `customer_timeline_events` with `event_type = 'order_linked'`
 - Merchant `orders` and `table-order` screens must keep this compat read path until canonical data is fully backfilled.
 
@@ -18,12 +20,16 @@ Migration:
 - Add nullable `orders.customer_id`.
 - Backfill from `payment_events.raw.customer_id`.
 - Backfill remaining rows from `customer_timeline_events.payload.order_id`.
+- Compare order IDs as text during backfill (`orders.order_id::text = order_id_text`) to avoid uuid/text operator errors.
+- Validate legacy UUID strings with a regex before casting `customer_id_text::uuid`.
 - Add an index on `(store_id, customer_id)`.
 - Keep compat read path until production verification proves the column is populated.
 
 Risks:
 - Live schema drift uses `order_id` instead of `id`, so migration must reference `orders.order_id`.
+- Live schema drift may expose `payment_events.order_id` as text, so direct `orders.order_id = payment_events.order_id` comparisons are unsafe.
 - Backfill must enforce `orders.store_id = customers.store_id`.
+- Invalid UUID-like strings in raw JSON must be filtered before casting, or the migration can fail before updating any rows.
 
 Rollback:
 - Drop the index.
@@ -67,10 +73,11 @@ Rollback:
 
 Use Option A first: add nullable `orders.customer_id`, backfill it safely, and keep the current compat read path as fallback for at least one deployment cycle.
 
+The runbook intentionally keeps the compatibility read model active during and after backfill. Merchant screens should continue resolving legacy orders from `payment_events.raw.customer_id` and `customer_timeline_events.order_linked` until a production deployment proves new and legacy orders consistently populate `orders.customer_id`.
+
 Do not remove `payment_events.raw.customer_id` or timeline fallback until production has verified:
 
 - New public order attach writes `orders.customer_id`.
 - Legacy orders backfilled correctly.
 - Merchant orders/table-order still show linked customers.
 - Store boundary checks prevent cross-store linking.
-
