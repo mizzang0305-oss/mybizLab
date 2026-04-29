@@ -54,7 +54,7 @@ with payment_order_links as (
   from (
     select
       coalesce(
-        nullif(pe.order_id::text, ''),
+        nullif(to_jsonb(pe) ->> 'order_id', ''),
         nullif(pe.raw ->> 'order_id', ''),
         nullif(pe.raw ->> 'orderId', '')
       ) as order_id_text,

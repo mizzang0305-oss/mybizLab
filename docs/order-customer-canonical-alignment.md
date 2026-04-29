@@ -3,7 +3,7 @@
 ## Current Production Truth
 
 - Live `orders` rows use `order_id` and do not currently expose `customer_id`.
-- Live legacy `payment_events.order_id` may be text even when `orders.order_id` is uuid.
+- Live legacy `payment_events.order_id` may be text even when `orders.order_id` is uuid; some environments may only carry the order id inside `payment_events.raw`.
 - Public order customer attach is operationally visible through:
   - `payment_events.raw.customer_id`
   - `payment_events.order_id` or `payment_events.raw.order_id`
@@ -22,6 +22,7 @@ Migration:
 - Backfill remaining rows from `customer_timeline_events.payload.order_id`.
 - Compare order IDs as text during backfill (`orders.order_id::text = order_id_text`) to avoid uuid/text operator errors.
 - Validate legacy UUID strings with a regex before casting `customer_id_text::uuid`.
+- Read `payment_events.order_id` through `to_jsonb(payment_events) ->> 'order_id'` so the runbook can also tolerate legacy shapes where the column is absent and only raw JSON is available.
 - Add an index on `(store_id, customer_id)`.
 - Keep compat read path until production verification proves the column is populated.
 
