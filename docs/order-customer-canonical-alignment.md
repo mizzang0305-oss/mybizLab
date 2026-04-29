@@ -24,6 +24,7 @@ Migration:
 - Validate legacy UUID strings with a regex before casting `customer_id_text::uuid`.
 - Read `payment_events.order_id` through `to_jsonb(payment_events) ->> 'order_id'` so the runbook can also tolerate legacy shapes where the column is absent and only raw JSON is available.
 - Preview customer labels through `to_jsonb(customers)` instead of direct columns like `customers.name`, because live customer schemas can differ.
+- Keep count, preview, and update statements self-contained with repeated CTEs. Supabase SQL Editor may execute selected statements in a different session, so the runbook must not depend on a temporary table created by an earlier statement.
 - Add an index on `(store_id, customer_id)`.
 - Keep compat read path until production verification proves the column is populated.
 
@@ -33,6 +34,7 @@ Risks:
 - Backfill must enforce `orders.store_id = customers.store_id`.
 - Invalid UUID-like strings in raw JSON must be filtered before casting, or the migration can fail before updating any rows.
 - Verification queries must not assume optional label columns such as `customers.name`; inspect `information_schema.columns` and use schema-safe label fallbacks.
+- Session-scoped temp tables are unsafe for this runbook because manual SQL editor runs often execute only the selected count/preview/update statement.
 
 Rollback:
 - Drop the index.
