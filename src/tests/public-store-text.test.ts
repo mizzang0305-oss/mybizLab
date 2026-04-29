@@ -99,4 +99,23 @@ describe('public store text repair', () => {
     expect(repaired.mobile_cta_label).toBe('예약 보기');
     expect(repaired.address).toBe('서울시 중구 세종대로 18');
   });
+
+  it('replaces mojibake public store copy with Korean-safe fallback text', () => {
+    const repaired = repairPublicStorePageCopy({
+      businessType: '카페',
+      page: createPage({
+        brand_name: 'MyBiz Live Cafe',
+        description: '怨듦컻 ?ㅽ넗?? ?댁쁺 ?곗씠??',
+        hero_subtitle: '臾몄쓽 ?덉빟 ?⑥씠??',
+        tagline: '臾몄쓽 ?덉빟 ?⑥씠??',
+      }),
+      storeName: 'MyBiz Live Cafe',
+    });
+
+    expect(repaired.description).toBe(
+      'MyBiz Live Cafe 카페의 메뉴, 문의, 예약, 웨이팅, 주문 안내를 한 번에 확인할 수 있습니다.',
+    );
+    expect(repaired.hero_subtitle).toBe('MyBiz Live Cafe 카페의 메뉴와 방문 안내를 먼저 확인해 보세요.');
+    expect(repaired.tagline).toBe('MyBiz Live Cafe 카페의 메뉴와 방문 안내를 먼저 확인해 보세요.');
+  });
 });
