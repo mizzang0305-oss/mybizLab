@@ -1,16 +1,16 @@
 import { Suspense, lazy, type ComponentType, type ElementType } from 'react';
-import { Navigate, createBrowserRouter, RouterProvider, type RouteObject } from 'react-router-dom';
+import { Navigate, RouterProvider, createBrowserRouter, type RouteObject } from 'react-router-dom';
 
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
+import { RequirePlatformAdminAuth } from '@/app/guards/RequirePlatformAdminAuth';
 import { RouteErrorBoundary } from '@/app/RouteErrorBoundary';
-import { PublicCompanionLayout } from '@/app/layouts/PublicCompanionLayout';
 import { DashboardLayout } from '@/app/layouts/DashboardLayout';
+import { PlatformAdminLayout } from '@/app/layouts/PlatformAdminLayout';
+import { PublicCompanionLayout } from '@/app/layouts/PublicCompanionLayout';
 import { PublicLayout } from '@/app/layouts/PublicLayout';
 import { StorePublicLayout } from '@/app/layouts/StorePublicLayout';
 import { PublicConsultationPage } from '@/modules/consultation/public-page';
 import { PublicInquiryPage } from '@/modules/inquiries/public-page';
-import { AdminLoginPage } from '@/pages/AdminLoginPage';
-import { LandingPage } from '@/pages/LandingPage';
 import { OnboardingPage } from '@/modules/onboarding/page';
 import { PublicReservationPage } from '@/modules/reservations/public-page';
 import { PublicSurveyResponsePage } from '@/modules/surveys/public-response-page';
@@ -18,6 +18,8 @@ import { StoreHomePage } from '@/modules/table-order/public-home-page';
 import { StoreMenuPage } from '@/modules/table-order/public-menu-page';
 import { StoreOrderPage } from '@/modules/table-order/public-order-page';
 import { PublicWaitingPage } from '@/modules/waiting/public-page';
+import { AdminLoginPage } from '@/pages/AdminLoginPage';
+import { LandingPage } from '@/pages/LandingPage';
 import { PricingPage } from '@/pages/PricingPage';
 import { UiPreviewPage } from '@/pages/UiPreviewPage';
 
@@ -83,6 +85,26 @@ const TableOrderAdminPage = lazyPage(() => import('@/modules/table-order/admin-p
 const TermsPage = lazyPage(() => import('@/pages/TermsPage'), 'TermsPage');
 const WaitingPage = lazyPage(() => import('@/modules/waiting/page'), 'WaitingPage');
 
+const PlatformAdminAnnouncementsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformAnnouncementsAdminPage');
+const PlatformAdminAuditLogsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformAuditLogsAdminPage');
+const PlatformAdminBannersPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformBannersAdminPage');
+const PlatformAdminBoardPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformBoardAdminPage');
+const PlatformAdminFeatureFlagsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformFeatureFlagsAdminPage');
+const PlatformAdminHomepagePage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformHomepageAdminPage');
+const PlatformAdminMediaPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformMediaAdminPage');
+const PlatformAdminOverviewPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformAdminOverviewPage');
+const PlatformAdminPaymentEventsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPaymentEventsAdminPage');
+const PlatformAdminPaymentTestsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPaymentTestsAdminPage');
+const PlatformAdminPopupsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPopupsAdminPage');
+const PlatformAdminPricingPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPricingAdminPage');
+const PlatformAdminProductsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformProductsAdminPage');
+const PlatformAdminPromotionsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPromotionsAdminPage');
+const PlatformAdminSettingsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformSettingsAdminPage');
+const PlatformAdminPreviewPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPreviewAdminPage');
+
+const PlatformPublicBoardPostPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformPublicBoardPostPage');
+const PlatformPublicUpdatesPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformPublicUpdatesPage');
+
 export const appRoutes: RouteObject[] = [
   {
     element: <PublicLayout />,
@@ -122,6 +144,93 @@ export const appRoutes: RouteObject[] = [
       {
         path: '/refund',
         element: routeElement(RefundPage),
+      },
+      {
+        path: '/notices',
+        element: routeElement(PlatformPublicUpdatesPage),
+      },
+      {
+        path: '/updates',
+        element: routeElement(PlatformPublicUpdatesPage),
+      },
+      {
+        path: '/updates/:slug',
+        element: routeElement(PlatformPublicBoardPostPage),
+      },
+    ],
+  },
+  {
+    element: <RequirePlatformAdminAuth />,
+    children: [
+      {
+        path: '/admin',
+        element: <PlatformAdminLayout />,
+        children: [
+          {
+            index: true,
+            element: routeElement(PlatformAdminOverviewPage),
+          },
+          {
+            path: 'homepage',
+            element: routeElement(PlatformAdminHomepagePage),
+          },
+          {
+            path: 'pricing',
+            element: routeElement(PlatformAdminPricingPage),
+          },
+          {
+            path: 'products',
+            element: routeElement(PlatformAdminProductsPage),
+          },
+          {
+            path: 'promotions',
+            element: routeElement(PlatformAdminPromotionsPage),
+          },
+          {
+            path: 'announcements',
+            element: routeElement(PlatformAdminAnnouncementsPage),
+          },
+          {
+            path: 'board',
+            element: routeElement(PlatformAdminBoardPage),
+          },
+          {
+            path: 'popups',
+            element: routeElement(PlatformAdminPopupsPage),
+          },
+          {
+            path: 'banners',
+            element: routeElement(PlatformAdminBannersPage),
+          },
+          {
+            path: 'media',
+            element: routeElement(PlatformAdminMediaPage),
+          },
+          {
+            path: 'payment-tests',
+            element: routeElement(PlatformAdminPaymentTestsPage),
+          },
+          {
+            path: 'payment-events',
+            element: routeElement(PlatformAdminPaymentEventsPage),
+          },
+          {
+            path: 'feature-flags',
+            element: routeElement(PlatformAdminFeatureFlagsPage),
+          },
+          {
+            path: 'audit-logs',
+            element: routeElement(PlatformAdminAuditLogsPage),
+          },
+          {
+            path: 'settings',
+            element: routeElement(PlatformAdminSettingsPage),
+          },
+          {
+            path: 'preview',
+            element: routeElement(PlatformAdminPreviewPage),
+          },
+        ],
       },
     ],
   },

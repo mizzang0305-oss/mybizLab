@@ -54,6 +54,38 @@
       "dest": "/api/merchant?resource=order-event"
     },
     {
+      "src": "/api/admin/platform/(.*)",
+      "dest": "/api/admin?resource=$1"
+    },
+    {
+      "src": "/api/public/platform/homepage",
+      "dest": "/api/public?resource=platform-homepage"
+    },
+    {
+      "src": "/api/public/platform/pricing",
+      "dest": "/api/public?resource=platform-pricing"
+    },
+    {
+      "src": "/api/public/platform/announcements",
+      "dest": "/api/public?resource=platform-announcements"
+    },
+    {
+      "src": "/api/public/platform/board-posts",
+      "dest": "/api/public?resource=platform-board-posts"
+    },
+    {
+      "src": "/api/public/platform/popups",
+      "dest": "/api/public?resource=platform-popups"
+    },
+    {
+      "src": "/api/public/platform/banners",
+      "dest": "/api/public?resource=platform-banners"
+    },
+    {
+      "src": "/api/public/platform/chrome",
+      "dest": "/api/public?resource=platform-chrome"
+    },
+    {
       "handle": "filesystem"
     },
     {

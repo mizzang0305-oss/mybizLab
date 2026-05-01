@@ -382,14 +382,14 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
   });
 
-  it('creates the 100 KRW subscription test product without changing canonical plan truth', async () => {
+  it('creates the 100 KRW payment test product without granting subscription entitlement', async () => {
     const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({
-          billingProductCode: 'subscription_test_100',
+          billingProductCode: 'payment_test_100',
           plan: 'pro',
-          redirectPath: '/onboarding?step=payment&billingTest=100',
-          source: 'onboarding-flow',
+          redirectPath: '/admin/payment-tests',
+          source: 'platform-admin-payment-test',
         }),
         method: 'POST',
       }),
@@ -401,27 +401,37 @@ describe('/api/billing/checkout', () => {
     expect(payload).toMatchObject({
       ok: true,
       plan: 'pro',
+      productCode: 'payment_test_100',
+      purpose: 'payment_test',
+      grantsEntitlement: false,
       checkout: {
         customData: {
-          billingProductCode: 'subscription_test_100',
-          billingProductType: 'subscription_test',
+          grantsEntitlement: false,
           planKey: 'pro',
+          productCode: 'payment_test_100',
+          productType: 'test',
+          purpose: 'payment_test',
         },
-        orderName: '\uad6c\ub3c5 \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
+        grantsEntitlement: false,
+        orderName: 'MyBiz \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
         plan: 'pro',
+        productCode: 'payment_test_100',
+        productType: 'test',
+        purpose: 'payment_test',
         totalAmount: 100,
       },
     });
-    expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
+    expect(payload.checkout.paymentId).toMatch(/^mb_test_[a-f0-9]{16}$/);
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
   });
 
-  it('rejects the 100 KRW subscription test product when it is mapped to the wrong plan', async () => {
+  it('rejects client-tampered amount for the 100 KRW payment test product', async () => {
     const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({
-          billingProductCode: 'subscription_test_100',
-          plan: 'vip',
+          billingProductCode: 'payment_test_100',
+          plan: 'pro',
+          totalAmount: 79000,
         }),
         method: 'POST',
       }),
@@ -431,7 +441,7 @@ describe('/api/billing/checkout', () => {
 
     expect(response.status).toBe(400);
     expect(payload).toMatchObject({
-      code: 'INVALID_BILLING_PRODUCT_PLAN',
+      code: 'CLIENT_AMOUNT_MISMATCH',
       ok: false,
       stage: 'request-body',
     });

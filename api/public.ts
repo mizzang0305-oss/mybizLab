@@ -12,6 +12,7 @@ import {
   handlePublicVisitorSessionRequest,
   handlePublicWaitingRequest,
 } from '../src/server/publicApi.js';
+import { handlePlatformPublicRequest } from '../src/server/platformAdminApi.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 import { config, methodNotAllowed, type PublicRequestLike } from './public/_shared.js';
 
@@ -51,6 +52,14 @@ async function routePublicRequest(request: PublicRequestLike) {
   const resource = getResource(request);
 
   switch (resource) {
+    case 'platform-homepage':
+    case 'platform-pricing':
+    case 'platform-announcements':
+    case 'platform-board-posts':
+    case 'platform-popups':
+    case 'platform-banners':
+    case 'platform-chrome':
+      return method === 'GET' ? handlePlatformPublicRequest(request) : methodNotAllowed('GET');
     case 'store':
       return method === 'GET' ? handlePublicStoreRequest(request) : methodNotAllowed('GET');
     case 'inquiry-form':

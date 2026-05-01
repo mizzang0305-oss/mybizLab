@@ -1,12 +1,10 @@
 import {
-  SUBSCRIPTION_TEST_PRODUCT,
-  getBillingPlan,
-  isBillingCheckoutProductCode,
   isBillingPlanCode,
   type BillingPlanCode,
 } from '../shared/lib/billingPlans.js';
 import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData.js';
 import { BUSINESS_INFO } from '../shared/lib/siteConfig.js';
+import { resolveServerCatalogItem } from './platformCatalog.js';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const SERVER_ENV_HINT =
@@ -37,11 +35,15 @@ export interface CheckoutSessionPayload {
   currency: 'KRW';
   customData: Record<string, unknown>;
   customer: CheckoutCustomerPayload;
+  grantsEntitlement?: boolean;
   noticeUrls: string[];
   orderName: string;
   payMethod: 'CARD';
   paymentId: string;
   plan: BillingPlanCode;
+  productCode?: string;
+  productType?: string;
+  purpose?: string;
   redirectUrl: string;
   storeId: string;
   totalAmount: number;
@@ -50,8 +52,12 @@ export interface CheckoutSessionPayload {
 export interface CheckoutSessionResponse {
   checkout: CheckoutSessionPayload;
   endpoint: typeof CHECKOUT_ENDPOINT;
+  grantsEntitlement?: boolean;
   ok: true;
   plan: BillingPlanCode;
+  productCode?: string;
+  productType?: string;
+  purpose?: string;
 }
 
 interface BrowserCheckoutContext {
@@ -634,40 +640,46 @@ function resolveRequestedPlan(body: Record<string, unknown>) {
   return requestedPlan;
 }
 
-function resolveRequestedCheckoutProduct(body: Record<string, unknown>, plan: BillingPlanCode) {
-  const requestedProduct = normalizeNonEmptyString(body.billingProductCode);
+function readRequestedProductCode(body: Record<string, unknown>) {
+  return normalizeNonEmptyString(body.productCode) || normalizeNonEmptyString(body.billingProductCode) || null;
+}
 
-  if (!requestedProduct) {
-    return null;
-  }
+function readRequestedAmount(body: Record<string, unknown>) {
+  const rawAmount = body.totalAmount ?? body.amount;
+  if (rawAmount === undefined || rawAmount === null || rawAmount === '') return null;
+  const amount = typeof rawAmount === 'number' ? rawAmount : Number(rawAmount);
 
-  if (!isBillingCheckoutProductCode(requestedProduct)) {
+  if (!Number.isFinite(amount)) {
     throw new CheckoutApiError({
-      code: 'INVALID_BILLING_PRODUCT',
+      code: 'INVALID_CLIENT_AMOUNT',
       details: {
-        receivedBillingProductCode: requestedProduct,
+        receivedAmount: rawAmount,
       },
-      message: 'Checkout billingProductCode is not supported.',
+      message: 'Checkout amount must be a finite number when provided.',
       stage: 'request-body',
       status: 400,
     });
   }
 
-  if (plan !== SUBSCRIPTION_TEST_PRODUCT.plan) {
+  return amount;
+}
+
+function assertClientAmountMatchesCatalog(body: Record<string, unknown>, serverAmount: number) {
+  const requestedAmount = readRequestedAmount(body);
+  if (requestedAmount === null) return;
+
+  if (requestedAmount !== serverAmount) {
     throw new CheckoutApiError({
-      code: 'INVALID_BILLING_PRODUCT_PLAN',
+      code: 'CLIENT_AMOUNT_MISMATCH',
       details: {
-        billingProductCode: requestedProduct,
-        expectedPlan: SUBSCRIPTION_TEST_PRODUCT.plan,
-        receivedPlan: plan,
+        clientAmount: requestedAmount,
+        serverAmount,
       },
-      message: 'The requested billing test product must stay mapped to its canonical entitlement plan.',
+      message: 'Checkout amount is controlled by the server catalog and does not match the client request.',
       stage: 'request-body',
       status: 400,
     });
   }
-
-  return SUBSCRIPTION_TEST_PRODUCT;
 }
 
 function readCheckoutRequestId(customData: Record<string, unknown>) {
@@ -697,23 +709,27 @@ function buildCheckoutMerchantData(
   body: Record<string, unknown>,
   plan: BillingPlanCode,
   paymentId: string,
-  billingProductCode?: string,
+  catalog: Awaited<ReturnType<typeof resolveServerCatalogItem>>,
 ) {
   const customData = readCheckoutCustomData(body);
   const requestId = readCheckoutRequestId(customData);
   const slug = readCheckoutSlug(customData);
 
   return sanitizeCheckoutCustomData({
-    ...(billingProductCode ? { billingProductCode, billingProductType: 'subscription_test' } : {}),
+    grantsEntitlement: catalog.grantsEntitlement,
     ...(requestId ? { requestId } : {}),
     ...(slug ? { slug } : {}),
-    planKey: plan,
+    planKey: catalog.plan || plan,
+    productCode: catalog.productCode,
+    productType: catalog.productType,
+    purpose: catalog.purpose,
+    requestedPlan: plan,
     sessionId: paymentId,
   });
 }
 
-export function createCheckoutPaymentId(plan: BillingPlanCode) {
-  const compactPlan = COMPACT_PLAN_CODE[plan];
+export function createCheckoutPaymentId(plan: BillingPlanCode, productCode?: string) {
+  const compactPlan = productCode ? 'test' : COMPACT_PLAN_CODE[plan];
   const shortId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   const paymentId = `mb_${compactPlan}_${shortId}`;
 
@@ -771,30 +787,56 @@ export async function handleCheckoutRequest(request: CheckoutRequestLike) {
   assertBrowserContextMatchesEnv(readBrowserCheckoutContext(body), env);
 
   const requestedPlan = resolveRequestedPlan(body);
-  const checkoutProduct = resolveRequestedCheckoutProduct(body, requestedPlan);
-  const billingPlan = checkoutProduct ?? getBillingPlan(requestedPlan);
-  const paymentId = createCheckoutPaymentId(requestedPlan);
+  let catalog: Awaited<ReturnType<typeof resolveServerCatalogItem>>;
+  try {
+    catalog = await resolveServerCatalogItem({
+      plan: requestedPlan,
+      productCode: readRequestedProductCode(body),
+    });
+  } catch (error) {
+    throw new CheckoutApiError({
+      code: 'CATALOG_RESOLUTION_FAILED',
+      details: {
+        productCode: readRequestedProductCode(body),
+        requestedPlan,
+      },
+      message: error instanceof Error ? error.message : 'Checkout catalog resolution failed.',
+      stage: 'catalog-resolution',
+      status: 400,
+    });
+  }
+  assertClientAmountMatchesCatalog(body, catalog.amount);
+
+  const paymentId = createCheckoutPaymentId(requestedPlan, catalog.productType === 'test' ? catalog.productCode : undefined);
   const redirectPath = readCheckoutRedirectPath(body);
-  const orderName = readCheckoutOrderName(body, billingPlan.orderName);
+  const orderName = readCheckoutOrderName(body, catalog.orderName);
 
   const payload: CheckoutSessionResponse = {
     checkout: {
       channelKey: env.channelKey,
       currency: 'KRW',
-      customData: buildCheckoutMerchantData(body, requestedPlan, paymentId, checkoutProduct?.code),
+      customData: buildCheckoutMerchantData(body, requestedPlan, paymentId, catalog),
       customer: readCheckoutCustomer(body),
+      grantsEntitlement: catalog.grantsEntitlement,
       noticeUrls: [`${env.appBaseUrl}/api/billing/webhook`],
       orderName,
       payMethod: 'CARD',
       paymentId,
       plan: requestedPlan,
+      productCode: catalog.productCode,
+      productType: catalog.productType,
+      purpose: catalog.purpose,
       redirectUrl: buildCheckoutRedirectUrl(env.appBaseUrl, redirectPath, requestedPlan),
       storeId: env.storeId,
-      totalAmount: billingPlan.amount,
+      totalAmount: catalog.amount,
     },
     endpoint: CHECKOUT_ENDPOINT,
+    grantsEntitlement: catalog.grantsEntitlement,
     ok: true,
     plan: requestedPlan,
+    productCode: catalog.productCode,
+    productType: catalog.productType,
+    purpose: catalog.purpose,
   };
 
   const validation = validateCheckoutSessionPayload(payload.checkout);
