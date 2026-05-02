@@ -232,8 +232,8 @@ export function PricingPage() {
         <article className="section-card p-6 sm:p-8">
           <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">운영 기준</span>
           <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600 sm:text-base">
-            <p>FREE는 결제를 호출하지 않고 온보딩으로 이동합니다. PRO/VIP는 서버 catalog 기준 금액으로 checkout을 생성합니다.</p>
-            <p>할인처럼 보이는 표시는 관리자 가격표에서 compare-at, badge, discount label로 관리할 수 있습니다.</p>
+            <p>FREE는 결제 없이 시작할 수 있고, PRO/VIP는 선택한 플랜 기준으로 안전하게 결제가 진행됩니다.</p>
+            <p>추천 배지와 할인 표시는 실제 이용 조건을 이해하기 쉽게 보여주는 안내입니다.</p>
             <p>
               문의 메일{' '}
               <a className="font-semibold text-orange-700" href={`mailto:${BUSINESS_INFO.email}`}>
@@ -248,7 +248,7 @@ export function PricingPage() {
         <div className="mb-6 space-y-2">
           <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">월 구독</span>
           <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">FREE / PRO / VIP</h2>
-          <p className="text-sm text-slate-500 sm:text-base">가격표는 플랫폼 관리자 설정을 우선 사용하고, DB 설정이 없으면 안전한 fallback을 사용합니다.</p>
+          <p className="text-sm text-slate-500 sm:text-base">매장 상황에 맞춰 무료 시작, 운영 확장, 성장 분석 단계로 선택할 수 있습니다.</p>
         </div>
 
         {visibleMessage ? (
@@ -275,6 +275,9 @@ export function PricingPage() {
                     <p className="mt-3 whitespace-nowrap font-display text-[2rem] font-black leading-none text-slate-900 sm:text-3xl">
                       {formatKrw(plan.price_amount)}
                     </p>
+                    {plan.compare_at_amount ? (
+                      <p className="mt-2 text-sm font-bold text-slate-400 line-through">{formatKrw(plan.compare_at_amount)}</p>
+                    ) : null}
                   </div>
                   {plan.badge_text || plan.is_recommended ? (
                     <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">{plan.badge_text || '추천'}</span>
@@ -282,6 +285,11 @@ export function PricingPage() {
                 </div>
 
                 <p className="mt-4 text-sm leading-6 text-slate-500 sm:text-base">{plan.short_description}</p>
+                {plan.discount_label ? (
+                  <p className="mt-3 inline-flex self-start rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                    {plan.discount_label}
+                  </p>
+                ) : null}
 
                 <ul className="mt-6 space-y-3">
                   {plan.bullet_items.map((item) => (
@@ -320,7 +328,7 @@ export function PricingPage() {
             <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Payment Test</p>
             <h2 className="mt-2 font-display text-2xl font-black text-slate-950">100원 테스트 결제</h2>
             <p className="mt-2 text-sm leading-6 text-slate-700">
-              관리자 검증용 단건 결제입니다. 성공해도 PRO/VIP 권한이나 store_subscriptions를 변경하지 않습니다.
+              관리자 검증용 단건 결제입니다. 성공해도 PRO/VIP 구독 권한은 변경되지 않습니다.
             </p>
             <button
               className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-60"

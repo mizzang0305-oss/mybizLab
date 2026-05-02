@@ -1,8 +1,11 @@
 import {
   FALLBACK_BILLING_PRODUCTS,
+  FALLBACK_FAQ_ITEMS,
   FALLBACK_HOMEPAGE_SECTIONS,
+  FALLBACK_PUBLIC_PAGES,
   FALLBACK_PRICING_PLANS,
   FALLBACK_SITE_SETTINGS,
+  FALLBACK_TRUST_SIGNALS,
   PAYMENT_TEST_PRODUCT_CODE,
   filterPublicBillingProducts,
   filterPublicHomepageSections,
@@ -11,16 +14,20 @@ import {
   isPlatformPlanCode,
   normalizeJsonArray,
   pathMatchesTarget,
+  sanitizePublicPlatformText,
   type PlatformAnnouncement,
   type PlatformBanner,
   type PlatformBillingProduct,
   type PlatformBoardPost,
+  type PlatformFaqItem,
   type PlatformHomepageSection,
   type PlatformPaymentEvent,
   type PlatformPlanCode,
   type PlatformPopup,
   type PlatformPricingPlan,
+  type PlatformPublicPage,
   type PlatformSiteSettings,
+  type PlatformTrustSignal,
 } from '../shared/lib/platformAdminConfig.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 
@@ -64,11 +71,11 @@ function normalizeSiteSettings(row: Record<string, unknown> | null | undefined):
 
 function normalizeHomepageSection(row: Record<string, unknown>): PlatformHomepageSection {
   return {
-    body: typeof row.body === 'string' ? row.body : null,
+    body: sanitizePublicPlatformText(row.body, null),
     cta_href: typeof row.cta_href === 'string' ? row.cta_href : null,
-    cta_label: typeof row.cta_label === 'string' ? row.cta_label : null,
+    cta_label: sanitizePublicPlatformText(row.cta_label, null),
     ends_at: typeof row.ends_at === 'string' ? row.ends_at : null,
-    eyebrow: typeof row.eyebrow === 'string' ? row.eyebrow : null,
+    eyebrow: sanitizePublicPlatformText(row.eyebrow, null),
     id: typeof row.id === 'string' ? row.id : undefined,
     is_visible: row.is_visible !== false,
     media_url: typeof row.media_url === 'string' ? row.media_url : null,
@@ -78,8 +85,8 @@ function normalizeHomepageSection(row: Record<string, unknown>): PlatformHomepag
     sort_order: typeof row.sort_order === 'number' ? row.sort_order : 100,
     starts_at: typeof row.starts_at === 'string' ? row.starts_at : null,
     status: row.status === 'draft' || row.status === 'archived' || row.status === 'published' ? row.status : 'draft',
-    subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
-    title: typeof row.title === 'string' ? row.title : null,
+    subtitle: sanitizePublicPlatformText(row.subtitle, null),
+    title: sanitizePublicPlatformText(row.title, null),
   };
 }
 
@@ -152,43 +159,43 @@ function normalizeBillingProduct(row: Record<string, unknown>): PlatformBillingP
 function normalizeAnnouncement(row: Record<string, unknown>): PlatformAnnouncement {
   return {
     audience: typeof row.audience === 'string' ? row.audience as PlatformAnnouncement['audience'] : 'all',
-    body: typeof row.body === 'string' ? row.body : '',
-    category: typeof row.category === 'string' ? row.category : null,
+    body: sanitizePublicPlatformText(row.body, '') || '',
+    category: sanitizePublicPlatformText(row.category, null),
     ends_at: typeof row.ends_at === 'string' ? row.ends_at : null,
     id: typeof row.id === 'string' ? row.id : undefined,
     is_pinned: row.is_pinned === true,
     is_published: row.is_published === true,
     link_href: typeof row.link_href === 'string' ? row.link_href : null,
-    link_label: typeof row.link_label === 'string' ? row.link_label : null,
+    link_label: sanitizePublicPlatformText(row.link_label, null),
     severity: typeof row.severity === 'string' ? row.severity as PlatformAnnouncement['severity'] : 'info',
     starts_at: typeof row.starts_at === 'string' ? row.starts_at : null,
-    summary: typeof row.summary === 'string' ? row.summary : null,
-    title: typeof row.title === 'string' ? row.title : '',
+    summary: sanitizePublicPlatformText(row.summary, null),
+    title: sanitizePublicPlatformText(row.title, '') || '',
   };
 }
 
 function normalizeBoardPost(row: Record<string, unknown>): PlatformBoardPost {
   return {
-    body: typeof row.body === 'string' ? row.body : '',
-    category: typeof row.category === 'string' ? row.category : null,
+    body: sanitizePublicPlatformText(row.body, '') || '',
+    category: sanitizePublicPlatformText(row.category, null),
     cover_image_url: typeof row.cover_image_url === 'string' ? row.cover_image_url : null,
-    excerpt: typeof row.excerpt === 'string' ? row.excerpt : null,
+    excerpt: sanitizePublicPlatformText(row.excerpt, null),
     id: typeof row.id === 'string' ? row.id : undefined,
     is_pinned: row.is_pinned === true,
     published_at: typeof row.published_at === 'string' ? row.published_at : null,
     slug: typeof row.slug === 'string' ? row.slug : '',
     status: row.status === 'draft' || row.status === 'archived' || row.status === 'published' ? row.status : 'draft',
     tags: toStringArray(row.tags),
-    title: typeof row.title === 'string' ? row.title : '',
+    title: sanitizePublicPlatformText(row.title, '') || '',
   };
 }
 
 function normalizePopup(row: Record<string, unknown>): PlatformPopup {
   return {
     audience: typeof row.audience === 'string' ? row.audience as PlatformPopup['audience'] : 'all',
-    body: typeof row.body === 'string' ? row.body : null,
+    body: sanitizePublicPlatformText(row.body, null),
     cta_href: typeof row.cta_href === 'string' ? row.cta_href : null,
-    cta_label: typeof row.cta_label === 'string' ? row.cta_label : null,
+    cta_label: sanitizePublicPlatformText(row.cta_label, null),
     dismissible: row.dismissible !== false,
     ends_at: typeof row.ends_at === 'string' ? row.ends_at : null,
     exclude_paths: toStringArray(row.exclude_paths),
@@ -208,7 +215,7 @@ function normalizePopup(row: Record<string, unknown>): PlatformPopup {
     starts_at: typeof row.starts_at === 'string' ? row.starts_at : null,
     status: row.status === 'draft' || row.status === 'archived' || row.status === 'published' ? row.status : 'draft',
     target_paths: toStringArray(row.target_paths),
-    title: typeof row.title === 'string' ? row.title : '',
+    title: sanitizePublicPlatformText(row.title, '') || '',
   };
 }
 
@@ -216,15 +223,56 @@ function normalizeBanner(row: Record<string, unknown>): PlatformBanner {
   return {
     banner_key: typeof row.banner_key === 'string' ? row.banner_key : '',
     cta_href: typeof row.cta_href === 'string' ? row.cta_href : null,
-    cta_label: typeof row.cta_label === 'string' ? row.cta_label : null,
+    cta_label: sanitizePublicPlatformText(row.cta_label, null),
     ends_at: typeof row.ends_at === 'string' ? row.ends_at : null,
     id: typeof row.id === 'string' ? row.id : undefined,
     is_active: row.is_active === true,
-    message: typeof row.message === 'string' ? row.message : '',
+    message: sanitizePublicPlatformText(row.message, '') || '',
     priority: typeof row.priority === 'number' ? row.priority : 100,
     severity: typeof row.severity === 'string' ? row.severity as PlatformBanner['severity'] : 'info',
     starts_at: typeof row.starts_at === 'string' ? row.starts_at : null,
     target_paths: toStringArray(row.target_paths),
+  };
+}
+
+function normalizePublicPage(row: Record<string, unknown>): PlatformPublicPage {
+  const slug = typeof row.slug === 'string' ? row.slug : '';
+  const fallback = FALLBACK_PUBLIC_PAGES.find((page) => page.slug === slug) || FALLBACK_PUBLIC_PAGES[0];
+
+  return {
+    body: sanitizePublicPlatformText(row.body, fallback.body || null),
+    cta_href: typeof row.cta_href === 'string' ? row.cta_href : fallback.cta_href,
+    cta_label: sanitizePublicPlatformText(row.cta_label, fallback.cta_label || null),
+    description: sanitizePublicPlatformText(row.description, fallback.description || null),
+    hero_media_url: typeof row.hero_media_url === 'string' ? row.hero_media_url : null,
+    is_published: row.is_published !== false,
+    payload: toRecord(row.payload),
+    seo_description: sanitizePublicPlatformText(row.seo_description, fallback.seo_description || null),
+    seo_title: sanitizePublicPlatformText(row.seo_title, fallback.seo_title || null),
+    slug,
+    sort_order: typeof row.sort_order === 'number' ? row.sort_order : fallback.sort_order,
+    title: sanitizePublicPlatformText(row.title, fallback.title) || fallback.title,
+  };
+}
+
+function normalizeFaqItem(row: Record<string, unknown>): PlatformFaqItem {
+  return {
+    answer: sanitizePublicPlatformText(row.answer, '') || '',
+    category: sanitizePublicPlatformText(row.category, null),
+    is_published: row.is_published !== false,
+    question: sanitizePublicPlatformText(row.question, '') || '',
+    sort_order: typeof row.sort_order === 'number' ? row.sort_order : 100,
+  };
+}
+
+function normalizeTrustSignal(row: Record<string, unknown>): PlatformTrustSignal {
+  return {
+    body: sanitizePublicPlatformText(row.body, '') || '',
+    icon_key: typeof row.icon_key === 'string' ? row.icon_key : null,
+    is_visible: row.is_visible !== false,
+    signal_key: typeof row.signal_key === 'string' ? row.signal_key : '',
+    sort_order: typeof row.sort_order === 'number' ? row.sort_order : 100,
+    title: sanitizePublicPlatformText(row.title, '') || '',
   };
 }
 
@@ -322,6 +370,26 @@ export async function getPublicPlatformBoardPosts() {
     .map(normalizeBoardPost)
     .filter((item) => item.status === 'published')
     .sort((left, right) => Number(right.is_pinned) - Number(left.is_pinned));
+}
+
+export async function getPublicPlatformPage(slug: string) {
+  const [pageRows, faqRows, trustRows] = await Promise.all([
+    maybeSelectTable('platform_pages'),
+    maybeSelectTable('platform_faq_items'),
+    maybeSelectTable('platform_trust_signals'),
+  ]);
+  const fallbackPage = FALLBACK_PUBLIC_PAGES.find((page) => page.slug === slug) || FALLBACK_PUBLIC_PAGES[0];
+  const page = (pageRows || [])
+    .map(normalizePublicPage)
+    .find((item) => item.slug === slug && item.is_published) || fallbackPage;
+  const faqItems = (faqRows?.length ? faqRows.map(normalizeFaqItem) : FALLBACK_FAQ_ITEMS)
+    .filter((item) => item.is_published && item.question && item.answer)
+    .sort((left, right) => left.sort_order - right.sort_order);
+  const trustSignals = (trustRows?.length ? trustRows.map(normalizeTrustSignal) : FALLBACK_TRUST_SIGNALS)
+    .filter((item) => item.is_visible && item.title && item.body)
+    .sort((left, right) => left.sort_order - right.sort_order);
+
+  return { faqItems, page, trustSignals };
 }
 
 export async function getPublicPlatformChrome(query: PlatformPublicQuery = {}) {

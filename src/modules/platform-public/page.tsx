@@ -6,7 +6,9 @@ import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   getPublicPlatformAnnouncements,
   getPublicPlatformBoardPosts,
+  getPublicPlatformPage,
 } from '@/shared/lib/services/platformAdminContentService';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 
 function formatDate(value?: string | null) {
   if (!value) return null;
@@ -124,4 +126,115 @@ export function PlatformPublicBoardPostPage() {
       </article>
     </main>
   );
+}
+
+const pageEyebrows: Record<string, string> = {
+  about: 'MyBiz 소개',
+  contact: '도입 문의',
+  faq: '자주 묻는 질문',
+  features: '기능',
+  trust: '신뢰와 보안',
+};
+
+export function PlatformPublicInfoPage({ slug }: { slug: string }) {
+  const pageQuery = useQuery({
+    queryKey: queryKeys.publicPlatformPage(slug),
+    queryFn: () => getPublicPlatformPage(slug),
+  });
+  const data = pageQuery.data;
+  const page = data?.page;
+
+  usePageMeta(page?.seo_title || 'MyBiz | 고객 기억 기반 매출 AI SaaS', page?.seo_description || page?.description || '');
+
+  if (pageQuery.isLoading || !page) {
+    return (
+      <main className="page-shell py-14">
+        <p className="text-sm font-bold text-slate-500">페이지를 불러오는 중입니다.</p>
+      </main>
+    );
+  }
+
+  const cards = Array.isArray(page.payload.cards) ? page.payload.cards.map(String).filter(Boolean) : [];
+
+  return (
+    <main className="overflow-hidden">
+      <section className="relative bg-slate-950 px-5 py-16 text-white sm:px-8 lg:px-10">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(251,146,60,0.22),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(59,130,246,0.18),transparent_32%)]" />
+        <div className="relative mx-auto max-w-6xl">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-300">{pageEyebrows[slug] || 'MyBiz'}</p>
+          <h1 className="mt-4 max-w-4xl break-keep font-display text-4xl font-black leading-tight tracking-[-0.04em] sm:text-5xl">
+            {page.title}
+          </h1>
+          <p className="mt-5 max-w-3xl break-keep text-base leading-8 text-slate-300">{page.description || page.body}</p>
+          {page.cta_href ? (
+            <Link className="btn-primary mt-8 inline-flex" to={page.cta_href}>
+              {page.cta_label || '자세히 보기'}
+            </Link>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="page-shell py-12 sm:py-16">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <article className="section-card p-6 sm:p-8">
+            <h2 className="font-display text-2xl font-black text-slate-950">핵심 안내</h2>
+            <p className="mt-4 whitespace-pre-wrap break-keep text-sm leading-8 text-slate-700">{page.body}</p>
+            {cards.length ? (
+              <div className="mt-6 grid gap-3">
+                {cards.map((card) => (
+                  <div key={card} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                    {card}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </article>
+
+          <aside className="space-y-4">
+            {(data?.trustSignals || []).slice(0, 3).map((signal) => (
+              <article key={signal.signal_key} className="section-card p-5">
+                <p className="text-sm font-black text-orange-600">{signal.title}</p>
+                <p className="mt-2 break-keep text-sm leading-6 text-slate-600">{signal.body}</p>
+              </article>
+            ))}
+          </aside>
+        </div>
+
+        {slug === 'faq' || (data?.faqItems || []).length ? (
+          <section className="mt-10">
+            <p className="eyebrow">FAQ</p>
+            <h2 className="mt-3 font-display text-3xl font-black text-slate-950">자주 묻는 질문</h2>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {(data?.faqItems || []).map((item) => (
+                <article key={item.question} className="section-card p-5">
+                  <h3 className="break-keep text-base font-black text-slate-950">{item.question}</h3>
+                  <p className="mt-3 break-keep text-sm leading-7 text-slate-600">{item.answer}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </section>
+    </main>
+  );
+}
+
+export function PlatformFeaturesPage() {
+  return <PlatformPublicInfoPage slug="features" />;
+}
+
+export function PlatformFaqPage() {
+  return <PlatformPublicInfoPage slug="faq" />;
+}
+
+export function PlatformAboutPage() {
+  return <PlatformPublicInfoPage slug="about" />;
+}
+
+export function PlatformContactPage() {
+  return <PlatformPublicInfoPage slug="contact" />;
+}
+
+export function PlatformTrustPage() {
+  return <PlatformPublicInfoPage slug="trust" />;
 }

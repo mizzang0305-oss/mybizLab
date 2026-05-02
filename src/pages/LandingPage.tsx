@@ -119,7 +119,7 @@ export function LandingPage() {
             <a className="rounded-full px-3 py-2 hover:bg-white/10" href="#cases">고객 사례</a>
             <a className="rounded-full px-3 py-2 hover:bg-white/10" href="#resources">리소스</a>
             <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/login">점주 로그인</Link>
-            <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/dashboard">개발자 대시보드</Link>
+            <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/dashboard">점주 운영 화면</Link>
             <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/onboarding">공개 스토어 시작하기</Link>
             <button className="rounded-full px-3 py-2 hover:bg-white/10" data-demo-trigger="homepage-nav" onClick={() => setDemoOpen(true)} type="button">
               데모 보기
@@ -156,13 +156,18 @@ export function LandingPage() {
           </div>
 
           <div
-            className="relative min-h-[28rem] rounded-[2.5rem] border border-white/10 bg-white/[0.04] p-6 shadow-[0_40px_160px_-80px_rgba(0,0,0,0.95)]"
+            className="mybiz-hero-orbit relative min-h-[28rem] rounded-[2.5rem] border border-white/10 bg-white/[0.04] p-6 shadow-[0_40px_160px_-80px_rgba(0,0,0,0.95)]"
             data-cinematic-world="service-memory"
             data-service-orbit-world="hero"
           >
             <div className="absolute inset-8 rounded-full bg-[radial-gradient(circle,rgba(251,146,60,0.28),transparent_60%)] blur-2xl" />
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.5rem]">
+              <span className="mybiz-light-trail left-[12%] top-[26%]" />
+              <span className="mybiz-light-trail animation-delay-700 left-[46%] top-[64%]" />
+              <span className="mybiz-light-trail animation-delay-1400 left-[76%] top-[34%]" />
+            </div>
             <div className="relative flex h-full min-h-[24rem] items-center justify-center">
-              <div className="flex h-44 w-44 items-center justify-center rounded-full border border-orange-300/40 bg-orange-400/15 shadow-[0_0_90px_rgba(251,146,60,0.34)]">
+              <div className="mybiz-memory-core flex h-44 w-44 items-center justify-center rounded-full border border-orange-300/40 bg-orange-400/15 shadow-[0_0_90px_rgba(251,146,60,0.34)]">
                 <div className="flex h-28 w-28 items-center justify-center rounded-full bg-orange-500 text-4xl font-black">M</div>
               </div>
               {flowSteps.slice(0, 8).map((step, index) => {
@@ -172,7 +177,7 @@ export function LandingPage() {
                 return (
                   <div
                     key={step}
-                    className="absolute rounded-2xl border border-white/12 bg-slate-950/85 px-3 py-2 text-xs font-black text-white shadow-xl"
+                    className="mybiz-orbit-node absolute rounded-2xl border border-white/12 bg-slate-950/85 px-3 py-2 text-xs font-black text-white shadow-xl"
                     style={{ transform: `translate(${x}px, ${y}px)` }}
                   >
                     {step}

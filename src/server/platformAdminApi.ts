@@ -4,6 +4,7 @@ import {
   PAYMENT_TEST_PRODUCT_CODE,
   assertSafePlatformText,
   isPlatformPlanCode,
+  scanPlatformContentQuality,
   type PlatformAdminOverview,
 } from '../shared/lib/platformAdminConfig.js';
 import {
@@ -11,6 +12,7 @@ import {
   getPublicPlatformBoardPosts,
   getPublicPlatformChrome,
   getPublicPlatformHomepage,
+  getPublicPlatformPage,
   getPublicPlatformPricing,
   listPlatformBillingProductsForServer,
   listPlatformPaymentEventsForServer,
@@ -40,13 +42,21 @@ type PlatformTableResource =
   | 'banners'
   | 'billing-products'
   | 'board-posts'
+  | 'content-quality-rules'
+  | 'content-versions'
   | 'feature-flags'
+  | 'faq-items'
+  | 'footer-settings'
   | 'homepage-sections'
   | 'media-assets'
+  | 'page-sections'
+  | 'pages'
   | 'popups'
   | 'pricing-plans'
   | 'promotions'
-  | 'site-settings';
+  | 'site-settings'
+  | 'site-snapshots'
+  | 'trust-signals';
 
 interface PlatformResourceConfig {
   defaultOrder: string;
@@ -81,11 +91,32 @@ const RESOURCE_CONFIG: Record<PlatformTableResource, PlatformResourceConfig> = {
     table: 'platform_board_posts',
     uniqueKey: 'slug',
   },
+  'content-quality-rules': {
+    defaultOrder: 'rule_key.asc',
+    entityType: 'platform_content_quality_rules',
+    table: 'platform_content_quality_rules',
+    uniqueKey: 'rule_key',
+  },
+  'content-versions': {
+    defaultOrder: 'created_at.desc',
+    entityType: 'platform_content_versions',
+    table: 'platform_content_versions',
+  },
   'feature-flags': {
     defaultOrder: 'flag_key.asc',
     entityType: 'platform_feature_flags',
     table: 'platform_feature_flags',
     uniqueKey: 'flag_key',
+  },
+  'faq-items': {
+    defaultOrder: 'sort_order.asc',
+    entityType: 'platform_faq_items',
+    table: 'platform_faq_items',
+  },
+  'footer-settings': {
+    defaultOrder: 'created_at.desc',
+    entityType: 'platform_footer_settings',
+    table: 'platform_footer_settings',
   },
   'homepage-sections': {
     defaultOrder: 'sort_order.asc',
@@ -97,6 +128,17 @@ const RESOURCE_CONFIG: Record<PlatformTableResource, PlatformResourceConfig> = {
     defaultOrder: 'created_at.desc',
     entityType: 'platform_media_assets',
     table: 'platform_media_assets',
+  },
+  'page-sections': {
+    defaultOrder: 'sort_order.asc',
+    entityType: 'platform_page_sections',
+    table: 'platform_page_sections',
+  },
+  pages: {
+    defaultOrder: 'sort_order.asc',
+    entityType: 'platform_pages',
+    table: 'platform_pages',
+    uniqueKey: 'slug',
   },
   popups: {
     defaultOrder: 'priority.asc',
@@ -121,17 +163,33 @@ const RESOURCE_CONFIG: Record<PlatformTableResource, PlatformResourceConfig> = {
     entityType: 'platform_site_settings',
     table: 'platform_site_settings',
   },
+  'site-snapshots': {
+    defaultOrder: 'created_at.desc',
+    entityType: 'platform_site_snapshots',
+    table: 'platform_site_snapshots',
+  },
+  'trust-signals': {
+    defaultOrder: 'sort_order.asc',
+    entityType: 'platform_trust_signals',
+    table: 'platform_trust_signals',
+    uniqueKey: 'signal_key',
+  },
 };
 
 const UPDATED_BY_RESOURCES = new Set<PlatformTableResource>([
   'announcements',
   'billing-products',
   'board-posts',
+  'content-quality-rules',
   'feature-flags',
+  'faq-items',
   'homepage-sections',
+  'page-sections',
+  'pages',
   'popups',
   'pricing-plans',
   'site-settings',
+  'trust-signals',
 ]);
 
 function json(body: unknown, status = 200, extraHeaders?: Record<string, string>) {
@@ -344,6 +402,60 @@ async function writeAuditLog(input: {
   }
 }
 
+async function writeContentVersion(input: {
+  action: string;
+  client: SupabaseClient;
+  context: PlatformAdminContext;
+  entityId: string;
+  entityType: string;
+  snapshot: Record<string, unknown>;
+}) {
+  const { error } = await input.client.from('platform_content_versions').insert({
+    change_summary: input.action,
+    created_by: input.context.profileId,
+    entity_id: input.entityId,
+    entity_type: input.entityType,
+    snapshot: input.snapshot,
+    version_label: `${input.action}-${new Date().toISOString()}`,
+  });
+
+  if (error && !isMissingTableError(error)) {
+    console.warn('[platform-admin] content version write failed', error.message);
+  }
+}
+
+async function writeLatestPublishedSnapshot(input: {
+  client: SupabaseClient;
+  context: PlatformAdminContext;
+  entityType: string;
+  payload: Record<string, unknown>;
+}) {
+  const isPublished =
+    input.payload.status === 'published' ||
+    input.payload.is_published === true ||
+    input.payload.homepage_status === 'published';
+  if (!isPublished) return;
+
+  const { error } = await input.client.from('platform_site_snapshots').upsert(
+    {
+      created_by: input.context.profileId,
+      payload: {
+        entityType: input.entityType,
+        publishedAt: new Date().toISOString(),
+        value: input.payload,
+      },
+      quality_score: 100,
+      snapshot_key: `latest-${input.entityType}`,
+      status: 'published',
+    },
+    { onConflict: 'snapshot_key' },
+  );
+
+  if (error && !isMissingTableError(error)) {
+    console.warn('[platform-admin] site snapshot write failed', error.message);
+  }
+}
+
 async function listTableResource(client: SupabaseClient, resource: PlatformTableResource) {
   const config = RESOURCE_CONFIG[resource];
   const { column, ascending } = normalizeOrder(config.defaultOrder);
@@ -396,13 +508,28 @@ async function mutateTableResource(input: {
   if (input.method === 'POST') {
     const { data, error } = await input.client.from(config.table).insert(payload).select('*').single();
     if (error) throw error;
+    const entityId = String((data as Record<string, unknown>).id || payload[config.uniqueKey || 'id'] || '');
     await writeAuditLog({
       action: 'create',
       afterValue: data as Record<string, unknown>,
       client: input.client,
       context: input.context,
-      entityId: String((data as Record<string, unknown>).id || payload[config.uniqueKey || 'id'] || ''),
+      entityId,
       entityType: config.entityType,
+    });
+    await writeContentVersion({
+      action: 'create',
+      client: input.client,
+      context: input.context,
+      entityId,
+      entityType: config.entityType,
+      snapshot: data as Record<string, unknown>,
+    });
+    await writeLatestPublishedSnapshot({
+      client: input.client,
+      context: input.context,
+      entityType: config.entityType,
+      payload: data as Record<string, unknown>,
     });
     return data;
   }
@@ -439,6 +566,20 @@ async function mutateTableResource(input: {
     entityId: String((data as Record<string, unknown>).id || identifier.value),
     entityType: config.entityType,
   });
+  await writeContentVersion({
+    action: typeof payload.status === 'string' ? payload.status : 'update',
+    client: input.client,
+    context: input.context,
+    entityId: String((data as Record<string, unknown>).id || identifier.value),
+    entityType: config.entityType,
+    snapshot: data as Record<string, unknown>,
+  });
+  await writeLatestPublishedSnapshot({
+    client: input.client,
+    context: input.context,
+    entityType: config.entityType,
+    payload: data as Record<string, unknown>,
+  });
 
   return data;
 }
@@ -473,6 +614,65 @@ async function buildOverview(): Promise<PlatformAdminOverview> {
   };
 }
 
+async function safeListQualityRows(client: SupabaseClient, resource: PlatformTableResource) {
+  try {
+    const rows = await listTableResource(client, resource);
+    return rows as Record<string, unknown>[];
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+async function buildContentQualitySnapshot(client: SupabaseClient) {
+  const resources: PlatformTableResource[] = [
+    'homepage-sections',
+    'pricing-plans',
+    'billing-products',
+    'promotions',
+    'announcements',
+    'board-posts',
+    'popups',
+    'banners',
+    'pages',
+    'faq-items',
+    'trust-signals',
+    'site-settings',
+  ];
+  const rowsByResource = await Promise.all(resources.map(async (resource) => [resource, await safeListQualityRows(client, resource)] as const));
+
+  return scanPlatformContentQuality(
+    rowsByResource.flatMap(([resource, rows]) =>
+      rows.map((row, index) => {
+        const id = String(
+          row.id ||
+            row.section_key ||
+            row.plan_code ||
+            row.product_code ||
+            row.promotion_code ||
+            row.slug ||
+            row.popup_key ||
+            row.banner_key ||
+            row.signal_key ||
+            index,
+        );
+        const publicExposure =
+          row.status === 'published' ||
+          row.is_published === true ||
+          row.is_active === true ||
+          row.is_visible === true ||
+          resource === 'site-settings';
+        return {
+          entityId: id,
+          entityType: RESOURCE_CONFIG[resource].entityType,
+          fields: row,
+          publicExposure,
+        };
+      }),
+    ),
+  );
+}
+
 export async function handlePlatformPublicRequest(request: PlatformAdminRequestLike) {
   const url = getUrl(request);
   const resource = getResource(request);
@@ -493,6 +693,9 @@ export async function handlePlatformPublicRequest(request: PlatformAdminRequestL
     case 'platform-board-posts':
     case 'board-posts':
       return json({ ok: true, data: await getPublicPlatformBoardPosts() });
+    case 'platform-page':
+    case 'page':
+      return json({ ok: true, data: await getPublicPlatformPage(searchParams.get('slug') || 'features') });
     case 'platform-popups':
     case 'popups':
     case 'platform-banners':
@@ -520,6 +723,10 @@ export async function handlePlatformAdminRequest(request: PlatformAdminRequestLi
 
     if (resource === 'overview') {
       return json({ ok: true, data: await buildOverview() });
+    }
+
+    if (resource === 'content-quality') {
+      return json({ ok: true, data: await buildContentQualitySnapshot(client) });
     }
 
     if (resource === 'audit-logs') {

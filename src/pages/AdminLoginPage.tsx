@@ -210,7 +210,7 @@ export function AdminLoginPage() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-orange-300">권한 구분</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                이 화면은 <strong className="text-white">가게/매장 관리자</strong>가 로그인하는 곳입니다. <strong className="text-white">MyBiz 운영자</strong>는 별도 내부 운영 경로를 사용하며, 실제 접근 권한은 <code className="text-orange-200">profiles + store_members</code> 기준으로 확인됩니다.
+                이 화면은 <strong className="text-white">가게/매장 관리자</strong>가 로그인하는 곳입니다. <strong className="text-white">MyBiz 운영자</strong>는 별도 운영 콘솔을 사용하며, 실제 접근 권한은 서버에서 안전하게 확인됩니다.
               </p>
             </div>
           </div>

@@ -84,6 +84,18 @@ describe('platform admin console foundations', () => {
     expect(payload.data.testProducts).toEqual([]);
   });
 
+  it('serves customer-safe public page fallback content', async () => {
+    const response = await handlePlatformPublicRequest(
+      new Request('https://mybiz.ai.kr/api/public/platform/page?resource=page&slug=trust'),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.data.page.slug).toBe('trust');
+    expect(payload.data.page.title).toContain('고객 기억');
+    expect(JSON.stringify(payload.data)).not.toMatch(/webhook|store_subscriptions|dummy|TODO|internal/i);
+  });
+
   it('requires server-validated platform admin auth for admin APIs', async () => {
     const response = await handlePlatformAdminRequest(
       new Request('https://mybiz.ai.kr/api/admin/platform/session?resource=session'),

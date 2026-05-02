@@ -56,6 +56,8 @@ async function routePublicRequest(request: PublicRequestLike) {
     case 'platform-pricing':
     case 'platform-announcements':
     case 'platform-board-posts':
+    case 'page':
+    case 'platform-page':
     case 'platform-popups':
     case 'platform-banners':
     case 'platform-chrome':

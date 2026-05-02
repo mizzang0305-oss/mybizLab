@@ -2,9 +2,11 @@ import { supabase } from '../../../integrations/supabase/client';
 import {
   FALLBACK_BILLING_PRODUCTS,
   FALLBACK_HOMEPAGE_SECTIONS,
+  FALLBACK_PUBLIC_PAGES,
   FALLBACK_PRICING_PLANS,
   FALLBACK_SITE_SETTINGS,
   PAYMENT_TEST_PRODUCT_CODE,
+  type PlatformContentQualityResult,
   type PlatformAdminOverview,
   type PlatformAnnouncement,
   type PlatformAuditLog,
@@ -18,6 +20,7 @@ import {
   type PlatformPopup,
   type PlatformPricingPlan,
   type PlatformPromotion,
+  type PublicPlatformPagePayload,
   type PlatformSiteSettings,
   type PublicPlatformChromePayload,
   type PublicPlatformHomepagePayload,
@@ -43,10 +46,17 @@ export type PlatformAdminResource =
   | 'banners'
   | 'billing-products'
   | 'board-posts'
+  | 'content-quality'
+  | 'content-quality-rules'
+  | 'content-versions'
   | 'feature-flags'
+  | 'faq-items'
+  | 'footer-settings'
   | 'homepage-sections'
   | 'media-assets'
   | 'overview'
+  | 'page-sections'
+  | 'pages'
   | 'payment-events'
   | 'payment-tests'
   | 'popups'
@@ -54,7 +64,9 @@ export type PlatformAdminResource =
   | 'pricing-preview'
   | 'promotions'
   | 'session'
-  | 'site-settings';
+  | 'site-settings'
+  | 'site-snapshots'
+  | 'trust-signals';
 
 async function readJson<T>(response: Response) {
   const text = await response.text();
@@ -140,6 +152,10 @@ export async function getPaymentTestsSnapshot() {
   }>('payment-tests');
 }
 
+export async function getPlatformContentQualitySnapshot() {
+  return platformAdminFetch<PlatformContentQualityResult>('content-quality');
+}
+
 export async function getPublicPlatformHomepageContent() {
   return platformPublicFetch<PublicPlatformHomepagePayload>('homepage', {
     sections: FALLBACK_HOMEPAGE_SECTIONS,
@@ -173,16 +189,36 @@ export async function getPublicPlatformBoardPosts() {
   return platformPublicFetch<PlatformBoardPost[]>('board-posts', []);
 }
 
+export async function getPublicPlatformPage(slug: string) {
+  const fallbackPage = FALLBACK_PUBLIC_PAGES.find((page) => page.slug === slug) || FALLBACK_PUBLIC_PAGES[0];
+  return platformPublicFetch<PublicPlatformPagePayload>(
+    'page',
+    {
+      faqItems: [],
+      page: fallbackPage,
+      trustSignals: [],
+    },
+    { slug },
+  );
+}
+
 export const PLATFORM_ADMIN_RESOURCE_LABELS: Record<PlatformAdminResource, string> = {
   announcements: '공지',
   'audit-logs': '감사 로그',
   banners: '배너',
   'billing-products': '결제 상품',
   'board-posts': '게시판',
+  'content-quality': '콘텐츠 QA',
+  'content-quality-rules': '품질 규칙',
+  'content-versions': '버전 기록',
   'feature-flags': '기능 플래그',
+  'faq-items': 'FAQ',
+  'footer-settings': '푸터 설정',
   'homepage-sections': '홈페이지 섹션',
   'media-assets': '미디어',
   overview: '개요',
+  'page-sections': '페이지 섹션',
+  pages: '페이지',
   'payment-events': '결제 이벤트',
   'payment-tests': '100원 테스트 결제',
   popups: '팝업',
@@ -191,6 +227,8 @@ export const PLATFORM_ADMIN_RESOURCE_LABELS: Record<PlatformAdminResource, strin
   promotions: '프로모션/할인 표시',
   session: '세션',
   'site-settings': 'SEO/푸터 설정',
+  'site-snapshots': '게시 스냅샷',
+  'trust-signals': '신뢰요소',
 };
 
 export type PlatformAdminEntity =

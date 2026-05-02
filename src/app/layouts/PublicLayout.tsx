@@ -13,8 +13,12 @@ import { SERVICE_TAGLINE, SITE_NAME, SUBSCRIPTION_START_PATH } from '@/shared/li
 
 const navigationLinks = [
   { label: '소개', href: '/' },
+  { label: '기능', href: '/features' },
   { label: '요금제', href: '/pricing' },
+  { label: 'FAQ', href: '/faq' },
+  { label: '신뢰와 보안', href: '/trust' },
   { label: '공지', href: '/notices' },
+  { label: '문의', href: '/contact' },
   { label: '이용약관', href: '/terms' },
   { label: '개인정보', href: '/privacy' },
   { label: '환불정책', href: '/refund' },

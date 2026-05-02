@@ -7,6 +7,7 @@ import {
   PAYMENT_TEST_PRODUCT_CODE,
   formatProductKrw,
   type PlatformAdminOverview,
+  type PlatformContentQualityResult,
   type PlatformPaymentEvent,
   type PlatformPricingPlan,
 } from '@/shared/lib/platformAdminConfig';
@@ -16,6 +17,7 @@ import {
   PLATFORM_ADMIN_RESOURCE_LABELS,
   createPlatformAdminResource,
   getPaymentTestsSnapshot,
+  getPlatformContentQualitySnapshot,
   getPlatformAdminOverview,
   listPlatformAdminResource,
   updatePlatformAdminResource,
@@ -30,13 +32,21 @@ type EditablePlatformAdminResource = Extract<
   | 'banners'
   | 'billing-products'
   | 'board-posts'
+  | 'content-quality-rules'
+  | 'content-versions'
   | 'feature-flags'
+  | 'faq-items'
+  | 'footer-settings'
   | 'homepage-sections'
   | 'media-assets'
+  | 'page-sections'
+  | 'pages'
   | 'popups'
   | 'pricing-plans'
   | 'promotions'
   | 'site-settings'
+  | 'site-snapshots'
+  | 'trust-signals'
 >;
 
 const resourceDescriptions: Partial<Record<PlatformAdminResource, string>> = {
@@ -44,13 +54,19 @@ const resourceDescriptions: Partial<Record<PlatformAdminResource, string>> = {
   banners: '홈페이지, 가격표, 운영 화면 상단에 노출할 배너를 관리합니다.',
   'billing-products': '구독 플랜이 아닌 단건/테스트 결제 상품을 관리합니다. 실제 금액은 서버 catalog가 결정합니다.',
   'board-posts': '업데이트, 뉴스, 가이드 게시글을 draft/published/archived 상태로 관리합니다.',
+  'content-quality-rules': '공개 콘텐츠에 허용되지 않는 내부 문구, 누락 필드, 링크 품질 규칙을 관리합니다.',
   'feature-flags': '안전한 기능 플래그를 관리합니다. MYBI는 명시 요청 전까지 false로 유지합니다.',
+  'faq-items': '공개 FAQ 질문과 답변을 관리합니다. 짧고 고객 친화적인 문장으로 작성합니다.',
+  'footer-settings': '회사 정보, 지원 연락처, 정책 링크 등 푸터 신뢰 정보를 관리합니다.',
   'homepage-sections': '공개 홈페이지 섹션의 문구, CTA, 미디어, JSON payload, 게시 상태를 관리합니다.',
   'media-assets': '스토리지 업로드 인프라 전까지 URL 기반 미디어 등록과 alt text 관리를 제공합니다.',
+  'page-sections': '개별 공개 페이지의 섹션 순서와 콘텐츠 블록을 관리합니다.',
+  pages: '기능, FAQ, 소개, 문의, 신뢰 페이지의 공개 상태와 SEO를 관리합니다.',
   popups: '홈페이지/가격표/공개 페이지에 표시할 팝업을 경로, 일정, 빈도 정책 기준으로 관리합니다.',
   'pricing-plans': 'FREE/PRO/VIP 가격표 표시를 관리합니다. plan_code는 free/pro/vip만 허용됩니다.',
   promotions: '실제 결제 금액이 아닌 표시용 할인/비교가/배지를 관리합니다.',
   'site-settings': 'SEO, CTA, 푸터, 지원 연락처 등 글로벌 공개 사이트 설정을 관리합니다.',
+  'trust-signals': '결제 안정성, 접근권한 분리, 공개 콘텐츠 품질 등 신뢰요소를 관리합니다.',
 };
 
 const templateByResource: Partial<Record<PlatformAdminResource, JsonRow>> = {
@@ -93,6 +109,30 @@ const templateByResource: Partial<Record<PlatformAdminResource, JsonRow>> = {
     tags: [],
     title: '새 게시글',
   },
+  'content-quality-rules': {
+    is_active: true,
+    keyword: 'webhook',
+    rule_key: `rule_${Date.now()}`,
+    severity: 'critical',
+    suggestion: '고객에게는 결제 안정성/지원 안내로 표현하세요.',
+  },
+  'faq-items': {
+    answer: '문의, 예약, 웨이팅, 주문이 한 고객의 맥락으로 쌓여 재방문 액션을 더 빠르게 정할 수 있습니다.',
+    category: '제품',
+    is_published: false,
+    question: '고객 기억은 매출에 어떻게 도움이 되나요?',
+    sort_order: 100,
+  },
+  'footer-settings': {
+    footer_business_info: '고객 기억 기반 매출 AI SaaS',
+    footer_company_name: 'MyBiz',
+    footer_links: [
+      { href: '/terms', label: '이용약관' },
+      { href: '/privacy', label: '개인정보처리방침' },
+    ],
+    status: 'draft',
+    support_email: 'support@mybiz.ai.kr',
+  },
   'feature-flags': {
     description: '기능 설명',
     flag_key: `flag_${Date.now()}`,
@@ -115,6 +155,29 @@ const templateByResource: Partial<Record<PlatformAdminResource, JsonRow>> = {
     tags: [],
     url: 'https://',
     usage_context: 'homepage',
+  },
+  'page-sections': {
+    body: '섹션 본문을 입력하세요.',
+    is_visible: true,
+    page_slug: 'features',
+    payload: {},
+    section_key: `page_section_${Date.now()}`,
+    sort_order: 100,
+    status: 'draft',
+    title: '새 페이지 섹션',
+  },
+  pages: {
+    body: '페이지 본문을 입력하세요.',
+    cta_href: '/onboarding',
+    cta_label: '공개 스토어 시작하기',
+    description: '고객이 이해할 수 있는 한 문장 설명을 입력하세요.',
+    is_published: false,
+    payload: {},
+    seo_description: 'MyBiz 공개 페이지 설명',
+    seo_title: 'MyBiz',
+    slug: `page-${Date.now()}`,
+    sort_order: 100,
+    title: '새 공개 페이지',
   },
   popups: {
     audience: 'all',
@@ -159,6 +222,14 @@ const templateByResource: Partial<Record<PlatformAdminResource, JsonRow>> = {
     seo_description: '공개 스토어, 문의, 예약, 웨이팅, QR 주문을 고객 기억으로 연결합니다.',
     seo_title: 'MyBiz | 고객 기억 기반 매출 AI SaaS',
     site_name: 'MyBiz',
+  },
+  'trust-signals': {
+    body: '신뢰요소 설명을 입력하세요.',
+    icon_key: 'shield',
+    is_visible: true,
+    signal_key: `trust_${Date.now()}`,
+    sort_order: 100,
+    title: '새 신뢰요소',
   },
 };
 
@@ -414,6 +485,30 @@ export function PlatformHomepageAdminPage() {
   return <ResourcePage resource="homepage-sections" />;
 }
 
+export function PlatformPagesAdminPage() {
+  return <ResourcePage resource="pages" />;
+}
+
+export function PlatformSectionsAdminPage() {
+  return <ResourcePage resource="page-sections" />;
+}
+
+export function PlatformFaqAdminPage() {
+  return <ResourcePage resource="faq-items" />;
+}
+
+export function PlatformTrustAdminPage() {
+  return <ResourcePage resource="trust-signals" />;
+}
+
+export function PlatformFooterAdminPage() {
+  return <ResourcePage resource="footer-settings" />;
+}
+
+export function PlatformSeoAdminPage() {
+  return <ResourcePage resource="site-settings" />;
+}
+
 export function PlatformPricingAdminPage() {
   const previewQuery = useQuery({
     queryKey: queryKeys.platformAdminResource('pricing-plans'),
@@ -619,6 +714,90 @@ export function PlatformAuditLogsAdminPage() {
         ))}
       </div>
     </AdminCard>
+  );
+}
+
+function QualityBadge({ count, label, tone }: { count: number; label: string; tone: 'critical' | 'warning' | 'score' }) {
+  const className =
+    tone === 'critical'
+      ? 'border-rose-400/30 bg-rose-400/10 text-rose-100'
+      : tone === 'warning'
+        ? 'border-amber-400/30 bg-amber-400/10 text-amber-100'
+        : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100';
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${className}`}>
+      <p className="text-xs font-black text-current/70">{label}</p>
+      <p className="mt-1 font-display text-2xl font-black">{count}</p>
+    </div>
+  );
+}
+
+export function PlatformContentQualityAdminPage() {
+  const query = useQuery({
+    queryKey: queryKeys.platformContentQuality,
+    queryFn: getPlatformContentQualitySnapshot,
+  });
+  const result = query.data as PlatformContentQualityResult | undefined;
+
+  return (
+    <div className="space-y-6">
+      <AdminCard title="공개 콘텐츠 품질 검사">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-3xl text-sm leading-6 text-slate-300">
+            홈페이지, 가격표, 공지, 게시판, 팝업, 배너, FAQ, 신뢰요소에 내부/개발자용 표현이 섞였는지 검사합니다.
+            critical 이슈는 게시 전에 수정해야 합니다.
+          </p>
+          <button className="btn-primary" onClick={() => void query.refetch()} type="button">
+            다시 검사
+          </button>
+        </div>
+        {query.isLoading ? <p className="mt-4 text-sm text-slate-400">콘텐츠 품질을 검사하는 중입니다.</p> : null}
+        {query.isError ? (
+          <p className="mt-4 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">
+            {query.error instanceof Error ? query.error.message : '콘텐츠 품질 검사를 실행하지 못했습니다.'}
+          </p>
+        ) : null}
+        {result ? (
+          <>
+            <div className="mt-5 grid gap-3 md:grid-cols-4">
+              <QualityBadge count={result.score} label="품질 점수" tone="score" />
+              <QualityBadge count={result.scannedCount} label="검사 항목" tone="score" />
+              <QualityBadge count={result.criticalCount} label="차단 이슈" tone="critical" />
+              <QualityBadge count={result.warningCount} label="경고" tone="warning" />
+            </div>
+            <div className="mt-5 space-y-3">
+              {result.issues.map((issue, index) => (
+                <article key={`${issue.entityType}-${issue.entityId}-${issue.field}-${index}`} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${issue.severity === 'critical' ? 'bg-rose-500/15 text-rose-200' : 'bg-amber-500/15 text-amber-200'}`}>
+                      {issue.severity === 'critical' ? '게시 차단' : '경고'}
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">{issue.entityType} · {issue.entityId} · {issue.field}</span>
+                  </div>
+                  <p className="mt-2 text-sm font-bold text-white">{issue.message}</p>
+                </article>
+              ))}
+              {!result.issues.length ? <p className="text-sm font-bold text-emerald-200">공개 콘텐츠 품질 이슈가 없습니다.</p> : null}
+            </div>
+          </>
+        ) : null}
+      </AdminCard>
+      <ResourcePage resource="content-quality-rules" />
+    </div>
+  );
+}
+
+export function PlatformVersionsAdminPage() {
+  return (
+    <div className="space-y-6">
+      <AdminCard title="게시 버전과 스냅샷">
+        <p className="text-sm leading-6 text-slate-300">
+          공개 사이트 게시 이력과 마지막 정상 스냅샷을 확인합니다. 운영자는 문제가 생긴 공개 콘텐츠를 이전 스냅샷 기준으로 되돌릴 수 있습니다.
+        </p>
+      </AdminCard>
+      <ResourcePage resource="content-versions" />
+      <ResourcePage resource="site-snapshots" />
+    </div>
   );
 }
 

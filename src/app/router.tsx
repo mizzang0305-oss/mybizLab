@@ -21,7 +21,6 @@ import { PublicWaitingPage } from '@/modules/waiting/public-page';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
 import { LandingPage } from '@/pages/LandingPage';
 import { PricingPage } from '@/pages/PricingPage';
-import { UiPreviewPage } from '@/pages/UiPreviewPage';
 
 function RouteLoadingFallback() {
   return (
@@ -89,10 +88,14 @@ const PlatformAdminAnnouncementsPage = lazyPage(() => import('@/modules/platform
 const PlatformAdminAuditLogsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformAuditLogsAdminPage');
 const PlatformAdminBannersPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformBannersAdminPage');
 const PlatformAdminBoardPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformBoardAdminPage');
+const PlatformAdminContentQualityPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformContentQualityAdminPage');
+const PlatformAdminFaqPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformFaqAdminPage');
 const PlatformAdminFeatureFlagsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformFeatureFlagsAdminPage');
+const PlatformAdminFooterPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformFooterAdminPage');
 const PlatformAdminHomepagePage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformHomepageAdminPage');
 const PlatformAdminMediaPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformMediaAdminPage');
 const PlatformAdminOverviewPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformAdminOverviewPage');
+const PlatformAdminPagesPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPagesAdminPage');
 const PlatformAdminPaymentEventsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPaymentEventsAdminPage');
 const PlatformAdminPaymentTestsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPaymentTestsAdminPage');
 const PlatformAdminPopupsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPopupsAdminPage');
@@ -101,9 +104,18 @@ const PlatformAdminProductsPage = lazyPage(() => import('@/modules/platform-admi
 const PlatformAdminPromotionsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPromotionsAdminPage');
 const PlatformAdminSettingsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformSettingsAdminPage');
 const PlatformAdminPreviewPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPreviewAdminPage');
+const PlatformAdminSectionsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformSectionsAdminPage');
+const PlatformAdminSeoPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformSeoAdminPage');
+const PlatformAdminTrustPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformTrustAdminPage');
+const PlatformAdminVersionsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformVersionsAdminPage');
 
 const PlatformPublicBoardPostPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformPublicBoardPostPage');
 const PlatformPublicUpdatesPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformPublicUpdatesPage');
+const PlatformAboutPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformAboutPage');
+const PlatformContactPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformContactPage');
+const PlatformFaqPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformFaqPage');
+const PlatformFeaturesPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformFeaturesPage');
+const PlatformTrustPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformTrustPage');
 
 export const appRoutes: RouteObject[] = [
   {
@@ -126,12 +138,28 @@ export const appRoutes: RouteObject[] = [
         element: <PricingPage />,
       },
       {
-        path: '/billing',
-        element: <Navigate replace to="/pricing" />,
+        path: '/features',
+        element: routeElement(PlatformFeaturesPage),
       },
       {
-        path: '/dev/ui',
-        element: <UiPreviewPage />,
+        path: '/faq',
+        element: routeElement(PlatformFaqPage),
+      },
+      {
+        path: '/about',
+        element: routeElement(PlatformAboutPage),
+      },
+      {
+        path: '/contact',
+        element: routeElement(PlatformContactPage),
+      },
+      {
+        path: '/trust',
+        element: routeElement(PlatformTrustPage),
+      },
+      {
+        path: '/billing',
+        element: <Navigate replace to="/pricing" />,
       },
       {
         path: '/terms',
@@ -173,6 +201,30 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'homepage',
             element: routeElement(PlatformAdminHomepagePage),
+          },
+          {
+            path: 'pages',
+            element: routeElement(PlatformAdminPagesPage),
+          },
+          {
+            path: 'sections',
+            element: routeElement(PlatformAdminSectionsPage),
+          },
+          {
+            path: 'trust',
+            element: routeElement(PlatformAdminTrustPage),
+          },
+          {
+            path: 'faq',
+            element: routeElement(PlatformAdminFaqPage),
+          },
+          {
+            path: 'seo',
+            element: routeElement(PlatformAdminSeoPage),
+          },
+          {
+            path: 'footer',
+            element: routeElement(PlatformAdminFooterPage),
           },
           {
             path: 'pricing',
@@ -217,6 +269,14 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'feature-flags',
             element: routeElement(PlatformAdminFeatureFlagsPage),
+          },
+          {
+            path: 'content-quality',
+            element: routeElement(PlatformAdminContentQualityPage),
+          },
+          {
+            path: 'versions',
+            element: routeElement(PlatformAdminVersionsPage),
           },
           {
             path: 'audit-logs',
