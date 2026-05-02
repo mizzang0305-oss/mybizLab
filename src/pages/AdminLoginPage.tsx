@@ -7,11 +7,13 @@ import {
   DEMO_ADMIN_CREDENTIALS,
   createDemoAdminSession,
   hasDashboardAccess,
+  isPlatformAdminPath,
   isDemoPasswordLoginEnabled,
   refreshAdminSession,
   sanitizeAdminNextPath,
   useAdminAccess,
 } from '@/shared/lib/adminSession';
+import { getPlatformAdminSession } from '@/shared/lib/services/platformAdminContentService';
 import { LEGAL_LINKS } from '@/shared/lib/siteConfig';
 
 type LoginMethod = 'google' | 'email' | 'demo';
@@ -41,6 +43,7 @@ export function AdminLoginPage() {
   const demoPasswordLoginEnabled = isDemoPasswordLoginEnabled();
 
   const nextPath = sanitizeAdminNextPath(searchParams.get('next'));
+  const shouldValidatePlatformAdmin = isPlatformAdminPath(nextPath);
 
   usePageMeta(
     '관리자 로그인',
@@ -123,6 +126,25 @@ export function AdminLoginPage() {
         }
 
         if (data.user) {
+          if (shouldValidatePlatformAdmin) {
+            try {
+              await getPlatformAdminSession();
+              navigate(nextPath, { replace: true });
+              return;
+            } catch (platformAdminError) {
+              await supabase.auth.signOut();
+              setMessage({
+                tone: 'error',
+                text:
+                  platformAdminError instanceof Error
+                    ? platformAdminError.message
+                    : 'MyBiz 플랫폼 관리자 권한을 확인하지 못했습니다.',
+              });
+              setPendingMethod(null);
+              return;
+            }
+          }
+
           const nextSession = await refreshAdminSession();
           if (!hasDashboardAccess(nextSession)) {
             await supabase.auth.signOut();
