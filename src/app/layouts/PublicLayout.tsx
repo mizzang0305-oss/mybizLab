@@ -192,7 +192,7 @@ export function PublicLayout() {
           </div>
         ) : null}
 
-        {isDiagnosisShell ? null : <AppFooter />}
+        {isDiagnosisShell && !isLandingPage ? null : <AppFooter />}
       </div>
     </PersistentDiagnosisWorldProvider>
   );

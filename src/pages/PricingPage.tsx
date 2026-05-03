@@ -188,8 +188,8 @@ export function PricingPage() {
               고객 입력과 기억 구조에 맞는 요금제
             </h1>
             <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-lg sm:leading-8">
-              MyBiz는 홈페이지 도구가 아니라 고객 입력 채널과 고객 기억 축을 운영하는 시스템입니다.
-              FREE / PRO / VIP 플랜은 이 운영 깊이에 맞춰 나뉩니다.
+              무료로 시작하고, 고객 기억이 쌓이면 PRO/VIP로 확장하세요. 결제 전 플랜과 제공 범위를 명확히 확인할 수 있고,
+              FREE는 유료 결제 없이 시작합니다.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">

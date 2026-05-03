@@ -9,6 +9,7 @@ import {
   getPublicPlatformPage,
 } from '@/shared/lib/services/platformAdminContentService';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { FALLBACK_PUBLIC_PAGES } from '@/shared/lib/platformAdminConfig';
 
 function formatDate(value?: string | null) {
   if (!value) return null;
@@ -141,12 +142,17 @@ export function PlatformPublicInfoPage({ slug }: { slug: string }) {
     queryKey: queryKeys.publicPlatformPage(slug),
     queryFn: () => getPublicPlatformPage(slug),
   });
-  const data = pageQuery.data;
-  const page = data?.page;
+  const fallbackPage = FALLBACK_PUBLIC_PAGES.find((item) => item.slug === slug) || FALLBACK_PUBLIC_PAGES[0];
+  const data = pageQuery.data || {
+    faqItems: [],
+    page: fallbackPage,
+    trustSignals: [],
+  };
+  const page = data.page;
 
   usePageMeta(page?.seo_title || 'MyBiz | 고객 기억 기반 매출 AI SaaS', page?.seo_description || page?.description || '');
 
-  if (pageQuery.isLoading || !page) {
+  if (!page) {
     return (
       <main className="page-shell py-14">
         <p className="text-sm font-bold text-slate-500">페이지를 불러오는 중입니다.</p>

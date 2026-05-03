@@ -148,7 +148,7 @@ values
   ('faq', '자주 묻는 질문', '처음 도입하는 사장님도 빠르게 판단할 수 있도록 핵심 질문만 모았습니다.', '요금제, 공개 스토어, 고객 기억, 결제와 운영 방식에 대해 자주 묻는 질문을 정리했습니다.', '도입 문의하기', '/contact', 'MyBiz FAQ', 'MyBiz FAQ와 도입 안내', '{}'::jsonb, 20, true),
   ('about', '작은 매장의 고객 기억을 매출로 연결합니다', '홈페이지 도구가 아니라 고객 기억 기반 매출 시스템을 만듭니다.', 'MyBiz는 작은 매장의 고객 신호가 사라지지 않도록 기록하고, 다시 방문하게 만드는 운영 액션으로 연결합니다.', '요금제 보기', '/pricing', 'MyBiz 소개', 'MyBiz 소개와 제품 방향', '{}'::jsonb, 30, true),
   ('contact', '도입과 운영을 함께 확인해 드립니다', '실제 매장 운영 흐름에 맞춰 도입을 도와드립니다.', '도입, 요금제, 매장 공개 페이지, 결제 관련 문의는 MyBiz 지원팀으로 연락해 주세요.', 'support@mybiz.ai.kr', 'mailto:support@mybiz.ai.kr', 'MyBiz 문의', 'MyBiz 문의와 지원 안내', '{}'::jsonb, 40, true),
-  ('trust', '고객 기억을 안전하게 운영하기 위한 기준', '고객이 안심하고 남긴 신호를 점주가 책임 있게 활용할 수 있도록 돕습니다.', 'MyBiz는 고객 데이터와 결제 흐름이 신뢰를 잃지 않도록 공개 문구, 권한, 가격, 결제 상태를 안전하게 분리해 운영합니다.', '개인정보처리방침 보기', '/privacy', 'MyBiz 신뢰와 보안', 'MyBiz 신뢰, 보안, 결제 안전 안내', '{}'::jsonb, 50, true)
+  ('trust', '고객 기억을 안전하게 운영하기 위한 기준', '고객이 안심하고 남긴 신호를 점주가 책임 있게 활용할 수 있도록 돕습니다.', 'MyBiz는 매장 운영 데이터를 고객 기억으로 정리하고, 공개페이지와 점주 대시보드를 분리해 운영합니다. 결제와 구독 상태는 안전한 서버 기준으로 처리되며, 도입과 운영 문의는 지원 채널에서 확인할 수 있습니다.', '개인정보처리방침 보기', '/privacy', 'MyBiz 신뢰와 보안', 'MyBiz 신뢰, 보안, 결제 안전 안내', '{}'::jsonb, 50, true)
 on conflict (slug) do nothing;
 
 insert into public.platform_faq_items (question, answer, category, sort_order, is_published)
@@ -161,7 +161,7 @@ on conflict do nothing;
 insert into public.platform_trust_signals (signal_key, title, body, icon_key, sort_order, is_visible)
 values
   ('server-owned-catalog', '안전한 가격 확인', '가격과 상품 정보는 고객 화면의 표시값이 아니라 안전한 기준 금액으로 확인됩니다.', 'payment', 10, true),
-  ('public-content-guard', '공개 콘텐츠 품질 관리', '공개 페이지에는 게시 승인된 콘텐츠만 노출하고, 내부 운영 문구는 품질 검사로 차단합니다.', 'content', 20, true),
+  ('public-content-guard', '공개 콘텐츠 품질 관리', '공개 페이지에는 게시 승인된 콘텐츠만 노출하고, 고객에게 부적절한 운영 문구는 품질 검사로 차단합니다.', 'content', 20, true),
   ('access-separation', '운영 권한 분리', '점주 운영 화면과 플랫폼 관리자 콘솔을 분리해 매장 운영 권한과 서비스 운영 권한을 구분합니다.', 'access', 30, true)
 on conflict (signal_key) do nothing;
 

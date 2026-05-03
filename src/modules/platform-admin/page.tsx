@@ -52,14 +52,14 @@ type EditablePlatformAdminResource = Extract<
 const resourceDescriptions: Partial<Record<PlatformAdminResource, string>> = {
   announcements: '방문자와 점주에게 노출할 공지사항을 작성하고 게시 상태를 관리합니다.',
   banners: '홈페이지, 가격표, 운영 화면 상단에 노출할 배너를 관리합니다.',
-  'billing-products': '구독 플랜이 아닌 단건/테스트 결제 상품을 관리합니다. 실제 금액은 서버 catalog가 결정합니다.',
-  'board-posts': '업데이트, 뉴스, 가이드 게시글을 draft/published/archived 상태로 관리합니다.',
+  'billing-products': '구독 플랜이 아닌 단건/테스트 결제 상품을 관리합니다. 실제 결제 금액은 서버 카탈로그 기준으로 결정됩니다.',
+  'board-posts': '업데이트, 뉴스, 가이드 게시글을 초안/게시/보관 상태로 관리합니다.',
   'content-quality-rules': '공개 콘텐츠에 허용되지 않는 내부 문구, 누락 필드, 링크 품질 규칙을 관리합니다.',
   'feature-flags': '안전한 기능 플래그를 관리합니다. MYBI는 명시 요청 전까지 false로 유지합니다.',
   'faq-items': '공개 FAQ 질문과 답변을 관리합니다. 짧고 고객 친화적인 문장으로 작성합니다.',
   'footer-settings': '회사 정보, 지원 연락처, 정책 링크 등 푸터 신뢰 정보를 관리합니다.',
-  'homepage-sections': '공개 홈페이지 섹션의 문구, CTA, 미디어, JSON payload, 게시 상태를 관리합니다.',
-  'media-assets': '스토리지 업로드 인프라 전까지 URL 기반 미디어 등록과 alt text 관리를 제공합니다.',
+  'homepage-sections': '공개 홈페이지 섹션의 문구, CTA, 미디어, 고급 설정, 게시 상태를 관리합니다.',
+  'media-assets': '스토리지 업로드 인프라 전까지 URL 기반 미디어 등록과 대체 텍스트 관리를 제공합니다.',
   'page-sections': '개별 공개 페이지의 섹션 순서와 콘텐츠 블록을 관리합니다.',
   pages: '기능, FAQ, 소개, 문의, 신뢰 페이지의 공개 상태와 SEO를 관리합니다.',
   popups: '홈페이지/가격표/공개 페이지에 표시할 팝업을 경로, 일정, 빈도 정책 기준으로 관리합니다.',
@@ -168,8 +168,8 @@ const templateByResource: Partial<Record<PlatformAdminResource, JsonRow>> = {
   },
   pages: {
     body: '페이지 본문을 입력하세요.',
-    cta_href: '/onboarding',
-    cta_label: '공개 스토어 시작하기',
+    cta_href: '/onboarding?plan=free',
+    cta_label: '무료로 시작하기',
     description: '고객이 이해할 수 있는 한 문장 설명을 입력하세요.',
     is_published: false,
     payload: {},
@@ -217,8 +217,8 @@ const templateByResource: Partial<Record<PlatformAdminResource, JsonRow>> = {
   },
   'site-settings': {
     homepage_status: 'published',
-    primary_cta_href: '/onboarding',
-    primary_cta_label: '공개 스토어 시작하기',
+    primary_cta_href: '/onboarding?plan=free',
+    primary_cta_label: '무료로 시작하기',
     seo_description: '공개 스토어, 문의, 예약, 웨이팅, QR 주문을 고객 기억으로 연결합니다.',
     seo_title: 'MyBiz | 고객 기억 기반 매출 AI SaaS',
     site_name: 'MyBiz',
@@ -521,7 +521,7 @@ export function PlatformPricingAdminPage() {
         <div className="grid gap-3 text-sm leading-6 text-slate-300 md:grid-cols-3">
           <p>FREE는 실제 구독 플랜이지만 유료 checkout을 호출하지 않고 항상 `/onboarding?plan=free`로 이동해야 합니다.</p>
           <p>PRO는 79,000원, VIP는 149,000원 기준을 유지합니다. 할인처럼 보이는 표시는 compare-at/label로 관리합니다.</p>
-          <p>클라이언트가 보낸 금액은 신뢰하지 않고 서버 catalog가 checkout 금액을 결정합니다.</p>
+          <p>클라이언트가 보낸 금액은 신뢰하지 않고 서버 상품 정보가 결제 요청 금액을 결정합니다.</p>
         </div>
         {previewQuery.data ? (
           <pre className="mt-4 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-300">
@@ -540,8 +540,8 @@ export function PlatformProductsAdminPage() {
       <AdminCard title="100원 테스트 상품 규칙">
         <div className="grid gap-3 text-sm leading-6 text-slate-300 md:grid-cols-3">
           <p>`payment_test_100`은 단건 테스트 상품입니다. subscription plan이 아니며 PRO/VIP 권한을 부여하지 않습니다.</p>
-          <p>기본 public 가격표에는 숨겨지고 `?testPayment=1` 또는 admin preview에서만 노출됩니다.</p>
-          <p>PortOne checkout, redirect, verify, webhook, payment_events 상태 확인용입니다.</p>
+          <p>기본 공개 가격표에는 숨겨지고 `?testPayment=1` 또는 관리자 미리보기에서만 노출됩니다.</p>
+          <p>결제창 진입, 복귀, 검증, 결제 이벤트 기록 상태를 확인하는 운영자 전용 상품입니다.</p>
         </div>
       </AdminCard>
       <ResourcePage resource="billing-products" />
@@ -666,7 +666,7 @@ export function PlatformPaymentTestsAdminPage() {
               <p>구독 권한 부여: <strong className="text-white">{product.grants_entitlement ? '예' : '아니오'}</strong></p>
               <p>용도: <strong className="text-white">{String(product.metadata?.purpose || 'payment_test')}</strong></p>
               <p className="rounded-2xl bg-emerald-400/10 px-4 py-3 font-bold text-emerald-100">
-                100원 테스트 결제가 성공해도 store_subscriptions, PRO/VIP entitlement를 변경하지 않습니다.
+                100원 테스트 결제가 성공해도 구독 권한이나 PRO/VIP 이용 권한을 변경하지 않습니다.
               </p>
             </div>
             <button className="btn-primary self-start" disabled={!isReady} onClick={() => void startPaymentTest()} type="button">
@@ -792,7 +792,7 @@ export function PlatformVersionsAdminPage() {
     <div className="space-y-6">
       <AdminCard title="게시 버전과 스냅샷">
         <p className="text-sm leading-6 text-slate-300">
-          공개 사이트 게시 이력과 마지막 정상 스냅샷을 확인합니다. 운영자는 문제가 생긴 공개 콘텐츠를 이전 스냅샷 기준으로 되돌릴 수 있습니다.
+          공개 사이트 게시 이력과 마지막 정상 스냅샷을 확인합니다. 롤백 실행은 다음 배포에서 제공됩니다. 현재는 버전 기록만 확인할 수 있습니다.
         </p>
       </AdminCard>
       <ResourcePage resource="content-versions" />

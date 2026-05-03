@@ -104,6 +104,17 @@ export interface PlatformBillingProduct {
   visible_only_with_query?: string | null;
 }
 
+export interface PublicPlatformBillingProduct {
+  amount: number;
+  bullet_items: string[];
+  currency: 'KRW';
+  description?: string | null;
+  order_name?: string | null;
+  product_code: string;
+  product_name: string;
+  product_type: PlatformBillingProductType;
+}
+
 export interface PlatformPromotion {
   applies_to_code?: string | null;
   applies_to_type: 'custom' | 'homepage' | 'plan' | 'product';
@@ -298,7 +309,7 @@ export interface PublicPlatformHomepagePayload {
 
 export interface PublicPlatformPricingPayload {
   plans: PlatformPricingPlan[];
-  testProducts: PlatformBillingProduct[];
+  testProducts: PublicPlatformBillingProduct[];
 }
 
 export interface PublicPlatformChromePayload {
@@ -336,10 +347,10 @@ export const FALLBACK_SITE_SETTINGS: PlatformSiteSettings = {
     { href: '/refund', label: '환불정책' },
   ],
   homepage_status: 'published',
-  primary_cta_href: '/onboarding',
-  primary_cta_label: '공개 스토어 시작하기',
-  secondary_cta_href: '/?demo=1',
-  secondary_cta_label: '데모 보기',
+  primary_cta_href: '/onboarding?plan=free',
+  primary_cta_label: '무료로 시작하기',
+  secondary_cta_href: '/pricing',
+  secondary_cta_label: '가격 보기',
   seo_description: '공개 스토어, 문의, 예약, 웨이팅, QR 주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.',
   seo_title: 'MyBiz | 고객 기억 기반 매출 AI SaaS',
   site_name: 'MyBiz',
@@ -348,22 +359,22 @@ export const FALLBACK_SITE_SETTINGS: PlatformSiteSettings = {
 
 export const FALLBACK_HOMEPAGE_SECTIONS: PlatformHomepageSection[] = [
   {
-    body: '공개 스토어에서 시작한 고객 신호가 상담, 예약, 웨이팅, 주문, 고객 기억으로 이어집니다.',
-    cta_href: '/onboarding',
-    cta_label: '공개 스토어 시작하기',
+    body: '고객 신호가 고객 기억으로 쌓이고, 점주가 다음 행동을 빠르게 정할 수 있게 돕습니다.',
+    cta_href: '/onboarding?plan=free',
+    cta_label: '무료로 시작하기',
     eyebrow: 'AI 운영 플랫폼, MyBiz',
     is_visible: true,
     payload: {
       chips: ['공개 스토어', '고객 기억', '운영 대시보드'],
-      secondaryCtaHref: '/?demo=1',
-      secondaryCtaLabel: '데모 보기',
+      secondaryCtaHref: '/pricing',
+      secondaryCtaLabel: '가격 보기',
     },
     section_key: 'hero',
     section_type: 'hero',
     sort_order: 10,
     status: 'published',
-    subtitle: '문의·예약·웨이팅·주문을 고객 기억 축으로 연결해 재방문과 객단가를 높입니다.',
-    title: '고객을 기억할수록 매출이 쌓이는 시스템',
+    subtitle: '문의·예약·웨이팅·주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.',
+    title: '고객을 기억하는 매장이 더 많이 팝니다',
   },
   {
     body: '문의, 예약, 웨이팅, QR 주문은 모두 고객 기억을 보강하는 입력 채널입니다.',
@@ -469,7 +480,7 @@ export const FALLBACK_PRICING_PLANS: PlatformPricingPlan[] = [
 export const PAYMENT_TEST_100_PRODUCT: PlatformBillingProduct = {
   amount: 100,
   billing_cycle: 'one_time',
-  bullet_items: ['100원 단건 결제', '구독 권한 변경 없음', 'PRO/VIP entitlement 부여 없음'],
+  bullet_items: ['100원 단건 결제', '구독 권한 변경 없음', 'PRO/VIP 이용 권한 부여 없음'],
   currency: 'KRW',
   description: '관리자 전용 결제 점검 상품입니다. 일반 공개 가격표에는 노출되지 않습니다.',
   grants_entitlement: false,
@@ -487,6 +498,19 @@ export const PAYMENT_TEST_100_PRODUCT: PlatformBillingProduct = {
 };
 
 export const FALLBACK_BILLING_PRODUCTS: PlatformBillingProduct[] = [PAYMENT_TEST_100_PRODUCT];
+
+export function toPublicBillingProduct(product: PlatformBillingProduct): PublicPlatformBillingProduct {
+  return {
+    amount: product.amount,
+    bullet_items: sanitizePublicTextArray(product.bullet_items, []),
+    currency: product.currency,
+    description: sanitizePublicPlatformText(product.description, null),
+    order_name: sanitizePublicPlatformText(product.order_name, product.product_name),
+    product_code: product.product_code,
+    product_name: sanitizePublicPlatformText(product.product_name, '결제 상품') || '결제 상품',
+    product_type: product.product_type,
+  };
+}
 
 export const FALLBACK_PUBLIC_PAGES: PlatformPublicPage[] = [
   {
@@ -548,7 +572,7 @@ export const FALLBACK_PUBLIC_PAGES: PlatformPublicPage[] = [
     title: '도입과 운영을 함께 확인해 드립니다',
   },
   {
-    body: 'MyBiz는 고객 데이터와 결제 흐름이 신뢰를 잃지 않도록 공개 문구, 권한, 가격, 결제 상태를 안전하게 분리해 운영합니다.',
+    body: 'MyBiz는 매장 운영 데이터를 고객 기억으로 정리하고, 공개페이지와 점주 대시보드를 분리해 운영합니다. 결제와 구독 상태는 안전한 서버 기준으로 처리되며, 도입과 운영 문의는 지원 채널에서 확인할 수 있습니다.',
     cta_href: '/privacy',
     cta_label: '개인정보처리방침 보기',
     description: '고객이 안심하고 남긴 신호를 점주가 책임 있게 활용할 수 있도록 돕습니다.',
@@ -596,7 +620,7 @@ export const FALLBACK_TRUST_SIGNALS: PlatformTrustSignal[] = [
     title: '안전한 가격 확인',
   },
   {
-    body: '공개 페이지에는 게시 승인된 콘텐츠만 노출하고, 내부 운영 문구는 품질 검사로 차단합니다.',
+    body: '공개 페이지에는 게시 승인된 콘텐츠만 노출하고, 고객에게 부적절한 운영 문구는 품질 검사로 차단합니다.',
     icon_key: 'content',
     is_visible: true,
     signal_key: 'public-content-guard',
@@ -621,15 +645,31 @@ const PUBLIC_INTERNAL_KEYWORD_RULES = [
   'test only',
   'dummy',
   'internal',
+  'developer',
   'env',
   'todo',
   'fixme',
   'temp',
   'staging',
   'store_subscriptions',
+  'payment_events',
   'PortOne checkout',
+  'server catalog',
+  'raw payload',
+  'localhost',
+  '127.0.0.1',
+  'Vite',
+  'Supabase table',
+  'admin-only',
+  'grants_entitlement',
+  'entitlement',
   'redirect',
   'verify',
+  '테스트 전용',
+  '개발자',
+  '더미',
+  '웹훅',
+  '서버 카탈로그',
   '성공처럼',
   '환경이 준비',
   '실결제',
@@ -664,6 +704,23 @@ function hasInternalPlatformText(value: unknown) {
   return PUBLIC_INTERNAL_KEYWORD_RULES.some((keyword) => normalized.includes(keyword.toLowerCase()));
 }
 
+function isValidPublicHref(value: unknown) {
+  if (typeof value !== 'string') return true;
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  return (
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('#') ||
+    trimmed.startsWith('mailto:') ||
+    trimmed.startsWith('tel:') ||
+    /^https?:\/\/[^\s]+$/i.test(trimmed)
+  );
+}
+
+function getTextField(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export function autoFixPlatformText(value: string) {
   return PUBLIC_TEXT_REPLACEMENTS.reduce((current, [pattern, replacement]) => current.replace(pattern, replacement), value)
     .replace(/\s{2,}/g, ' ')
@@ -688,6 +745,107 @@ export function scanPlatformContentQuality(items: PlatformContentQualityInput[])
   const issues: PlatformContentQualityIssue[] = [];
 
   items.forEach((item) => {
+    const fields = item.fields;
+    const startsAt = getTextField(fields.starts_at);
+    const endsAt = getTextField(fields.ends_at);
+    const publicTitle = getTextField(fields.title);
+    const publicSubtitle = getTextField(fields.subtitle);
+    const publicBody = getTextField(fields.body);
+    const sectionType = getTextField(fields.section_type || fields.sectionType);
+
+    if (item.publicExposure && !publicTitle && !publicSubtitle && !publicBody) {
+      issues.push({
+        entityId: item.entityId,
+        entityType: item.entityType,
+        field: 'content',
+        keyword: 'empty-section',
+        message: '공개 섹션 또는 페이지에 보여줄 본문이 없습니다.',
+        severity: 'critical',
+      });
+    }
+
+    if (startsAt && endsAt && new Date(startsAt) > new Date(endsAt)) {
+      issues.push({
+        entityId: item.entityId,
+        entityType: item.entityType,
+        field: 'schedule',
+        keyword: 'schedule-conflict',
+        message: '노출 종료 시간이 시작 시간보다 빠릅니다.',
+        severity: 'warning',
+      });
+    }
+
+    ['cta_href', 'link_href', 'media_url', 'hero_media_url', 'og_image_url'].forEach((field) => {
+      if (!isValidPublicHref(fields[field])) {
+        issues.push({
+          entityId: item.entityId,
+          entityType: item.entityType,
+          field,
+          keyword: 'invalid-url',
+          message: `${field} 값이 공개 페이지에서 사용할 수 없는 링크 형식입니다.`,
+          severity: 'critical',
+        });
+      }
+    });
+
+    if (
+      item.publicExposure &&
+      ['hero', 'pricing_teaser', 'final_cta'].includes(sectionType) &&
+      (!getTextField(fields.cta_label) || !getTextField(fields.cta_href))
+    ) {
+      issues.push({
+        entityId: item.entityId,
+        entityType: item.entityType,
+        field: 'cta',
+        keyword: 'missing-cta',
+        message: '주요 공개 섹션에는 CTA 라벨과 링크가 필요합니다.',
+        severity: 'critical',
+      });
+    }
+
+    if (item.publicExposure && (item.entityType.includes('footer') || item.entityType.includes('site_settings') || 'footer_links' in fields)) {
+      const footerLinks = Array.isArray(fields.footer_links) ? fields.footer_links : [];
+      const hrefs = footerLinks
+        .map((link) => (typeof link === 'object' && link ? String((link as { href?: unknown }).href || '') : ''))
+        .filter(Boolean);
+      if (!hrefs.includes('/terms') || !hrefs.includes('/privacy')) {
+        issues.push({
+          entityId: item.entityId,
+          entityType: item.entityType,
+          field: 'footer_links',
+          keyword: 'missing-legal-links',
+          message: '푸터에는 이용약관과 개인정보처리방침 링크가 필요합니다.',
+          severity: 'critical',
+        });
+      }
+    }
+
+    if (
+      item.publicExposure &&
+      (item.entityType.includes('seo') || item.entityType.includes('page') || 'seo_title' in fields || 'seo_description' in fields) &&
+      (!getTextField(fields.seo_title) || !getTextField(fields.seo_description))
+    ) {
+      issues.push({
+        entityId: item.entityId,
+        entityType: item.entityType,
+        field: 'seo',
+        keyword: 'missing-seo',
+        message: '공개 페이지 SEO 제목과 설명이 비어 있습니다.',
+        severity: 'warning',
+      });
+    }
+
+    if (item.entityType.includes('media') && !getTextField(fields.alt_text)) {
+      issues.push({
+        entityId: item.entityId,
+        entityType: item.entityType,
+        field: 'alt_text',
+        keyword: 'missing-alt-text',
+        message: '이미지에는 접근성과 신뢰를 위한 대체 텍스트가 필요합니다.',
+        severity: 'warning',
+      });
+    }
+
     Object.entries(item.fields).forEach(([field, value]) => {
       if (typeof value !== 'string') return;
       if (!value.trim()) {

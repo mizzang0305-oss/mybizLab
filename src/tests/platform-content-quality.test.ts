@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   autoFixPlatformText,
+  filterPublicBillingProducts,
   filterPublicPricingPlans,
   scanPlatformContentQuality,
   sanitizePublicPlatformText,
@@ -67,5 +68,89 @@ describe('platform public content quality', () => {
       price_amount: 79000,
     });
     expect(JSON.stringify(pro)).not.toMatch(/store_subscriptions|webhook|API/i);
+  });
+
+  it('blocks publish-critical structural issues on public CMS content', () => {
+    const result = scanPlatformContentQuality([
+      {
+        entityId: 'hero',
+        entityType: 'platform_homepage_sections',
+        fields: {
+          body: '',
+          cta_href: 'javascript:alert(1)',
+          cta_label: '',
+          section_type: 'hero',
+          title: '',
+        },
+        publicExposure: true,
+      },
+      {
+        entityId: 'footer',
+        entityType: 'platform_footer_settings',
+        fields: {
+          footer_links: [{ href: '/terms', label: '이용약관' }],
+          title: '푸터',
+        },
+        publicExposure: true,
+      },
+      {
+        entityId: 'media-1',
+        entityType: 'platform_media_assets',
+        fields: {
+          alt_text: '',
+          title: '매장 이미지',
+        },
+        publicExposure: true,
+      },
+      {
+        entityId: 'features',
+        entityType: 'platform_pages',
+        fields: {
+          body: '고객 기억 기능 안내',
+          seo_description: '',
+          seo_title: '',
+          title: '기능',
+        },
+        publicExposure: true,
+      },
+    ]);
+
+    expect(result.issues.some((issue) => issue.keyword === 'empty-section' && issue.severity === 'critical')).toBe(true);
+    expect(result.issues.some((issue) => issue.keyword === 'missing-cta' && issue.severity === 'critical')).toBe(true);
+    expect(result.issues.some((issue) => issue.keyword === 'invalid-url' && issue.severity === 'critical')).toBe(true);
+    expect(result.issues.some((issue) => issue.keyword === 'missing-legal-links' && issue.severity === 'critical')).toBe(true);
+    expect(result.issues.some((issue) => issue.keyword === 'missing-alt-text' && issue.severity === 'warning')).toBe(true);
+    expect(result.issues.some((issue) => issue.keyword === 'missing-seo' && issue.severity === 'warning')).toBe(true);
+  });
+
+  it('keeps payment_test_100 hidden by default and non-entitlement when explicitly requested', () => {
+    const product = {
+      amount: 100,
+      billing_cycle: 'one_time',
+      bullet_items: ['100원 단건 결제', 'PRO/VIP 이용 권한 부여 없음'],
+      currency: 'KRW' as const,
+      description: '관리자 전용 결제 점검 상품입니다.',
+      grants_entitlement: false,
+      is_test_product: true,
+      is_visible_public: false,
+      linked_plan_code: null,
+      metadata: { purpose: 'payment_test' },
+      order_name: 'MyBiz 결제 테스트 100원',
+      product_code: 'payment_test_100',
+      product_name: 'MyBiz 결제 테스트 100원',
+      product_type: 'test' as const,
+      sort_order: 10,
+      status: 'published' as const,
+      visible_only_with_query: 'testPayment=1',
+    };
+
+    expect(filterPublicBillingProducts({ products: [product] })).toHaveLength(0);
+
+    const visible = filterPublicBillingProducts({
+      products: [product],
+      searchParams: new URLSearchParams('testPayment=1'),
+    });
+    expect(visible).toHaveLength(1);
+    expect(visible[0].grants_entitlement).toBe(false);
   });
 });

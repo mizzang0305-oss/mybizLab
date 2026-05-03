@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 
 import { appRoutes } from '@/app/router';
 import { DemoPreviewModal } from '@/pages/LandingPage';
+import { PlatformFeaturesPage } from '@/modules/platform-public/page';
 import { PersistentDiagnosisWorldProvider } from '@/shared/components/PersistentDiagnosisWorldShell';
 
 function renderRoute(pathname: string) {
@@ -49,6 +50,12 @@ function expectNoMybiCompanion(html: string) {
   expect(html).not.toContain('title="MYBI neural companion"');
 }
 
+function expectNoPublicInternalCopy(html: string) {
+  expect(html).not.toMatch(
+    /store_subscriptions|PortOne checkout|webhook|payment_events|server catalog|raw payload|localhost|127\.0\.0\.1|Vite|Supabase table|UI Preview|TODO|FIXME|dummy|테스트 전용|개발자|내부 정책/i,
+  );
+}
+
 describe('public marketing/runtime surfaces', () => {
   it('renders Korean-first landing content with public admin fallback sections', () => {
     const html = renderRoute('/');
@@ -58,14 +65,17 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('data-service-orbit-world="hero"');
     expect(html).toContain('data-cinematic-world="service-memory"');
     expect(html).toContain('AI 운영 플랫폼, MyBiz');
-    expect(html).toContain('고객을 기억할수록 매출이 쌓이는 시스템');
-    expect(html).toContain('문의·예약·웨이팅·주문을 고객 기억 축으로 연결해 재방문과 객단가를 높입니다.');
-    expect(html).toContain('공개 스토어 시작하기');
+    expect(html).toContain('고객을 기억하는 매장이 더 많이 팝니다');
+    expect(html).toContain('문의·예약·웨이팅·주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.');
+    expect(html).toContain('무료로 시작하기');
+    expect(html).toContain('가격 보기');
+    expect(html).toContain('기능 살펴보기');
     expect(html).toContain('데모 보기');
-    expect(html).toContain('점주 로그인');
     expect(html).toContain('공개 스토어 / 고객 접점');
     expect(html).toContain('점주 운영 대시보드');
     expect(html).toContain('고객 기억 / 반복 매출 엔진');
+    expect(html).toContain('이용약관');
+    expect(html).toContain('개인정보처리방침');
     expectNoMybiCompanion(html);
   });
 
@@ -81,6 +91,7 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('href="/login"');
     expect(html).toContain('href="/dashboard"');
     expect(html).toContain('href="/onboarding"');
+    expect(html).toContain('href="/onboarding?plan=free"');
     expect(html).toContain('data-demo-trigger="homepage-nav"');
     expect(html).toContain('id="services"');
     expect(html).toContain('id="features"');
@@ -132,6 +143,35 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('href="/onboarding?plan=free"');
     expect(html).toContain('무료로 시작');
     expect(html).not.toContain('data-plan="free" disabled');
+  });
+
+  it('keeps the 100 KRW payment test hidden from the normal public pricing page', () => {
+    expect(renderRoute('/pricing')).not.toContain('100원 테스트 결제');
+  });
+
+  it('does not render developer or internal implementation copy on public routes', () => {
+    ['/', '/pricing', '/features', '/faq', '/about', '/contact', '/trust', '/notices', '/updates', '/terms', '/privacy', '/refund'].forEach(
+      (path) => {
+        expectNoPublicInternalCopy(renderRoute(path));
+      },
+    );
+  });
+
+  it('renders public info pages from safe fallback before managed content loads', () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    const html = renderWithRouter(
+      createElement(QueryClientProvider, { client: queryClient }, createElement(PlatformFeaturesPage)),
+    );
+
+    expect(html).toContain('고객 기억으로 이어지는 매장 운영 기능');
+    expect(html).not.toContain('페이지를 불러오는 중입니다');
+    expectNoPublicInternalCopy(html);
   });
 
   it('keeps public store/form routes reachable without mounting MYBI', () => {

@@ -132,19 +132,24 @@ export function LandingPage() {
               {hero?.eyebrow || 'AI 운영 플랫폼, MyBiz'}
             </p>
             <h1 className="mt-4 break-keep font-display text-5xl font-black leading-[1.08] tracking-[-0.05em] sm:text-6xl">
-              {hero?.title || '고객을 기억할수록 매출이 쌓이는 시스템'}
+              {hero?.title || '고객을 기억하는 매장이 더 많이 팝니다'}
             </h1>
             <p className="mt-5 max-w-2xl break-keep text-base leading-8 text-slate-300 sm:text-lg">
-              {hero?.subtitle || '문의·예약·웨이팅·주문을 고객 기억 축으로 연결해 재방문과 객단가를 높입니다.'}
+              {hero?.subtitle || '문의·예약·웨이팅·주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.'}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="btn-primary" to={hero?.cta_href || settings?.primary_cta_href || '/onboarding'}>
-                {hero?.cta_label || settings?.primary_cta_label || '공개 스토어 시작하기'}
+              <Link className="btn-primary" to={hero?.cta_href || settings?.primary_cta_href || '/onboarding?plan=free'}>
+                {hero?.cta_label || settings?.primary_cta_label || '무료로 시작하기'}
               </Link>
+              <Link className="btn-secondary" to={settings?.secondary_cta_href || '/pricing'}>
+                {settings?.secondary_cta_label || '가격 보기'}
+              </Link>
+              <a className="btn-secondary" href="#features">
+                기능 살펴보기
+              </a>
               <button className="btn-secondary" data-demo-trigger="homepage" onClick={() => setDemoOpen(true)} type="button">
-                {settings?.secondary_cta_label || '데모 보기'}
+                데모 보기
               </button>
-              <Link className="btn-secondary" to="/login">점주 로그인</Link>
             </div>
             <div className="mt-8 flex flex-wrap gap-3">
               {['공개 스토어', '고객 기억', '운영 대시보드'].map((chip) => (

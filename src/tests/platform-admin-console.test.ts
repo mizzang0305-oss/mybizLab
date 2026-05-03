@@ -84,6 +84,22 @@ describe('platform admin console foundations', () => {
     expect(payload.data.testProducts).toEqual([]);
   });
 
+  it('serves the 100 KRW test product only when the explicit query flag is present', async () => {
+    const response = await handlePlatformPublicRequest(
+      new Request('https://mybiz.ai.kr/api/public/platform/pricing?resource=platform-pricing&testPayment=1'),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.data.testProducts).toHaveLength(1);
+    expect(payload.data.testProducts[0]).toMatchObject({
+      amount: 100,
+      product_code: PAYMENT_TEST_PRODUCT_CODE,
+    });
+    expect(payload.data.testProducts[0]).not.toHaveProperty('grants_entitlement');
+    expect(JSON.stringify(payload.data.testProducts[0])).not.toMatch(/webhook|store_subscriptions|entitlement|grants_entitlement/i);
+  });
+
   it('serves customer-safe public page fallback content', async () => {
     const response = await handlePlatformPublicRequest(
       new Request('https://mybiz.ai.kr/api/public/platform/page?resource=page&slug=trust'),

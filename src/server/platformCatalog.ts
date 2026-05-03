@@ -15,6 +15,7 @@ import {
   normalizeJsonArray,
   pathMatchesTarget,
   sanitizePublicPlatformText,
+  toPublicBillingProduct,
   type PlatformAnnouncement,
   type PlatformBanner,
   type PlatformBillingProduct,
@@ -129,22 +130,24 @@ function normalizePricingPlan(row: Record<string, unknown>): PlatformPricingPlan
 function normalizeBillingProduct(row: Record<string, unknown>): PlatformBillingProduct {
   return {
     amount: typeof row.amount === 'number' ? row.amount : 0,
-    badge_text: typeof row.badge_text === 'string' ? row.badge_text : null,
+    badge_text: sanitizePublicPlatformText(row.badge_text, null),
     billing_cycle: typeof row.billing_cycle === 'string' ? row.billing_cycle : null,
-    bullet_items: normalizeJsonArray(row.bullet_items),
+    bullet_items: normalizeJsonArray(row.bullet_items)
+      .map((item) => sanitizePublicPlatformText(item, ''))
+      .filter((item): item is string => Boolean(item)),
     compare_at_amount: typeof row.compare_at_amount === 'number' ? row.compare_at_amount : null,
     currency: 'KRW',
-    description: typeof row.description === 'string' ? row.description : null,
-    discount_label: typeof row.discount_label === 'string' ? row.discount_label : null,
+    description: sanitizePublicPlatformText(row.description, null),
+    discount_label: sanitizePublicPlatformText(row.discount_label, null),
     grants_entitlement: row.grants_entitlement === true,
     id: typeof row.id === 'string' ? row.id : undefined,
     is_test_product: row.is_test_product === true,
     is_visible_public: row.is_visible_public === true,
     linked_plan_code: isPlatformPlanCode(row.linked_plan_code) ? row.linked_plan_code : null,
     metadata: toRecord(row.metadata),
-    order_name: typeof row.order_name === 'string' ? row.order_name : null,
+    order_name: sanitizePublicPlatformText(row.order_name, null),
     product_code: typeof row.product_code === 'string' ? row.product_code : '',
-    product_name: typeof row.product_name === 'string' ? row.product_name : '',
+    product_name: sanitizePublicPlatformText(row.product_name, '') || '',
     product_type:
       row.product_type === 'subscription' || row.product_type === 'one_time' || row.product_type === 'test'
         ? row.product_type
@@ -349,7 +352,7 @@ export async function getPublicPlatformPricing(query: PlatformPublicQuery = {}) 
       envEnabled: process.env.VITE_ENABLE_PAYMENT_TEST_PRODUCT === 'true',
       products,
       searchParams: query.searchParams,
-    }),
+    }).map(toPublicBillingProduct),
   };
 }
 

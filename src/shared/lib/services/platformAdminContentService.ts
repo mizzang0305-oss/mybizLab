@@ -6,6 +6,7 @@ import {
   FALLBACK_PRICING_PLANS,
   FALLBACK_SITE_SETTINGS,
   PAYMENT_TEST_PRODUCT_CODE,
+  toPublicBillingProduct,
   type PlatformContentQualityResult,
   type PlatformAdminOverview,
   type PlatformAnnouncement,
@@ -164,11 +165,12 @@ export async function getPublicPlatformHomepageContent() {
 }
 
 export async function getPublicPlatformPricingContent(searchParams?: URLSearchParams, adminPreview = false) {
+  const shouldShowTestProduct = adminPreview || searchParams?.get('testPayment') === '1';
   return platformPublicFetch<PublicPlatformPricingPayload>(
     'pricing',
     {
       plans: FALLBACK_PRICING_PLANS,
-      testProducts: [],
+      testProducts: shouldShowTestProduct ? FALLBACK_BILLING_PRODUCTS.map(toPublicBillingProduct) : [],
     },
     {
       ...(adminPreview ? { preview: 'admin' } : {}),
