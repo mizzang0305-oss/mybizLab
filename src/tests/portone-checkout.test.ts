@@ -249,17 +249,18 @@ describe('PortOne checkout client helpers', () => {
     });
   });
 
-  it('forwards the 100 KRW subscription test product to the billing checkout API', async () => {
+  it('forwards the 100 KRW one-time payment test product to the billing checkout API', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify(createValidCheckoutSessionResponse({
           customData: {
-            billingProductCode: 'subscription_test_100',
-            billingProductType: 'subscription_test',
+            billingProductCode: 'payment_test_100',
+            billingProductType: 'test',
+            grantsEntitlement: false,
             planKey: 'pro',
-            sessionId: 'subscription-pro-001',
+            sessionId: 'payment-test-100-001',
           },
-          orderName: '\uad6c\ub3c5 \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
+          orderName: 'MyBiz \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
           totalAmount: 100,
         })),
         {
@@ -269,12 +270,12 @@ describe('PortOne checkout client helpers', () => {
       ),
     ) as typeof fetch;
     requestPaymentMock.mockResolvedValue({
-      paymentId: 'subscription-pro-001',
+      paymentId: 'payment-test-100-001',
       transactionType: 'PAYMENT',
     });
 
     await launchPortOneCheckout('pro', {
-      billingProductCode: 'subscription_test_100',
+      billingProductCode: 'payment_test_100',
       redirectPath: '/onboarding?step=payment&billingTest=100',
       source: 'onboarding-flow',
     });
@@ -283,14 +284,14 @@ describe('PortOne checkout client helpers', () => {
     const requestBody = JSON.parse(String(fetchCall?.[1]?.body));
 
     expect(requestBody).toMatchObject({
-      billingProductCode: 'subscription_test_100',
+      billingProductCode: 'payment_test_100',
       plan: 'pro',
       redirectPath: '/onboarding?step=payment&billingTest=100',
       source: 'onboarding-flow',
     });
     expect(requestPaymentMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderName: '\uad6c\ub3c5 \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
+        orderName: 'MyBiz \uacb0\uc81c \ud14c\uc2a4\ud2b8 100\uc6d0',
         totalAmount: 100,
       }),
     );

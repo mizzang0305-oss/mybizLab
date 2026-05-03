@@ -358,6 +358,10 @@ export function sanitizeAdminNextPath(nextPath?: string | null) {
   return nextPath;
 }
 
+export function isPlatformAdminPath(pathname: string) {
+  return pathname === '/admin' || pathname.startsWith('/admin/') || pathname === '/platform-admin' || pathname.startsWith('/platform-admin/');
+}
+
 export function isDemoPasswordLoginEnabled() {
   return Boolean(DEMO_ADMIN_CREDENTIALS.password);
 }

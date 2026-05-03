@@ -27,11 +27,15 @@ export interface CheckoutSessionPayload {
   currency: 'KRW';
   customData?: Record<string, unknown>;
   customer: CheckoutCustomerPayload;
+  grantsEntitlement?: boolean;
   noticeUrls?: string[];
   orderName: string;
   payMethod: 'CARD';
   paymentId: string;
   plan: BillingPlanCode;
+  productCode?: string;
+  productType?: string;
+  purpose?: string;
   redirectUrl: string;
   storeId: string;
   totalAmount: number;
@@ -49,6 +53,7 @@ export interface CheckoutSessionRequestOptions {
   customData?: Record<string, unknown>;
   customer?: Partial<CheckoutCustomerPayload>;
   orderName?: string;
+  productCode?: BillingCheckoutProductCode;
   redirectPath?: string;
   source?: string;
 }
@@ -235,6 +240,7 @@ function buildCheckoutSessionRequestBody(plan: BillingPlanCode, options?: Checko
     customer: buildCheckoutSessionRequestCustomer(options?.customer),
     orderName: options?.orderName,
     plan,
+    productCode: options?.productCode || options?.billingProductCode,
     redirectPath: options?.redirectPath,
     source: options?.source,
   };

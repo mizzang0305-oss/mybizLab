@@ -21,7 +21,7 @@ export function RefundPage() {
         <p>결제 후 7일 이내이고 서비스 사용 이력이 없으며 실질적인 서비스 제공이 이루어지지 않았다고 판단되는 경우 환불 가능 여부를 우선 검토합니다.</p>
       </LegalSection>
       <LegalSection title="4. 부분 사용 시 처리 기준">
-        <p>서비스를 일부 사용한 경우에는 이용 기간과 제공 범위를 고려해 일할 정산 또는 내부 정책 기준에 따라 환불 금액이 산정될 수 있습니다.</p>
+        <p>서비스를 일부 사용한 경우에는 이용 기간, 제공 범위, 약관 기준을 함께 고려해 환불 금액이 산정될 수 있습니다.</p>
       </LegalSection>
       <LegalSection title="5. 문의 및 접수">
         <p>고객센터: {BUSINESS_INFO.customerCenter}</p>

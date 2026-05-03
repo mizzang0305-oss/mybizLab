@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { DEMO_ADMIN_CREDENTIALS, createDemoAdminSession, signOutAdminSession, useAdminSessionStore } from '@/shared/lib/adminSession';
+import {
+  DEMO_ADMIN_CREDENTIALS,
+  createDemoAdminSession,
+  isPlatformAdminPath,
+  signOutAdminSession,
+  useAdminSessionStore,
+} from '@/shared/lib/adminSession';
 import { resetDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import { useUiStore } from '@/shared/lib/uiStore';
 
@@ -64,5 +70,14 @@ describe('admin session bootstrap', () => {
 
     expect(useAdminSessionStore.getState().session).toBeNull();
     expect(useUiStore.getState().selectedStoreId).toBeUndefined();
+  });
+
+  it('recognizes platform admin routes separately from merchant dashboard routes', () => {
+    expect(isPlatformAdminPath('/admin')).toBe(true);
+    expect(isPlatformAdminPath('/admin/payment-tests')).toBe(true);
+    expect(isPlatformAdminPath('/platform-admin')).toBe(true);
+    expect(isPlatformAdminPath('/platform-admin/settings')).toBe(true);
+    expect(isPlatformAdminPath('/dashboard')).toBe(false);
+    expect(isPlatformAdminPath('/login')).toBe(false);
   });
 });

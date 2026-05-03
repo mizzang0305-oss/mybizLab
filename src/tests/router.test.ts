@@ -63,10 +63,15 @@ describe('app routing', () => {
     expect(matchedPaths('/login')).toContain('/login');
     expect(matchedPaths('/pricing')).toContain('/pricing');
     expect(matchedPaths('/billing')).toContain('/billing');
-    expect(matchedPaths('/dev/ui')).toContain('/dev/ui');
+    expect(matchedPaths('/dev/ui')).not.toContain('/dev/ui');
     expect(matchedPaths('/terms')).toContain('/terms');
     expect(matchedPaths('/privacy')).toContain('/privacy');
     expect(matchedPaths('/refund')).toContain('/refund');
+    expect(matchedPaths('/features')).toContain('/features');
+    expect(matchedPaths('/faq')).toContain('/faq');
+    expect(matchedPaths('/about')).toContain('/about');
+    expect(matchedPaths('/contact')).toContain('/contact');
+    expect(matchedPaths('/trust')).toContain('/trust');
 
     expect(matchedPaths('/pricing')).not.toContain('/:storeSlug');
     expect(matchedPaths('/billing')).not.toContain('/:storeSlug');
@@ -95,6 +100,22 @@ describe('app routing', () => {
     expect(matchedPaths('/dashboard/billing')).toContain('billing');
     expect(matchedPaths('/dashboard/admin-users')).toContain('admin-users');
     expect(matchedPaths('/dashboard/system')).toContain('system');
+  });
+
+  it('resolves expanded platform admin CMS routes separately from merchant dashboard routes', () => {
+    [
+      '/admin/pages',
+      '/admin/sections',
+      '/admin/trust',
+      '/admin/faq',
+      '/admin/seo',
+      '/admin/footer',
+      '/admin/content-quality',
+      '/admin/versions',
+    ].forEach((pathname) => {
+      expect(matchedPaths(pathname)).toContain(pathname.replace('/admin/', ''));
+      expect(matchedPaths(pathname)).not.toContain('/dashboard');
+    });
   });
 
   it('resolves the most specific admin navigation item for nested dashboard paths', () => {

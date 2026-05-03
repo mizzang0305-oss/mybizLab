@@ -111,3 +111,78 @@
     @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-bold capitalize;
   }
 }
+
+@layer utilities {
+  @keyframes mybiz-core-pulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 70px rgba(251, 146, 60, 0.3);
+    }
+    50% {
+      transform: scale(1.04);
+      box-shadow: 0 0 110px rgba(251, 146, 60, 0.48);
+    }
+  }
+
+  @keyframes mybiz-node-float {
+    0%, 100% {
+      margin-top: 0;
+      filter: brightness(1);
+    }
+    50% {
+      margin-top: -0.7rem;
+      filter: brightness(1.18);
+    }
+  }
+
+  @keyframes mybiz-trail-drift {
+    0% {
+      opacity: 0;
+      transform: translate3d(-2rem, 2rem, 0) rotate(-18deg) scaleX(0.4);
+    }
+    35% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(12rem, -8rem, 0) rotate(-18deg) scaleX(1.5);
+    }
+  }
+
+  .mybiz-memory-core {
+    animation: mybiz-core-pulse 5.5s ease-in-out infinite;
+  }
+
+  .mybiz-orbit-node {
+    animation: mybiz-node-float 4.8s ease-in-out infinite;
+  }
+
+  .mybiz-orbit-node:nth-of-type(2n) {
+    animation-delay: 0.8s;
+  }
+
+  .mybiz-orbit-node:nth-of-type(3n) {
+    animation-delay: 1.4s;
+  }
+
+  .mybiz-light-trail {
+    @apply absolute h-px w-36 rounded-full bg-gradient-to-r from-transparent via-orange-300 to-transparent;
+    animation: mybiz-trail-drift 5.2s linear infinite;
+  }
+
+  .animation-delay-700 {
+    animation-delay: 0.7s;
+  }
+
+  .animation-delay-1400 {
+    animation-delay: 1.4s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mybiz-memory-core,
+    .mybiz-orbit-node,
+    .mybiz-light-trail {
+      animation: none;
+    }
+  }
+}

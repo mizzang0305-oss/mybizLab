@@ -122,9 +122,9 @@ const planCards = [
 
 const subscriptionTestPlanCard = {
   billingProductCode: SUBSCRIPTION_TEST_PRODUCT.code,
-  code: SUBSCRIPTION_TEST_PRODUCT.plan,
-  desc: 'PortOne 구독 결제 연결을 확인하는 100원 테스트 상품입니다. 실제 plan truth는 PRO로 유지됩니다.',
-  features: ['100원 결제 요청', 'PortOne return/verify 테스트', 'store_subscriptions 반영 확인용'],
+  code: 'pro',
+  desc: 'PortOne 결제 연결을 확인하는 내부 100원 테스트 상품입니다. 구독 권한은 변경하지 않습니다.',
+  features: ['100원 단건 결제 요청', 'PortOne return/verify 테스트', 'store_subscriptions 반영 없음'],
   title: 'TEST 100',
 } as const;
 
@@ -434,7 +434,7 @@ export function OnboardingPage() {
     };
   }, [autoSuggestedSlug, existingSlugs, existingSlugSet, flow.requestDraft.requestedSlug]);
   const slugPreview = slugState.preview;
-  const subscriptionTestProductEnabled = searchParams.get('billingTest') === '100' || searchParams.get('subscriptionTest') === '100';
+  const subscriptionTestProductEnabled = false;
   const visiblePlanCards = useMemo(
     () => (subscriptionTestProductEnabled ? [...planCards, subscriptionTestPlanCard] : planCards),
     [subscriptionTestProductEnabled],

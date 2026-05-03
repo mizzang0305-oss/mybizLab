@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 import { Icons } from '@/shared/components/Icons';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import type { BillingPlanCode } from '@/shared/lib/billingPlans';
+import { FALLBACK_PRICING_PLANS, PAYMENT_TEST_PRODUCT_CODE, formatKrw, formatProductKrw } from '@/shared/lib/platformAdminConfig';
 import {
   PortOneCheckoutError,
   getPortOnePaymentErrorMessage,
   getPortOnePaymentSuccessMessage,
   launchPortOneCheckout,
 } from '@/shared/lib/portoneCheckout';
-import { BUSINESS_INFO, PRICING_PLANS, SERVICE_DESCRIPTION } from '@/shared/lib/siteConfig';
+import { queryKeys } from '@/shared/lib/queryKeys';
+import { getPublicPlatformPricingContent } from '@/shared/lib/services/platformAdminContentService';
+import { BUSINESS_INFO, SERVICE_DESCRIPTION } from '@/shared/lib/siteConfig';
 
 type CheckoutMessageTone = 'error' | 'info' | 'success';
 
@@ -19,22 +23,7 @@ interface CheckoutMessageState {
   tone: CheckoutMessageTone;
 }
 
-const setupChecklist = ['브랜드 기본값 정리', '공개 스토어 설정', '기본 CTA와 유입 동선 점검', '기본 운영 화면 연결', '초기 진단 결과 반영'] as const;
-
-const comparisonRows = [
-  { label: '공개 스토어', values: { FREE: '기본', PRO: '확장', VIP: '확장' } },
-  { label: '문의 수집', values: { FREE: '준비', PRO: '실사용', VIP: '실사용' } },
-  { label: '예약·웨이팅', values: { FREE: '-', PRO: '실사용', VIP: '실사용' } },
-  { label: '고객 기억 축', values: { FREE: '기초', PRO: '핵심', VIP: '확장' } },
-  { label: 'AI 운영 제안', values: { FREE: '기본', PRO: '추천', VIP: '심화' } },
-  { label: '운영 리포트', values: { FREE: '-', PRO: '주요 요약', VIP: '심화 리포트' } },
-] as const;
-
-const planCodeMap: Record<(typeof PRICING_PLANS)[number]['name'], BillingPlanCode> = {
-  FREE: 'free',
-  PRO: 'pro',
-  VIP: 'vip',
-};
+const setupChecklist = ['브랜드 기본값 정리', '공개 스토어 설정', '기본 CTA와 고객 행동 연결', '기본 운영 화면 연결', '초기 진단 결과 반영'] as const;
 
 function getCheckoutMessageClassName(tone: CheckoutMessageTone) {
   if (tone === 'success') {
@@ -62,10 +51,14 @@ function getCheckoutErrorMessage(error: unknown) {
 
 export function PricingPage() {
   const [searchParams] = useSearchParams();
-  const [activePlan, setActivePlan] = useState<BillingPlanCode | null>(null);
+  const [activePlan, setActivePlan] = useState<string | null>(null);
   const [checkoutMessage, setCheckoutMessage] = useState<CheckoutMessageState | null>(null);
+  const pricingQuery = useQuery({
+    queryKey: queryKeys.publicPlatformPricing(searchParams.get('testPayment')),
+    queryFn: () => getPublicPlatformPricingContent(searchParams),
+  });
 
-  usePageMeta('마이비즈랩 요금제 | 고객-메모리 매출 시스템', SERVICE_DESCRIPTION);
+  usePageMeta('MyBiz 요금제 | 고객 기억 기반 매출 AI SaaS', SERVICE_DESCRIPTION);
 
   const redirectMessage = useMemo<CheckoutMessageState | null>(() => {
     const code = searchParams.get('code');
@@ -90,16 +83,19 @@ export function PricingPage() {
   }, [searchParams]);
 
   const visibleMessage = checkoutMessage ?? redirectMessage;
+  const pricing = pricingQuery.data;
+  const plans = pricing?.plans || FALLBACK_PRICING_PLANS;
+  const testProducts = pricing?.testProducts || [];
 
   async function handleCheckout(plan: BillingPlanCode) {
-    if (activePlan) {
+    if (plan === 'free') {
       return;
     }
 
     try {
       setActivePlan(plan);
       setCheckoutMessage({
-        text: '결제창을 준비하고 있습니다. 테스트 또는 실환경 설정이 올바르면 PortOne 결제로 이어집니다.',
+        text: '결제창을 준비하고 있습니다. 실제 결제 성공 후에만 구독 권한이 확정됩니다.',
         tone: 'info',
       });
 
@@ -135,6 +131,50 @@ export function PricingPage() {
     }
   }
 
+  async function handlePaymentTest() {
+    const testProduct = testProducts.find((product) => product.product_code === PAYMENT_TEST_PRODUCT_CODE);
+    if (!testProduct) return;
+
+    try {
+      setActivePlan(PAYMENT_TEST_PRODUCT_CODE);
+      setCheckoutMessage({
+        text: '100원 테스트 결제창을 준비하고 있습니다. 이 결제는 구독 권한을 변경하지 않습니다.',
+        tone: 'info',
+      });
+
+      const { payment } = await launchPortOneCheckout('pro', {
+        billingProductCode: PAYMENT_TEST_PRODUCT_CODE,
+        customData: {
+          grantsEntitlement: false,
+          productCode: PAYMENT_TEST_PRODUCT_CODE,
+          purpose: 'payment_test',
+        },
+        orderName: testProduct.order_name || testProduct.product_name,
+        redirectPath: '/pricing?testPayment=1',
+        source: 'public-pricing-test-payment',
+      });
+
+      if (payment?.code) {
+        setCheckoutMessage({
+          text: getPortOnePaymentErrorMessage(payment),
+          tone: 'error',
+        });
+      } else {
+        setCheckoutMessage({
+          text: '100원 테스트 결제가 완료되었습니다. 구독 권한은 변경되지 않았습니다.',
+          tone: 'success',
+        });
+      }
+    } catch (error) {
+      setCheckoutMessage({
+        text: getCheckoutErrorMessage(error),
+        tone: 'error',
+      });
+    } finally {
+      setActivePlan(null);
+    }
+  }
+
   return (
     <main className="page-shell py-12 sm:py-16">
       <section className="relative overflow-hidden rounded-[36px] bg-slate-950 px-6 py-10 text-white shadow-[0_45px_90px_-40px_rgba(15,23,42,0.8)] sm:px-10 lg:px-14 lg:py-14">
@@ -144,33 +184,29 @@ export function PricingPage() {
             Pricing
           </span>
           <div className="space-y-3">
-            <h1 className="max-w-[12ch] text-balance font-display text-[2.35rem] font-black leading-[1.05] tracking-[-0.03em] sm:text-5xl">
+            <h1 className="max-w-3xl text-balance font-display text-[2.35rem] font-black leading-[1.08] tracking-[-0.03em] sm:text-5xl">
               고객 입력과 기억 구조에 맞는 요금제
             </h1>
             <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-lg sm:leading-8">
-              MyBiz는 일반 홈페이지 툴이 아니라 고객 입력 채널과 고객 기억 축을 운영하는 시스템입니다. 요금제도 그 운영 깊이에 맞춰 나뉩니다.
+              무료로 시작하고, 고객 기억이 쌓이면 PRO/VIP로 확장하세요. 결제 전 플랜과 제공 범위를 명확히 확인할 수 있고,
+              FREE는 유료 결제 없이 시작합니다.
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-semibold text-orange-200">초기 세팅비</p>
-              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">390,000원부터</p>
-              <p className="mt-2 text-sm text-slate-300">초기 공개 스토어 구성과 운영 흐름 정리를 위한 1회 비용입니다.</p>
+              <p className="text-sm font-semibold text-orange-200">무료 시작</p>
+              <p className="mt-2 font-display text-3xl font-black">FREE</p>
+              <p className="mt-2 text-sm text-slate-300">공개 스토어와 기본 진단으로 고객 접점을 먼저 엽니다.</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-semibold text-orange-200">월 구독</p>
-              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">무료 ~ 149,000원</p>
-              <p className="mt-2 text-sm text-slate-300">FREE, PRO, VIP 구조로 고객 입력 채널과 운영 깊이가 달라집니다.</p>
+              <p className="text-sm font-semibold text-orange-200">운영 확장</p>
+              <p className="mt-2 font-display text-3xl font-black">PRO</p>
+              <p className="mt-2 text-sm text-slate-300">고객 관리, 예약 운영, AI 운영 리포트를 함께 봅니다.</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-semibold text-orange-200">핵심 기준</p>
-              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">고객 기억 축</p>
-              <p className="mt-2 text-sm text-slate-300">문의, 예약, 웨이팅, 주문을 얼마나 깊게 연결할지가 플랜 차이의 핵심입니다.</p>
-            </div>
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-semibold text-orange-200">도입 문의</p>
-              <p className="mt-2 whitespace-nowrap font-display text-[1.85rem] font-black leading-none sm:text-3xl">상담 기반</p>
-              <p className="mt-2 text-sm text-slate-300">실매장 도입은 운영 방식과 채널 구성을 같이 보고 맞춤으로 안내합니다.</p>
+              <p className="text-sm font-semibold text-orange-200">성장 분석</p>
+              <p className="mt-2 font-display text-3xl font-black">VIP</p>
+              <p className="mt-2 text-sm text-slate-300">반복 매출과 운영 자동화 인사이트를 깊게 봅니다.</p>
             </div>
           </div>
         </div>
@@ -178,19 +214,11 @@ export function PricingPage() {
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <article className="section-card p-6 sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-3">
-              <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">도입 준비</span>
-              <div>
-                <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">초기 세팅비</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">공개 유입, 기본 문구, 운영 흐름, 초기 AI 진단 구조를 정리하는 1회 도입 비용입니다.</p>
-              </div>
-            </div>
-            <div className="rounded-3xl bg-slate-950 px-6 py-5 text-white">
-              <p className="text-sm font-semibold text-orange-200">안내 기준</p>
-              <p className="mt-2 whitespace-nowrap font-display text-[2rem] font-black leading-none sm:text-4xl">390,000원부터</p>
-            </div>
-          </div>
+          <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">도입 준비</span>
+          <h2 className="mt-4 font-display text-3xl font-extrabold tracking-tight text-slate-900">초기 설정</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
+            공개 스토어와 고객 입력 채널을 실제 매장 운영 흐름에 맞게 정리합니다.
+          </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {setupChecklist.map((item) => (
               <div key={item} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
@@ -199,21 +227,15 @@ export function PricingPage() {
               </div>
             ))}
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <a className="btn-secondary" href={`mailto:${BUSINESS_INFO.email}?subject=${encodeURIComponent('마이비즈랩 도입 상담 요청')}`}>
-              도입 상담 요청
-            </a>
-            <p className="text-sm text-slate-500">실제 세팅 범위와 초기 비용은 매장 운영 구조를 보고 확정합니다.</p>
-          </div>
         </article>
 
         <article className="section-card p-6 sm:p-8">
           <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">운영 기준</span>
           <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600 sm:text-base">
-            <p>MyBiz는 가격보다 먼저 어떤 고객 입력 채널을 실제로 운영할지, 고객 기억 축을 얼마나 깊게 쌓을지부터 정해야 제대로 맞습니다.</p>
-            <p>PRIVATE AI, 데이터 통제, 국내 운영 같은 신뢰 요소는 중요하지만, 첫 메시지는 고객 기억과 매출 개선 가치가 되어야 합니다.</p>
+            <p>FREE는 결제 없이 시작할 수 있고, PRO/VIP는 선택한 플랜 기준으로 안전하게 결제가 진행됩니다.</p>
+            <p>추천 배지와 할인 표시는 실제 이용 조건을 이해하기 쉽게 보여주는 안내입니다.</p>
             <p>
-              문의 이메일:{' '}
+              문의 메일{' '}
               <a className="font-semibold text-orange-700" href={`mailto:${BUSINESS_INFO.email}`}>
                 {BUSINESS_INFO.email}
               </a>
@@ -226,7 +248,7 @@ export function PricingPage() {
         <div className="mb-6 space-y-2">
           <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">월 구독</span>
           <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">FREE / PRO / VIP</h2>
-          <p className="text-sm text-slate-500 sm:text-base">실결제는 PortOne으로 이어지며, 환경이 준비되지 않은 경우 성공처럼 넘기지 않고 정확한 상태를 보여줍니다.</p>
+          <p className="text-sm text-slate-500 sm:text-base">매장 상황에 맞춰 무료 시작, 운영 확장, 성장 분석 단계로 선택할 수 있습니다.</p>
         </div>
 
         {visibleMessage ? (
@@ -236,136 +258,90 @@ export function PricingPage() {
         ) : null}
 
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
-          {PRICING_PLANS.map((plan) => {
-            const planCode = planCodeMap[plan.name];
-            const isBusy = activePlan === planCode;
-            const isDisabled = activePlan !== null;
-
+          {plans.map((plan) => {
+            const isFree = plan.plan_code === 'free';
+            const isBusy = activePlan === plan.plan_code;
             return (
               <article
-                key={plan.name}
+                key={plan.plan_code}
                 className={[
                   'section-card flex h-full flex-col p-6 sm:p-8',
-                  plan.highlighted ? 'border-orange-200 shadow-[0_25px_65px_-35px_rgba(236,91,19,0.45)]' : '',
+                  plan.is_recommended ? 'border-orange-200 shadow-[0_25px_65px_-35px_rgba(236,91,19,0.45)]' : '',
                 ].join(' ')}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold uppercase tracking-[0.18em] text-orange-600">{plan.name}</p>
-                    <p className="mt-3 whitespace-nowrap font-display text-[2rem] font-black leading-none text-slate-900 sm:text-3xl">{plan.priceLabel}</p>
+                    <p className="text-sm font-bold uppercase tracking-[0.18em] text-orange-600">{plan.display_name}</p>
+                    <p className="mt-3 whitespace-nowrap font-display text-[2rem] font-black leading-none text-slate-900 sm:text-3xl">
+                      {formatKrw(plan.price_amount)}
+                    </p>
+                    {plan.compare_at_amount ? (
+                      <p className="mt-2 text-sm font-bold text-slate-400 line-through">{formatKrw(plan.compare_at_amount)}</p>
+                    ) : null}
                   </div>
-                  {plan.highlighted ? <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">추천</span> : null}
+                  {plan.badge_text || plan.is_recommended ? (
+                    <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">{plan.badge_text || '추천'}</span>
+                  ) : null}
                 </div>
 
-                <p className="mt-4 text-sm leading-6 text-slate-500 sm:text-base">{plan.summary}</p>
+                <p className="mt-4 text-sm leading-6 text-slate-500 sm:text-base">{plan.short_description}</p>
+                {plan.discount_label ? (
+                  <p className="mt-3 inline-flex self-start rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                    {plan.discount_label}
+                  </p>
+                ) : null}
 
-                <ul className="mt-6 space-y-3 text-sm text-slate-700 sm:text-base">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-3">
+                <ul className="mt-6 space-y-3">
+                  {plan.bullet_items.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-sm font-medium text-slate-700">
                       <Icons.Check className="mt-0.5 text-orange-600" size={18} />
-                      <span>{feature}</span>
+                      <span>{item}</span>
                     </li>
                   ))}
                 </ul>
 
-                <div className="mt-8 space-y-3">
-                  {planCode === 'free' ? (
-                    <Link className="btn-primary w-full justify-center" data-plan={planCode} to="/onboarding?plan=free">
-                      FREE 시작
+                {plan.footnote ? <p className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">{plan.footnote}</p> : null}
+
+                <div className="mt-auto pt-6">
+                  {isFree ? (
+                    <Link className="btn-primary w-full justify-center" to={plan.cta_href || '/onboarding?plan=free'}>
+                      {plan.cta_label || '무료로 시작'}
                     </Link>
                   ) : (
                     <button
                       className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
-                      data-plan={planCode}
-                      disabled={isDisabled}
-                      onClick={() => {
-                        void handleCheckout(planCode);
-                      }}
+                      disabled={activePlan !== null}
+                      onClick={() => void handleCheckout(plan.plan_code)}
                       type="button"
                     >
-                      {isBusy ? '결제창 준비 중...' : '구독 결제'}
+                      {isBusy ? '결제 준비 중' : plan.cta_label || `${plan.display_name} 시작`}
                     </button>
                   )}
-                  <p className="text-xs leading-6 text-slate-500">
-                    {plan.name === 'FREE'
-                      ? 'FREE는 공개 유입과 기본 진단을 중심으로 시작하는 플랜입니다.'
-                      : `${plan.name}는 고객 입력 채널과 고객 기억 축을 더 깊게 운영하는 플랜입니다.`}
-                  </p>
                 </div>
               </article>
             );
           })}
         </div>
-      </section>
 
-      <section className="mt-12">
-        <div className="mb-6 space-y-2">
-          <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">비교 기준</span>
-          <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">무엇이 달라지는지 한눈에 보기</h2>
-          <p className="text-sm text-slate-500 sm:text-base">플랜 차이는 단순 카드 수가 아니라, 어떤 채널과 어떤 기억 구조를 운영할 수 있느냐에 있습니다.</p>
-        </div>
-
-        <div className="hidden overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_30px_80px_-50px_rgba(15,23,42,0.35)] lg:block">
-          <div className="grid grid-cols-[1.35fr_repeat(3,minmax(0,1fr))] border-b border-slate-200 bg-slate-50">
-            <div className="px-6 py-5 text-sm font-bold uppercase tracking-[0.18em] text-slate-500">운영 항목</div>
-            {PRICING_PLANS.map((plan) => (
-              <div key={plan.name} className="border-l border-slate-200 px-4 py-5 text-center">
-                <p className="text-sm font-bold text-slate-900">{plan.name}</p>
-                <p className="mt-1 text-xs text-slate-500">{plan.priceLabel}</p>
-              </div>
-            ))}
-          </div>
-
-          {comparisonRows.map((row) => (
-            <div key={row.label} className="grid grid-cols-[1.35fr_repeat(3,minmax(0,1fr))] border-b border-slate-100 last:border-b-0">
-              <div className="px-6 py-5 text-sm font-semibold text-slate-700">{row.label}</div>
-              {PRICING_PLANS.map((plan) => (
-                <div key={`${row.label}-${plan.name}`} className="flex items-center justify-center border-l border-slate-100 px-4 py-5 text-sm text-slate-700">
-                  {row.values[plan.name]}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        <div className="grid gap-4 lg:hidden">
-          {PRICING_PLANS.map((plan) => (
-            <details key={plan.name} className="section-card overflow-hidden p-0" open={plan.name === 'PRO'}>
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{plan.name}</p>
-                  <p className="mt-1 whitespace-nowrap text-xs text-slate-500">{plan.priceLabel}</p>
-                </div>
-                {plan.highlighted ? <span className="rounded-full bg-orange-100 px-2 py-1 text-[11px] font-bold text-orange-700">추천</span> : null}
-              </summary>
-              <div className="border-t border-slate-200 px-5 py-4">
-                <div className="space-y-3">
-                  {comparisonRows.map((row) => (
-                    <div key={`${plan.name}-${row.label}`} className="flex items-center justify-between gap-4 text-sm">
-                      <span className="font-medium text-slate-600">{row.label}</span>
-                      <span>{row.values[plan.name]}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </details>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-12 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_22px_55px_-40px_rgba(15,23,42,0.35)] sm:p-8">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">다음 단계</p>
-            <h2 className="mt-3 font-display text-3xl font-black tracking-tight text-slate-900">먼저 진단으로 시작하는 편이 가장 안전합니다</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-              현재 매장에 필요한 채널이 문의인지, 예약·웨이팅인지, 주문과 공개 유입인지 먼저 확인하면 결제 이전에도 어떤 플랜이 맞는지 훨씬 명확해집니다.
+        {testProducts.length ? (
+          <div className="mt-8 rounded-[28px] border border-amber-200 bg-amber-50 p-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Payment Test</p>
+            <h2 className="mt-2 font-display text-2xl font-black text-slate-950">100원 테스트 결제</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              관리자 검증용 단건 결제입니다. 성공해도 PRO/VIP 구독 권한은 변경되지 않습니다.
             </p>
+            <button
+              className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={activePlan !== null}
+              onClick={() => void handlePaymentTest()}
+              type="button"
+            >
+              {activePlan === PAYMENT_TEST_PRODUCT_CODE ? '테스트 결제 준비 중' : `${formatProductKrw(testProducts[0].amount)} 테스트 결제`}
+            </button>
           </div>
-          <Link className="btn-primary" to="/onboarding">
-            무료 진단으로 시작
-          </Link>
-        </div>
+        ) : null}
+
+        {pricingQuery.isLoading ? <p className="mt-6 text-sm font-bold text-slate-500">가격표를 불러오는 중입니다.</p> : null}
       </section>
     </main>
   );
