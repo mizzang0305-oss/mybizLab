@@ -19,6 +19,7 @@ import { StoreMenuPage } from '@/modules/table-order/public-menu-page';
 import { StoreOrderPage } from '@/modules/table-order/public-order-page';
 import { PublicWaitingPage } from '@/modules/waiting/public-page';
 import { AdminLoginPage } from '@/pages/AdminLoginPage';
+import { DemoDashboardPage } from '@/pages/DemoDashboardPage';
 import { LandingPage } from '@/pages/LandingPage';
 import { PricingPage } from '@/pages/PricingPage';
 
@@ -135,8 +136,16 @@ export const appRoutes: RouteObject[] = [
         element: <AdminLoginPage />,
       },
       {
+        path: '/admin-login',
+        element: <Navigate replace to="/login?next=/admin" />,
+      },
+      {
         path: '/pricing',
         element: <PricingPage />,
+      },
+      {
+        path: '/demo/dashboard',
+        element: <DemoDashboardPage />,
       },
       {
         path: '/features',
