@@ -33,7 +33,7 @@ export type PlatformAdminRequestLike =
 interface PlatformAdminContext {
   email: string;
   profileId: string;
-  role: 'platform_admin' | 'platform_owner' | 'platform_viewer';
+  role: 'platform_admin' | 'platform_owner';
   userAgent?: string;
 }
 
@@ -323,6 +323,10 @@ function isMissingTableError(error: unknown) {
   return /does not exist|schema cache|Could not find the table|relation .* does not exist/i.test(message);
 }
 
+export function normalizePlatformAdminMemberRole(role: unknown) {
+  return role === 'platform_owner' || role === 'platform_admin' ? role : null;
+}
+
 async function findPlatformRoleFromMemberTable(client: SupabaseClient, profileId: string) {
   const { data, error } = await client
     .from('platform_admin_members')
@@ -336,7 +340,7 @@ async function findPlatformRoleFromMemberTable(client: SupabaseClient, profileId
   }
 
   if (!data || data.status !== 'active') return null;
-  return data.role === 'platform_owner' || data.role === 'platform_viewer' ? data.role : 'platform_admin';
+  return normalizePlatformAdminMemberRole(data.role);
 }
 
 async function findPlatformRoleFromProfile(client: SupabaseClient, profileId: string) {

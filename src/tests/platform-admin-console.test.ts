@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPaymentTestReadiness, handlePlatformAdminRequest, handlePlatformPublicRequest } from '@/server/platformAdminApi';
+import {
+  buildPaymentTestReadiness,
+  handlePlatformAdminRequest,
+  handlePlatformPublicRequest,
+  normalizePlatformAdminMemberRole,
+} from '@/server/platformAdminApi';
 import { resolveServerCatalogItem } from '@/server/platformCatalog';
 import {
   FALLBACK_HOMEPAGE_SECTIONS,
@@ -165,6 +170,14 @@ describe('platform admin console foundations', () => {
       code: 'PLATFORM_ADMIN_ERROR',
       ok: false,
     });
+  });
+
+  it('accepts only platform_owner and platform_admin as platform admin roles', () => {
+    expect(normalizePlatformAdminMemberRole('platform_owner')).toBe('platform_owner');
+    expect(normalizePlatformAdminMemberRole('platform_admin')).toBe('platform_admin');
+    expect(normalizePlatformAdminMemberRole('platform_viewer')).toBeNull();
+    expect(normalizePlatformAdminMemberRole('owner')).toBeNull();
+    expect(normalizePlatformAdminMemberRole('unexpected')).toBeNull();
   });
 
   it('reports safe Korean payment-test readiness when PortOne configuration is missing', () => {
