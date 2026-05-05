@@ -1,5 +1,9 @@
+import { createElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { PlatformVersionsAdminPage } from '@/modules/platform-admin/page';
 import {
   buildPaymentTestReadiness,
   handlePlatformAdminRequest,
@@ -16,6 +20,7 @@ import {
   filterPublicPricingPlans,
   shouldExposeBillingProduct,
 } from '@/shared/lib/platformAdminConfig';
+import { queryKeys } from '@/shared/lib/queryKeys';
 
 const PORTONE_ENV_KEYS = [
   'PORTONE_API_SECRET',
@@ -178,6 +183,29 @@ describe('platform admin console foundations', () => {
     expect(normalizePlatformAdminMemberRole('platform_viewer')).toBeNull();
     expect(normalizePlatformAdminMemberRole('owner')).toBeNull();
     expect(normalizePlatformAdminMemberRole('unexpected')).toBeNull();
+  });
+
+  it('uses truthful version-history-only copy without developer seed language', () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    queryClient.setQueryData(queryKeys.platformAdminResource('content-versions'), []);
+    queryClient.setQueryData(queryKeys.platformAdminResource('site-snapshots'), []);
+
+    const html = renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(PlatformVersionsAdminPage),
+      ),
+    );
+
+    expect(html).toContain('롤백 실행은 다음 배포에서 제공됩니다. 현재는 버전 기록만 확인할 수 있습니다.');
+    expect(html).not.toMatch(/migration seed|migration/i);
   });
 
   it('reports safe Korean payment-test readiness when PortOne configuration is missing', () => {
