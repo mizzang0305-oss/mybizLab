@@ -7,13 +7,13 @@ import {
   FALLBACK_SITE_SETTINGS,
   PAYMENT_TEST_PRODUCT_CODE,
   toPublicBillingProduct,
-  type PlatformContentQualityResult,
   type PlatformAdminOverview,
   type PlatformAnnouncement,
   type PlatformAuditLog,
   type PlatformBanner,
   type PlatformBillingProduct,
   type PlatformBoardPost,
+  type PlatformContentQualityResult,
   type PlatformFeatureFlag,
   type PlatformHomepageSection,
   type PlatformMediaAsset,
@@ -21,10 +21,10 @@ import {
   type PlatformPopup,
   type PlatformPricingPlan,
   type PlatformPromotion,
-  type PublicPlatformPagePayload,
   type PlatformSiteSettings,
   type PublicPlatformChromePayload,
   type PublicPlatformHomepagePayload,
+  type PublicPlatformPagePayload,
   type PublicPlatformPricingPayload,
 } from '../platformAdminConfig';
 import { resolveServerApiUrl } from '../serverApiUrl';
@@ -39,6 +39,14 @@ export interface PlatformAdminSession {
   email: string;
   profileId: string;
   role: 'platform_admin' | 'platform_owner' | 'platform_viewer';
+}
+
+export interface PlatformPaymentTestReadiness {
+  code: 'PORTONE_READY' | 'PORTONE_NOT_CONFIGURED' | 'PORTONE_SANDBOX_NOT_CONFIRMED';
+  isReady: boolean;
+  message: string;
+  missing: string[];
+  sandboxConfirmed: boolean;
 }
 
 export type PlatformAdminResource =
@@ -149,6 +157,7 @@ export async function getPaymentTestsSnapshot() {
     events: PlatformPaymentEvent[];
     failureCopy: string;
     product: PlatformBillingProduct | null;
+    readiness: PlatformPaymentTestReadiness;
     successCopy: string;
   }>('payment-tests');
 }

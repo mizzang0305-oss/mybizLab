@@ -39,10 +39,16 @@ function getCheckoutMessageClassName(tone: CheckoutMessageTone) {
 
 function getCheckoutErrorMessage(error: unknown) {
   if (error instanceof PortOneCheckoutError) {
+    if (error.code === 'FUNCTION_INVOCATION_FAILED' || error.code === 'PORTONE_BROWSER_ENV_MISSING') {
+      return '결제 설정이 아직 완료되지 않았습니다. 관리자 결제 이벤트와 PortOne 설정을 확인해 주세요.';
+    }
     return error.message;
   }
 
   if (error instanceof Error && error.message.trim()) {
+    if (/FUNCTION_INVOCATION_FAILED/i.test(error.message)) {
+      return '결제 설정이 아직 완료되지 않았습니다. 관리자 결제 이벤트와 PortOne 설정을 확인해 주세요.';
+    }
     return error.message.trim();
   }
 
@@ -95,7 +101,7 @@ export function PricingPage() {
     try {
       setActivePlan(plan);
       setCheckoutMessage({
-        text: '결제창을 준비하고 있습니다. 실제 결제 성공 후에만 구독 권한이 확정됩니다.',
+        text: '결제창을 준비하고 있습니다. 실제 결제 성공 후에만 구독 권한이 적용됩니다.',
         tone: 'info',
       });
 
@@ -185,7 +191,7 @@ export function PricingPage() {
           </span>
           <div className="space-y-3">
             <h1 className="max-w-3xl text-balance font-display text-[2.35rem] font-black leading-[1.08] tracking-[-0.03em] sm:text-5xl">
-              고객 입력과 기억 구조에 맞는 요금제
+              고객 기억이 쌓이는 속도에 맞춰 확장하세요
             </h1>
             <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-lg sm:leading-8">
               무료로 시작하고, 고객 기억이 쌓이면 PRO/VIP로 확장하세요. 결제 전 플랜과 제공 범위를 명확히 확인할 수 있고,
@@ -206,7 +212,7 @@ export function PricingPage() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-orange-200">성장 분석</p>
               <p className="mt-2 font-display text-3xl font-black">VIP</p>
-              <p className="mt-2 text-sm text-slate-300">반복 매출과 운영 자동화 인사이트를 깊게 봅니다.</p>
+              <p className="mt-2 text-sm text-slate-300">반복 매출과 운영 자동화 인사이트를 더 깊게 봅니다.</p>
             </div>
           </div>
         </div>
@@ -232,8 +238,8 @@ export function PricingPage() {
         <article className="section-card p-6 sm:p-8">
           <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">운영 기준</span>
           <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600 sm:text-base">
-            <p>FREE는 결제 없이 시작할 수 있고, PRO/VIP는 선택한 플랜 기준으로 안전하게 결제가 진행됩니다.</p>
-            <p>추천 배지와 할인 표시는 실제 이용 조건을 이해하기 쉽게 보여주는 안내입니다.</p>
+            <p>FREE는 결제 없이 시작할 수 있고, PRO/VIP는 선택한 플랜 기준으로 결제가 진행됩니다.</p>
+            <p>추천 배지와 할인 표시는 이해를 돕는 안내이며, 실제 결제 금액은 서버의 상품 기준으로 확인됩니다.</p>
             <p>
               문의 메일{' '}
               <a className="font-semibold text-orange-700" href={`mailto:${BUSINESS_INFO.email}`}>

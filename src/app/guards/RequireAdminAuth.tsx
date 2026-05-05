@@ -7,7 +7,7 @@ export function RequireAdminAuth() {
   const location = useLocation();
 
   if (isLoading) {
-    return <div className="page-shell py-14 text-sm text-slate-500">권한을 확인하는 중입니다...</div>;
+    return <div className="page-shell py-14 text-sm text-slate-500">매장 운영 권한을 확인하는 중입니다...</div>;
   }
 
   if (!session) {

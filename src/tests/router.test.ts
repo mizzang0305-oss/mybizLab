@@ -72,9 +72,11 @@ describe('app routing', () => {
     expect(matchedPaths('/about')).toContain('/about');
     expect(matchedPaths('/contact')).toContain('/contact');
     expect(matchedPaths('/trust')).toContain('/trust');
+    expect(matchedPaths('/cases')).toContain('/cases');
 
     expect(matchedPaths('/pricing')).not.toContain('/:storeSlug');
     expect(matchedPaths('/billing')).not.toContain('/:storeSlug');
+    expect(matchedPaths('/cases')).not.toContain('/:storeSlug');
     expect(matchedPaths('/dev/ui')).not.toContain('/:storeSlug');
     expect(matchedPaths('/terms')).not.toContain('/:storeSlug');
   });
