@@ -7,6 +7,12 @@ const mockSessionState = {
   isLoading: false,
   session: null as unknown,
 };
+const mockPlatformQueryState = {
+  data: null as unknown,
+  error: null as unknown,
+  isError: false,
+  isLoading: false,
+};
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -25,7 +31,12 @@ vi.mock('@/shared/lib/adminSession', () => ({
   useAdminAccess: () => mockSessionState,
 }));
 
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => mockPlatformQueryState,
+}));
+
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
+import { RequirePlatformAdminAuth } from '@/app/guards/RequirePlatformAdminAuth';
 
 describe('RequireAdminAuth', () => {
   beforeEach(() => {
@@ -68,5 +79,51 @@ describe('RequireAdminAuth', () => {
 
     expect(html).toContain('권한을 확인하는 중입니다');
     expect(html).not.toContain('/login');
+  });
+});
+
+describe('RequirePlatformAdminAuth', () => {
+  beforeEach(() => {
+    mockUseLocation.mockReturnValue({
+      pathname: '/admin',
+      search: '',
+      hash: '',
+    });
+    mockPlatformQueryState.data = null;
+    mockPlatformQueryState.error = null;
+    mockPlatformQueryState.isError = false;
+    mockPlatformQueryState.isLoading = false;
+  });
+
+  it('redirects unauthenticated admin requests to /login with next=/admin', () => {
+    mockPlatformQueryState.isError = true;
+    mockPlatformQueryState.error = new Error('Authorization bearer token is required.');
+
+    const html = renderToStaticMarkup(createElement(RequirePlatformAdminAuth));
+
+    expect(html).toContain('/login?next=%2Fadmin');
+  });
+
+  it('allows platform_owner and platform_admin sessions without store_members access', () => {
+    mockPlatformQueryState.data = {
+      email: 'mybiz.lab3@gmail.com',
+      profileId: '670bd8a2-80a6-43b6-bb05-f91e8418eac6',
+      role: 'platform_owner',
+    };
+
+    const html = renderToStaticMarkup(createElement(RequirePlatformAdminAuth));
+
+    expect(html).toContain('protected-content');
+    expect(html).not.toContain('/login');
+  });
+
+  it('does not allow a merchant-only forbidden session into /admin', () => {
+    mockPlatformQueryState.isError = true;
+    mockPlatformQueryState.error = new Error('플랫폼 관리자 권한이 필요합니다.');
+
+    const html = renderToStaticMarkup(createElement(RequirePlatformAdminAuth));
+
+    expect(html).toContain('플랫폼 관리자 권한이 필요합니다');
+    expect(html).not.toContain('protected-content');
   });
 });

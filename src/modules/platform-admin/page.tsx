@@ -342,7 +342,7 @@ function JsonEditor({ resource }: { resource: PlatformAdminResource }) {
           </p>
         ) : null}
         {!query.isLoading && rows.length === 0 ? (
-          <EmptyState title="관리 항목이 없습니다" description="새 항목을 만들거나 migration seed 적용 상태를 확인하세요." />
+          <EmptyState title="관리 항목이 없습니다" description="새 항목을 만들거나 관리자 데이터 상태를 확인하세요." />
         ) : null}
 
         <div className="space-y-3">
@@ -429,7 +429,7 @@ export function PlatformAdminOverviewPage() {
     return (
       <EmptyState
         title="플랫폼 관리자 데이터를 불러오지 못했습니다"
-        description="migration 적용 상태와 플랫폼 관리자 권한을 확인하세요."
+        description="관리자 데이터 상태와 플랫폼 관리자 권한을 확인하세요."
       />
     );
   }
@@ -695,7 +695,7 @@ export function PlatformPaymentTestsAdminPage() {
             </button>
           </div>
         ) : (
-          <EmptyState title="100원 테스트 상품이 없습니다" description="결제 상품 관리에서 payment_test_100을 생성하거나 migration seed를 적용하세요." />
+          <EmptyState title="100원 테스트 상품이 없습니다" description="결제 상품 관리에서 payment_test_100 설정 상태를 확인하세요." />
         )}
         {message ? <p className="mt-4 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white">{message}</p> : null}
       </AdminCard>

@@ -61,6 +61,7 @@ describe('app routing', () => {
   it('keeps public marketing routes separate from store slug routes', () => {
     expect(matchedPaths('/')).toContain('/');
     expect(matchedPaths('/login')).toContain('/login');
+    expect(matchedPaths('/admin-login')).toContain('/admin-login');
     expect(matchedPaths('/pricing')).toContain('/pricing');
     expect(matchedPaths('/billing')).toContain('/billing');
     expect(matchedPaths('/dev/ui')).not.toContain('/dev/ui');
@@ -73,10 +74,12 @@ describe('app routing', () => {
     expect(matchedPaths('/contact')).toContain('/contact');
     expect(matchedPaths('/trust')).toContain('/trust');
     expect(matchedPaths('/cases')).toContain('/cases');
+    expect(matchedPaths('/demo/dashboard')).toContain('/demo/dashboard');
 
     expect(matchedPaths('/pricing')).not.toContain('/:storeSlug');
     expect(matchedPaths('/billing')).not.toContain('/:storeSlug');
     expect(matchedPaths('/cases')).not.toContain('/:storeSlug');
+    expect(matchedPaths('/demo/dashboard')).not.toContain('/:storeSlug');
     expect(matchedPaths('/dev/ui')).not.toContain('/:storeSlug');
     expect(matchedPaths('/terms')).not.toContain('/:storeSlug');
   });

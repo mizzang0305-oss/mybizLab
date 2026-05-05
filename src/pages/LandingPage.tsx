@@ -27,9 +27,9 @@ export function DemoPreviewModal({ onClose, open }: { onClose: () => void; open:
     },
     {
       body: '사장님이 오늘의 문의, 예약, 웨이팅, 주문, 고객 기억 상태를 확인하는 운영 화면입니다.',
-      cta: '점주 화면 미리보기',
+      cta: '데모 대시보드 보기',
       title: '점주 운영 화면',
-      to: '/login?next=/dashboard',
+      to: '/demo/dashboard',
     },
     {
       body: 'AI 상담이 고객 맥락을 읽고 사장님이 다시 볼 수 있는 고객 기억 흐름으로 이어집니다.',

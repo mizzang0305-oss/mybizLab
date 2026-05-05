@@ -146,11 +146,7 @@ export function AdminLoginPage() {
           const nextSession = await refreshAdminSession();
           if (!hasDashboardAccess(nextSession)) {
             await supabase.auth.signOut();
-            setMessage({
-              tone: 'error',
-              text: '로그인은 되었지만 이 계정에는 매장 운영 권한이 없습니다. 신규 매장은 무료 시작하기에서 생성해 주세요.',
-            });
-            setPendingMethod(null);
+            navigate('/onboarding', { replace: true });
             return;
           }
 
@@ -285,29 +281,22 @@ export function AdminLoginPage() {
               </button>
             </form>
 
-            {demoPasswordLoginEnabled ? (
-              <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700">
-                    <Icons.Zap size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900">데모 로그인</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      데모 런타임에서만 매장 운영 화면을 빠르게 체험할 수 있습니다.
-                    </p>
-                  </div>
+            <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700">
+                  <Icons.Zap size={20} />
                 </div>
-                <button
-                  className="btn-primary mt-4 w-full justify-center"
-                  disabled={pendingMethod !== null}
-                  onClick={() => void signInWithDemoAccess('demo', { email: DEMO_ADMIN_CREDENTIALS.email })}
-                  type="button"
-                >
-                  데모 대시보드 열기
-                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-900">운영 대시보드 체험</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    실제 데이터 없이 MyBiz 점주 화면을 둘러볼 수 있습니다.
+                  </p>
+                </div>
               </div>
-            ) : null}
+              <Link className="btn-primary mt-4 w-full justify-center" to="/demo/dashboard">
+                데모 대시보드 보기
+              </Link>
+            </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
               <p className="font-semibold text-slate-900">정책 문서</p>

@@ -80,9 +80,11 @@ describe('public marketing/runtime surfaces', () => {
 
   it('renders working homepage navigation targets and routes', () => {
     const html = renderRoute('/');
+    const headerStart = html.indexOf('<header');
+    const headerHtml = html.slice(headerStart, html.indexOf('</header>', headerStart));
 
     expect(html).toContain('data-homepage-nav="primary"');
-    expect(html).toContain('href="/#services"');
+    expect(html).toContain('href="/"');
     expect(html).toContain('href="/features"');
     expect(html).toContain('href="/cases"');
     expect(html).toContain('href="/pricing"');
@@ -95,6 +97,8 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('href="/onboarding?plan=free"');
     expect(html).toContain('href="/login?next=/admin"');
     expect(html).toContain('플랫폼 관리자');
+    expect(headerHtml).not.toContain('href="/login?next=/admin"');
+    expect(headerHtml).not.toContain('플랫폼 관리자');
     expect(html).not.toContain('data-demo-trigger="homepage-nav"');
     expect(html).not.toContain('점주 운영 화면');
     expect(html).not.toContain('개발관리자');
@@ -116,6 +120,35 @@ describe('public marketing/runtime surfaces', () => {
     expect(loginLinks).toHaveLength(1);
     expect(signupLinks).toHaveLength(1);
     expect(html).not.toContain('data-demo-trigger="homepage-nav"');
+  });
+
+  it('routes the login demo card to the public read-only demo dashboard', () => {
+    const html = renderRoute('/login');
+
+    expect(html).toContain('운영 대시보드 체험');
+    expect(html).toContain('실제 데이터 없이 MyBiz 점주 화면을 둘러볼 수 있습니다.');
+    expect(html).toContain('href="/demo/dashboard"');
+    expect(html).toContain('데모 대시보드 보기');
+    expect(html).not.toContain('데모 로그인');
+    expect(html).not.toContain('데모 대시보드 열기');
+  });
+
+  it('renders the public read-only demo dashboard without auth or admin data', () => {
+    const html = renderRoute('/demo/dashboard');
+
+    expect(html).toContain('data-demo-dashboard="readonly"');
+    expect(html).toContain('서울 단골 커피');
+    expect(html).toContain('고객 타임라인');
+    expect(html).toContain('문의');
+    expect(html).toContain('예약');
+    expect(html).toContain('웨이팅');
+    expect(html).toContain('QR 주문');
+    expect(html).toContain('데모 화면에서는 저장되지 않습니다. 무료로 시작하면 실제 매장을 관리할 수 있습니다.');
+    expect(html).toContain('href="/onboarding?plan=free"');
+    expect(html).not.toContain('platform_admin_members');
+    expect(html).not.toContain('store_members');
+    expect(html).not.toContain('payment_test_100');
+    expect(html).not.toContain('href="/admin');
   });
 
   it('mounts /onboarding without MYBI', () => {
@@ -140,8 +173,10 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('data-demo-modal="homepage"');
     expect(html).toContain('MyBiz 데모 보기');
     expect(html).toContain('공개 스토어 보기');
-    expect(html).toContain('점주 화면 미리보기');
+    expect(html).toContain('데모 대시보드 보기');
     expect(html).toContain('AI 상담 데모');
+    expect(html).toContain('href="/demo/dashboard"');
+    expect(html).not.toContain('href="/login?next=/dashboard"');
     expect(html).toContain('닫기');
     expect(html).not.toContain('Pending');
     expect(html).not.toContain('Unknown');

@@ -522,7 +522,7 @@ function buildFriendlyApiError(
     return new PortOneCheckoutError({
       code: payload.code ?? 'CHECKOUT_API_ERROR',
       details: payload.details,
-      message: payload.error ?? payload.message ?? `${endpoint} ?붿껌???ㅽ뙣?덉뒿?덈떎.`,
+      message: payload.error ?? payload.message ?? `${endpoint} 요청에 실패했습니다.`,
       stage: payload.stage,
       status,
     });
@@ -537,7 +537,7 @@ function buildFriendlyApiError(
         details: {
           responseText: normalizedText,
         },
-        message: `?쒕쾭 ?⑥닔 ?ㅽ뻾???ㅽ뙣?덉뒿?덈떎. ${normalizedText}`,
+        message: 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다. 설정 상태와 결제 이벤트 로그를 확인하세요.',
         stage: 'server-invocation',
         status,
       });
@@ -556,7 +556,7 @@ function buildFriendlyApiError(
 
   return new PortOneCheckoutError({
     code: 'CHECKOUT_API_ERROR',
-    message: `${endpoint} ?붿껌???ㅽ뙣?덉뒿?덈떎.`,
+    message: `${endpoint} 요청에 실패했습니다.`,
     stage: 'server-response',
     status,
   });
@@ -592,7 +592,7 @@ async function readApiResponse<T>(response: Response) {
 
       throw new PortOneCheckoutError({
         code: 'INVALID_API_RESPONSE',
-        message: '寃곗젣 API ?묐떟???댁꽍?섏? 紐삵뻽?듬땲?? ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.',
+        message: '결제 API 응답을 해석하지 못했습니다. 잠시 후 다시 시도해 주세요.',
         stage: 'response-parse',
         status: response.status,
       });
@@ -691,17 +691,17 @@ export function getPortOnePaymentErrorMessage(payment: PaymentResponse) {
     return payment.pgMessage.trim();
   }
 
-  return '寃곗젣李쎌뿉???붿껌???꾨즺?섏? 紐삵뻽?듬땲?? ?앹뾽 李⑤떒???댁젣?????ㅼ떆 ?쒕룄?댁＜?몄슂.';
+  return '결제창에서 요청이 완료되지 않았습니다. 팝업 차단을 해제하고 다시 시도해 주세요.';
 }
 
 export function getPortOnePaymentSuccessMessage(payment: PaymentResponse) {
   const status = (payment as Record<string, unknown>).status;
 
   if (typeof status === 'string' && status.trim()) {
-    return `寃곗젣 ?붿껌???묒닔?섏뿀?듬땲?? PortOne ?곹깭: ${status}`;
+    return `결제 요청이 접수되었습니다. PortOne 상태: ${status}`;
   }
 
-  return `寃곗젣 ?붿껌???묒닔?섏뿀?듬땲?? 寃곗젣 ID: ${payment.paymentId}`;
+  return `결제 요청이 접수되었습니다. 결제 ID: ${payment.paymentId}`;
 }
 
 export async function launchPortOneCheckout(plan: BillingPlanCode, options?: CheckoutSessionRequestOptions) {

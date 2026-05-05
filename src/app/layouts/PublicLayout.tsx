@@ -12,7 +12,7 @@ import { getPublicPlatformChrome } from '@/shared/lib/services/platformAdminCont
 import { SERVICE_TAGLINE, SITE_NAME, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
 const primaryNavigationLinks = [
-  { label: '서비스', to: '/#services' },
+  { label: '서비스', to: '/' },
   { label: '기능', to: '/features' },
   { label: '요금제', to: '/pricing' },
   { label: '고객 사례', to: '/cases' },

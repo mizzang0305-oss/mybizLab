@@ -23,6 +23,8 @@ import {
   type CheckoutSessionPayload,
   type CheckoutSessionResponse,
   createCheckoutSession,
+  getPortOnePaymentErrorMessage,
+  getPortOnePaymentSuccessMessage,
   launchPortOneCheckout,
   verifyPortOnePayment,
 } from '@/shared/lib/portoneCheckout';
@@ -503,6 +505,18 @@ describe('PortOne checkout client helpers', () => {
     ).toThrowError(PortOneCheckoutError);
   });
 
+  it('uses readable Korean payment status copy without mojibake', () => {
+    const errorMessage = getPortOnePaymentErrorMessage({} as never);
+    const successMessage = getPortOnePaymentSuccessMessage({
+      paymentId: 'payment-123',
+      status: 'PAID',
+    } as never);
+
+    expect(errorMessage).toBe('결제창에서 요청이 완료되지 않았습니다. 팝업 차단을 해제하고 다시 시도해 주세요.');
+    expect(successMessage).toBe('결제 요청이 접수되었습니다. PortOne 상태: PAID');
+    expect(`${errorMessage} ${successMessage}`).not.toMatch(/[寃곗젣李쎌뿉]/);
+  });
+
   it('throws INVALID_CHECKOUT_SESSION when redirectUrl is invalid', () => {
     expect(() =>
       buildPortOnePaymentRequest(
@@ -528,18 +542,22 @@ describe('PortOne checkout client helpers', () => {
   });
 
   it('distinguishes FUNCTION_INVOCATION_FAILED from non-JSON server errors', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockImplementation(() => Promise.resolve(
       new Response('FUNCTION_INVOCATION_FAILED', {
         headers: { 'content-type': 'text/plain; charset=utf-8' },
         status: 500,
       }),
-    ) as typeof fetch;
+    )) as typeof fetch;
 
     await expect(createCheckoutSession('vip')).rejects.toMatchObject({
       code: 'FUNCTION_INVOCATION_FAILED',
       stage: 'server-invocation',
       status: 500,
     });
+    await expect(createCheckoutSession('vip')).rejects.not.toThrowError(/FUNCTION_INVOCATION_FAILED/);
+    await expect(createCheckoutSession('vip')).rejects.toThrowError(
+      /PortOne 테스트 결제 설정이 아직 완료되지 않았습니다/,
+    );
   });
 
   it('verifies a paid PortOne payment before onboarding activation continues', async () => {
