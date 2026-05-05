@@ -1,4 +1,5 @@
 import type { StoreMedia, StoreNotice, StorePublicPage } from '../types/models.js';
+import { isBrokenOperationalText } from './brokenText.js';
 
 function normalizeText(value: string | null | undefined) {
   return typeof value === 'string' ? value.trim() : '';
@@ -15,9 +16,7 @@ export function isBrokenPublicStoreText(value: string | null | undefined) {
     return true;
   }
 
-  const compact = normalized.replace(/\s+/g, '');
-  const placeholderCount = [...compact].filter((character) => character === '?' || character === '\uFFFD').length;
-  if (placeholderCount >= Math.max(2, Math.ceil(compact.length / 2))) {
+  if (isBrokenOperationalText(normalized)) {
     return true;
   }
 

@@ -47,6 +47,16 @@ describe('customer display label', () => {
         customerId: 'customer_live_001',
       }),
     ).toBe('010-7000-1005');
+
+    expect(
+      getCustomerDisplayLabel({
+        customer: {
+          name: '怨좉컼 ?곷떞',
+          email: 'linked.customer@example.com',
+        },
+        customerId: 'customer_live_001',
+      }),
+    ).toBe('linked.customer@example.com');
   });
 
   it('uses a linked-customer label when a customer id exists but no display fields survive', () => {

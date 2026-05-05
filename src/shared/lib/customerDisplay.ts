@@ -1,3 +1,5 @@
+import { isBrokenOperationalText } from './brokenText.js';
+
 type CustomerDisplayInput = {
   customer?: {
     email?: string;
@@ -13,10 +15,7 @@ export function isBrokenCustomerDisplayText(value: string | undefined | null) {
     return true;
   }
 
-  const compact = normalized.replace(/\s+/g, '');
-  const placeholderCount = [...compact].filter((character) => character === '?' || character === '\uFFFD').length;
-
-  return placeholderCount >= Math.max(2, Math.ceil(compact.length / 2));
+  return isBrokenOperationalText(normalized);
 }
 
 export function getCustomerDisplayLabel(input: CustomerDisplayInput) {

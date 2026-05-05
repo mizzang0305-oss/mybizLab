@@ -1,4 +1,5 @@
 import type { MenuCategory, MenuItem, OrderItem } from '../types/models.js';
+import { countPlaceholderCharacters, hasLikelyMojibake } from './brokenText.js';
 
 function normalizeText(value: string) {
   return value.trim();
@@ -11,7 +12,11 @@ export function isCorruptedMenuLabel(value: string | undefined | null) {
   }
 
   const compact = normalized.replace(/\s+/g, '');
-  const placeholderCount = [...compact].filter((character) => character === '?' || character === '\uFFFD').length;
+  const placeholderCount = countPlaceholderCharacters(compact);
+
+  if (hasLikelyMojibake(normalized)) {
+    return true;
+  }
 
   if (placeholderCount === 0) {
     return false;
