@@ -32,7 +32,7 @@ describe('platform public content quality', () => {
       '결제 완료 후 이용 권한이 안전하게 적용됩니다.',
     );
     expect(autoFixPlatformText('PortOne checkout, redirect, verify, webhook 상태 확인용입니다.')).toBe(
-      '안전한 결제 흐름을 확인하는 관리자 전용 항목입니다.',
+      '결제 흐름을 안전하게 확인할 수 있습니다.',
     );
   });
 

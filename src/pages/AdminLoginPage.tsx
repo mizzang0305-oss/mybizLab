@@ -46,8 +46,8 @@ export function AdminLoginPage() {
   const shouldValidatePlatformAdmin = isPlatformAdminPath(nextPath);
 
   usePageMeta(
-    '관리자 로그인',
-    '스토어 운영 현황, 고객, 예약, 매출, AI 운영 리포트를 확인하는 관리자 로그인 페이지입니다.',
+    shouldValidatePlatformAdmin ? 'MyBiz 플랫폼 관리자 로그인' : 'MyBiz 점주 로그인',
+    '점주는 매장 운영 화면으로, 플랫폼 관리자는 MyBiz 서비스 운영 콘솔로 안전하게 로그인합니다.',
   );
 
   if (hasDashboardAccess(session)) {
@@ -59,7 +59,7 @@ export function AdminLoginPage() {
       setPendingMethod(method);
       setMessage(
         method === 'demo'
-          ? { tone: 'info', text: '데모 관리자 대시보드를 준비하고 있습니다.' }
+          ? { tone: 'info', text: '데모 운영 화면을 준비하고 있습니다.' }
           : method === 'google'
             ? { tone: 'info', text: 'Google 체험 로그인을 준비하고 있습니다.' }
             : { tone: 'info', text: '이메일 체험 로그인을 준비하고 있습니다.' },
@@ -71,7 +71,7 @@ export function AdminLoginPage() {
       });
 
       if (!nextSession || !hasDashboardAccess(nextSession)) {
-        throw new Error('Demo access could not be initialized for this merchant.');
+        throw new Error('데모 매장 접근 권한을 준비하지 못했습니다.');
       }
 
       navigate(nextPath, { replace: true });
@@ -106,7 +106,6 @@ export function AdminLoginPage() {
     setMessage({ tone: 'info', text: '로그인 중입니다...' });
 
     try {
-      // Supabase Auth 실 로그인 시도
       const { supabase } = await import('@/integrations/supabase/client');
       if (supabase) {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -115,7 +114,6 @@ export function AdminLoginPage() {
         });
 
         if (error) {
-          // Supabase 로그인 실패 → 데모 fallback
           if (demoPasswordLoginEnabled && normalizedEmail === DEMO_ADMIN_CREDENTIALS.email && normalizedPassword === DEMO_ADMIN_CREDENTIALS.password) {
             await signInWithDemoAccess('email', { email: normalizedEmail });
             return;
@@ -150,7 +148,7 @@ export function AdminLoginPage() {
             await supabase.auth.signOut();
             setMessage({
               tone: 'error',
-              text: '로그인은 되었지만 이 계정은 store_members 권한이 없어 점주 운영 화면에 접근할 수 없습니다.',
+              text: '로그인은 되었지만 이 계정에는 매장 운영 권한이 없습니다. 신규 매장은 무료 시작하기에서 생성해 주세요.',
             });
             setPendingMethod(null);
             return;
@@ -161,7 +159,6 @@ export function AdminLoginPage() {
         }
       }
 
-      // Supabase 미연결 → 데모 fallback
       if (demoPasswordLoginEnabled && normalizedEmail === DEMO_ADMIN_CREDENTIALS.email && normalizedPassword === DEMO_ADMIN_CREDENTIALS.password) {
         await signInWithDemoAccess('email', { email: normalizedEmail });
         return;
@@ -182,36 +179,32 @@ export function AdminLoginPage() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,91,19,0.55),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(251,146,60,0.18),_transparent_25%)]" />
           <div className="relative space-y-6">
             <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-200">
-              Admin Access
+              MyBiz Access
             </span>
 
             <div className="space-y-4">
-              <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">가게 관리자 로그인</h1>
+              <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">
+                {shouldValidatePlatformAdmin ? '플랫폼 관리자 로그인' : '점주 로그인'}
+              </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                점주와 매장 관리자가 고객, 문의, 예약, 웨이팅, 주문, AI 운영 리포트를 한 화면에서 확인하는 운영 진입 화면입니다.
+                점주는 매장 운영과 고객 기억을 관리하고, 플랫폼 관리자는 홈페이지·가격표·공지·결제 테스트를 관리합니다.
+                두 권한은 서버에서 분리해 확인합니다.
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <p className="text-sm font-semibold text-orange-300">지금 필요한 운영 현황</p>
+                <p className="text-sm font-semibold text-orange-300">점주 운영</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  오늘 주문, 예약 흐름, 고객 상태를 빠르게 확인하고 바로 대응할 수 있습니다.
+                  고객, 문의, 예약, 웨이팅, 주문을 한 매장의 고객 기억 흐름으로 확인합니다.
                 </p>
               </div>
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <p className="text-sm font-semibold text-orange-300">AI 운영 리포트</p>
+                <p className="text-sm font-semibold text-orange-300">플랫폼 관리</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  매장 운영 결과와 개선 제안을 빠르게 검토하고 실행으로 이어갈 수 있습니다.
+                  MyBiz 공개 사이트와 가격표, 공지, 결제 점검 상품을 관리합니다.
                 </p>
               </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-semibold text-orange-300">권한 구분</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                이 화면은 <strong className="text-white">가게/매장 관리자</strong>가 로그인하는 곳입니다. <strong className="text-white">MyBiz 운영자</strong>는 별도 운영 콘솔을 사용하며, 실제 접근 권한은 서버에서 안전하게 확인됩니다.
-              </p>
             </div>
           </div>
         </section>
@@ -222,78 +215,77 @@ export function AdminLoginPage() {
               <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-orange-100 text-orange-700">
                 <Icons.Dashboard size={26} />
               </div>
-              <h2 className="pt-2 font-display text-3xl font-black tracking-tight text-slate-900">로그인 방법 선택</h2>
+              <h2 className="pt-2 font-display text-3xl font-black tracking-tight text-slate-900">이메일 로그인</h2>
               <p className="text-sm leading-6 text-slate-500">
-                매장 관리자 로그인을 진행하면 접근 가능한 스토어만 운영 화면에 연결됩니다.
+                {shouldValidatePlatformAdmin
+                  ? '플랫폼 관리자 권한이 있는 계정만 /admin 화면으로 이동합니다.'
+                  : '매장 운영 권한이 있는 계정만 /dashboard 화면으로 이동합니다.'}
               </p>
             </div>
 
             {message ? <p className={getMessageClassName(message.tone)}>{message.text}</p> : null}
 
-            <div className="space-y-4">
+            <form className="rounded-3xl border border-slate-200 bg-white p-5" onSubmit={(event) => void handleEmailSignIn(event)}>
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                  <Icons.Message size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-900">이메일 로그인</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    {demoPasswordLoginEnabled
+                      ? '이메일과 비밀번호를 입력해 관리자 화면에 로그인할 수 있습니다.'
+                      : '체험용 이메일/비밀번호 로그인은 현재 비활성화 상태입니다.'}
+                  </p>
+                </div>
+              </div>
 
+              <div className="mt-4 grid gap-4">
+                <label className="space-y-2">
+                  <span className="field-label">이메일</span>
+                  <input
+                    autoComplete="username"
+                    className="input-base"
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="mybiz.lab3@gmail.com"
+                    type="email"
+                    value={email}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="field-label">비밀번호</span>
+                  <input
+                    autoComplete="current-password"
+                    className="input-base"
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="비밀번호를 입력해 주세요"
+                    type="password"
+                    value={password}
+                  />
+                </label>
+              </div>
 
-              <form className="rounded-3xl border border-slate-200 bg-white p-5" onSubmit={(event) => void handleEmailSignIn(event)}>
-                <div className="flex items-start gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-                    <Icons.Message size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900">이메일 로그인</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      {demoPasswordLoginEnabled
-                        ? '이메일과 비밀번호를 입력해 관리자 화면에 로그인할 수 있습니다.'
-                        : '체험용 이메일/비밀번호 로그인은 현재 비활성화 상태입니다.'}
-                    </p>
+              {demoPasswordLoginEnabled ? (
+                <div className="mt-4 rounded-xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-500">체험 계정으로 빠르게 확인하려면</p>
+                    <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300" onClick={fillDemoCredentials} type="button">
+                      데모 계정 채우기
+                    </button>
                   </div>
                 </div>
+              ) : null}
 
-                <div className="mt-4 grid gap-4">
-                  <label className="space-y-2">
-                    <span className="field-label">이메일</span>
-                    <input
-                      autoComplete="username"
-                      className="input-base"
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="demo@mybizlab.ai"
-                      type="email"
-                      value={email}
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="field-label">비밀번호</span>
-                    <input
-                      autoComplete="current-password"
-                      className="input-base"
-                      
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder='비밀번호를 입력해 주세요.'
-                      type="password"
-                      value={password}
-                    />
-                  </label>
-                </div>
+              <button
+                className="btn-primary mt-4 w-full justify-center"
+                disabled={pendingMethod !== null}
+                type="submit"
+              >
+                이메일로 로그인
+              </button>
+            </form>
 
-                {demoPasswordLoginEnabled ? (
-                  <div className="mt-4 rounded-xl bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-slate-500">체험 계정으로 빠르게 확인하려면</p>
-                      <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300" onClick={fillDemoCredentials} type="button">
-                        데모 계정 채우기
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <button
-                  className="btn-primary mt-4 w-full justify-center"
-                  disabled={pendingMethod !== null}
-                  type="submit"
-                >
-                  이메일로 로그인
-                </button>
-              </form>
-
+            {demoPasswordLoginEnabled ? (
               <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5">
                 <div className="flex items-start gap-4">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700">
@@ -302,7 +294,7 @@ export function AdminLoginPage() {
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-slate-900">데모 로그인</p>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      가장 빠르게 MyBizLab 운영 대시보드를 체험할 수 있는 추천 진입 방식입니다.
+                      데모 런타임에서만 매장 운영 화면을 빠르게 체험할 수 있습니다.
                     </p>
                   </div>
                 </div>
@@ -315,7 +307,7 @@ export function AdminLoginPage() {
                   데모 대시보드 열기
                 </button>
               </div>
-            </div>
+            ) : null}
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
               <p className="font-semibold text-slate-900">정책 문서</p>
@@ -334,6 +326,9 @@ export function AdminLoginPage() {
               </Link>
               <Link className="btn-secondary" to="/pricing">
                 요금제 보기
+              </Link>
+              <Link className="btn-secondary" to="/login?next=/admin">
+                플랫폼 관리자 로그인
               </Link>
             </div>
           </div>

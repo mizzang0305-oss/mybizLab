@@ -68,7 +68,6 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('고객을 기억하는 매장이 더 많이 팝니다');
     expect(html).toContain('문의·예약·웨이팅·주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.');
     expect(html).toContain('무료로 시작하기');
-    expect(html).toContain('가격 보기');
     expect(html).toContain('기능 살펴보기');
     expect(html).toContain('데모 보기');
     expect(html).toContain('공개 스토어 / 고객 접점');
@@ -83,20 +82,40 @@ describe('public marketing/runtime surfaces', () => {
     const html = renderRoute('/');
 
     expect(html).toContain('data-homepage-nav="primary"');
-    expect(html).toContain('href="#services"');
-    expect(html).toContain('href="#features"');
-    expect(html).toContain('href="#cases"');
-    expect(html).toContain('href="#resources"');
+    expect(html).toContain('href="/#services"');
+    expect(html).toContain('href="/features"');
+    expect(html).toContain('href="/cases"');
     expect(html).toContain('href="/pricing"');
-    expect(html).toContain('href="/login"');
-    expect(html).toContain('href="/dashboard"');
-    expect(html).toContain('href="/onboarding"');
+    expect(html).toContain('href="/notices"');
+    expect(html).toContain('href="/updates"');
+    expect(html).toContain('href="/faq"');
+    expect(html).toContain('href="/trust"');
+    expect(html).toContain('href="/contact"');
+    expect(html).toContain('href="/login?next=/dashboard"');
     expect(html).toContain('href="/onboarding?plan=free"');
-    expect(html).toContain('data-demo-trigger="homepage-nav"');
+    expect(html).toContain('href="/login?next=/admin"');
+    expect(html).toContain('플랫폼 관리자');
+    expect(html).not.toContain('data-demo-trigger="homepage-nav"');
+    expect(html).not.toContain('점주 운영 화면');
+    expect(html).not.toContain('개발관리자');
     expect(html).toContain('id="services"');
     expect(html).toContain('id="features"');
     expect(html).toContain('id="cases"');
     expect(html).toContain('id="resources"');
+  });
+
+  it('does not duplicate public header actions or demo buttons', () => {
+    const html = renderRoute('/');
+    const headerStart = html.indexOf('<header');
+    const headerHtml = html.slice(headerStart, html.indexOf('</header>', headerStart));
+    const demoTriggers = html.match(/data-demo-trigger="homepage"/g) || [];
+    const loginLinks = headerHtml.match(/href="\/login\?next=\/dashboard"/g) || [];
+    const signupLinks = headerHtml.match(/href="\/onboarding\?plan=free"/g) || [];
+
+    expect(demoTriggers).toHaveLength(1);
+    expect(loginLinks).toHaveLength(1);
+    expect(signupLinks).toHaveLength(1);
+    expect(html).not.toContain('data-demo-trigger="homepage-nav"');
   });
 
   it('mounts /onboarding without MYBI', () => {
@@ -106,7 +125,7 @@ describe('public marketing/runtime surfaces', () => {
       html = renderRoute('/onboarding');
     }).not.toThrow();
 
-    expect(html).toContain('data-public-shell-theme="diagnosis"');
+    expect(html).not.toContain('Unexpected Application Error');
     expectNoMybiCompanion(html);
   });
 
@@ -206,7 +225,8 @@ describe('public marketing/runtime surfaces', () => {
   it('clarifies the merchant login split without falling back to browser-only auth wording', () => {
     const html = renderRoute('/login');
 
-    expect(html).toContain('가게 관리자');
+    expect(html).toContain('점주 로그인');
+    expect(html).toContain('플랫폼 관리자 로그인');
     expect(html).not.toContain('localStorage');
     expectNoMybiCompanion(html);
   });

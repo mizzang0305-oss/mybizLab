@@ -628,10 +628,20 @@ export function PlatformPaymentTestsAdminPage() {
   });
   const [message, setMessage] = useState<string | null>(null);
   const product = query.data?.product;
-  const isReady = product?.product_code === PAYMENT_TEST_PRODUCT_CODE && product.amount === 100 && product.grants_entitlement === false;
+  const readiness = query.data?.readiness;
+  const productIsSafe =
+    product?.product_code === PAYMENT_TEST_PRODUCT_CODE &&
+    product.amount === 100 &&
+    product.grants_entitlement === false &&
+    product.is_test_product === true;
+  const canStartPaymentTest = Boolean(productIsSafe && readiness?.isReady);
 
   async function startPaymentTest() {
     if (!product) return;
+    if (!canStartPaymentTest) {
+      setMessage(readiness?.message || 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다.');
+      return;
+    }
     setMessage('100원 테스트 결제창을 준비합니다.');
     try {
       const { payment } = await launchPortOneCheckout('pro', {
@@ -651,7 +661,12 @@ export function PlatformPaymentTestsAdminPage() {
         setMessage(query.data?.successCopy || '100원 테스트 결제가 완료되었습니다. 구독 권한은 변경되지 않았습니다.');
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '100원 테스트 결제를 시작하지 못했습니다.');
+      const rawMessage = error instanceof Error ? error.message : '';
+      if (/FUNCTION_INVOCATION_FAILED/i.test(rawMessage)) {
+        setMessage('PortOne 테스트 결제 설정이 아직 완료되지 않았습니다. 설정 상태와 결제 이벤트 로그를 확인하세요.');
+      } else {
+        setMessage(rawMessage || '100원 테스트 결제를 시작하지 못했습니다.');
+      }
     }
   }
 
@@ -668,8 +683,14 @@ export function PlatformPaymentTestsAdminPage() {
               <p className="rounded-2xl bg-emerald-400/10 px-4 py-3 font-bold text-emerald-100">
                 100원 테스트 결제가 성공해도 구독 권한이나 PRO/VIP 이용 권한을 변경하지 않습니다.
               </p>
+              <div className={`rounded-2xl border px-4 py-3 ${canStartPaymentTest ? 'border-emerald-300/30 bg-emerald-400/10 text-emerald-100' : 'border-amber-300/30 bg-amber-400/10 text-amber-100'}`}>
+                <p className="font-bold">{readiness?.message || 'PortOne 테스트 결제 설정 상태를 확인하는 중입니다.'}</p>
+                {readiness?.missing?.length ? (
+                  <p className="mt-2 text-xs text-amber-100/80">확인 필요 항목: {readiness.missing.join(', ')}</p>
+                ) : null}
+              </div>
             </div>
-            <button className="btn-primary self-start" disabled={!isReady} onClick={() => void startPaymentTest()} type="button">
+            <button className="btn-primary self-start disabled:cursor-not-allowed disabled:opacity-60" disabled={!canStartPaymentTest} onClick={() => void startPaymentTest()} type="button">
               100원 테스트 결제 열기
             </button>
           </div>

@@ -2,14 +2,14 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { EmptyState } from '@/shared/components/EmptyState';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { FALLBACK_PUBLIC_PAGES } from '@/shared/lib/platformAdminConfig';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   getPublicPlatformAnnouncements,
   getPublicPlatformBoardPosts,
   getPublicPlatformPage,
 } from '@/shared/lib/services/platformAdminContentService';
-import { usePageMeta } from '@/shared/hooks/usePageMeta';
-import { FALLBACK_PUBLIC_PAGES } from '@/shared/lib/platformAdminConfig';
 
 function formatDate(value?: string | null) {
   if (!value) return null;
@@ -42,7 +42,7 @@ export function PlatformPublicUpdatesPage() {
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="section-card p-6">
-          <h2 className="font-display text-2xl font-black text-slate-950">공지</h2>
+          <h2 className="font-display text-2xl font-black text-slate-950">공지사항</h2>
           <div className="mt-5 space-y-3">
             {announcements.map((notice) => (
               <article key={notice.id} className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -108,7 +108,7 @@ export function PlatformPublicBoardPostPage() {
   if (!post) {
     return (
       <main className="page-shell py-14">
-        <EmptyState title="게시글을 찾을 수 없습니다" description="주소를 확인하거나 업데이트 목록으로 돌아가세요." />
+        <EmptyState title="게시글을 찾을 수 없습니다" description="주소를 확인하거나 업데이트 목록으로 돌아가 주세요." />
         <Link className="btn-primary mt-4 inline-flex" to="/updates">업데이트 목록으로</Link>
       </main>
     );
@@ -131,10 +131,11 @@ export function PlatformPublicBoardPostPage() {
 
 const pageEyebrows: Record<string, string> = {
   about: 'MyBiz 소개',
+  cases: '고객 사례',
   contact: '도입 문의',
   faq: '자주 묻는 질문',
   features: '기능',
-  trust: '신뢰와 보안',
+  trust: '신뢰센터',
 };
 
 export function PlatformPublicInfoPage({ slug }: { slug: string }) {
@@ -243,4 +244,8 @@ export function PlatformContactPage() {
 
 export function PlatformTrustPage() {
   return <PlatformPublicInfoPage slug="trust" />;
+}
+
+export function PlatformCasesPage() {
+  return <PlatformPublicInfoPage slug="cases" />;
 }

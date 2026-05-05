@@ -11,17 +11,19 @@ import { queryKeys } from '@/shared/lib/queryKeys';
 import { getPublicPlatformChrome } from '@/shared/lib/services/platformAdminContentService';
 import { SERVICE_TAGLINE, SITE_NAME, SUBSCRIPTION_START_PATH } from '@/shared/lib/siteConfig';
 
-const navigationLinks = [
-  { label: '소개', href: '/' },
-  { label: '기능', href: '/features' },
-  { label: '요금제', href: '/pricing' },
-  { label: 'FAQ', href: '/faq' },
-  { label: '신뢰와 보안', href: '/trust' },
-  { label: '공지', href: '/notices' },
-  { label: '문의', href: '/contact' },
-  { label: '이용약관', href: '/terms' },
-  { label: '개인정보', href: '/privacy' },
-  { label: '환불정책', href: '/refund' },
+const primaryNavigationLinks = [
+  { label: '서비스', to: '/#services' },
+  { label: '기능', to: '/features' },
+  { label: '요금제', to: '/pricing' },
+  { label: '고객 사례', to: '/cases' },
+] as const;
+
+const resourceLinks = [
+  { label: '공지사항', to: '/notices' },
+  { label: '업데이트', to: '/updates' },
+  { label: 'FAQ', to: '/faq' },
+  { label: '신뢰센터', to: '/trust' },
+  { label: '문의하기', to: '/contact' },
 ] as const;
 
 function getPopupDismissKey(popupKey: string, policy?: string | null) {
@@ -53,6 +55,7 @@ export function PublicLayout() {
   const location = useLocation();
   const isLandingPage = location.pathname === '/';
   const isDiagnosisShell = isDiagnosisShellPath(location.pathname);
+  const shouldHidePublicChrome = isDiagnosisShell && !isLandingPage;
   const isPublicCinematicSurface = isDiagnosisShell;
   const hasMybiCompanion =
     !location.pathname.startsWith('/login') &&
@@ -62,7 +65,7 @@ export function PublicLayout() {
   const chromeQuery = useQuery({
     queryKey: queryKeys.publicPlatformChrome(location.pathname),
     queryFn: () => getPublicPlatformChrome(location.pathname),
-    enabled: !isDiagnosisShell,
+    enabled: !shouldHidePublicChrome,
   });
   const chrome = chromeQuery.data || { banners: [], popups: [] };
   const [dismissedKeys, setDismissedKeys] = useState<string[]>([]);
@@ -92,10 +95,10 @@ export function PublicLayout() {
   return (
     <PersistentDiagnosisWorldProvider active={hasMybiCompanion} pathname={location.pathname}>
       <div
-        className={`flex min-h-screen flex-col ${isDiagnosisShell ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea] text-slate-900'}`}
-        data-public-shell-theme={isDiagnosisShell ? 'diagnosis' : 'default'}
+        className={`flex min-h-screen flex-col ${shouldHidePublicChrome ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea] text-slate-900'}`}
+        data-public-shell-theme={shouldHidePublicChrome ? 'diagnosis' : 'default'}
       >
-        {isDiagnosisShell ? null : (
+        {shouldHidePublicChrome ? null : (
           <>
             {chrome.banners.map((banner) => (
               <div key={banner.id || banner.banner_key} className="border-b border-orange-200 bg-orange-50 px-4 py-2 text-center text-sm font-bold text-orange-900">
@@ -122,38 +125,39 @@ export function PublicLayout() {
                   </Link>
 
                   <div className="flex flex-col gap-3 lg:items-end">
-                    {isLandingPage ? (
-                      <nav className="hidden items-center gap-2 text-sm font-semibold text-slate-500 lg:flex">
-                        <a className="rounded-full px-3 py-2 transition hover:bg-white/70 hover:text-slate-900" href="#services">서비스</a>
-                        <a className="rounded-full px-3 py-2 transition hover:bg-white/70 hover:text-slate-900" href="#features">기능</a>
-                        <NavLink className="rounded-full px-3 py-2 transition hover:bg-white/70 hover:text-slate-900" to="/pricing">요금제</NavLink>
-                        <a className="rounded-full px-3 py-2 transition hover:bg-white/70 hover:text-slate-900" href="#cases">고객 사례</a>
-                        <NavLink className="rounded-full px-3 py-2 transition hover:bg-white/70 hover:text-slate-900" to="/notices">리소스</NavLink>
-                      </nav>
-                    ) : (
-                      <nav className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
-                        {navigationLinks.map((item) => (
-                          <NavLink
-                            key={item.href}
-                            className={({ isActive }) =>
-                              ['rounded-full px-3 py-2 transition', isActive ? 'bg-white text-slate-900 shadow-sm' : 'hover:bg-white/70 hover:text-slate-900'].join(' ')
-                            }
-                            end={item.href === '/'}
-                            to={item.href}
-                          >
-                            {item.label}
-                          </NavLink>
-                        ))}
-                      </nav>
-                    )}
+                    <nav className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600" data-homepage-nav={isLandingPage ? 'primary' : undefined}>
+                      {primaryNavigationLinks.map((item) => (
+                        <NavLink
+                          key={item.to}
+                          className={({ isActive }) =>
+                            ['rounded-full px-3 py-2 transition', isActive && !item.to.includes('#') ? 'bg-white text-slate-900 shadow-sm' : 'hover:bg-white/70 hover:text-slate-900'].join(' ')
+                          }
+                          to={item.to}
+                        >
+                          {item.label}
+                        </NavLink>
+                      ))}
+                      <details className="group relative">
+                        <summary className="list-none rounded-full px-3 py-2 transition hover:bg-white/70 hover:text-slate-900">
+                          리소스
+                        </summary>
+                        <div className="absolute right-0 z-50 mt-2 min-w-44 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                          {resourceLinks.map((item) => (
+                            <Link key={item.to} className="block rounded-xl px-3 py-2 text-sm font-bold text-slate-600 hover:bg-orange-50 hover:text-orange-700" to={item.to}>
+                              {item.label}
+                            </Link>
+                          ))}
+                        </div>
+                      </details>
+                    </nav>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <Link className="btn-secondary" to="/login">
-                        점주 로그인
+                      <Link className="btn-secondary" to="/login?next=/dashboard">
+                        로그인
                       </Link>
 
                       <Link className="btn-primary" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
-                        공개 스토어 시작하기
+                        무료로 시작하기
                       </Link>
                     </div>
                   </div>

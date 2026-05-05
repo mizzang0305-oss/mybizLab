@@ -18,8 +18,8 @@ export function AppFooter() {
   const footerLinks = settings?.footer_links?.length ? settings.footer_links : [
     { href: '/features', label: '기능' },
     { href: '/faq', label: 'FAQ' },
-    { href: '/trust', label: '신뢰와 보안' },
-    { href: '/contact', label: '문의' },
+    { href: '/trust', label: '신뢰센터' },
+    { href: '/contact', label: '문의하기' },
     ...LEGAL_LINKS,
   ];
   const supportEmail = settings?.support_email || BUSINESS_INFO.email;
@@ -58,9 +58,19 @@ export function AppFooter() {
                     ? 'btn-secondary !px-3 !py-2 border-white/12 bg-white/[0.04] text-white hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
                     : 'btn-secondary !px-3 !py-2'
                 }
-                to="/login"
+                to="/login?next=/dashboard"
               >
-                관리자 로그인
+                점주 로그인
+              </Link>
+              <Link
+                className={
+                  isDiagnosisShell
+                    ? 'text-xs font-bold text-slate-500 transition hover:text-orange-300'
+                    : 'text-xs font-bold text-slate-500 transition hover:text-orange-700'
+                }
+                to="/login?next=/admin"
+              >
+                플랫폼 관리자
               </Link>
             </div>
           </div>
@@ -89,7 +99,7 @@ export function AppFooter() {
             <p>주소: {BUSINESS_INFO.address}</p>
             <p>고객센터: {BUSINESS_INFO.customerCenter}</p>
             <p>
-              이메일{' '}
+              이메일:{' '}
               <a
                 className={isDiagnosisShell ? 'font-semibold text-orange-300 transition hover:text-orange-200' : 'font-semibold text-orange-700 transition hover:text-orange-800'}
                 href={`mailto:${supportEmail}`}

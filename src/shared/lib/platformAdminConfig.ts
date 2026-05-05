@@ -335,13 +335,13 @@ export interface PlatformAdminOverview {
 }
 
 export const FALLBACK_SITE_SETTINGS: PlatformSiteSettings = {
-  footer_business_info: '고객 기억 기반 매출 AI SaaS · 공개 스토어, 문의, 예약, 웨이팅, 주문을 하나의 고객 기억으로 연결합니다.',
+  footer_business_info: '고객 기억 기반 매출 AI SaaS. 공개 스토어, 문의, 예약, 웨이팅, QR 주문을 하나의 고객 기억으로 연결합니다.',
   footer_company_name: 'MyBiz',
   footer_links: [
     { href: '/features', label: '기능' },
     { href: '/faq', label: 'FAQ' },
-    { href: '/trust', label: '신뢰와 보안' },
-    { href: '/contact', label: '문의' },
+    { href: '/trust', label: '신뢰센터' },
+    { href: '/contact', label: '문의하기' },
     { href: '/terms', label: '이용약관' },
     { href: '/privacy', label: '개인정보처리방침' },
     { href: '/refund', label: '환불정책' },
@@ -351,7 +351,7 @@ export const FALLBACK_SITE_SETTINGS: PlatformSiteSettings = {
   primary_cta_label: '무료로 시작하기',
   secondary_cta_href: '/pricing',
   secondary_cta_label: '가격 보기',
-  seo_description: '공개 스토어, 문의, 예약, 웨이팅, QR 주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.',
+  seo_description: '문의·예약·웨이팅·QR 주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.',
   seo_title: 'MyBiz | 고객 기억 기반 매출 AI SaaS',
   site_name: 'MyBiz',
   support_email: 'support@mybiz.ai.kr',
@@ -359,15 +359,15 @@ export const FALLBACK_SITE_SETTINGS: PlatformSiteSettings = {
 
 export const FALLBACK_HOMEPAGE_SECTIONS: PlatformHomepageSection[] = [
   {
-    body: '고객 신호가 고객 기억으로 쌓이고, 점주가 다음 행동을 빠르게 정할 수 있게 돕습니다.',
+    body: '고객 행동이 흩어지지 않고 기억으로 쌓이면, 사장님은 다음 액션을 더 빠르게 결정할 수 있습니다.',
     cta_href: '/onboarding?plan=free',
     cta_label: '무료로 시작하기',
     eyebrow: 'AI 운영 플랫폼, MyBiz',
     is_visible: true,
     payload: {
       chips: ['공개 스토어', '고객 기억', '운영 대시보드'],
-      secondaryCtaHref: '/pricing',
-      secondaryCtaLabel: '가격 보기',
+      secondaryCtaHref: '/features',
+      secondaryCtaLabel: '기능 살펴보기',
     },
     section_key: 'hero',
     section_type: 'hero',
@@ -377,7 +377,7 @@ export const FALLBACK_HOMEPAGE_SECTIONS: PlatformHomepageSection[] = [
     title: '고객을 기억하는 매장이 더 많이 팝니다',
   },
   {
-    body: '문의, 예약, 웨이팅, QR 주문은 모두 고객 기억을 보강하는 입력 채널입니다.',
+    body: '공개 스토어, 문의, 예약, 웨이팅, QR 주문은 모두 고객 기억을 보강하는 입력 채널입니다.',
     cta_href: '#features',
     cta_label: '흐름 보기',
     eyebrow: '고객 기억 흐름',
@@ -390,16 +390,16 @@ export const FALLBACK_HOMEPAGE_SECTIONS: PlatformHomepageSection[] = [
     sort_order: 20,
     status: 'published',
     subtitle: '흩어진 입력을 고객별 맥락과 다음 행동으로 바꿉니다.',
-    title: '공개 접점부터 운영 액션까지 하나로 연결합니다',
+    title: '고객 접점부터 운영 액션까지 하나로 연결합니다',
   },
   {
-    body: '공개 페이지, 고객 입력 채널, 고객 타임라인, 운영 대시보드가 하나의 시스템으로 움직입니다.',
+    body: '고객이 남긴 신호를 고객 프로필, 타임라인, 운영 화면에서 바로 확인할 수 있게 정리합니다.',
     cta_href: '/pricing',
     cta_label: '요금제 보기',
     eyebrow: '핵심 기능',
     is_visible: true,
     payload: {
-      cards: ['공개 스토어', 'AI 상담', '예약·웨이팅', 'QR 주문', '고객 타임라인', '운영 대시보드'],
+      cards: ['공개 스토어', 'AI 상담', '예약·웨이팅', 'QR 주문', '고객 프로필', '운영 대시보드'],
     },
     section_key: 'features',
     section_type: 'features',
@@ -419,7 +419,7 @@ export const FALLBACK_HOMEPAGE_SECTIONS: PlatformHomepageSection[] = [
     section_type: 'final_cta',
     sort_order: 90,
     status: 'published',
-    subtitle: '결제 전에 고객 접점과 운영 흐름을 정리할 수 있습니다.',
+    subtitle: '결제 전에 고객 접점과 운영 흐름을 먼저 정리할 수 있습니다.',
     title: '우리 가게의 고객 기억 구조부터 확인해 보세요',
   },
 ];
@@ -433,7 +433,7 @@ export const FALLBACK_PRICING_PLANS: PlatformPricingPlan[] = [
     cta_label: '무료로 시작',
     currency: 'KRW',
     display_name: 'FREE',
-    footnote: '무료로 공개 스토어와 고객 입력 흐름을 먼저 정리할 수 있습니다.',
+    footnote: 'FREE는 결제 없이 온보딩으로 이동합니다.',
     is_recommended: false,
     is_visible: true,
     plan_code: 'free',
@@ -515,9 +515,9 @@ export function toPublicBillingProduct(product: PlatformBillingProduct): PublicP
 export const FALLBACK_PUBLIC_PAGES: PlatformPublicPage[] = [
   {
     body: 'MyBiz는 공개 스토어, 문의, 예약, 웨이팅, QR 주문을 하나의 고객 기억 흐름으로 연결해 작은 매장의 재방문과 객단가 성장을 돕습니다.',
-    cta_href: '/onboarding',
-    cta_label: '공개 스토어 시작하기',
-    description: '흩어진 고객 행동을 기억하고, 점주가 다음 액션을 빠르게 정할 수 있게 만드는 운영 플랫폼입니다.',
+    cta_href: '/onboarding?plan=free',
+    cta_label: '무료로 시작하기',
+    description: '흩어진 고객 행동을 기억하고, 사장님이 다음 액션을 빠르게 결정할 수 있게 만드는 운영 플랫폼입니다.',
     is_published: true,
     payload: {
       cards: [
@@ -533,7 +533,7 @@ export const FALLBACK_PUBLIC_PAGES: PlatformPublicPage[] = [
     title: '고객 기억으로 이어지는 매장 운영 기능',
   },
   {
-    body: '요금제, 공개 스토어, 고객 기억, 결제와 운영 방식에 대해 자주 묻는 질문을 정리했습니다.',
+    body: '요금제, 공개 스토어, 고객 기억, 결제와 운영 방식에 대해 사장님들이 자주 묻는 질문을 정리했습니다.',
     cta_href: '/contact',
     cta_label: '도입 문의하기',
     description: '처음 도입하는 사장님도 빠르게 판단할 수 있도록 핵심 질문만 모았습니다.',
@@ -546,7 +546,7 @@ export const FALLBACK_PUBLIC_PAGES: PlatformPublicPage[] = [
     title: '자주 묻는 질문',
   },
   {
-    body: 'MyBiz는 작은 매장의 고객 신호가 사라지지 않도록 기록하고, 다시 방문하게 만드는 운영 액션으로 연결합니다.',
+    body: 'MyBiz는 작은 매장이 고객 선호와 방문 맥락을 잃지 않도록 기록하고, 다시 방문하게 만드는 운영 액션으로 연결합니다.',
     cta_href: '/pricing',
     cta_label: '요금제 보기',
     description: '홈페이지 도구가 아니라 고객 기억 기반 매출 시스템을 만듭니다.',
@@ -559,10 +559,10 @@ export const FALLBACK_PUBLIC_PAGES: PlatformPublicPage[] = [
     title: '작은 매장의 고객 기억을 매출로 연결합니다',
   },
   {
-    body: '도입, 요금제, 매장 공개 페이지, 결제 관련 문의는 MyBiz 지원팀으로 연락해 주세요.',
+    body: '도입, 요금제, 매장 공개 스토어, 결제 관련 문의는 MyBiz 지원팀으로 연락해 주세요.',
     cta_href: 'mailto:support@mybiz.ai.kr',
     cta_label: 'support@mybiz.ai.kr',
-    description: '실제 매장 운영 흐름에 맞춰 도입을 도와드립니다.',
+    description: '실제 매장 운영 흐름에 맞춰 도입을 안내해 드립니다.',
     is_published: true,
     payload: {},
     seo_description: 'MyBiz 문의와 지원 안내',
@@ -572,17 +572,30 @@ export const FALLBACK_PUBLIC_PAGES: PlatformPublicPage[] = [
     title: '도입과 운영을 함께 확인해 드립니다',
   },
   {
-    body: 'MyBiz는 매장 운영 데이터를 고객 기억으로 정리하고, 공개페이지와 점주 대시보드를 분리해 운영합니다. 결제와 구독 상태는 안전한 서버 기준으로 처리되며, 도입과 운영 문의는 지원 채널에서 확인할 수 있습니다.',
+    body: 'MyBiz는 매장 운영 데이터를 고객 기억으로 정리하고, 공개페이지와 점주 대시보드를 분리해 운영합니다. 결제와 구독 상태는 서버 기준으로 처리되며, 문의와 지원 채널을 명확히 제공합니다.',
     cta_href: '/privacy',
     cta_label: '개인정보처리방침 보기',
-    description: '고객이 안심하고 남긴 신호를 점주가 책임 있게 활용할 수 있도록 돕습니다.',
+    description: '고객 데이터를 신뢰 있게 관리하고, 매장이 안심하고 운영할 수 있도록 돕습니다.',
     is_published: true,
     payload: {},
     seo_description: 'MyBiz 신뢰, 보안, 결제 안전 안내',
-    seo_title: 'MyBiz 신뢰와 보안',
+    seo_title: 'MyBiz 신뢰센터',
     slug: 'trust',
     sort_order: 50,
     title: '고객 기억을 안전하게 운영하기 위한 기준',
+  },
+  {
+    body: '아직 공개된 고객 사례가 없다면 업데이트 게시판에서 제품 개선 소식을 먼저 확인할 수 있습니다.',
+    cta_href: '/updates?category=case',
+    cta_label: '업데이트 보기',
+    description: '매장 운영 흐름이 고객 기억으로 연결되는 실제 사례를 준비하고 있습니다.',
+    is_published: true,
+    payload: {},
+    seo_description: 'MyBiz 고객 사례와 운영 사례',
+    seo_title: 'MyBiz 고객 사례',
+    slug: 'cases',
+    sort_order: 60,
+    title: '고객 기억이 매장 운영을 바꾸는 사례',
   },
 ];
 
@@ -612,7 +625,7 @@ export const FALLBACK_FAQ_ITEMS: PlatformFaqItem[] = [
 
 export const FALLBACK_TRUST_SIGNALS: PlatformTrustSignal[] = [
   {
-    body: '가격과 상품 정보는 고객 화면의 표시값이 아니라 안전한 기준 금액으로 확인됩니다.',
+    body: '가격과 상품 정보는 고객 화면의 표시값만으로 결정하지 않고, 서버 기준 금액으로 확인합니다.',
     icon_key: 'payment',
     is_visible: true,
     signal_key: 'server-owned-catalog',
@@ -620,7 +633,7 @@ export const FALLBACK_TRUST_SIGNALS: PlatformTrustSignal[] = [
     title: '안전한 가격 확인',
   },
   {
-    body: '공개 페이지에는 게시 승인된 콘텐츠만 노출하고, 고객에게 부적절한 운영 문구는 품질 검사로 차단합니다.',
+    body: '공개 페이지에는 게시 승인된 콘텐츠만 노출하고, 고객에게 부적절한 운영 문구는 콘텐츠 QA로 차단합니다.',
     icon_key: 'content',
     is_visible: true,
     signal_key: 'public-content-guard',
@@ -628,7 +641,7 @@ export const FALLBACK_TRUST_SIGNALS: PlatformTrustSignal[] = [
     title: '공개 콘텐츠 품질 관리',
   },
   {
-    body: '점주 운영 화면과 플랫폼 관리자 콘솔을 분리해 매장 운영 권한과 서비스 운영 권한을 구분합니다.',
+    body: '공개페이지와 점주 대시보드는 분리되어 고객 접점과 운영 권한을 안전하게 구분합니다.',
     icon_key: 'access',
     is_visible: true,
     signal_key: 'access-separation',
@@ -667,20 +680,20 @@ const PUBLIC_INTERNAL_KEYWORD_RULES = [
   'verify',
   '테스트 전용',
   '개발자',
+  '내부',
+  '임시',
   '더미',
   '웹훅',
   '서버 카탈로그',
-  '성공처럼',
-  '환경이 준비',
-  '실결제',
+  '환경이 준비되지 않은 경우',
+  '성공처럼 넘기지 않고',
 ] as const;
 
 const PUBLIC_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
-  [/결제 완료 후 store_subscriptions 반영으로 권한이 확정됩니다\./gi, '결제 완료 후 이용 권한이 안전하게 적용됩니다.'],
-  [/PortOne checkout, redirect, verify, webhook 상태 확인용입니다\./gi, '안전한 결제 흐름을 확인하는 관리자 전용 항목입니다.'],
-  [/PortOne checkout, redirect, verify, webhook, payment event 흐름을 확인하는 내부 테스트 상품입니다\./gi, '관리자 전용 결제 점검 상품입니다. 일반 공개 가격표에는 노출되지 않습니다.'],
-  [/환경이 준비되지 않은 경우[^.。]*[.。]?/gi, ''],
-  [/성공처럼[^.。]*[.。]?/gi, ''],
+  [/결제 완료 후\s*store_subscriptions\s*반영으로 권한이 확정됩니다\.?/gi, '결제 완료 후 이용 권한이 안전하게 적용됩니다.'],
+  [/PortOne checkout, redirect, verify, webhook 상태 확인용입니다\.?/gi, '결제 흐름을 안전하게 확인할 수 있습니다.'],
+  [/환경이 준비되지 않은 경우[^.。!?]*[.。!?]?/gi, ''],
+  [/성공처럼 넘기지 않고[^.。!?]*[.。!?]?/gi, ''],
 ];
 
 export function isPlatformPlanCode(value: unknown): value is PlatformPlanCode {
@@ -695,7 +708,10 @@ export function isBrokenPlatformText(value: unknown) {
   if (typeof value !== 'string') return false;
   const normalized = value.trim();
   if (!normalized) return false;
-  return /\?{2,}/.test(normalized) || ['怨좉', '寃곗', '臾몄', '留ㅼ', '댁'].some((token) => normalized.includes(token));
+  return (
+    /\?{2,}/.test(normalized) ||
+    ['怨', '臾', '媛', '濡', '蹂', '留', '쨌', '�'].some((token) => normalized.includes(token))
+  );
 }
 
 function hasInternalPlatformText(value: unknown) {
@@ -942,20 +958,17 @@ export function filterPublicPricingPlans(plans: PlatformPricingPlan[]) {
   return PLATFORM_PLAN_CODES
     .map((code) => byCode.get(code) || FALLBACK_PRICING_PLANS.find((plan) => plan.plan_code === code)!)
     .filter((plan) => plan.status === 'published' && plan.is_visible)
-    .map((plan) => ({
-      ...plan,
-      bullet_items: sanitizePublicTextArray(
-        plan.bullet_items,
-        FALLBACK_PRICING_PLANS.find((fallbackPlan) => fallbackPlan.plan_code === plan.plan_code)?.bullet_items || [],
-      ),
-      cta_label: sanitizePublicPlatformText(plan.cta_label, FALLBACK_PRICING_PLANS.find((fallbackPlan) => fallbackPlan.plan_code === plan.plan_code)?.cta_label || null),
-      discount_label: sanitizePublicPlatformText(plan.discount_label, null),
-      footnote: sanitizePublicPlatformText(plan.footnote, FALLBACK_PRICING_PLANS.find((fallbackPlan) => fallbackPlan.plan_code === plan.plan_code)?.footnote || null),
-      short_description: sanitizePublicPlatformText(
-        plan.short_description,
-        FALLBACK_PRICING_PLANS.find((fallbackPlan) => fallbackPlan.plan_code === plan.plan_code)?.short_description || null,
-      ),
-    }))
+    .map((plan) => {
+      const fallback = FALLBACK_PRICING_PLANS.find((fallbackPlan) => fallbackPlan.plan_code === plan.plan_code);
+      return {
+        ...plan,
+        bullet_items: sanitizePublicTextArray(plan.bullet_items, fallback?.bullet_items || []),
+        cta_label: sanitizePublicPlatformText(plan.cta_label, fallback?.cta_label || null),
+        discount_label: sanitizePublicPlatformText(plan.discount_label, null),
+        footnote: sanitizePublicPlatformText(plan.footnote, fallback?.footnote || null),
+        short_description: sanitizePublicPlatformText(plan.short_description, fallback?.short_description || null),
+      };
+    })
     .sort((left, right) => left.sort_order - right.sort_order);
 }
 

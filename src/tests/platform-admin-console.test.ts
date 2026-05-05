@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { handlePlatformAdminRequest, handlePlatformPublicRequest } from '@/server/platformAdminApi';
+import { buildPaymentTestReadiness, handlePlatformAdminRequest, handlePlatformPublicRequest } from '@/server/platformAdminApi';
 import { resolveServerCatalogItem } from '@/server/platformCatalog';
 import {
   FALLBACK_HOMEPAGE_SECTIONS,
@@ -11,6 +11,48 @@ import {
   filterPublicPricingPlans,
   shouldExposeBillingProduct,
 } from '@/shared/lib/platformAdminConfig';
+
+const PORTONE_ENV_KEYS = [
+  'PORTONE_API_SECRET',
+  'PORTONE_V2_API_SECRET',
+  'PORTONE_WEBHOOK_SECRET',
+  'PORTONE_STORE_ID',
+  'NEXT_PUBLIC_PORTONE_STORE_ID',
+  'VITE_PORTONE_STORE_ID',
+  'PORTONE_CHANNEL_KEY',
+  'NEXT_PUBLIC_PORTONE_CHANNEL_KEY',
+  'VITE_PORTONE_CHANNEL_KEY',
+  'PORTONE_SANDBOX_CONFIRMED',
+  'PORTONE_ENV',
+  'NEXT_PUBLIC_PORTONE_ENV',
+  'VITE_PORTONE_ENV',
+] as const;
+
+function withPortOneEnv(values: Partial<Record<(typeof PORTONE_ENV_KEYS)[number], string>>) {
+  const previous = new Map<string, string | undefined>();
+
+  PORTONE_ENV_KEYS.forEach((key) => {
+    previous.set(key, process.env[key]);
+    delete process.env[key];
+  });
+
+  Object.entries(values).forEach(([key, value]) => {
+    if (value) {
+      process.env[key] = value;
+    }
+  });
+
+  return () => {
+    PORTONE_ENV_KEYS.forEach((key) => {
+      const value = previous.get(key);
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    });
+  };
+}
 
 describe('platform admin console foundations', () => {
   it('keeps public homepage sections published-only and sorted', () => {
@@ -123,5 +165,44 @@ describe('platform admin console foundations', () => {
       code: 'PLATFORM_ADMIN_ERROR',
       ok: false,
     });
+  });
+
+  it('reports safe Korean payment-test readiness when PortOne configuration is missing', () => {
+    const restore = withPortOneEnv({});
+    try {
+      const readiness = buildPaymentTestReadiness();
+
+      expect(readiness).toMatchObject({
+        code: 'PORTONE_NOT_CONFIGURED',
+        isReady: false,
+        message: 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다.',
+      });
+      expect(readiness.missing).toEqual(
+        expect.arrayContaining(['PORTONE_API_SECRET', 'PORTONE_WEBHOOK_SECRET', 'PORTONE_STORE_ID', 'PORTONE_CHANNEL_KEY']),
+      );
+      expect(JSON.stringify(readiness)).not.toMatch(/FUNCTION_INVOCATION_FAILED|secret_|sk_/i);
+    } finally {
+      restore();
+    }
+  });
+
+  it('keeps 100 KRW checkout disabled until sandbox/test channel is explicitly confirmed', () => {
+    const restore = withPortOneEnv({
+      PORTONE_API_SECRET: 'configured',
+      PORTONE_WEBHOOK_SECRET: 'configured',
+      PORTONE_STORE_ID: 'configured',
+      PORTONE_CHANNEL_KEY: 'configured',
+    });
+    try {
+      const readiness = buildPaymentTestReadiness();
+
+      expect(readiness).toMatchObject({
+        code: 'PORTONE_SANDBOX_NOT_CONFIRMED',
+        isReady: false,
+        missing: ['PORTONE_SANDBOX_CONFIRMED'],
+      });
+    } finally {
+      restore();
+    }
   });
 });

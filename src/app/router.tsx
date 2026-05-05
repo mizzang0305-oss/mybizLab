@@ -112,6 +112,7 @@ const PlatformAdminVersionsPage = lazyPage(() => import('@/modules/platform-admi
 const PlatformPublicBoardPostPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformPublicBoardPostPage');
 const PlatformPublicUpdatesPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformPublicUpdatesPage');
 const PlatformAboutPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformAboutPage');
+const PlatformCasesPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformCasesPage');
 const PlatformContactPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformContactPage');
 const PlatformFaqPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformFaqPage');
 const PlatformFeaturesPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformFeaturesPage');
@@ -140,6 +141,10 @@ export const appRoutes: RouteObject[] = [
       {
         path: '/features',
         element: routeElement(PlatformFeaturesPage),
+      },
+      {
+        path: '/cases',
+        element: routeElement(PlatformCasesPage),
       },
       {
         path: '/faq',

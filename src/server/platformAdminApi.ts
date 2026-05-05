@@ -239,6 +239,53 @@ function getPlatformAdminEmails() {
     .filter(Boolean);
 }
 
+function hasAnyEnv(names: string[]) {
+  return names.some((name) => Boolean(process.env[name]?.trim()));
+}
+
+export function buildPaymentTestReadiness() {
+  const checks = [
+    { label: 'PORTONE_API_SECRET', names: ['PORTONE_API_SECRET', 'PORTONE_V2_API_SECRET'] },
+    { label: 'PORTONE_WEBHOOK_SECRET', names: ['PORTONE_WEBHOOK_SECRET'] },
+    { label: 'PORTONE_STORE_ID', names: ['PORTONE_STORE_ID', 'NEXT_PUBLIC_PORTONE_STORE_ID', 'VITE_PORTONE_STORE_ID'] },
+    { label: 'PORTONE_CHANNEL_KEY', names: ['PORTONE_CHANNEL_KEY', 'NEXT_PUBLIC_PORTONE_CHANNEL_KEY', 'VITE_PORTONE_CHANNEL_KEY'] },
+  ];
+  const missing = checks.filter((check) => !hasAnyEnv(check.names)).map((check) => check.label);
+  const sandboxConfirmed =
+    process.env.PORTONE_SANDBOX_CONFIRMED === 'true' ||
+    process.env.PORTONE_ENV === 'sandbox' ||
+    process.env.NEXT_PUBLIC_PORTONE_ENV === 'sandbox' ||
+    process.env.VITE_PORTONE_ENV === 'sandbox';
+
+  if (missing.length > 0) {
+    return {
+      code: 'PORTONE_NOT_CONFIGURED' as const,
+      isReady: false,
+      message: 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다.',
+      missing,
+      sandboxConfirmed,
+    };
+  }
+
+  if (!sandboxConfirmed) {
+    return {
+      code: 'PORTONE_SANDBOX_NOT_CONFIRMED' as const,
+      isReady: false,
+      message: 'PortOne sandbox/test 채널이 확인되기 전에는 100원 테스트 결제를 열 수 없습니다.',
+      missing: ['PORTONE_SANDBOX_CONFIRMED'],
+      sandboxConfirmed,
+    };
+  }
+
+  return {
+    code: 'PORTONE_READY' as const,
+    isReady: true,
+    message: 'PortOne 100원 테스트 결제를 실행할 준비가 되었습니다.',
+    missing: [],
+    sandboxConfirmed,
+  };
+}
+
 async function readBodyText(request: PlatformAdminRequestLike) {
   if (typeof request.text === 'function') return request.text();
   if ('rawBody' in request && typeof request.rawBody === 'string') return request.rawBody;
@@ -753,6 +800,7 @@ export async function handlePlatformAdminRequest(request: PlatformAdminRequestLi
             .slice(0, 20),
           failureCopy: '100원 테스트 결제가 실패했습니다. PortOne 설정과 결제 이벤트 로그를 확인하세요.',
           product: products.find((product) => product.product_code === PAYMENT_TEST_PRODUCT_CODE) || null,
+          readiness: buildPaymentTestReadiness(),
           successCopy: '100원 테스트 결제가 완료되었습니다. 구독 권한은 변경되지 않았습니다.',
         },
       });

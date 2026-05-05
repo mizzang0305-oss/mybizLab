@@ -9,6 +9,7 @@ import { getPublicPlatformHomepageContent } from '@/shared/lib/services/platform
 import { SERVICE_DESCRIPTION } from '@/shared/lib/siteConfig';
 
 const fallbackFlow = ['공개 스토어', '문의', '예약', '웨이팅', 'QR 주문', '고객 기억', '운영 액션'];
+const fallbackFeatureCards = ['공개 스토어', 'AI 상담', '예약·웨이팅', 'QR 주문', '고객 프로필', '운영 대시보드'];
 
 function readStringArray(value: unknown, fallback: string[]) {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : fallback;
@@ -25,16 +26,16 @@ export function DemoPreviewModal({ onClose, open }: { onClose: () => void; open:
       to: '/mybiz-live-cafe',
     },
     {
-      body: '점주가 오늘의 문의, 예약, 웨이팅, 주문, 고객 기억 상태를 확인하는 운영 화면입니다.',
+      body: '사장님이 오늘의 문의, 예약, 웨이팅, 주문, 고객 기억 상태를 확인하는 운영 화면입니다.',
       cta: '점주 화면 미리보기',
-      title: '점주 운영 대시보드',
-      to: '/login',
+      title: '점주 운영 화면',
+      to: '/login?next=/dashboard',
     },
     {
-      body: 'AI 상담이 고객 맥락을 남기고 점주가 다시 볼 수 있는 고객 기억 흐름입니다.',
+      body: 'AI 상담이 고객 맥락을 읽고 사장님이 다시 볼 수 있는 고객 기억 흐름으로 이어집니다.',
       cta: 'AI 상담 데모',
       title: 'AI 상담',
-      to: '/onboarding',
+      to: '/onboarding?plan=free',
     },
   ];
 
@@ -53,7 +54,7 @@ export function DemoPreviewModal({ onClose, open }: { onClose: () => void; open:
               MyBiz 데모 보기
             </h2>
             <p className="mt-3 max-w-2xl break-keep text-sm leading-7 text-slate-300">
-              공개 스토어에서 고객 신호가 들어오고, 점주 운영 화면과 고객 기억으로 이어지는 흐름을 확인하세요.
+              공개 스토어에서 고객 신호가 들어오고, 점주 운영 화면과 고객 기억으로 이어지는 흐름을 빠르게 확인해 보세요.
             </p>
           </div>
           <button
@@ -101,7 +102,7 @@ export function LandingPage() {
   const finalCta = sections.find((section) => section.section_type === 'final_cta');
   const flowSteps = useMemo(() => readStringArray(flowSection?.payload.steps, fallbackFlow), [flowSection]);
   const featureCards = useMemo(
-    () => readStringArray(featureSection?.payload.cards, ['공개 스토어', 'AI 상담', '예약·웨이팅', 'QR 주문', '고객 타임라인', '운영 대시보드']),
+    () => readStringArray(featureSection?.payload.cards, fallbackFeatureCards),
     [featureSection],
   );
 
@@ -111,21 +112,6 @@ export function LandingPage() {
     <main className="overflow-hidden" data-cinematic-home="true" data-landing-mode="hero-engine">
       <section className="relative bg-[#02050a] px-5 py-16 text-white sm:px-8 lg:px-10 lg:py-24">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_24%,rgba(251,146,60,0.22),transparent_30%),radial-gradient(circle_at_72%_32%,rgba(96,165,250,0.2),transparent_34%),linear-gradient(135deg,#02050a_0%,#07111e_52%,#02050a_100%)]" />
-        <div className="relative mx-auto max-w-7xl">
-          <nav className="mb-12 flex flex-wrap items-center gap-2 text-sm font-bold text-slate-300" data-homepage-nav="primary">
-            <a className="rounded-full px-3 py-2 hover:bg-white/10" href="#services">서비스</a>
-            <a className="rounded-full px-3 py-2 hover:bg-white/10" href="#features">기능</a>
-            <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/pricing">요금제</Link>
-            <a className="rounded-full px-3 py-2 hover:bg-white/10" href="#cases">고객 사례</a>
-            <a className="rounded-full px-3 py-2 hover:bg-white/10" href="#resources">리소스</a>
-            <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/login">점주 로그인</Link>
-            <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/dashboard">점주 운영 화면</Link>
-            <Link className="rounded-full px-3 py-2 hover:bg-white/10" to="/onboarding">공개 스토어 시작하기</Link>
-            <button className="rounded-full px-3 py-2 hover:bg-white/10" data-demo-trigger="homepage-nav" onClick={() => setDemoOpen(true)} type="button">
-              데모 보기
-            </button>
-          </nav>
-        </div>
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-300">
@@ -141,12 +127,9 @@ export function LandingPage() {
               <Link className="btn-primary" to={hero?.cta_href || settings?.primary_cta_href || '/onboarding?plan=free'}>
                 {hero?.cta_label || settings?.primary_cta_label || '무료로 시작하기'}
               </Link>
-              <Link className="btn-secondary" to={settings?.secondary_cta_href || '/pricing'}>
-                {settings?.secondary_cta_label || '가격 보기'}
-              </Link>
-              <a className="btn-secondary" href="#features">
+              <Link className="btn-secondary" to="/features">
                 기능 살펴보기
-              </a>
+              </Link>
               <button className="btn-secondary" data-demo-trigger="homepage" onClick={() => setDemoOpen(true)} type="button">
                 데모 보기
               </button>
@@ -202,7 +185,7 @@ export function LandingPage() {
           </h2>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {[
-              ['공개 스토어 / 고객 접점', '문의하기, 예약하기, 웨이팅, QR 주문을 고객이 자연스럽게 시작합니다.'],
+              ['공개 스토어 / 고객 접점', '문의하기, 예약하기, 웨이팅, QR 주문으로 고객 행동이 자연스럽게 시작됩니다.'],
               ['점주 운영 대시보드', '예약, 웨이팅, 주문, 알림을 한 화면에서 빠르게 확인합니다.'],
               ['고객 기억 / 반복 매출 엔진', '고객명, 방문 횟수, 선호 메뉴, 추천 액션이 운영 근거로 쌓입니다.'],
             ].map(([title, body], index) => (
@@ -237,10 +220,15 @@ export function LandingPage() {
       <section className="bg-white px-5 py-16 sm:px-8 lg:px-10" id="cases">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-slate-50 p-8">
           <p className="eyebrow">고객 사례</p>
-          <h2 className="mt-3 break-keep font-display text-3xl font-black text-slate-950">매장 운영 데이터를 고객 기억으로 바꾸는 방향에 집중합니다</h2>
+          <h2 className="mt-3 break-keep font-display text-3xl font-black text-slate-950">
+            매장 운영 데이터를 고객 기억으로 바꾸는 방향에 집중합니다
+          </h2>
           <p className="mt-3 max-w-3xl break-keep text-sm leading-7 text-slate-600">
-            문의, 예약, 웨이팅, 주문이 각각 흩어지지 않고 한 고객의 맥락으로 보이면 점주는 다음 액션을 더 빠르게 정할 수 있습니다.
+            문의, 예약, 웨이팅, 주문이 각각 흩어지지 않고 한 고객의 맥락으로 보이면 사장님의 다음 액션도 더 빠르게 정해집니다.
           </p>
+          <Link className="btn-secondary mt-5 inline-flex" to="/cases">
+            고객 사례 보기
+          </Link>
         </div>
       </section>
 
@@ -249,7 +237,7 @@ export function LandingPage() {
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-300">{finalCta?.eyebrow || '시작하기'}</p>
             <h2 className="mt-3 break-keep font-display text-3xl font-black">{finalCta?.title || '우리 가게의 고객 기억 구조부터 확인해 보세요'}</h2>
-            <p className="mt-3 break-keep text-sm leading-7 text-slate-300">{finalCta?.subtitle || '결제 전에 고객 접점과 운영 흐름을 정리할 수 있습니다.'}</p>
+            <p className="mt-3 break-keep text-sm leading-7 text-slate-300">{finalCta?.subtitle || '결제 전에 고객 접점과 운영 흐름을 먼저 정리할 수 있습니다.'}</p>
           </div>
           <Link className="btn-primary shrink-0" to={finalCta?.cta_href || '/onboarding?plan=free'}>
             {finalCta?.cta_label || '무료로 시작하기'}
