@@ -50,4 +50,11 @@ describe('server runtime imports', () => {
       expect(source, filePath).not.toMatch(/import ['"]@\//);
     }
   });
+
+  it('keeps server-loaded billing plan imports resolvable in Vercel Node runtime', () => {
+    const source = readFileSync(join(process.cwd(), 'src', 'shared', 'lib', 'billingPlans.ts'), 'utf8');
+
+    expect(source).toContain("from './platformAdminConfig.js'");
+    expect(source).not.toContain("from './platformAdminConfig'");
+  });
 });

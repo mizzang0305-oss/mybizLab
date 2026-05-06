@@ -4,7 +4,7 @@ import {
   PAYMENT_TEST_PRODUCT_CODE,
   type PlatformBillingProduct,
   type PlatformPlanCode,
-} from './platformAdminConfig';
+} from './platformAdminConfig.js';
 
 export const BILLING_PLAN_DETAILS = {
   free: {
