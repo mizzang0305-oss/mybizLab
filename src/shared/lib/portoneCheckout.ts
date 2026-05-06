@@ -537,7 +537,7 @@ function buildFriendlyApiError(
         details: {
           responseText: normalizedText,
         },
-        message: 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다. 설정 상태와 결제 이벤트 로그를 확인하세요.',
+        message: 'PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.',
         stage: 'server-invocation',
         status,
       });

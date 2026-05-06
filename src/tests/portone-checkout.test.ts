@@ -556,7 +556,7 @@ describe('PortOne checkout client helpers', () => {
     });
     await expect(createCheckoutSession('vip')).rejects.not.toThrowError(/FUNCTION_INVOCATION_FAILED/);
     await expect(createCheckoutSession('vip')).rejects.toThrowError(
-      /PortOne 테스트 결제 설정이 아직 완료되지 않았습니다/,
+      /PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다/,
     );
   });
 

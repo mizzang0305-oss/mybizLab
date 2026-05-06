@@ -69,6 +69,10 @@ describe('/api/billing/checkout', () => {
   const originalChannelKey = process.env.PORTONE_CHANNEL_KEY;
   const originalNextPublicChannelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
   const originalViteChannelKey = process.env.VITE_PORTONE_CHANNEL_KEY;
+  const originalSandboxConfirmed = process.env.PORTONE_SANDBOX_CONFIRMED;
+  const originalPortOneEnv = process.env.PORTONE_ENV;
+  const originalNextPublicPortOneEnv = process.env.NEXT_PUBLIC_PORTONE_ENV;
+  const originalVitePortOneEnv = process.env.VITE_PORTONE_ENV;
 
   beforeEach(() => {
     delete process.env.PORTONE_API_SECRET;
@@ -82,6 +86,10 @@ describe('/api/billing/checkout', () => {
     process.env.PORTONE_CHANNEL_KEY = 'channel-key-test';
     delete process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
+    delete process.env.PORTONE_SANDBOX_CONFIRMED;
+    delete process.env.PORTONE_ENV;
+    delete process.env.NEXT_PUBLIC_PORTONE_ENV;
+    delete process.env.VITE_PORTONE_ENV;
   });
 
   afterEach(() => {
@@ -96,6 +104,10 @@ describe('/api/billing/checkout', () => {
     process.env.PORTONE_CHANNEL_KEY = originalChannelKey;
     process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY = originalNextPublicChannelKey;
     process.env.VITE_PORTONE_CHANNEL_KEY = originalViteChannelKey;
+    process.env.PORTONE_SANDBOX_CONFIRMED = originalSandboxConfirmed;
+    process.env.PORTONE_ENV = originalPortOneEnv;
+    process.env.NEXT_PUBLIC_PORTONE_ENV = originalNextPublicPortOneEnv;
+    process.env.VITE_PORTONE_ENV = originalVitePortOneEnv;
   });
 
   it('returns JSON 405 for non-POST requests', async () => {
@@ -383,6 +395,8 @@ describe('/api/billing/checkout', () => {
   });
 
   it('creates the 100 KRW payment test product without granting subscription entitlement', async () => {
+    process.env.PORTONE_SANDBOX_CONFIRMED = 'true';
+
     const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({
@@ -425,7 +439,34 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
   });
 
+  it('rejects the 100 KRW payment test product until sandbox/test channel is confirmed', async () => {
+    const response = await billingHandler(
+      new Request('https://example.com/api/billing/checkout', {
+        body: JSON.stringify({
+          billingProductCode: 'payment_test_100',
+          plan: 'pro',
+          redirectPath: '/admin/payment-tests',
+          source: 'platform-admin-payment-test',
+        }),
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(payload).toMatchObject({
+      code: 'PORTONE_SANDBOX_NOT_CONFIRMED',
+      error: 'PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.',
+      ok: false,
+      stage: 'payment-test-readiness',
+    });
+    expect(JSON.stringify(payload)).not.toMatch(/FUNCTION_INVOCATION_FAILED|secret_|sk_/i);
+  });
+
   it('rejects client-tampered amount for the 100 KRW payment test product', async () => {
+    process.env.PORTONE_SANDBOX_CONFIRMED = 'true';
+
     const response = await billingHandler(
       new Request('https://example.com/api/billing/checkout', {
         body: JSON.stringify({

@@ -216,7 +216,7 @@ describe('platform admin console foundations', () => {
       expect(readiness).toMatchObject({
         code: 'PORTONE_NOT_CONFIGURED',
         isReady: false,
-        message: 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다.',
+        message: 'PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.',
       });
       expect(readiness.missing).toEqual(
         expect.arrayContaining(['PORTONE_API_SECRET', 'PORTONE_WEBHOOK_SECRET', 'PORTONE_STORE_ID', 'PORTONE_CHANNEL_KEY']),
@@ -240,6 +240,7 @@ describe('platform admin console foundations', () => {
       expect(readiness).toMatchObject({
         code: 'PORTONE_SANDBOX_NOT_CONFIRMED',
         isReady: false,
+        message: 'PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.',
         missing: ['PORTONE_SANDBOX_CONFIRMED'],
       });
     } finally {
