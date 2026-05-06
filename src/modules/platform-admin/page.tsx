@@ -639,7 +639,7 @@ export function PlatformPaymentTestsAdminPage() {
   async function startPaymentTest() {
     if (!product) return;
     if (!canStartPaymentTest) {
-      setMessage(readiness?.message || 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다.');
+      setMessage(readiness?.message || 'PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.');
       return;
     }
     setMessage('100원 테스트 결제창을 준비합니다.');
@@ -663,7 +663,7 @@ export function PlatformPaymentTestsAdminPage() {
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : '';
       if (/FUNCTION_INVOCATION_FAILED/i.test(rawMessage)) {
-        setMessage('PortOne 테스트 결제 설정이 아직 완료되지 않았습니다. 설정 상태와 결제 이벤트 로그를 확인하세요.');
+        setMessage('PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.');
       } else {
         setMessage(rawMessage || '100원 테스트 결제를 시작하지 못했습니다.');
       }

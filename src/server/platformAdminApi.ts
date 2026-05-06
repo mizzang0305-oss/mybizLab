@@ -243,6 +243,9 @@ function hasAnyEnv(names: string[]) {
   return names.some((name) => Boolean(process.env[name]?.trim()));
 }
 
+const PAYMENT_TEST_CHANNEL_NOT_CONFIRMED_MESSAGE =
+  'PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.';
+
 export function buildPaymentTestReadiness() {
   const checks = [
     { label: 'PORTONE_API_SECRET', names: ['PORTONE_API_SECRET', 'PORTONE_V2_API_SECRET'] },
@@ -261,7 +264,7 @@ export function buildPaymentTestReadiness() {
     return {
       code: 'PORTONE_NOT_CONFIGURED' as const,
       isReady: false,
-      message: 'PortOne 테스트 결제 설정이 아직 완료되지 않았습니다.',
+      message: PAYMENT_TEST_CHANNEL_NOT_CONFIRMED_MESSAGE,
       missing,
       sandboxConfirmed,
     };
@@ -271,7 +274,7 @@ export function buildPaymentTestReadiness() {
     return {
       code: 'PORTONE_SANDBOX_NOT_CONFIRMED' as const,
       isReady: false,
-      message: 'PortOne sandbox/test 채널이 확인되기 전에는 100원 테스트 결제를 열 수 없습니다.',
+      message: PAYMENT_TEST_CHANNEL_NOT_CONFIRMED_MESSAGE,
       missing: ['PORTONE_SANDBOX_CONFIRMED'],
       sandboxConfirmed,
     };

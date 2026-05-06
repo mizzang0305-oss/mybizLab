@@ -21,6 +21,8 @@ const COMPACT_PLAN_CODE: Record<BillingPlanCode, string> = {
   pro: 'pro',
   vip: 'vip',
 };
+const PAYMENT_TEST_CHANNEL_NOT_CONFIRMED_MESSAGE =
+  'PortOne 테스트 채널 설정이 확인되지 않아 100원 결제를 시작할 수 없습니다.';
 
 type CheckoutEnvKey = keyof typeof CHECKOUT_ENV_NAMES;
 
@@ -682,6 +684,36 @@ function assertClientAmountMatchesCatalog(body: Record<string, unknown>, serverA
   }
 }
 
+function isPortOneSandboxConfirmed() {
+  return (
+    process.env.PORTONE_SANDBOX_CONFIRMED === 'true' ||
+    process.env.PORTONE_ENV === 'sandbox' ||
+    process.env.NEXT_PUBLIC_PORTONE_ENV === 'sandbox' ||
+    process.env.VITE_PORTONE_ENV === 'sandbox'
+  );
+}
+
+function assertPaymentTestCheckoutAllowed(catalog: Awaited<ReturnType<typeof resolveServerCatalogItem>>) {
+  if (catalog.productType !== 'test') {
+    return;
+  }
+
+  if (isPortOneSandboxConfirmed()) {
+    return;
+  }
+
+  throw new CheckoutApiError({
+    code: 'PORTONE_SANDBOX_NOT_CONFIRMED',
+    details: {
+      missing: ['PORTONE_SANDBOX_CONFIRMED'],
+      productCode: catalog.productCode,
+    },
+    message: PAYMENT_TEST_CHANNEL_NOT_CONFIRMED_MESSAGE,
+    stage: 'payment-test-readiness',
+    status: 409,
+  });
+}
+
 function readCheckoutRequestId(customData: Record<string, unknown>) {
   return normalizeNonEmptyString(customData.requestId);
 }
@@ -805,6 +837,7 @@ export async function handleCheckoutRequest(request: CheckoutRequestLike) {
       status: 400,
     });
   }
+  assertPaymentTestCheckoutAllowed(catalog);
   assertClientAmountMatchesCatalog(body, catalog.amount);
 
   const paymentId = createCheckoutPaymentId(requestedPlan, catalog.productType === 'test' ? catalog.productCode : undefined);
