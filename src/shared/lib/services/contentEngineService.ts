@@ -6,6 +6,7 @@ import { createId } from '../ids.js';
 import { getDatabase, updateDatabase } from '../mockDb.js';
 import { requestPublicApi } from '../publicApiClient.js';
 import { normalizeStoreSlug } from '../storeSlug.js';
+import { getYouTubeProviderReadiness, type YouTubeEnv } from './youtubeProvider.js';
 import type {
   SocialAccount,
   SocialAccountStatus,
@@ -30,6 +31,7 @@ import type {
 type ContentServiceOptions = {
   actorProfileId?: string;
   client?: SupabaseClient;
+  env?: YouTubeEnv;
 };
 
 type ApproveSocialPublishOptions = ContentServiceOptions & {
@@ -108,6 +110,15 @@ export interface CreateSocialPublishJobInput {
   status?: SocialPublishJobStatus;
 }
 
+export interface CreateYouTubeUploadJobInput {
+  description?: string;
+  hashtags?: string[];
+  sourceId?: string;
+  sourceType: SocialPublishSourceType;
+  status?: Extract<SocialPublishJobStatus, 'draft' | 'waiting_approval'>;
+  title: string;
+}
+
 export interface SocialProviderCard {
   copy: string;
   provider: SocialProvider;
@@ -156,7 +167,7 @@ const PROVIDER_COPY: Record<SocialProvider, { copy: string; title: string }> = {
     title: 'TikTok',
   },
   youtube: {
-    copy: '계정 연동 후 영상과 자막 업로드를 지원할 예정입니다.',
+    copy: 'YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.',
     title: 'YouTube',
   },
 };
@@ -1822,8 +1833,14 @@ export async function listSocialProviderCards(storeId: string, options?: Content
   }
 
   return SOCIAL_PROVIDERS.map((provider) => {
-    const account = accounts.find((entry) => entry.provider === provider);
-    const status = account?.oauth_status === 'connected' ? 'connected' : account?.oauth_status || 'disabled';
+    const account =
+      accounts.find((entry) => entry.provider === provider && entry.oauth_status === 'connected') ||
+      accounts.find((entry) => entry.provider === provider);
+    const youtubeReadiness = provider === 'youtube' ? getYouTubeProviderReadiness(options?.env) : null;
+    const status =
+      account?.oauth_status === 'connected'
+        ? 'connected'
+        : account?.oauth_status || (youtubeReadiness?.oauthReady ? 'not_connected' : 'disabled');
 
     return {
       provider,
@@ -1831,6 +1848,41 @@ export async function listSocialProviderCards(storeId: string, options?: Content
       ...PROVIDER_COPY[provider],
     };
   });
+}
+
+function formatYouTubeUploadCaption(input: CreateYouTubeUploadJobInput) {
+  const title = normalizeText(input.title);
+  const description = normalizeText(input.description);
+  const hashtags = (input.hashtags || [])
+    .map((hashtag) => normalizeText(hashtag).replace(/^#/, ''))
+    .filter(Boolean)
+    .map((hashtag) => `#${hashtag}`);
+
+  return [title, description, hashtags.join(' ')].filter(Boolean).join('\n\n');
+}
+
+export async function createYouTubeUploadJob(
+  storeId: string,
+  input: CreateYouTubeUploadJobInput,
+  options?: ContentServiceOptions,
+) {
+  const status = input.status || 'draft';
+  if (status !== 'draft' && status !== 'waiting_approval') {
+    throw new Error('YouTube upload jobs must start as draft or waiting_approval.');
+  }
+
+  return createSocialPublishJob(
+    storeId,
+    {
+      caption: formatYouTubeUploadCaption(input),
+      hashtags: input.hashtags || [],
+      provider: 'youtube',
+      sourceId: input.sourceId,
+      sourceType: input.sourceType,
+      status,
+    },
+    options,
+  );
 }
 
 export async function createSocialPublishJob(
@@ -1842,6 +1894,9 @@ export async function createSocialPublishJob(
   assertEnumValue(input.sourceType, SOCIAL_SOURCE_TYPES, 'source type');
   const status = input.status || 'draft';
   assertEnumValue(status, SOCIAL_JOB_STATUSES, 'social publish job status');
+  if (isExternalProvider(input.provider) && ['queued', 'publishing', 'published'].includes(status)) {
+    throw new Error('Merchant approval is required before an external publish job can be queued.');
+  }
   await assertReviewExternalReuseAllowed(input, storeId, options);
   const timestamp = nowIso();
 
@@ -1893,21 +1948,42 @@ export async function createSocialPublishJob(
   return job;
 }
 
-async function getConnectedSocialAccount(storeId: string, provider: SocialPublishProvider, options?: ContentServiceOptions) {
+async function getSocialPublishReadiness(storeId: string, provider: SocialPublishProvider, options?: ContentServiceOptions) {
   if (provider === 'mybiz_blog') {
     return {
-      account_id: 'mybiz_blog_internal',
-      oauth_status: 'connected' as const,
-      provider: 'kakao_share' as SocialProvider,
-      scopes: [],
-      store_id: storeId,
-      created_at: nowIso(),
-      updated_at: nowIso(),
+      errorCode: undefined,
+      errorMessage: undefined,
+      ready: true,
     };
   }
 
   const cards = await listSocialProviderCards(storeId, options);
-  return cards.find((card) => card.provider === provider && card.status === 'connected') || null;
+  const card = cards.find((entry) => entry.provider === provider);
+
+  if (card?.status !== 'connected') {
+    return {
+      errorCode: 'provider_not_connected',
+      errorMessage: provider === 'youtube' ? 'YouTube 계정 연동이 필요합니다.' : 'Provider is not connected or enabled.',
+      ready: false,
+    };
+  }
+
+  if (provider === 'youtube') {
+    const readiness = getYouTubeProviderReadiness(options?.env);
+    if (!readiness.uploadReady) {
+      return {
+        errorCode: 'youtube_upload_not_configured',
+        errorMessage: 'YouTube 업로드 설정이 아직 완료되지 않았습니다.',
+        ready: false,
+      };
+    }
+  }
+
+  return {
+    errorCode: undefined,
+    errorMessage: undefined,
+    ready: true,
+  };
 }
 
 export async function approveSocialPublishJob(
@@ -1935,13 +2011,13 @@ export async function approveSocialPublishJob(
     }
 
     const currentJob = mapSocialPublishJobRow(currentData as Record<string, unknown>);
-    const connectedAccount = await getConnectedSocialAccount(storeId, currentJob.provider, options);
-    const nextStatus: SocialPublishJobStatus = connectedAccount ? 'queued' : 'waiting_approval';
+    const publishReadiness = await getSocialPublishReadiness(storeId, currentJob.provider, options);
+    const nextStatus: SocialPublishJobStatus = publishReadiness.ready ? 'queued' : 'waiting_approval';
     const updatePayload = {
       approved_at: timestamp,
       approved_by: options?.actorProfileId || null,
-      error_code: connectedAccount ? null : 'provider_not_connected',
-      error_message: connectedAccount ? null : 'Provider is not connected or enabled.',
+      error_code: publishReadiness.errorCode || null,
+      error_message: publishReadiness.errorMessage || null,
       status: nextStatus,
       updated_at: timestamp,
     };
@@ -1967,14 +2043,14 @@ export async function approveSocialPublishJob(
     throw new Error('Social publish job not found.');
   }
 
-  const connectedAccount = await getConnectedSocialAccount(storeId, currentJob.provider, options);
+  const publishReadiness = await getSocialPublishReadiness(storeId, currentJob.provider, options);
   let nextJob: SocialPublishJob = {
     ...currentJob,
     approved_at: timestamp,
     approved_by: options?.actorProfileId,
-    error_code: connectedAccount ? undefined : 'provider_not_connected',
-    error_message: connectedAccount ? undefined : 'Provider is not connected or enabled.',
-    status: connectedAccount ? 'queued' : 'waiting_approval',
+    error_code: publishReadiness.errorCode,
+    error_message: publishReadiness.errorMessage,
+    status: publishReadiness.ready ? 'queued' : 'waiting_approval',
     updated_at: timestamp,
   };
 
@@ -1988,7 +2064,7 @@ export async function approveSocialPublishJob(
     });
   });
 
-  if (nextJob.status === 'queued' && options?.publishAdapter) {
+  if (nextJob.status === 'queued' && options?.publishAdapter && nextJob.provider !== 'youtube') {
     const publishResult = await options.publishAdapter(nextJob);
     nextJob = {
       ...nextJob,

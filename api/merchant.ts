@@ -3,6 +3,10 @@ import {
   type MerchantRequestLike,
 } from '../src/server/merchantApi.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
+import {
+  handleYouTubeOAuthCallbackRequest,
+  handleYouTubeOAuthStartRequest,
+} from '../src/server/youtubeOAuth.js';
 
 export const config = {
   runtime: 'nodejs',
@@ -30,6 +34,13 @@ function methodNotAllowed() {
   });
 }
 
+function getMethodNotAllowed(allowed = 'GET') {
+  return new Response('Method Not Allowed', {
+    status: 405,
+    headers: { allow: allowed },
+  });
+}
+
 function getResource(request: MerchantRequestLike) {
   const rawUrl = typeof request.url === 'string' && request.url.trim() ? request.url : '/';
 
@@ -53,6 +64,10 @@ async function routeMerchantRequest(request: MerchantRequestLike): Promise<Respo
   switch (resource) {
     case 'order-event':
       return method === 'POST' ? handleMerchantOrderEventRequest(request) : methodNotAllowed();
+    case 'youtube-oauth-callback':
+      return method === 'GET' ? handleYouTubeOAuthCallbackRequest(request) : getMethodNotAllowed();
+    case 'youtube-oauth-start':
+      return method === 'GET' ? handleYouTubeOAuthStartRequest(request) : getMethodNotAllowed();
     default:
       return notFound();
   }

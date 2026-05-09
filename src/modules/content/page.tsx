@@ -11,6 +11,7 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { useAdminAccess } from '@/shared/lib/adminSession';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { canonicalUrl } from '@/shared/lib/seo';
+import { YOUTUBE_REQUIRED_SCOPES, getYouTubeProviderReadiness } from '@/shared/lib/services/youtubeProvider';
 import {
   approveSocialPublishJob,
   archiveStoreBlogPost,
@@ -873,6 +874,9 @@ export function ContentSocialPage() {
   const providerStatus = useMemo(() => {
     return new Map((providersQuery.data || []).map((provider) => [provider.provider, provider.status]));
   }, [providersQuery.data]);
+  const youtubeReadiness = useMemo(() => getYouTubeProviderReadiness(), []);
+  const youtubeProvider = (providersQuery.data || []).find((provider) => provider.provider === 'youtube');
+  const youtubeJobs = (jobsQuery.data || []).filter((job) => job.provider === 'youtube').slice(0, 3);
 
   if (!currentStore) {
     return <EmptyStoreGuard />;
@@ -906,6 +910,64 @@ export function ContentSocialPage() {
           </article>
         ))}
       </div>
+
+      <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 업로드 설정이 모두 준비된 뒤에만 진행됩니다.">
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-black text-slate-500">연결 상태</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{youtubeProvider?.status || 'disabled'}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button className="btn-secondary" disabled type="button">
+                  계정 연동
+                </button>
+                <button className="btn-secondary" disabled type="button">
+                  연결 해제
+                </button>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-amber-700">
+              {youtubeReadiness.oauthReady
+                ? 'OAuth 설정은 감지되었지만 대시보드 연결 버튼은 다음 배포에서 활성화됩니다.'
+                : 'YouTube 계정 연동은 설정이 완료되면 사용할 수 있습니다.'}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <p className="text-xs font-black text-slate-500">필요 scope</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {YOUTUBE_REQUIRED_SCOPES.map((scope) => (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600" key={scope}>
+                  {scope}
+                </span>
+              ))}
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              자막 업로드는 자막 파일이 준비되고 YouTube 연동이 완료되면 사용할 수 있습니다.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
+          <p className="text-xs font-black text-slate-500">최근 YouTube 게시 작업</p>
+          <div className="mt-3 space-y-2">
+            {youtubeJobs.map((job) => (
+              <div className="rounded-2xl bg-slate-50 p-3" key={job.job_id}>
+                <p className="text-sm font-black text-slate-800">{job.status}</p>
+                <p className="mt-1 line-clamp-2 text-sm text-slate-600">{job.caption || '문안 없음'}</p>
+              </div>
+            ))}
+            {!youtubeJobs.length ? (
+              <p className="text-sm leading-6 text-slate-500">
+                아직 YouTube 업로드 초안이 없습니다. 미디어, 블로그, 수동 소스에서 승인용 초안을 만들 수 있습니다.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </Panel>
 
       <Panel title="게시 초안 만들기" subtitle="연동되지 않은 외부 채널은 승인해도 queued 상태로 넘어가지 않습니다.">
         <div className="grid gap-4 md:grid-cols-2">
