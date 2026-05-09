@@ -7,12 +7,14 @@ import { resetDatabase } from '@/shared/lib/mockDb';
 import {
   approveSocialPublishJob,
   convertReviewToBlogDraft,
+  createReviewRequestLink,
   createSocialPublishJob,
   createStoreBlogPost,
   createStoreMediaAsset,
   generateCaptionDraft,
   generateTranscriptDraft,
   getPublicStoreBlogPost,
+  listReviewRequestLinks,
   listPublicStoreBlogPosts,
   listPublicStoreReviews,
   listSocialProviderCards,
@@ -75,11 +77,56 @@ describe('store content engine service', () => {
     );
   });
 
+  it('creates review request links and stores them in the merchant store scope', async () => {
+    const defaultLink = await createReviewRequestLink(
+      STORE_ID,
+      { baseUrl: 'https://mybiz.ai.kr', sourceType: 'store' },
+      { actorProfileId: OWNER_PROFILE_ID },
+    );
+    const orderLink = await createReviewRequestLink(
+      STORE_ID,
+      { baseUrl: 'https://mybiz.ai.kr', sourceId: 'order_completed_1', sourceType: 'order' },
+      { actorProfileId: OWNER_PROFILE_ID },
+    );
+
+    expect(defaultLink.url).toBe('https://mybiz.ai.kr/s/golden-coffee/review');
+    expect(orderLink.url).toBe('https://mybiz.ai.kr/s/golden-coffee/review?source=order&orderId=order_completed_1');
+    expect(orderLink.usage_count).toBe(0);
+    expect(orderLink.submission_count).toBe(0);
+
+    await expect(listReviewRequestLinks(STORE_ID, { actorProfileId: OWNER_PROFILE_ID })).resolves.toContainEqual(
+      expect.objectContaining({ link_id: orderLink.link_id, store_id: STORE_ID }),
+    );
+    await expect(
+      createReviewRequestLink(
+        STORE_ID,
+        { baseUrl: 'https://mybiz.ai.kr', sourceId: 'order_completed_1', sourceType: 'order' },
+        { actorProfileId: OTHER_PROFILE_ID },
+      ),
+    ).rejects.toThrow(/store member/i);
+    await expect(
+      createReviewRequestLink(
+        'store_mint_bbq',
+        { baseUrl: 'https://mybiz.ai.kr', sourceId: 'order_completed_1', sourceType: 'order' },
+        { actorProfileId: OTHER_PROFILE_ID },
+      ),
+    ).rejects.toThrow(/source/i);
+  });
+
   it('rejects invalid, bot, corrupted, and cross-store review actions', async () => {
     await expect(createPendingReview({ rating: 6 })).rejects.toThrow(/rating/i);
     await expect(createPendingReview({ honeypot: 'bot-filled' })).rejects.toThrow(/spam/i);
     await expect(createPendingReview({ body: '!!!!!!!!!!!!!!!!!' })).rejects.toThrow(/review body/i);
     await expect(createPendingReview({ storeSlug: 'mint-izakaya' })).rejects.toThrow(/store slug/i);
+    await expect(createPendingReview({ orderId: 'missing_order', source: 'order' })).rejects.toThrow(/source/i);
+    await expect(
+      createPendingReview({
+        orderId: 'order_completed_1',
+        source: 'order',
+        storeId: 'store_mint_bbq',
+        storeSlug: 'mint-izakaya',
+      }),
+    ).rejects.toThrow(/source/i);
 
     const review = await createPendingReview();
     await expect(
@@ -87,6 +134,17 @@ describe('store content engine service', () => {
         actorProfileId: OTHER_PROFILE_ID,
       }),
     ).rejects.toThrow(/store member/i);
+  });
+
+  it('links valid review request source records without exposing them publicly before approval', async () => {
+    const review = await createPendingReview({ orderId: 'order_completed_1', source: 'order' });
+
+    expect(review.visibility_status).toBe('pending');
+    expect(review.order_id).toBe('order_completed_1');
+    expect(review.customer_id).toBe('customer_hana');
+    await expect(listPublicStoreReviews(STORE_ID)).resolves.not.toContainEqual(
+      expect.objectContaining({ review_id: review.review_id }),
+    );
   });
 
   it('rejects dangerous content URL schemes before storing merchant or customer content', async () => {
@@ -298,6 +356,18 @@ describe('store content engine service', () => {
     expect(migrationSql).toContain('author_profile_id uuid null');
     expect(migrationSql).toContain('uploaded_by uuid null');
     expect(migrationSql).toContain('approved_by uuid null');
+  });
+
+  it('adds a non-destructive review request link table migration', () => {
+    const migrationSql = readFileSync(
+      join(process.cwd(), 'supabase', 'migrations', '20260510_review_request_links.sql'),
+      'utf8',
+    );
+
+    expect(migrationSql).toContain('create table if not exists public.review_request_links');
+    expect(migrationSql).toContain('create index if not exists review_request_links_store_created_idx');
+    expect(migrationSql).toContain('alter table public.review_request_links enable row level security');
+    expect(migrationSql).not.toMatch(/drop table|truncate|delete from/i);
   });
 
   it('keeps live public and social account queries on safe explicit column lists', () => {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import qrcode from 'qrcode-generator';
 import { Link } from 'react-router-dom';
 
 import { EmptyState } from '@/shared/components/EmptyState';
@@ -12,12 +13,15 @@ import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   approveSocialPublishJob,
   archiveStoreBlogPost,
+  buildReviewRequestUrl,
   convertReviewToBlogDraft,
+  createReviewRequestLink,
   createSocialPublishJob,
   createStoreBlogPost,
   createStoreMediaAsset,
   generateCaptionDraft,
   generateTranscriptDraft,
+  listReviewRequestLinks,
   listSocialProviderCards,
   listSocialPublishJobs,
   listStoreBlogPosts,
@@ -30,6 +34,7 @@ import type {
   SocialProvider,
   SocialPublishProvider,
   SocialPublishSourceType,
+  ReviewRequestLinkSourceType,
   StoreBlogPostStatus,
   StoreMediaAsset,
   StoreMediaAssetStatus,
@@ -62,6 +67,57 @@ const mediaStatusTabs: Array<{ label: string; value: StoreMediaAssetStatus | 'al
 ];
 
 const socialProviders: SocialPublishProvider[] = ['threads', 'youtube', 'tiktok', 'naver_blog', 'kakao_share'];
+
+const reviewRequestSourceOptions: Array<{ label: string; value: ReviewRequestLinkSourceType }> = [
+  { label: '매장 기본 링크', value: 'store' },
+  { label: '주문 연결', value: 'order' },
+  { label: '예약 연결', value: 'reservation' },
+  { label: '웨이팅 연결', value: 'waiting' },
+  { label: '고객 연결', value: 'customer' },
+];
+
+function getDashboardBaseUrl() {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return window.location.origin;
+  }
+
+  return 'https://mybiz.ai.kr';
+}
+
+function ReviewRequestQrSvg({ url }: { url: string }) {
+  const modules = useMemo(() => {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+
+    const count = qr.getModuleCount();
+    const cells: Array<{ col: number; row: number }> = [];
+    for (let row = 0; row < count; row += 1) {
+      for (let col = 0; col < count; col += 1) {
+        if (qr.isDark(row, col)) {
+          cells.push({ col, row });
+        }
+      }
+    }
+
+    return { cells, count };
+  }, [url]);
+
+  return (
+    <svg
+      aria-label="리뷰 요청 QR 코드"
+      className="h-48 w-48 rounded-2xl bg-white p-3 shadow-inner"
+      data-review-qr-url={url}
+      role="img"
+      viewBox={`0 0 ${modules.count} ${modules.count}`}
+    >
+      <rect fill="#ffffff" height={modules.count} width={modules.count} x="0" y="0" />
+      {modules.cells.map((cell) => (
+        <rect fill="#0f172a" height="1" key={`${cell.row}-${cell.col}`} width="1" x={cell.col} y={cell.row} />
+      ))}
+    </svg>
+  );
+}
 
 function useActorProfileId() {
   const { session } = useAdminAccess();
@@ -99,6 +155,243 @@ function EmptyStoreGuard() {
       title="매장을 먼저 선택해 주세요"
       description="콘텐츠 엔진은 매장 단위로 리뷰, 블로그, 미디어, 게시 초안을 관리합니다."
     />
+  );
+}
+
+export function ContentReviewRequestsPage() {
+  const { currentStore } = useCurrentStore();
+  const actorProfileId = useActorProfileId();
+  const queryClient = useQueryClient();
+  const [sourceType, setSourceType] = useState<ReviewRequestLinkSourceType>('store');
+  const [sourceId, setSourceId] = useState('');
+  const [copyMessage, setCopyMessage] = useState('');
+  const storeId = currentStore?.id || '';
+  const baseUrl = getDashboardBaseUrl();
+
+  usePageMeta('리뷰 요청 링크', '방문·주문·예약 이후 고객에게 보낼 MyBiz 리뷰 링크와 QR을 준비합니다.');
+
+  const linksQuery = useQuery({
+    queryKey: queryKeys.contentReviewRequests(storeId),
+    queryFn: () => listReviewRequestLinks(storeId, { actorProfileId }),
+    enabled: Boolean(currentStore),
+  });
+  const reviewsQuery = useQuery({
+    queryKey: queryKeys.contentReviews(storeId, 'recent'),
+    queryFn: () => listStoreReviews(storeId, { actorProfileId }),
+    enabled: Boolean(currentStore),
+  });
+
+  const defaultLink = useMemo(() => {
+    if (!currentStore) {
+      return '';
+    }
+
+    return buildReviewRequestUrl({
+      baseUrl,
+      sourceType: 'store',
+      storeSlug: currentStore.slug,
+    });
+  }, [baseUrl, currentStore]);
+
+  const previewLink = useMemo(() => {
+    if (!currentStore || (sourceType !== 'store' && !sourceId.trim())) {
+      return defaultLink;
+    }
+
+    return buildReviewRequestUrl({
+      baseUrl,
+      sourceId: sourceType === 'store' ? undefined : sourceId,
+      sourceType,
+      storeSlug: currentStore.slug,
+    });
+  }, [baseUrl, currentStore, defaultLink, sourceId, sourceType]);
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createReviewRequestLink(
+        storeId,
+        {
+          baseUrl,
+          sourceId: sourceType === 'store' ? undefined : sourceId,
+          sourceType,
+        },
+        { actorProfileId },
+      ),
+    onSuccess: async (link) => {
+      setSourceId('');
+      setCopyMessage('리뷰 요청 링크를 만들었습니다.');
+      await queryClient.invalidateQueries({ queryKey: queryKeys.contentReviewRequests(storeId) });
+      await handleCopyLink(link.url);
+    },
+  });
+
+  async function handleCopyLink(url: string) {
+    if (!url) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyMessage('링크를 클립보드에 복사했습니다.');
+    } catch {
+      setCopyMessage('브라우저 복사 권한이 없어 링크를 직접 선택해 복사해 주세요.');
+    }
+  }
+
+  if (!currentStore) {
+    return <EmptyStoreGuard />;
+  }
+
+  const links = linksQuery.data || [];
+  const latestLink = links[0]?.url || defaultLink;
+  const recentReviews = (reviewsQuery.data || []).slice(0, 4);
+  const canCreate = sourceType === 'store' || Boolean(sourceId.trim());
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="콘텐츠"
+        title="리뷰 요청 링크"
+        description="고객 경험 직후 MyBiz 리뷰를 자연스럽게 요청하고, 접수된 리뷰는 pending 상태로 저장해 점주 승인 후 공개합니다."
+      />
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+        <Panel title="기본 리뷰 링크" subtitle="매장 전체 고객에게 보낼 수 있는 안전한 리뷰 작성 링크입니다.">
+          <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="min-w-0">
+              <p className="break-all rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+                {defaultLink}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button className="btn-primary" onClick={() => void handleCopyLink(defaultLink)} type="button">
+                  링크 복사
+                </button>
+                <Link className="btn-secondary" to={`/dashboard/content/reviews`}>
+                  리뷰 관리로 이동
+                </Link>
+                <button className="btn-secondary" disabled type="button">
+                  QR 이미지 다운로드는 다음 배포에서 제공됩니다.
+                </button>
+              </div>
+              {copyMessage ? <p className="mt-3 text-sm font-semibold text-slate-600">{copyMessage}</p> : null}
+            </div>
+            <ReviewRequestQrSvg url={defaultLink} />
+          </div>
+        </Panel>
+
+        <Panel title="QR 미리보기" subtitle="최근 생성 링크 또는 기본 링크를 QR로 표시합니다.">
+          <div className="flex flex-col items-center gap-4">
+            <ReviewRequestQrSvg url={latestLink} />
+            <p className="break-all text-center text-xs font-semibold leading-5 text-slate-500">{latestLink}</p>
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="연결 링크 생성" subtitle="주문·예약·웨이팅·고객 ID가 매장 범위 안에 있을 때만 리뷰 링크에 연결합니다.">
+        <div className="grid gap-4 lg:grid-cols-[12rem_1fr_auto] lg:items-end">
+          <label>
+            <span className="field-label">연결 유형</span>
+            <select
+              className="input-base"
+              onChange={(event) => setSourceType(event.target.value as ReviewRequestLinkSourceType)}
+              value={sourceType}
+            >
+              {reviewRequestSourceOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="field-label">연결 ID</span>
+            <input
+              className="input-base"
+              disabled={sourceType === 'store'}
+              onChange={(event) => setSourceId(event.target.value)}
+              placeholder={sourceType === 'store' ? '기본 링크는 ID가 필요 없습니다.' : '주문/예약/웨이팅/고객 ID'}
+              value={sourceType === 'store' ? '' : sourceId}
+            />
+          </label>
+          <button
+            className="btn-primary"
+            disabled={!canCreate || createMutation.isPending}
+            onClick={() => createMutation.mutate()}
+            type="button"
+          >
+            링크 생성
+          </button>
+        </div>
+        <p className="mt-4 break-all rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+          {previewLink}
+        </p>
+        {createMutation.error ? (
+          <p className="mt-3 text-sm font-semibold text-red-600">
+            {createMutation.error instanceof Error ? createMutation.error.message : '리뷰 요청 링크를 만들 수 없습니다.'}
+          </p>
+        ) : null}
+      </Panel>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="최근 리뷰 요청" subtitle="점주가 생성한 리뷰 요청 링크입니다.">
+          <div className="space-y-3">
+            {links.map((link) => (
+              <article className="rounded-2xl border border-slate-200 bg-white p-4" key={link.link_id}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase text-slate-500">{link.source_type}</p>
+                    <p className="mt-1 break-all text-sm font-semibold text-slate-700">{link.url}</p>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      조회 {link.usage_count} · 제출 {link.submission_count}
+                    </p>
+                  </div>
+                  <button className="btn-secondary" onClick={() => void handleCopyLink(link.url)} type="button">
+                    복사
+                  </button>
+                </div>
+              </article>
+            ))}
+            {!links.length ? (
+              <EmptyState
+                title="아직 생성한 요청 링크가 없습니다"
+                description="기본 링크는 바로 사용할 수 있고, 주문·예약·웨이팅 연결 링크는 필요할 때 만들 수 있습니다."
+              />
+            ) : null}
+          </div>
+        </Panel>
+
+        <Panel title="최근 제출 리뷰" subtitle="요청 링크 이후 들어온 리뷰는 리뷰 관리에서 승인·숨김·신고 처리합니다.">
+          <div className="space-y-3">
+            {recentReviews.map((review) => (
+              <article className="rounded-2xl border border-slate-200 bg-white p-4" key={review.review_id}>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-500">
+                  <span>{review.rating}점</span>
+                  <span>{review.visibility_status}</span>
+                  {review.content_usage_consent ? <span className="text-emerald-700">콘텐츠 사용 동의</span> : null}
+                </div>
+                <h2 className="mt-2 text-base font-black text-slate-950">{review.title || '제목 없는 리뷰'}</h2>
+                <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{review.body}</p>
+              </article>
+            ))}
+            {!recentReviews.length ? (
+              <EmptyState title="최근 제출 리뷰가 없습니다" description="고객이 리뷰를 남기면 이 영역과 리뷰 관리에 표시됩니다." />
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Link className="btn-primary" to="/dashboard/content/reviews">
+                리뷰 관리로 이동
+              </Link>
+              <Link className="btn-secondary" to="/dashboard/content/blog">
+                블로그 초안 만들기
+              </Link>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      <p className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold leading-6 text-slate-600">
+        분석은 다음 배포에서 제공됩니다. 외부 플랫폼 리뷰를 대신 작성하거나 자동 등록하지 않으며, 고객이 직접 작성한 MyBiz 리뷰만 점주 승인 후 공개됩니다.
+      </p>
+    </div>
   );
 }
 

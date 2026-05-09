@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { Panel } from '@/shared/components/Panel';
+import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   listPublicStoreReviews,
   submitPublicStoreReview,
 } from '@/shared/lib/services/contentEngineService';
+import type { ReviewRequestLinkSourceType } from '@/shared/types/models';
 
 function formatDate(value?: string) {
   if (!value) {
@@ -18,9 +21,18 @@ function formatDate(value?: string) {
   return new Date(value).toLocaleDateString('ko-KR');
 }
 
-export function StoreReviewSection() {
+const requestSourceTypes: ReviewRequestLinkSourceType[] = ['order', 'reservation', 'waiting', 'customer'];
+
+function normalizeRequestSource(value: string | null) {
+  return requestSourceTypes.includes(value as ReviewRequestLinkSourceType)
+    ? (value as ReviewRequestLinkSourceType)
+    : undefined;
+}
+
+export function StoreReviewSection({ showPublishedReviews = true }: { showPublishedReviews?: boolean } = {}) {
   const { publicStore, publicStoreQueryKey } = useStorePublicContext();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({
     body: '',
     contentUsageConsent: false,
@@ -34,10 +46,12 @@ export function StoreReviewSection() {
   const [message, setMessage] = useState<string | null>(null);
   const storeId = publicStore.store.id;
   const storeSlug = publicStore.store.slug;
+  const source = normalizeRequestSource(searchParams.get('source'));
 
   const reviewsQuery = useQuery({
     queryKey: queryKeys.publicStoreReviews(storeId),
     queryFn: () => listPublicStoreReviews(storeId),
+    enabled: showPublishedReviews,
   });
 
   const submitMutation = useMutation({
@@ -48,11 +62,16 @@ export function StoreReviewSection() {
         honeypot: form.honeypot,
         marketingConsent: form.marketingConsent,
         mediaUrl: form.mediaUrl,
+        orderId: searchParams.get('orderId') || undefined,
         rating: form.rating,
+        reservationId: searchParams.get('reservationId') || undefined,
         reviewerDisplayName: form.reviewerDisplayName,
+        source,
         storeId,
         storeSlug,
         title: form.title,
+        waitingId: searchParams.get('waitingId') || undefined,
+        customerId: searchParams.get('customerId') || undefined,
       }),
     onSuccess: async () => {
       setForm({
@@ -76,7 +95,7 @@ export function StoreReviewSection() {
     },
   });
 
-  const reviews = reviewsQuery.data || [];
+  const reviews = showPublishedReviews ? reviewsQuery.data || [] : [];
 
   return (
     <Panel
@@ -164,7 +183,7 @@ export function StoreReviewSection() {
         </form>
 
         <div className="space-y-3">
-          {reviewsQuery.isLoading ? <p className="text-sm font-semibold text-slate-500">리뷰를 불러오는 중입니다.</p> : null}
+          {showPublishedReviews && reviewsQuery.isLoading ? <p className="text-sm font-semibold text-slate-500">리뷰를 불러오는 중입니다.</p> : null}
           {reviews.map((review) => (
             <article className="rounded-3xl border border-slate-200 bg-white p-5" key={review.review_id}>
               <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-500">
@@ -176,11 +195,29 @@ export function StoreReviewSection() {
               <p className="mt-3 text-sm font-semibold text-slate-500">{review.reviewer_display_name || '방문 고객'}</p>
             </article>
           ))}
-          {!reviewsQuery.isLoading && !reviews.length ? (
+          {showPublishedReviews && !reviewsQuery.isLoading && !reviews.length ? (
             <EmptyState title="아직 공개된 리뷰가 없습니다" description="첫 리뷰가 승인되면 이 영역에 표시됩니다." />
           ) : null}
         </div>
       </div>
     </Panel>
+  );
+}
+
+export function StoreReviewRequestPage() {
+  const { publicStore } = useStorePublicContext();
+
+  usePageMeta(
+    `${publicStore.store.name} 리뷰 작성`,
+    `${publicStore.store.name} 방문 경험을 MyBiz 리뷰로 남겨 주세요. 리뷰는 매장 확인 후 공개될 수 있습니다.`,
+  );
+
+  return (
+    <div className="space-y-6">
+      <StoreReviewSection showPublishedReviews={false} />
+      <p className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold leading-6 text-slate-600">
+        이 페이지는 고객이 직접 MyBiz 리뷰를 작성하는 공간입니다. 외부 플랫폼 리뷰를 대신 작성하거나 자동 등록하지 않습니다.
+      </p>
+    </div>
   );
 }

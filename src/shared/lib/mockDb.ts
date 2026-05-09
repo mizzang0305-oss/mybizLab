@@ -79,6 +79,8 @@ function normalizeDatabase(database: Record<string, unknown>) {
     (database.store_public_pages as MvpDatabase['store_public_pages']) ?? seeded.store_public_pages;
   nextDatabase.store_reviews =
     (database.store_reviews as MvpDatabase['store_reviews']) ?? seeded.store_reviews;
+  nextDatabase.review_request_links =
+    (database.review_request_links as MvpDatabase['review_request_links']) ?? seeded.review_request_links;
   nextDatabase.store_blog_posts =
     (database.store_blog_posts as MvpDatabase['store_blog_posts']) ?? seeded.store_blog_posts;
   nextDatabase.store_media_assets =

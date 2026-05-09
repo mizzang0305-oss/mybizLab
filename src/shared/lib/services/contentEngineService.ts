@@ -14,6 +14,8 @@ import type {
   SocialPublishJobStatus,
   SocialPublishProvider,
   SocialPublishSourceType,
+  ReviewRequestLink,
+  ReviewRequestLinkSourceType,
   StoreBlogPost,
   StoreBlogPostSourceType,
   StoreBlogPostStatus,
@@ -48,9 +50,17 @@ export interface SubmitPublicStoreReviewInput {
   rating: number;
   reservationId?: string;
   reviewerDisplayName?: string;
+  source?: ReviewRequestLinkSourceType;
   storeId: string;
   storeSlug?: string;
   title?: string;
+  waitingId?: string;
+}
+
+export interface CreateReviewRequestLinkInput {
+  baseUrl?: string;
+  sourceId?: string;
+  sourceType: ReviewRequestLinkSourceType;
 }
 
 export interface CreateStoreBlogPostInput {
@@ -101,6 +111,7 @@ export interface SocialProviderCard {
 }
 
 const REVIEW_STATUSES: StoreReviewStatus[] = ['pending', 'published', 'hidden', 'reported'];
+const REVIEW_REQUEST_SOURCE_TYPES: ReviewRequestLinkSourceType[] = ['store', 'order', 'reservation', 'waiting', 'customer'];
 const BLOG_STATUSES: StoreBlogPostStatus[] = ['draft', 'scheduled', 'published', 'archived'];
 const MEDIA_ASSET_TYPES: StoreMediaAssetType[] = ['image', 'video'];
 const MEDIA_ASSET_STATUSES: StoreMediaAssetStatus[] = ['draft', 'ready', 'published', 'archived'];
@@ -335,6 +346,24 @@ function mapReviewRow(row: Record<string, unknown>): StoreReview {
   };
 }
 
+function mapReviewRequestLinkRow(row: Record<string, unknown>): ReviewRequestLink {
+  const sourceType = normalizeText(row.source_type) as ReviewRequestLinkSourceType;
+
+  return {
+    link_id: normalizeText(row.link_id || row.id),
+    store_id: normalizeText(row.store_id),
+    created_by: toOptionalText(row.created_by),
+    source_type: REVIEW_REQUEST_SOURCE_TYPES.includes(sourceType) ? sourceType : 'store',
+    source_id: toOptionalText(row.source_id),
+    url: normalizeText(row.url),
+    usage_count: Number(row.usage_count) || 0,
+    submission_count: Number(row.submission_count) || 0,
+    last_used_at: toOptionalText(row.last_used_at),
+    created_at: normalizeText(row.created_at) || nowIso(),
+    updated_at: normalizeText(row.updated_at) || normalizeText(row.created_at) || nowIso(),
+  };
+}
+
 function mapBlogPostRow(row: Record<string, unknown>): StoreBlogPost {
   return {
     post_id: normalizeText(row.post_id || row.id),
@@ -474,6 +503,366 @@ function sortNewestFirst<T extends { created_at: string }>(items: T[]) {
   return items.slice().sort((left, right) => right.created_at.localeCompare(left.created_at));
 }
 
+function getStoreById(storeId: string) {
+  return getDatabase().stores.find((store) => store.id === storeId);
+}
+
+function normalizeReviewRequestBaseUrl(baseUrl?: string) {
+  const normalized = normalizeText(baseUrl) || 'https://mybiz.ai.kr';
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Review request base URL must use http or https.');
+    }
+
+    return parsed.origin;
+  } catch {
+    throw new Error('Review request base URL must be a valid http or https URL.');
+  }
+}
+
+function getReviewSourceId(sourceType: ReviewRequestLinkSourceType, sourceId?: string) {
+  const normalized = normalizeText(sourceId);
+  if (sourceType === 'store') {
+    return undefined;
+  }
+
+  if (!normalized) {
+    throw new Error('Review request source is required.');
+  }
+
+  return normalized;
+}
+
+export function buildReviewRequestUrl({
+  baseUrl,
+  sourceId,
+  sourceType,
+  storeSlug,
+}: {
+  baseUrl?: string;
+  sourceId?: string;
+  sourceType: ReviewRequestLinkSourceType;
+  storeSlug: string;
+}) {
+  assertEnumValue(sourceType, REVIEW_REQUEST_SOURCE_TYPES, 'review request source');
+  const url = new URL(`/s/${encodeURIComponent(normalizeStoreSlug(storeSlug))}/review`, normalizeReviewRequestBaseUrl(baseUrl));
+  const normalizedSourceId = getReviewSourceId(sourceType, sourceId);
+
+  if (sourceType === 'order' && normalizedSourceId) {
+    url.searchParams.set('source', 'order');
+    url.searchParams.set('orderId', normalizedSourceId);
+  }
+
+  if (sourceType === 'reservation' && normalizedSourceId) {
+    url.searchParams.set('source', 'reservation');
+    url.searchParams.set('reservationId', normalizedSourceId);
+  }
+
+  if (sourceType === 'waiting' && normalizedSourceId) {
+    url.searchParams.set('source', 'waiting');
+    url.searchParams.set('waitingId', normalizedSourceId);
+  }
+
+  if (sourceType === 'customer' && normalizedSourceId) {
+    url.searchParams.set('source', 'customer');
+    url.searchParams.set('customerId', normalizedSourceId);
+  }
+
+  return url.toString();
+}
+
+function inferReviewSourceType(input: SubmitPublicStoreReviewInput): ReviewRequestLinkSourceType {
+  const explicitSource = normalizeText(input.source);
+  if (explicitSource) {
+    assertEnumValue(explicitSource as ReviewRequestLinkSourceType, REVIEW_REQUEST_SOURCE_TYPES, 'review request source');
+    return explicitSource as ReviewRequestLinkSourceType;
+  }
+
+  if (normalizeText(input.orderId)) {
+    return 'order';
+  }
+
+  if (normalizeText(input.reservationId)) {
+    return 'reservation';
+  }
+
+  if (normalizeText(input.waitingId)) {
+    return 'waiting';
+  }
+
+  if (normalizeText(input.customerId)) {
+    return 'customer';
+  }
+
+  return 'store';
+}
+
+function getInputReviewSourceId(input: SubmitPublicStoreReviewInput, sourceType: ReviewRequestLinkSourceType) {
+  switch (sourceType) {
+    case 'customer':
+      return normalizeText(input.customerId);
+    case 'order':
+      return normalizeText(input.orderId);
+    case 'reservation':
+      return normalizeText(input.reservationId);
+    case 'waiting':
+      return normalizeText(input.waitingId);
+    case 'store':
+      return '';
+  }
+}
+
+function resolveDemoReviewSource(
+  storeId: string,
+  sourceType: ReviewRequestLinkSourceType,
+  sourceId?: string,
+): { customerId?: string; orderId?: string; reservationId?: string } {
+  if (sourceType === 'store') {
+    return {};
+  }
+
+  const normalizedSourceId = getReviewSourceId(sourceType, sourceId);
+  const database = getDatabase();
+
+  if (sourceType === 'order') {
+    const order = database.orders.find((candidate) => candidate.id === normalizedSourceId && candidate.store_id === storeId);
+    if (!order) {
+      throw new Error('Review request source is invalid or outside this store.');
+    }
+
+    return { customerId: order.customer_id, orderId: order.id };
+  }
+
+  if (sourceType === 'reservation') {
+    const reservation = database.reservations.find(
+      (candidate) => candidate.id === normalizedSourceId && candidate.store_id === storeId,
+    );
+    if (!reservation) {
+      throw new Error('Review request source is invalid or outside this store.');
+    }
+
+    return { customerId: reservation.customer_id, reservationId: reservation.id };
+  }
+
+  if (sourceType === 'waiting') {
+    const waiting = database.waiting_entries.find(
+      (candidate) => candidate.id === normalizedSourceId && candidate.store_id === storeId,
+    );
+    if (!waiting) {
+      throw new Error('Review request source is invalid or outside this store.');
+    }
+
+    return { customerId: waiting.customer_id };
+  }
+
+  const customer = database.customers.find((candidate) => candidate.id === normalizedSourceId && candidate.store_id === storeId);
+  if (!customer) {
+    throw new Error('Review request source is invalid or outside this store.');
+  }
+
+  return { customerId: customer.id };
+}
+
+async function resolveSupabaseReviewSource(
+  client: SupabaseClient,
+  storeId: string,
+  sourceType: ReviewRequestLinkSourceType,
+  sourceId?: string,
+) {
+  if (sourceType === 'store') {
+    return {};
+  }
+
+  const normalizedSourceId = getReviewSourceId(sourceType, sourceId);
+  const tableBySource: Record<Exclude<ReviewRequestLinkSourceType, 'store'>, string> = {
+    customer: 'customers',
+    order: 'orders',
+    reservation: 'reservations',
+    waiting: 'waiting_entries',
+  };
+  const idColumnsBySource: Record<Exclude<ReviewRequestLinkSourceType, 'store'>, string[]> = {
+    customer: ['id', 'customer_id'],
+    order: ['id', 'order_id'],
+    reservation: ['id', 'reservation_id'],
+    waiting: ['id', 'waiting_id'],
+  };
+  const table = tableBySource[sourceType];
+  let lastError: { message?: string } | null = null;
+  let data: Record<string, unknown> | null = null;
+  let sawSuccessfulQuery = false;
+
+  for (const idColumn of idColumnsBySource[sourceType]) {
+    const { data: candidate, error } = await client
+      .from(table)
+      .select(`${idColumn},customer_id,store_id`)
+      .eq('store_id', storeId)
+      .eq(idColumn, normalizedSourceId)
+      .maybeSingle();
+
+    if (error) {
+      lastError = error;
+      continue;
+    }
+
+    sawSuccessfulQuery = true;
+    data = (candidate as Record<string, unknown> | null) || null;
+    if (data) {
+      break;
+    }
+  }
+
+  if (!data) {
+    if (!sawSuccessfulQuery && lastError) {
+      throw new Error(`Failed to validate review request source: ${lastError.message}`);
+    }
+
+    throw new Error('Review request source is invalid or outside this store.');
+  }
+
+  return {
+    customerId: sourceType === 'customer' ? normalizedSourceId : toOptionalText(data.customer_id),
+    orderId: sourceType === 'order' ? normalizedSourceId : undefined,
+    reservationId: sourceType === 'reservation' ? normalizedSourceId : undefined,
+  };
+}
+
+async function resolveReviewSource(input: SubmitPublicStoreReviewInput, options?: ContentServiceOptions) {
+  const sourceType = inferReviewSourceType(input);
+  const sourceId = getInputReviewSourceId(input, sourceType);
+
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      throw new Error('Supabase client is not configured.');
+    }
+
+    return resolveSupabaseReviewSource(client, input.storeId, sourceType, sourceId);
+  }
+
+  return resolveDemoReviewSource(input.storeId, sourceType, sourceId);
+}
+
+async function getSupabaseStoreSlug(storeId: string, options?: ContentServiceOptions) {
+  const client = getContentClient(options);
+  if (!client) {
+    throw new Error('Supabase client is not configured.');
+  }
+
+  const { data, error } = await client.from('stores').select('slug').eq('store_id', storeId).maybeSingle();
+  if (error) {
+    throw new Error(`Failed to load store slug: ${error.message}`);
+  }
+
+  const slug = normalizeStoreSlug(normalizeText((data as Record<string, unknown> | null)?.slug));
+  if (!slug) {
+    throw new Error('Store not found.');
+  }
+
+  return slug;
+}
+
+export async function createReviewRequestLink(
+  storeId: string,
+  input: CreateReviewRequestLinkInput,
+  options?: ContentServiceOptions,
+) {
+  const sourceType = input.sourceType;
+  assertEnumValue(sourceType, REVIEW_REQUEST_SOURCE_TYPES, 'review request source');
+  const sourceId = getReviewSourceId(sourceType, input.sourceId);
+  const timestamp = nowIso();
+
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      throw new Error('Supabase client is not configured.');
+    }
+
+    await resolveSupabaseReviewSource(client, storeId, sourceType, sourceId);
+    const slug = await getSupabaseStoreSlug(storeId, options);
+    const url = buildReviewRequestUrl({
+      baseUrl: input.baseUrl,
+      sourceId,
+      sourceType,
+      storeSlug: slug,
+    });
+    const { data, error } = await client
+      .from('review_request_links')
+      .insert({
+        created_by: options?.actorProfileId || null,
+        source_id: sourceId || null,
+        source_type: sourceType,
+        store_id: storeId,
+        url,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create review request link: ${error.message}`);
+    }
+
+    return mapReviewRequestLinkRow(data as Record<string, unknown>);
+  }
+
+  assertStoreExists(storeId);
+  assertDemoStoreMember(storeId, options?.actorProfileId);
+  resolveDemoReviewSource(storeId, sourceType, sourceId);
+  const store = getStoreById(storeId);
+  if (!store) {
+    throw new Error('Store not found.');
+  }
+
+  const link: ReviewRequestLink = {
+    link_id: createId('review_request_link'),
+    store_id: storeId,
+    created_by: options?.actorProfileId,
+    source_type: sourceType,
+    source_id: sourceId,
+    url: buildReviewRequestUrl({
+      baseUrl: input.baseUrl,
+      sourceId,
+      sourceType,
+      storeSlug: store.slug,
+    }),
+    usage_count: 0,
+    submission_count: 0,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+
+  updateDatabase((database) => {
+    database.review_request_links.unshift(link);
+  });
+
+  return link;
+}
+
+export async function listReviewRequestLinks(storeId: string, options?: ContentServiceOptions) {
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('review_request_links')
+      .select('*')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to list review request links: ${error.message}`);
+    }
+
+    return (data || []).map((row) => mapReviewRequestLinkRow(row as Record<string, unknown>));
+  }
+
+  assertDemoStoreMember(storeId, options?.actorProfileId);
+  return sortNewestFirst(getDatabase().review_request_links.filter((link) => link.store_id === storeId));
+}
+
 export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInput, options?: ContentServiceOptions) {
   if (!options?.client && IS_LIVE_RUNTIME && typeof window !== 'undefined') {
     return requestPublicApi<StoreReview>('/api/public/review', {
@@ -492,18 +881,19 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
       throw new Error('Supabase client is not configured.');
     }
 
+    const source = await resolveReviewSource(input, options);
     const { data, error } = await client
       .from('store_reviews')
       .insert({
         body: normalized.body,
         content_usage_consent: input.contentUsageConsent === true,
-        customer_id: input.customerId || null,
+        customer_id: source.customerId || null,
         keywords: [],
         marketing_consent: input.marketingConsent === true,
         media_urls: normalized.mediaUrls,
-        order_id: input.orderId || null,
+        order_id: source.orderId || null,
         rating: input.rating,
-        reservation_id: input.reservationId || null,
+        reservation_id: source.reservationId || null,
         reviewer_display_name: normalizeText(input.reviewerDisplayName) || null,
         store_id: input.storeId,
         title: normalized.title || null,
@@ -521,12 +911,13 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
 
   assertStoreExists(input.storeId);
   assertStoreSlugMatches(input.storeId, input.storeSlug);
+  const source = await resolveReviewSource(input);
   const review: StoreReview = {
     review_id: createId('store_review'),
     store_id: input.storeId,
-    customer_id: toOptionalText(input.customerId),
-    order_id: toOptionalText(input.orderId),
-    reservation_id: toOptionalText(input.reservationId),
+    customer_id: toOptionalText(source.customerId),
+    order_id: toOptionalText(source.orderId),
+    reservation_id: toOptionalText(source.reservationId),
     rating: input.rating,
     title: normalized.title,
     body: normalized.body,
