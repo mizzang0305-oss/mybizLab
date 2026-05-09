@@ -263,12 +263,27 @@ export interface StoreReview {
   updated_at: string;
 }
 
+export interface PublicStoreReview {
+  review_id: string;
+  rating: number;
+  title?: string;
+  body: string;
+  media_urls: string[];
+  reviewer_display_name?: string;
+  created_at: string;
+  merchant_reply?: string;
+}
+
 export interface ReviewRequestLink {
   link_id: string;
   store_id: string;
   created_by?: string;
   source_type: ReviewRequestLinkSourceType;
   source_id?: string;
+  public_token?: string;
+  expires_at?: string;
+  disabled_at?: string;
+  max_uses?: number;
   url: string;
   usage_count: number;
   submission_count: number;

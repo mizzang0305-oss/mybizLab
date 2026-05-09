@@ -14,7 +14,7 @@ export type PublicRequestLike =
       url?: string;
     };
 
-export function methodNotAllowed(allow: 'GET' | 'POST') {
+export function methodNotAllowed(allow: 'GET' | 'POST' | 'GET, POST') {
   return new Response('Method Not Allowed', {
     status: 405,
     headers: { allow },

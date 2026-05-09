@@ -200,6 +200,7 @@ export function ContentReviewRequestsPage() {
 
     return buildReviewRequestUrl({
       baseUrl,
+      publicToken: sourceType === 'store' ? undefined : 'review-token-created-after-save',
       sourceId: sourceType === 'store' ? undefined : sourceId,
       sourceType,
       storeSlug: currentStore.slug,
@@ -243,7 +244,8 @@ export function ContentReviewRequestsPage() {
   }
 
   const links = linksQuery.data || [];
-  const latestLink = links[0]?.url || defaultLink;
+  const defaultReviewLink = links.find((link) => link.source_type === 'store')?.url || defaultLink;
+  const latestLink = links[0]?.url || defaultReviewLink;
   const recentReviews = (reviewsQuery.data || []).slice(0, 4);
   const canCreate = sourceType === 'store' || Boolean(sourceId.trim());
 
@@ -260,10 +262,10 @@ export function ContentReviewRequestsPage() {
           <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
             <div className="min-w-0">
               <p className="break-all rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
-                {defaultLink}
+                {defaultReviewLink}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <button className="btn-primary" onClick={() => void handleCopyLink(defaultLink)} type="button">
+                <button className="btn-primary" onClick={() => void handleCopyLink(defaultReviewLink)} type="button">
                   링크 복사
                 </button>
                 <Link className="btn-secondary" to={`/dashboard/content/reviews`}>
@@ -275,7 +277,7 @@ export function ContentReviewRequestsPage() {
               </div>
               {copyMessage ? <p className="mt-3 text-sm font-semibold text-slate-600">{copyMessage}</p> : null}
             </div>
-            <ReviewRequestQrSvg url={defaultLink} />
+            <ReviewRequestQrSvg url={defaultReviewLink} />
           </div>
         </Panel>
 
@@ -341,6 +343,13 @@ export function ContentReviewRequestsPage() {
                   <div className="min-w-0">
                     <p className="text-xs font-black uppercase text-slate-500">{link.source_type}</p>
                     <p className="mt-1 break-all text-sm font-semibold text-slate-700">{link.url}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {link.disabled_at
+                        ? 'disabled'
+                        : link.expires_at
+                          ? `expires ${new Date(link.expires_at).toLocaleDateString('ko-KR')}`
+                          : 'active'}
+                    </p>
                     <p className="mt-2 text-xs font-semibold text-slate-500">
                       조회 {link.usage_count} · 제출 {link.submission_count}
                     </p>

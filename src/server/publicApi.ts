@@ -8,7 +8,11 @@ import {
 } from './billingApiRuntime.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
-import { submitPublicStoreReview } from '../shared/lib/services/contentEngineService.js';
+import {
+  listPublicStoreReviews,
+  submitPublicStoreReview,
+  toPublicStoreReviewDto,
+} from '../shared/lib/services/contentEngineService.js';
 import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '../shared/lib/services/inquiryService.js';
 import {
   getPublicConsultationSnapshot,
@@ -1210,7 +1214,31 @@ export async function handlePublicReviewRequest(request: PublicApiRequestLike) {
       },
     );
 
-    return responseJson({ ok: true, data: review });
+    return responseJson({ ok: true, data: toPublicStoreReviewDto(review) });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+export async function handlePublicReviewListRequest(request: PublicApiRequestLike) {
+  try {
+    const url = getRequestUrl(request);
+    const storeSlug = normalizeText(url.searchParams.get('storeSlug') || url.searchParams.get('slug'));
+    if (!storeSlug) {
+      return createPublicApiErrorResponse(new Error('storeSlug is required.'), 400);
+    }
+
+    const snapshot = await buildPublicStoreSnapshot({ slug: storeSlug });
+    if (!snapshot) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
+
+    const reviews = await listPublicStoreReviews(snapshot.store.id, {
+      client: getSupabaseAdminClient(),
+      storeSlug: snapshot.store.slug,
+    });
+
+    return responseJson({ ok: true, data: reviews });
   } catch (error) {
     return createPublicApiErrorResponse(error);
   }

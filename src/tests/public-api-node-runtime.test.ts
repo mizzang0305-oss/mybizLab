@@ -57,10 +57,104 @@ import {
   handlePublicInquiryFormRequest,
   handlePublicInquiryRequest,
   handlePublicReservationRequest,
+  handlePublicReviewListRequest,
   handlePublicStoreRequest,
   handlePublicVisitorSessionRequest,
   handlePublicWaitingRequest,
 } from '../server/publicApi';
+
+function createSupabaseListClient(rowsByTable: Record<string, Record<string, unknown>[]>) {
+  return {
+    from: vi.fn((table: string) => {
+      const rows = rowsByTable[table] || [];
+      const query = {
+        eq: vi.fn(() => query),
+        maybeSingle: vi.fn(async () => ({ data: rows[0] || null, error: null })),
+        order: vi.fn(async () => ({ data: rows, error: null })),
+        select: vi.fn(() => query),
+        single: vi.fn(async () => ({ data: rows[0] || null, error: null })),
+        then: (resolve: (value: { data: Record<string, unknown>[]; error: null }) => unknown) =>
+          Promise.resolve({ data: rows, error: null }).then(resolve),
+      };
+
+      return query;
+    }),
+  };
+}
+
+function createLiveStoreFixture() {
+  return {
+    id: 'store-live',
+    store_id: 'store-live',
+    name: 'MyBiz Live Cafe',
+    slug: 'mybiz-live-cafe',
+    brand_color: '#ec5b13',
+    logo_url: '',
+    tagline: '데이터로 더 잘 파는 카페',
+    description: '문의와 예약을 함께 받는 공개 페이지입니다.',
+    business_type: '카페',
+    phone: '010-1111-2222',
+    email: 'live@example.com',
+    address: '서울 성동구 테스트로 18',
+    public_status: 'public',
+    homepage_visible: true,
+    consultation_enabled: true,
+    inquiry_enabled: true,
+    reservation_enabled: true,
+    order_entry_enabled: true,
+    preview_target: 'storefront',
+    theme_preset: 'light',
+    brand_config: {
+      owner_name: '테스트 점주',
+      business_number: '',
+      phone: '010-1111-2222',
+      email: 'live@example.com',
+      address: '서울 성동구 테스트로 18',
+      business_type: '카페',
+    },
+    created_at: '2026-04-24T00:00:00.000Z',
+    updated_at: '2026-04-24T00:00:00.000Z',
+  };
+}
+
+function createLiveStorePublicPageFixture() {
+  return {
+    id: 'page-live',
+    store_id: 'store-live',
+    slug: 'mybiz-live-cafe',
+    brand_name: 'MyBiz Live Cafe',
+    brand_color: '#ec5b13',
+    tagline: '데이터로 더 잘 파는 카페',
+    description: '문의와 예약을 함께 받는 공개 페이지입니다.',
+    business_type: '카페',
+    phone: '010-1111-2222',
+    email: 'live@example.com',
+    address: '서울 성동구 테스트로 18',
+    directions: '',
+    opening_hours: '',
+    parking_note: '',
+    public_status: 'public',
+    homepage_visible: true,
+    consultation_enabled: true,
+    inquiry_enabled: true,
+    reservation_enabled: true,
+    order_entry_enabled: true,
+    theme_preset: 'light',
+    preview_target: 'storefront',
+    hero_title: 'MyBiz Live Cafe',
+    hero_subtitle: '데이터로 더 잘 파는 카페',
+    hero_description: '문의와 예약을 함께 받는 공개 페이지입니다.',
+    primary_cta_label: '메뉴 보기',
+    mobile_cta_label: '메뉴 보기',
+    cta_config: {},
+    content_blocks: [],
+    seo_metadata: {},
+    media: [],
+    notices: [],
+    created_at: '2026-04-24T00:00:00.000Z',
+    updated_at: '2026-04-24T00:00:00.000Z',
+  };
+}
 
 describe('public API node runtime compatibility', () => {
   beforeEach(() => {
@@ -236,6 +330,64 @@ describe('public API node runtime compatibility', () => {
           address: '',
         },
       },
+    });
+  });
+
+  it('returns public review API responses as safe DTOs only', async () => {
+    getSupabaseAdminClient.mockReturnValue(
+      createSupabaseListClient({
+        store_reviews: [
+          {
+            review_id: 'review_live_public',
+            store_id: 'store-live',
+            customer_id: 'customer_private',
+            order_id: 'order_private',
+            reservation_id: 'reservation_private',
+            rating: 5,
+            title: '좋은 방문',
+            body: '직원이 친절했고 다시 방문하고 싶습니다.',
+            media_urls: ['https://example.com/review.jpg', 'javascript:alert(1)'],
+            reviewer_display_name: '방문 고객',
+            marketing_consent: true,
+            content_usage_consent: true,
+            visibility_status: 'published',
+            keywords: ['internal'],
+            ai_summary: 'internal summary',
+            created_at: '2026-05-10T00:00:00.000Z',
+            updated_at: '2026-05-10T00:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    createSupabaseRepository.mockReturnValue({
+      findStoreById: vi.fn().mockResolvedValue(null),
+      findStoreBySlug: vi.fn().mockResolvedValue(createLiveStoreFixture()),
+      getStorePublicPage: vi.fn().mockResolvedValue(createLiveStorePublicPageFixture()),
+      listInquiries: vi.fn().mockResolvedValue([]),
+    });
+
+    const response = await handlePublicReviewListRequest({
+      headers: {
+        host: 'example.com',
+      },
+      method: 'GET',
+      url: '/api/public/review?storeSlug=mybiz-live-cafe',
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: [
+        {
+          body: '직원이 친절했고 다시 방문하고 싶습니다.',
+          created_at: '2026-05-10T00:00:00.000Z',
+          media_urls: ['https://example.com/review.jpg'],
+          rating: 5,
+          review_id: 'review_live_public',
+          reviewer_display_name: '방문 고객',
+          title: '좋은 방문',
+        },
+      ],
     });
   });
 

@@ -47,10 +47,11 @@ export function StoreReviewSection({ showPublishedReviews = true }: { showPublis
   const storeId = publicStore.store.id;
   const storeSlug = publicStore.store.slug;
   const source = normalizeRequestSource(searchParams.get('source'));
+  const reviewRequestToken = searchParams.get('r') || undefined;
 
   const reviewsQuery = useQuery({
     queryKey: queryKeys.publicStoreReviews(storeId),
-    queryFn: () => listPublicStoreReviews(storeId),
+    queryFn: () => listPublicStoreReviews(storeId, { storeSlug }),
     enabled: showPublishedReviews,
   });
 
@@ -65,6 +66,7 @@ export function StoreReviewSection({ showPublishedReviews = true }: { showPublis
         orderId: searchParams.get('orderId') || undefined,
         rating: form.rating,
         reservationId: searchParams.get('reservationId') || undefined,
+        reviewRequestToken,
         reviewerDisplayName: form.reviewerDisplayName,
         source,
         storeId,

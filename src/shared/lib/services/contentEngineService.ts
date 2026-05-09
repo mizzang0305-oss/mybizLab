@@ -14,6 +14,7 @@ import type {
   SocialPublishJobStatus,
   SocialPublishProvider,
   SocialPublishSourceType,
+  PublicStoreReview,
   ReviewRequestLink,
   ReviewRequestLinkSourceType,
   StoreBlogPost,
@@ -49,6 +50,7 @@ export interface SubmitPublicStoreReviewInput {
   orderId?: string;
   rating: number;
   reservationId?: string;
+  reviewRequestToken?: string;
   reviewerDisplayName?: string;
   source?: ReviewRequestLinkSourceType;
   storeId: string;
@@ -59,6 +61,9 @@ export interface SubmitPublicStoreReviewInput {
 
 export interface CreateReviewRequestLinkInput {
   baseUrl?: string;
+  disabledAt?: string;
+  expiresAt?: string;
+  maxUses?: number;
   sourceId?: string;
   sourceType: ReviewRequestLinkSourceType;
 }
@@ -127,8 +132,7 @@ const SOCIAL_JOB_STATUSES: SocialPublishJobStatus[] = [
   'failed',
   'canceled',
 ];
-const PUBLIC_REVIEW_COLUMNS =
-  'review_id,store_id,rating,title,body,media_urls,reviewer_display_name,visibility_status,created_at,updated_at';
+const PUBLIC_REVIEW_COLUMNS = 'review_id,rating,title,body,media_urls,reviewer_display_name,created_at';
 const PUBLIC_BLOG_POST_COLUMNS =
   'post_id,store_id,title,slug,excerpt,body,cover_image_url,media_urls,status,published_at,seo_title,seo_description,tags,created_at,updated_at';
 const SOCIAL_ACCOUNT_SAFE_COLUMNS =
@@ -194,7 +198,7 @@ function toOptionalText(value: unknown) {
 }
 
 function isSupabaseContentEnabled(options?: ContentServiceOptions) {
-  return DATA_PROVIDER === 'supabase' && Boolean(options?.client || supabase);
+  return Boolean(options?.client) || (DATA_PROVIDER === 'supabase' && Boolean(supabase));
 }
 
 function getContentClient(options?: ContentServiceOptions) {
@@ -346,8 +350,34 @@ function mapReviewRow(row: Record<string, unknown>): StoreReview {
   };
 }
 
+export function toPublicStoreReviewDto(review: StoreReview | Record<string, unknown>): PublicStoreReview {
+  const row = review as Record<string, unknown>;
+
+  return {
+    review_id: normalizeText(row.review_id || row.id),
+    rating: Number(row.rating) || 0,
+    title: toOptionalText(row.title),
+    body: normalizeText(row.body),
+    media_urls: normalizeSafePublicMediaUrls(row.media_urls),
+    reviewer_display_name: toOptionalText(row.reviewer_display_name),
+    created_at: normalizeText(row.created_at) || nowIso(),
+  };
+}
+
+function normalizeSafePublicMediaUrls(value: unknown) {
+  return toStringArray(value).filter((url) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  });
+}
+
 function mapReviewRequestLinkRow(row: Record<string, unknown>): ReviewRequestLink {
   const sourceType = normalizeText(row.source_type) as ReviewRequestLinkSourceType;
+  const maxUses = row.max_uses === null || row.max_uses === undefined ? undefined : Number(row.max_uses);
 
   return {
     link_id: normalizeText(row.link_id || row.id),
@@ -355,6 +385,10 @@ function mapReviewRequestLinkRow(row: Record<string, unknown>): ReviewRequestLin
     created_by: toOptionalText(row.created_by),
     source_type: REVIEW_REQUEST_SOURCE_TYPES.includes(sourceType) ? sourceType : 'store',
     source_id: toOptionalText(row.source_id),
+    public_token: toOptionalText(row.public_token),
+    expires_at: toOptionalText(row.expires_at),
+    disabled_at: toOptionalText(row.disabled_at),
+    max_uses: Number.isFinite(maxUses) && maxUses ? maxUses : undefined,
     url: normalizeText(row.url),
     usage_count: Number(row.usage_count) || 0,
     submission_count: Number(row.submission_count) || 0,
@@ -535,19 +569,63 @@ function getReviewSourceId(sourceType: ReviewRequestLinkSourceType, sourceId?: s
   return normalized;
 }
 
+function createReviewRequestPublicToken() {
+  const randomValue =
+    typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : createId('review_request_token');
+
+  return `rr_${randomValue.replace(/[^a-zA-Z0-9]/g, '').slice(0, 48)}`;
+}
+
+function normalizeOptionalIsoDate(value: unknown, label: string) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`${label} must be a valid date.`);
+  }
+
+  return parsed.toISOString();
+}
+
+function normalizeOptionalMaxUses(value: unknown) {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const normalized = Number(value);
+  if (!Number.isInteger(normalized) || normalized <= 0) {
+    throw new Error('Review request max uses must be a positive integer.');
+  }
+
+  return normalized;
+}
+
 export function buildReviewRequestUrl({
   baseUrl,
+  publicToken,
   sourceId,
   sourceType,
   storeSlug,
 }: {
   baseUrl?: string;
+  publicToken?: string;
   sourceId?: string;
   sourceType: ReviewRequestLinkSourceType;
   storeSlug: string;
 }) {
   assertEnumValue(sourceType, REVIEW_REQUEST_SOURCE_TYPES, 'review request source');
   const url = new URL(`/s/${encodeURIComponent(normalizeStoreSlug(storeSlug))}/review`, normalizeReviewRequestBaseUrl(baseUrl));
+  const normalizedPublicToken = normalizeText(publicToken);
+  if (normalizedPublicToken) {
+    url.searchParams.set('r', normalizedPublicToken);
+    return url.toString();
+  }
+
   const normalizedSourceId = getReviewSourceId(sourceType, sourceId);
 
   if (sourceType === 'order' && normalizedSourceId) {
@@ -728,19 +806,114 @@ async function resolveSupabaseReviewSource(
   };
 }
 
-async function resolveReviewSource(input: SubmitPublicStoreReviewInput, options?: ContentServiceOptions) {
-  const sourceType = inferReviewSourceType(input);
-  const sourceId = getInputReviewSourceId(input, sourceType);
+type ResolvedReviewSource = {
+  customerId?: string;
+  orderId?: string;
+  requestLinkId?: string;
+  requestLinkSubmissionCount?: number;
+  requestLinkUsageCount?: number;
+  reservationId?: string;
+};
 
+function assertReviewRequestLinkUsable(link: ReviewRequestLink) {
+  if (link.disabled_at) {
+    throw new Error('Review request token is disabled.');
+  }
+
+  if (link.expires_at && Date.parse(link.expires_at) <= Date.now()) {
+    throw new Error('Review request token is expired.');
+  }
+
+  if (link.max_uses && link.usage_count >= link.max_uses) {
+    throw new Error('Review request token usage limit has been reached.');
+  }
+}
+
+function resolveDemoReviewRequestToken(input: SubmitPublicStoreReviewInput): ResolvedReviewSource | null {
+  const token = normalizeText(input.reviewRequestToken);
+  if (!token) {
+    return null;
+  }
+
+  const link = getDatabase().review_request_links.find((candidate) => candidate.public_token === token);
+  if (!link) {
+    throw new Error('Review request token is invalid.');
+  }
+
+  if (link.store_id !== input.storeId) {
+    throw new Error('Review request token does not match this store.');
+  }
+
+  assertReviewRequestLinkUsable(link);
+  return {
+    ...resolveDemoReviewSource(link.store_id, link.source_type, link.source_id),
+    requestLinkId: link.link_id,
+    requestLinkSubmissionCount: link.submission_count,
+    requestLinkUsageCount: link.usage_count,
+  };
+}
+
+async function resolveSupabaseReviewRequestToken(
+  client: SupabaseClient,
+  input: SubmitPublicStoreReviewInput,
+): Promise<ResolvedReviewSource | null> {
+  const token = normalizeText(input.reviewRequestToken);
+  if (!token) {
+    return null;
+  }
+
+  const { data, error } = await client
+    .from('review_request_links')
+    .select('*')
+    .eq('public_token', token)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to validate review request token: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error('Review request token is invalid.');
+  }
+
+  const link = mapReviewRequestLinkRow(data as Record<string, unknown>);
+  if (link.store_id !== input.storeId) {
+    throw new Error('Review request token does not match this store.');
+  }
+
+  assertReviewRequestLinkUsable(link);
+  return {
+    ...(await resolveSupabaseReviewSource(client, input.storeId, link.source_type, link.source_id)),
+    requestLinkId: link.link_id,
+    requestLinkSubmissionCount: link.submission_count,
+    requestLinkUsageCount: link.usage_count,
+  };
+}
+
+async function resolveReviewSource(input: SubmitPublicStoreReviewInput, options?: ContentServiceOptions) {
   if (isSupabaseContentEnabled(options)) {
     const client = getContentClient(options);
     if (!client) {
       throw new Error('Supabase client is not configured.');
     }
 
+    const tokenSource = await resolveSupabaseReviewRequestToken(client, input);
+    if (tokenSource) {
+      return tokenSource;
+    }
+
+    const sourceType = inferReviewSourceType(input);
+    const sourceId = getInputReviewSourceId(input, sourceType);
     return resolveSupabaseReviewSource(client, input.storeId, sourceType, sourceId);
   }
 
+  const tokenSource = resolveDemoReviewRequestToken(input);
+  if (tokenSource) {
+    return tokenSource;
+  }
+
+  const sourceType = inferReviewSourceType(input);
+  const sourceId = getInputReviewSourceId(input, sourceType);
   return resolveDemoReviewSource(input.storeId, sourceType, sourceId);
 }
 
@@ -771,6 +944,10 @@ export async function createReviewRequestLink(
   const sourceType = input.sourceType;
   assertEnumValue(sourceType, REVIEW_REQUEST_SOURCE_TYPES, 'review request source');
   const sourceId = getReviewSourceId(sourceType, input.sourceId);
+  const publicToken = createReviewRequestPublicToken();
+  const expiresAt = normalizeOptionalIsoDate(input.expiresAt, 'Review request expiration');
+  const disabledAt = normalizeOptionalIsoDate(input.disabledAt, 'Review request disabled timestamp');
+  const maxUses = normalizeOptionalMaxUses(input.maxUses);
   const timestamp = nowIso();
 
   if (isSupabaseContentEnabled(options)) {
@@ -783,6 +960,7 @@ export async function createReviewRequestLink(
     const slug = await getSupabaseStoreSlug(storeId, options);
     const url = buildReviewRequestUrl({
       baseUrl: input.baseUrl,
+      publicToken,
       sourceId,
       sourceType,
       storeSlug: slug,
@@ -791,6 +969,10 @@ export async function createReviewRequestLink(
       .from('review_request_links')
       .insert({
         created_by: options?.actorProfileId || null,
+        disabled_at: disabledAt || null,
+        expires_at: expiresAt || null,
+        max_uses: maxUses || null,
+        public_token: publicToken,
         source_id: sourceId || null,
         source_type: sourceType,
         store_id: storeId,
@@ -820,8 +1002,13 @@ export async function createReviewRequestLink(
     created_by: options?.actorProfileId,
     source_type: sourceType,
     source_id: sourceId,
+    public_token: publicToken,
+    expires_at: expiresAt,
+    disabled_at: disabledAt,
+    max_uses: maxUses,
     url: buildReviewRequestUrl({
       baseUrl: input.baseUrl,
+      publicToken,
       sourceId,
       sourceType,
       storeSlug: store.slug,
@@ -861,6 +1048,65 @@ export async function listReviewRequestLinks(storeId: string, options?: ContentS
 
   assertDemoStoreMember(storeId, options?.actorProfileId);
   return sortNewestFirst(getDatabase().review_request_links.filter((link) => link.store_id === storeId));
+}
+
+async function recordReviewRequestTokenUse(storeId: string, source: ResolvedReviewSource, timestamp: string, options?: ContentServiceOptions) {
+  if (!source.requestLinkId) {
+    return;
+  }
+
+  const nextUsageCount = (source.requestLinkUsageCount || 0) + 1;
+  const nextSubmissionCount = (source.requestLinkSubmissionCount || 0) + 1;
+
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      return;
+    }
+
+    const { error } = await client
+      .from('review_request_links')
+      .update({
+        last_used_at: timestamp,
+        submission_count: nextSubmissionCount,
+        updated_at: timestamp,
+        usage_count: nextUsageCount,
+      })
+      .eq('store_id', storeId)
+      .eq('link_id', source.requestLinkId);
+
+    if (error) {
+      console.warn('[content-engine] Failed to record review request link usage.', {
+        linkId: source.requestLinkId,
+        storeId,
+      });
+    }
+  }
+}
+
+function applyDemoReviewRequestTokenUse(
+  database: ReturnType<typeof getDatabase>,
+  storeId: string,
+  source: ResolvedReviewSource,
+  timestamp: string,
+) {
+  if (!source.requestLinkId) {
+    return;
+  }
+
+  database.review_request_links = database.review_request_links.map((link) => {
+    if (link.store_id !== storeId || link.link_id !== source.requestLinkId) {
+      return link;
+    }
+
+    return {
+      ...link,
+      last_used_at: timestamp,
+      submission_count: (source.requestLinkSubmissionCount || link.submission_count || 0) + 1,
+      updated_at: timestamp,
+      usage_count: (source.requestLinkUsageCount || link.usage_count || 0) + 1,
+    };
+  });
 }
 
 export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInput, options?: ContentServiceOptions) {
@@ -906,6 +1152,7 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
       throw new Error(`Failed to submit review: ${error.message}`);
     }
 
+    await recordReviewRequestTokenUse(input.storeId, source, timestamp, options);
     return mapReviewRow(data as Record<string, unknown>);
   }
 
@@ -933,6 +1180,7 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
 
   updateDatabase((database) => {
     database.store_reviews.unshift(review);
+    applyDemoReviewRequestTokenUse(database, input.storeId, source, timestamp);
   });
 
   return review;
@@ -970,7 +1218,20 @@ export async function listStoreReviews(
   return sortNewestFirst(reviews);
 }
 
-export async function listPublicStoreReviews(storeId: string, options?: ContentServiceOptions) {
+export async function listPublicStoreReviews(
+  storeId: string,
+  options?: ContentServiceOptions & { storeSlug?: string },
+): Promise<PublicStoreReview[]> {
+  if (!options?.client && IS_LIVE_RUNTIME && typeof window !== 'undefined' && options?.storeSlug) {
+    return requestPublicApi<PublicStoreReview[]>(
+      `/api/public/review?storeSlug=${encodeURIComponent(normalizeStoreSlug(options.storeSlug))}`,
+      {
+        method: 'GET',
+        timeoutMs: 12000,
+      },
+    );
+  }
+
   if (isSupabaseContentEnabled(options)) {
     const client = getContentClient(options);
     if (!client) {
@@ -988,11 +1249,14 @@ export async function listPublicStoreReviews(storeId: string, options?: ContentS
       throw new Error(`Failed to list public reviews: ${error.message}`);
     }
 
-    return (data || []).map((row) => mapReviewRow(row as Record<string, unknown>));
+    return (data || []).map((row) => toPublicStoreReviewDto(row as Record<string, unknown>));
   }
 
   return sortNewestFirst(
-    getDatabase().store_reviews.filter((review) => review.store_id === storeId && review.visibility_status === 'published'),
+    getDatabase()
+      .store_reviews
+      .filter((review) => review.store_id === storeId && review.visibility_status === 'published')
+      .map((review) => toPublicStoreReviewDto(review)),
   );
 }
 
