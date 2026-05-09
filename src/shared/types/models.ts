@@ -43,6 +43,23 @@ export type AdminUserRole = 'platform_owner' | 'platform_admin' | 'store_owner' 
 export type AdminUserStatus = 'active' | 'pending' | 'inactive';
 export type InvitationStatus = 'sent' | 'scheduled' | 'accepted' | 'none';
 export type StoreMediaType = 'hero' | 'storefront' | 'interior';
+export type StoreReviewStatus = 'pending' | 'published' | 'hidden' | 'reported';
+export type StoreBlogPostSourceType = 'manual' | 'review' | 'ai' | 'video' | 'campaign';
+export type StoreBlogPostStatus = 'draft' | 'scheduled' | 'published' | 'archived';
+export type StoreMediaAssetType = 'image' | 'video';
+export type StoreMediaAssetStatus = 'draft' | 'ready' | 'published' | 'archived';
+export type SocialProvider = 'youtube' | 'tiktok' | 'threads' | 'naver_blog' | 'kakao_share';
+export type SocialPublishProvider = SocialProvider | 'mybiz_blog';
+export type SocialAccountStatus = 'not_connected' | 'connected' | 'expired' | 'revoked' | 'disabled';
+export type SocialPublishSourceType = 'review' | 'blog_post' | 'media' | 'manual';
+export type SocialPublishJobStatus =
+  | 'draft'
+  | 'waiting_approval'
+  | 'queued'
+  | 'publishing'
+  | 'published'
+  | 'failed'
+  | 'canceled';
 export type SystemStatusState = 'active' | 'ready' | 'warning' | 'pending' | 'error';
 export type CustomerContactType = 'phone' | 'email';
 export type CustomerPreferredChannel = 'sms' | 'phone' | 'email';
@@ -222,6 +239,104 @@ export interface StoreMedia {
   image_url: string;
   caption: string;
   sort_order: number;
+}
+
+export interface StoreReview {
+  review_id: string;
+  store_id: string;
+  customer_id?: string;
+  order_id?: string;
+  reservation_id?: string;
+  rating: number;
+  title?: string;
+  body: string;
+  media_urls: string[];
+  reviewer_display_name?: string;
+  marketing_consent: boolean;
+  content_usage_consent: boolean;
+  visibility_status: StoreReviewStatus;
+  sentiment?: string;
+  keywords: string[];
+  ai_summary?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoreBlogPost {
+  post_id: string;
+  store_id: string;
+  author_profile_id?: string;
+  source_type: StoreBlogPostSourceType;
+  source_review_id?: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  body: string;
+  cover_image_url?: string;
+  media_urls: string[];
+  status: StoreBlogPostStatus;
+  published_at?: string;
+  seo_title?: string;
+  seo_description?: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoreMediaAsset {
+  asset_id: string;
+  store_id: string;
+  uploaded_by?: string;
+  asset_type: StoreMediaAssetType;
+  url: string;
+  storage_path?: string;
+  thumbnail_url?: string;
+  alt_text?: string;
+  duration_seconds?: number;
+  transcript?: string;
+  captions_vtt?: string;
+  captions_srt?: string;
+  ai_title?: string;
+  ai_description?: string;
+  ai_hashtags: string[];
+  status: StoreMediaAssetStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SocialAccount {
+  account_id: string;
+  store_id: string;
+  provider: SocialProvider;
+  provider_account_id?: string;
+  display_name?: string;
+  oauth_status: SocialAccountStatus;
+  access_token_encrypted?: string;
+  refresh_token_encrypted?: string;
+  token_expires_at?: string;
+  scopes: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SocialPublishJob {
+  job_id: string;
+  store_id: string;
+  provider: SocialPublishProvider;
+  source_type: SocialPublishSourceType;
+  source_id?: string;
+  caption?: string;
+  hashtags: string[];
+  status: SocialPublishJobStatus;
+  provider_post_id?: string;
+  provider_url?: string;
+  error_code?: string;
+  error_message?: string;
+  approved_by?: string;
+  approved_at?: string;
+  published_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface StoreLocation {
@@ -774,6 +889,11 @@ export interface MvpDatabase {
   stores: Store[];
   store_subscriptions: StoreSubscription[];
   store_public_pages: StorePublicPage[];
+  store_reviews: StoreReview[];
+  store_blog_posts: StoreBlogPost[];
+  store_media_assets: StoreMediaAsset[];
+  social_accounts: SocialAccount[];
+  social_publish_jobs: SocialPublishJob[];
   store_analytics_profiles: StoreAnalyticsProfile[];
   store_brand_profiles: StoreBrandProfile[];
   store_media: StoreMedia[];

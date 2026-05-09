@@ -27,6 +27,10 @@ const dashboardNavigationLabelMap: Record<string, string> = {
   '/dashboard/billing': '결제 관리',
   '/dashboard/admin-users': '운영 계정',
   '/dashboard/system': '시스템 현황',
+  '/dashboard/content/reviews': '리뷰 관리',
+  '/dashboard/content/blog': '블로그/소식',
+  '/dashboard/content/media': '사진·영상',
+  '/dashboard/content/social': '게시 초안/소셜',
 };
 
 const dashboardNavigationDescriptionMap: Record<string, string> = {
@@ -45,6 +49,10 @@ const dashboardNavigationDescriptionMap: Record<string, string> = {
   '/dashboard/billing': '결제 상태와 구독 흐름을 운영 화면에서 점검합니다.',
   '/dashboard/admin-users': '운영 계정과 접근 권한 상태를 한 곳에서 관리합니다.',
   '/dashboard/system': '주요 시스템 상태와 운영 경고를 빠르게 확인합니다.',
+  '/dashboard/content/reviews': '고객이 남긴 실제 리뷰를 승인하고 블로그 초안으로 확장합니다.',
+  '/dashboard/content/blog': '매장 소식과 SEO용 글을 초안, 게시, 보관 상태로 관리합니다.',
+  '/dashboard/content/media': '사진과 영상을 URL로 등록하고 캡션·자막 초안을 준비합니다.',
+  '/dashboard/content/social': '외부 채널 게시 초안을 만들되 계정 연동 전에는 자동 게시하지 않습니다.',
 };
 
 function getDashboardNavigationLabel(route: string, fallback: string) {

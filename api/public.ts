@@ -8,6 +8,7 @@ import {
   handlePublicOrderPaymentVerifyRequest,
   handlePublicOrderRequest,
   handlePublicReservationRequest,
+  handlePublicReviewRequest,
   handlePublicStoreRequest,
   handlePublicVisitorSessionRequest,
   handlePublicWaitingRequest,
@@ -86,6 +87,8 @@ async function routePublicRequest(request: PublicRequestLike) {
       return method === 'POST' ? handlePublicReservationRequest(request) : methodNotAllowed('POST');
     case 'waiting':
       return method === 'POST' ? handlePublicWaitingRequest(request) : methodNotAllowed('POST');
+    case 'review':
+      return method === 'POST' ? handlePublicReviewRequest(request) : methodNotAllowed('POST');
     default:
       return notFound();
   }

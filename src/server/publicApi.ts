@@ -8,6 +8,7 @@ import {
 } from './billingApiRuntime.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
+import { submitPublicStoreReview } from '../shared/lib/services/contentEngineService.js';
 import { buildPublicInquirySummary, getPublicInquiryFormSnapshot, submitCanonicalPublicInquiry } from '../shared/lib/services/inquiryService.js';
 import {
   getPublicConsultationSnapshot,
@@ -1173,6 +1174,19 @@ export async function handlePublicWaitingRequest(request: PublicApiRequestLike) 
         waitingEntry,
       },
     });
+  } catch (error) {
+    return createPublicApiErrorResponse(error);
+  }
+}
+
+export async function handlePublicReviewRequest(request: PublicApiRequestLike) {
+  try {
+    const body = await parseJsonBody<Parameters<typeof submitPublicStoreReview>[0]>(request);
+    const review = await submitPublicStoreReview(body, {
+      client: getSupabaseAdminClient(),
+    });
+
+    return responseJson({ ok: true, data: review });
   } catch (error) {
     return createPublicApiErrorResponse(error);
   }

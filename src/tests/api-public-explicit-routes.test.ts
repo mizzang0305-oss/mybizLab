@@ -10,6 +10,7 @@ const publicApiMocks = vi.hoisted(() => ({
   handlePublicOrderPaymentVerifyRequest: vi.fn(),
   handlePublicOrderRequest: vi.fn(),
   handlePublicReservationRequest: vi.fn(),
+  handlePublicReviewRequest: vi.fn(),
   handlePublicStoreRequest: vi.fn(),
   handlePublicVisitorSessionRequest: vi.fn(),
   handlePublicWaitingRequest: vi.fn(),
@@ -64,12 +65,13 @@ describe('/api/public routed handler', () => {
     await expect(rewrittenStoreResponse.json()).resolves.toMatchObject({ kind: 'store' });
   });
 
-  it('routes visitor-session, inquiry, consultation, reservation, waiting, order, and order-customer POST requests to their handlers', async () => {
+  it('routes visitor-session, inquiry, consultation, reservation, waiting, review, order, and order-customer POST requests to their handlers', async () => {
     publicApiMocks.handlePublicVisitorSessionRequest.mockResolvedValueOnce(okResponse('visitor-session'));
     publicApiMocks.handlePublicInquiryRequest.mockResolvedValueOnce(okResponse('inquiry'));
     publicApiMocks.handlePublicConsultationRequest.mockResolvedValueOnce(okResponse('consultation'));
     publicApiMocks.handlePublicReservationRequest.mockResolvedValueOnce(okResponse('reservation'));
     publicApiMocks.handlePublicWaitingRequest.mockResolvedValueOnce(okResponse('waiting'));
+    publicApiMocks.handlePublicReviewRequest.mockResolvedValueOnce(okResponse('review'));
     publicApiMocks.handlePublicOrderRequest.mockResolvedValueOnce(okResponse('order'));
     publicApiMocks.handlePublicOrderCustomerRequest.mockResolvedValueOnce(okResponse('order-customer'));
     publicApiMocks.handlePublicOrderPaymentCheckoutRequest.mockResolvedValueOnce(okResponse('order-payment-checkout'));
@@ -100,6 +102,11 @@ describe('/api/public routed handler', () => {
       method: 'POST',
       url: '/api/public/waiting',
     });
+    const reviewResponse = await publicHandler({
+      body: { body: '좋았습니다.', rating: 5, storeId: 'store-live' },
+      method: 'POST',
+      url: '/api/public/review',
+    });
     const orderResponse = await publicHandler({
       body: { storeSlug: 'golden-coffee' },
       method: 'POST',
@@ -126,6 +133,7 @@ describe('/api/public routed handler', () => {
     expect(publicApiMocks.handlePublicConsultationRequest).toHaveBeenCalledTimes(1);
     expect(publicApiMocks.handlePublicReservationRequest).toHaveBeenCalledTimes(1);
     expect(publicApiMocks.handlePublicWaitingRequest).toHaveBeenCalledTimes(1);
+    expect(publicApiMocks.handlePublicReviewRequest).toHaveBeenCalledTimes(1);
     expect(publicApiMocks.handlePublicOrderRequest).toHaveBeenCalledTimes(1);
     expect(publicApiMocks.handlePublicOrderCustomerRequest).toHaveBeenCalledTimes(1);
     expect(publicApiMocks.handlePublicOrderPaymentCheckoutRequest).toHaveBeenCalledTimes(1);
@@ -135,6 +143,7 @@ describe('/api/public routed handler', () => {
     await expect(consultationResponse.json()).resolves.toMatchObject({ kind: 'consultation' });
     await expect(reservationResponse.json()).resolves.toMatchObject({ kind: 'reservation' });
     await expect(waitingResponse.json()).resolves.toMatchObject({ kind: 'waiting' });
+    await expect(reviewResponse.json()).resolves.toMatchObject({ kind: 'review' });
     await expect(orderResponse.json()).resolves.toMatchObject({ kind: 'order' });
     await expect(orderCustomerResponse.json()).resolves.toMatchObject({ kind: 'order-customer' });
     await expect(orderPaymentCheckoutResponse.json()).resolves.toMatchObject({ kind: 'order-payment-checkout' });
