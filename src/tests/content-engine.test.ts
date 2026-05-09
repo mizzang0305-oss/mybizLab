@@ -65,9 +65,30 @@ describe('store content engine service', () => {
       actorProfileId: OWNER_PROFILE_ID,
     });
     const publicReviews = await listPublicStoreReviews(STORE_ID);
+    const publicReview = publicReviews.find((entry) => entry.review_id === review.review_id) as unknown as Record<string, unknown>;
 
     expect(published.visibility_status).toBe('published');
     expect(publicReviews).toContainEqual(expect.objectContaining({ review_id: review.review_id }));
+    expect(publicReview).toEqual(
+      expect.objectContaining({
+        body: review.body,
+        created_at: review.created_at,
+        media_urls: review.media_urls,
+        rating: review.rating,
+        review_id: review.review_id,
+        reviewer_display_name: review.reviewer_display_name,
+        title: review.title,
+      }),
+    );
+    expect(publicReview).not.toHaveProperty('store_id');
+    expect(publicReview).not.toHaveProperty('customer_id');
+    expect(publicReview).not.toHaveProperty('order_id');
+    expect(publicReview).not.toHaveProperty('reservation_id');
+    expect(publicReview).not.toHaveProperty('marketing_consent');
+    expect(publicReview).not.toHaveProperty('content_usage_consent');
+    expect(publicReview).not.toHaveProperty('visibility_status');
+    expect(publicReview).not.toHaveProperty('keywords');
+    expect(publicReview).not.toHaveProperty('ai_summary');
 
     await updateStoreReviewStatus(STORE_ID, review.review_id, 'hidden', {
       actorProfileId: OWNER_PROFILE_ID,
@@ -89,8 +110,11 @@ describe('store content engine service', () => {
       { actorProfileId: OWNER_PROFILE_ID },
     );
 
-    expect(defaultLink.url).toBe('https://mybiz.ai.kr/s/golden-coffee/review');
-    expect(orderLink.url).toBe('https://mybiz.ai.kr/s/golden-coffee/review?source=order&orderId=order_completed_1');
+    expect(defaultLink.public_token).toBeTruthy();
+    expect(defaultLink.url).toBe(`https://mybiz.ai.kr/s/golden-coffee/review?r=${defaultLink.public_token}`);
+    expect(orderLink.public_token).toBeTruthy();
+    expect(orderLink.url).toBe(`https://mybiz.ai.kr/s/golden-coffee/review?r=${orderLink.public_token}`);
+    expect(orderLink.url).not.toContain('order_completed_1');
     expect(orderLink.usage_count).toBe(0);
     expect(orderLink.submission_count).toBe(0);
 
@@ -111,6 +135,78 @@ describe('store content engine service', () => {
         { actorProfileId: OTHER_PROFILE_ID },
       ),
     ).rejects.toThrow(/source/i);
+  });
+
+  it('resolves review request public tokens safely and records successful token use', async () => {
+    const link = await createReviewRequestLink(
+      STORE_ID,
+      { baseUrl: 'https://mybiz.ai.kr', sourceId: 'order_completed_1', sourceType: 'order' },
+      { actorProfileId: OWNER_PROFILE_ID },
+    );
+
+    const review = await createPendingReview({ reviewRequestToken: link.public_token });
+
+    expect(review.visibility_status).toBe('pending');
+    expect(review.order_id).toBe('order_completed_1');
+    expect(review.customer_id).toBe('customer_hana');
+
+    const links = await listReviewRequestLinks(STORE_ID, { actorProfileId: OWNER_PROFILE_ID });
+    expect(links.find((entry) => entry.link_id === link.link_id)).toEqual(
+      expect.objectContaining({
+        last_used_at: expect.any(String),
+        submission_count: 1,
+        usage_count: 1,
+      }),
+    );
+  });
+
+  it('rejects unsafe review request token reuse states and wrong-store tokens', async () => {
+    const activeLink = await createReviewRequestLink(
+      STORE_ID,
+      { baseUrl: 'https://mybiz.ai.kr', sourceId: 'order_completed_1', sourceType: 'order' },
+      { actorProfileId: OWNER_PROFILE_ID },
+    );
+    await expect(
+      createPendingReview({
+        reviewRequestToken: activeLink.public_token,
+        storeId: 'store_mint_bbq',
+        storeSlug: 'mint-izakaya',
+      }),
+    ).rejects.toThrow(/token/i);
+
+    const expiredLink = await createReviewRequestLink(
+      STORE_ID,
+      {
+        baseUrl: 'https://mybiz.ai.kr',
+        expiresAt: '2020-01-01T00:00:00.000Z',
+        sourceType: 'store',
+      },
+      { actorProfileId: OWNER_PROFILE_ID },
+    );
+    await expect(createPendingReview({ reviewRequestToken: expiredLink.public_token })).rejects.toThrow(/expired/i);
+
+    const disabledLink = await createReviewRequestLink(
+      STORE_ID,
+      {
+        baseUrl: 'https://mybiz.ai.kr',
+        disabledAt: '2026-01-01T00:00:00.000Z',
+        sourceType: 'store',
+      },
+      { actorProfileId: OWNER_PROFILE_ID },
+    );
+    await expect(createPendingReview({ reviewRequestToken: disabledLink.public_token })).rejects.toThrow(/disabled/i);
+
+    const oneUseLink = await createReviewRequestLink(
+      STORE_ID,
+      {
+        baseUrl: 'https://mybiz.ai.kr',
+        maxUses: 1,
+        sourceType: 'store',
+      },
+      { actorProfileId: OWNER_PROFILE_ID },
+    );
+    await createPendingReview({ reviewRequestToken: oneUseLink.public_token });
+    await expect(createPendingReview({ reviewRequestToken: oneUseLink.public_token })).rejects.toThrow(/usage limit/i);
   });
 
   it('rejects invalid, bot, corrupted, and cross-store review actions', async () => {
@@ -367,6 +463,20 @@ describe('store content engine service', () => {
     expect(migrationSql).toContain('create table if not exists public.review_request_links');
     expect(migrationSql).toContain('create index if not exists review_request_links_store_created_idx');
     expect(migrationSql).toContain('alter table public.review_request_links enable row level security');
+    expect(migrationSql).not.toMatch(/drop table|truncate|delete from/i);
+  });
+
+  it('adds non-destructive public review safety hardening migration', () => {
+    const migrationSql = readFileSync(
+      join(process.cwd(), 'supabase', 'migrations', '20260511_review_public_safety_hardening.sql'),
+      'utf8',
+    );
+
+    expect(migrationSql).toContain('add column if not exists public_token');
+    expect(migrationSql).toContain('create unique index if not exists review_request_links_public_token_idx');
+    expect(migrationSql).toContain('drop policy if exists "store_reviews_public_read_published"');
+    expect(migrationSql).toContain('store_reviews_member_access');
+    expect(migrationSql).toContain('review_request_links_member_access');
     expect(migrationSql).not.toMatch(/drop table|truncate|delete from/i);
   });
 
