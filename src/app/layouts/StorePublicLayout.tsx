@@ -235,6 +235,9 @@ export function StorePublicLayout() {
             <NavLink className="btn-secondary" to={`${publicBasePath}/menu`}>
               메뉴
             </NavLink>
+            <NavLink className="btn-secondary" to={`${publicBasePath}/blog`}>
+              블로그
+            </NavLink>
             {publicStore.capabilities.orderEntryEnabled ? (
               <NavLink className="btn-secondary" to={`${publicBasePath}/order${tableNo ? `?table=${tableNo}` : ''}`}>
                 주문

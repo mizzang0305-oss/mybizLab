@@ -105,6 +105,10 @@ describe('app routing', () => {
     expect(matchedPaths('/dashboard/billing')).toContain('billing');
     expect(matchedPaths('/dashboard/admin-users')).toContain('admin-users');
     expect(matchedPaths('/dashboard/system')).toContain('system');
+    expect(matchedPaths('/dashboard/content/reviews')).toContain('content/reviews');
+    expect(matchedPaths('/dashboard/content/blog')).toContain('content/blog');
+    expect(matchedPaths('/dashboard/content/media')).toContain('content/media');
+    expect(matchedPaths('/dashboard/content/social')).toContain('content/social');
   });
 
   it('resolves expanded platform admin CMS routes separately from merchant dashboard routes', () => {
@@ -129,6 +133,8 @@ describe('app routing', () => {
     expect(resolveAdminNavigation('/dashboard/waiting')?.route).toBe('/dashboard/waiting');
     expect(resolveAdminNavigation('/dashboard/table-order')?.route).toBe('/dashboard/table-order');
     expect(resolveAdminNavigation('/dashboard/ai-manager')?.route).toBe('/dashboard/ai-manager');
+    expect(resolveAdminNavigation('/dashboard/content/reviews')?.route).toBe('/dashboard/content/reviews');
+    expect(resolveAdminNavigation('/dashboard/content/blog')?.route).toBe('/dashboard/content/blog');
   });
 
   it('resolves store public routes under the store slug pattern', () => {
@@ -136,6 +142,8 @@ describe('app routing', () => {
     expect(matchedPaths('/golden-coffee')).toContain('(index)');
     expect(matchedPaths('/golden-coffee/menu')).toContain('menu');
     expect(matchedPaths('/golden-coffee/order')).toContain('order');
+    expect(matchedPaths('/golden-coffee/blog')).toContain('blog');
+    expect(matchedPaths('/golden-coffee/blog/spring-update')).toContain('blog/:postSlug');
   });
 
   it('resolves store public routes under the store id pattern', () => {
@@ -143,6 +151,8 @@ describe('app routing', () => {
     expect(matchedPaths('/store/store_golden_coffee')).toContain('(index)');
     expect(matchedPaths('/store/store_golden_coffee/menu')).toContain('menu');
     expect(matchedPaths('/store/store_golden_coffee/order')).toContain('order');
+    expect(matchedPaths('/store/store_golden_coffee/blog')).toContain('blog');
+    expect(matchedPaths('/store/store_golden_coffee/blog/spring-update')).toContain('blog/:postSlug');
   });
 
   it('resolves the public survey response route by store id and form id', () => {

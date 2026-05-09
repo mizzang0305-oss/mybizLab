@@ -61,6 +61,10 @@ const AiReportsPage = lazyPage(() => import('@/modules/ai-report/page'), 'AiRepo
 const AdminUsersPage = lazyPage(() => import('@/modules/admin-users/page'), 'AdminUsersPage');
 const BillingPage = lazyPage(() => import('@/modules/billing/page'), 'BillingPage');
 const BrandPage = lazyPage(() => import('@/modules/brand/page'), 'BrandPage');
+const ContentBlogPage = lazyPage(() => import('@/modules/content/page'), 'ContentBlogPage');
+const ContentMediaPage = lazyPage(() => import('@/modules/content/page'), 'ContentMediaPage');
+const ContentReviewsPage = lazyPage(() => import('@/modules/content/page'), 'ContentReviewsPage');
+const ContentSocialPage = lazyPage(() => import('@/modules/content/page'), 'ContentSocialPage');
 const ContractsPage = lazyPage(() => import('@/modules/contracts/page'), 'ContractsPage');
 const CustomersPage = lazyPage(() => import('@/modules/customers/page'), 'CustomersPage');
 const DashboardPage = lazyPage(() => import('@/modules/dashboard/page'), 'DashboardPage');
@@ -118,6 +122,8 @@ const PlatformContactPage = lazyPage(() => import('@/modules/platform-public/pag
 const PlatformFaqPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformFaqPage');
 const PlatformFeaturesPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformFeaturesPage');
 const PlatformTrustPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformTrustPage');
+const StoreBlogListPage = lazyPage(() => import('@/modules/content/public-pages'), 'StoreBlogListPage');
+const StoreBlogPostPage = lazyPage(() => import('@/modules/content/public-pages'), 'StoreBlogPostPage');
 
 export const appRoutes: RouteObject[] = [
   {
@@ -376,6 +382,22 @@ export const appRoutes: RouteObject[] = [
             element: routeElement(BrandPage),
           },
           {
+            path: 'content/reviews',
+            element: routeElement(ContentReviewsPage),
+          },
+          {
+            path: 'content/blog',
+            element: routeElement(ContentBlogPage),
+          },
+          {
+            path: 'content/media',
+            element: routeElement(ContentMediaPage),
+          },
+          {
+            path: 'content/social',
+            element: routeElement(ContentSocialPage),
+          },
+          {
             path: 'sales',
             element: routeElement(SalesPage),
           },
@@ -442,6 +464,14 @@ export const appRoutes: RouteObject[] = [
             path: 'order',
             element: routeElement(StoreOrderPage, { mode: 'public' }),
           },
+          {
+            path: 'blog',
+            element: routeElement(StoreBlogListPage, { mode: 'public' }),
+          },
+          {
+            path: 'blog/:postSlug',
+            element: routeElement(StoreBlogPostPage, { mode: 'public' }),
+          },
         ],
       },
       {
@@ -459,6 +489,14 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'order',
             element: routeElement(StoreOrderPage, { mode: 'public' }),
+          },
+          {
+            path: 'blog',
+            element: routeElement(StoreBlogListPage, { mode: 'public' }),
+          },
+          {
+            path: 'blog/:postSlug',
+            element: routeElement(StoreBlogPostPage, { mode: 'public' }),
           },
         ],
       },

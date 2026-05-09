@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
+import { StoreReviewSection } from '@/modules/content/review-section';
 import { Panel } from '@/shared/components/Panel';
 import { formatCurrency } from '@/shared/lib/format';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
@@ -335,6 +336,7 @@ export function StoreHomePage() {
           </Panel>
         </section>
       ) : null}
+      <StoreReviewSection />
     </div>
   );
 }
