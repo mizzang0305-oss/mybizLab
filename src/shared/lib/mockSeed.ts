@@ -2139,6 +2139,7 @@ export function createSeedDatabase(): MvpDatabase {
         updated_at: isoDaysAgo(0, 15),
       },
     ],
+    review_request_links: [],
     store_blog_posts: [
       {
         post_id: 'blog_golden_published_1',

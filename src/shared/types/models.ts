@@ -44,6 +44,7 @@ export type AdminUserStatus = 'active' | 'pending' | 'inactive';
 export type InvitationStatus = 'sent' | 'scheduled' | 'accepted' | 'none';
 export type StoreMediaType = 'hero' | 'storefront' | 'interior';
 export type StoreReviewStatus = 'pending' | 'published' | 'hidden' | 'reported';
+export type ReviewRequestLinkSourceType = 'store' | 'order' | 'reservation' | 'waiting' | 'customer';
 export type StoreBlogPostSourceType = 'manual' | 'review' | 'ai' | 'video' | 'campaign';
 export type StoreBlogPostStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 export type StoreMediaAssetType = 'image' | 'video';
@@ -258,6 +259,20 @@ export interface StoreReview {
   sentiment?: string;
   keywords: string[];
   ai_summary?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewRequestLink {
+  link_id: string;
+  store_id: string;
+  created_by?: string;
+  source_type: ReviewRequestLinkSourceType;
+  source_id?: string;
+  url: string;
+  usage_count: number;
+  submission_count: number;
+  last_used_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -890,6 +905,7 @@ export interface MvpDatabase {
   store_subscriptions: StoreSubscription[];
   store_public_pages: StorePublicPage[];
   store_reviews: StoreReview[];
+  review_request_links: ReviewRequestLink[];
   store_blog_posts: StoreBlogPost[];
   store_media_assets: StoreMediaAsset[];
   social_accounts: SocialAccount[];

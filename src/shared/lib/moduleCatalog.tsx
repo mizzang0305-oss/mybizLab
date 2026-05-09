@@ -161,6 +161,7 @@ export const adminNavigation: AdminNavigationItem[] = [
   { label: '테이블 주문', route: '/dashboard/table-order', icon: Icons.Table },
   { label: '브랜드 설정', route: '/dashboard/brand', icon: Icons.Brand },
   { label: '리뷰 관리', route: '/dashboard/content/reviews', icon: Icons.Message },
+  { label: '리뷰 요청 링크', route: '/dashboard/content/review-requests', icon: Icons.Message },
   { label: '블로그/소식', route: '/dashboard/content/blog', icon: Icons.Contract },
   { label: '사진·영상', route: '/dashboard/content/media', icon: Icons.Globe },
   { label: '게시 초안/소셜', route: '/dashboard/content/social', icon: Icons.Zap },

@@ -63,6 +63,7 @@ const BillingPage = lazyPage(() => import('@/modules/billing/page'), 'BillingPag
 const BrandPage = lazyPage(() => import('@/modules/brand/page'), 'BrandPage');
 const ContentBlogPage = lazyPage(() => import('@/modules/content/page'), 'ContentBlogPage');
 const ContentMediaPage = lazyPage(() => import('@/modules/content/page'), 'ContentMediaPage');
+const ContentReviewRequestsPage = lazyPage(() => import('@/modules/content/page'), 'ContentReviewRequestsPage');
 const ContentReviewsPage = lazyPage(() => import('@/modules/content/page'), 'ContentReviewsPage');
 const ContentSocialPage = lazyPage(() => import('@/modules/content/page'), 'ContentSocialPage');
 const ContractsPage = lazyPage(() => import('@/modules/contracts/page'), 'ContractsPage');
@@ -124,6 +125,7 @@ const PlatformFeaturesPage = lazyPage(() => import('@/modules/platform-public/pa
 const PlatformTrustPage = lazyPage(() => import('@/modules/platform-public/page'), 'PlatformTrustPage');
 const StoreBlogListPage = lazyPage(() => import('@/modules/content/public-pages'), 'StoreBlogListPage');
 const StoreBlogPostPage = lazyPage(() => import('@/modules/content/public-pages'), 'StoreBlogPostPage');
+const StoreReviewRequestPage = lazyPage(() => import('@/modules/content/review-section'), 'StoreReviewRequestPage');
 
 export const appRoutes: RouteObject[] = [
   {
@@ -386,6 +388,10 @@ export const appRoutes: RouteObject[] = [
             element: routeElement(ContentReviewsPage),
           },
           {
+            path: 'content/review-requests',
+            element: routeElement(ContentReviewRequestsPage),
+          },
+          {
             path: 'content/blog',
             element: routeElement(ContentBlogPage),
           },
@@ -449,6 +455,16 @@ export const appRoutes: RouteObject[] = [
         element: routeElement(PublicWaitingPage, { mode: 'public' }),
       },
       {
+        path: '/s/:storeSlug/review',
+        element: <StorePublicLayout />,
+        children: [
+          {
+            index: true,
+            element: routeElement(StoreReviewRequestPage, { mode: 'public' }),
+          },
+        ],
+      },
+      {
         path: '/:storeSlug',
         element: <StorePublicLayout />,
         children: [
@@ -471,6 +487,10 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'blog/:postSlug',
             element: routeElement(StoreBlogPostPage, { mode: 'public' }),
+          },
+          {
+            path: 'review',
+            element: routeElement(StoreReviewRequestPage, { mode: 'public' }),
           },
         ],
       },
@@ -497,6 +517,10 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'blog/:postSlug',
             element: routeElement(StoreBlogPostPage, { mode: 'public' }),
+          },
+          {
+            path: 'review',
+            element: routeElement(StoreReviewRequestPage, { mode: 'public' }),
           },
         ],
       },

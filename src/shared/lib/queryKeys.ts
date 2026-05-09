@@ -50,6 +50,7 @@ export const queryKeys = {
   publicSurvey: (storeId: string, formId: string) => ['public-survey', storeId, formId] as const,
   publicInquiry: (storeId: string) => ['public-inquiry', storeId] as const,
   publicConsultation: (storeId: string) => ['public-consultation', storeId] as const,
+  contentReviewRequests: (storeId: string) => ['content-review-requests', storeId] as const,
   contentReviews: (storeId: string, status?: string) => ['content-reviews', storeId, status || 'all'] as const,
   contentBlog: (storeId: string, status?: string) => ['content-blog', storeId, status || 'all'] as const,
   contentMedia: (storeId: string, status?: string) => ['content-media', storeId, status || 'all'] as const,

@@ -106,6 +106,7 @@ describe('app routing', () => {
     expect(matchedPaths('/dashboard/admin-users')).toContain('admin-users');
     expect(matchedPaths('/dashboard/system')).toContain('system');
     expect(matchedPaths('/dashboard/content/reviews')).toContain('content/reviews');
+    expect(matchedPaths('/dashboard/content/review-requests')).toContain('content/review-requests');
     expect(matchedPaths('/dashboard/content/blog')).toContain('content/blog');
     expect(matchedPaths('/dashboard/content/media')).toContain('content/media');
     expect(matchedPaths('/dashboard/content/social')).toContain('content/social');
@@ -134,6 +135,7 @@ describe('app routing', () => {
     expect(resolveAdminNavigation('/dashboard/table-order')?.route).toBe('/dashboard/table-order');
     expect(resolveAdminNavigation('/dashboard/ai-manager')?.route).toBe('/dashboard/ai-manager');
     expect(resolveAdminNavigation('/dashboard/content/reviews')?.route).toBe('/dashboard/content/reviews');
+    expect(resolveAdminNavigation('/dashboard/content/review-requests')?.route).toBe('/dashboard/content/review-requests');
     expect(resolveAdminNavigation('/dashboard/content/blog')?.route).toBe('/dashboard/content/blog');
   });
 
@@ -144,6 +146,7 @@ describe('app routing', () => {
     expect(matchedPaths('/golden-coffee/order')).toContain('order');
     expect(matchedPaths('/golden-coffee/blog')).toContain('blog');
     expect(matchedPaths('/golden-coffee/blog/spring-update')).toContain('blog/:postSlug');
+    expect(matchedPaths('/golden-coffee/review')).toContain('review');
   });
 
   it('resolves store public routes under the store id pattern', () => {
@@ -153,6 +156,7 @@ describe('app routing', () => {
     expect(matchedPaths('/store/store_golden_coffee/order')).toContain('order');
     expect(matchedPaths('/store/store_golden_coffee/blog')).toContain('blog');
     expect(matchedPaths('/store/store_golden_coffee/blog/spring-update')).toContain('blog/:postSlug');
+    expect(matchedPaths('/store/store_golden_coffee/review')).toContain('review');
   });
 
   it('resolves the public survey response route by store id and form id', () => {
@@ -167,6 +171,11 @@ describe('app routing', () => {
   it('resolves the public reservation and waiting routes by store id', () => {
     expect(matchedPaths('/s/store_golden_coffee/reservation')).toContain('/s/:storeId/reservation');
     expect(matchedPaths('/s/store_golden_coffee/waiting')).toContain('/s/:storeId/waiting');
+  });
+
+  it('resolves the public review request route by store slug', () => {
+    expect(matchedPaths('/s/golden-coffee/review')).toContain('/s/:storeSlug/review');
+    expect(matchedPaths('/s/golden-coffee/review')).toContain('(index)');
   });
 
   it('keeps critical public routes in stable eager-loaded components', () => {
