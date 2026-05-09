@@ -4,8 +4,15 @@ import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams, useSea
 
 import { AppFooter } from '@/shared/components/AppFooter';
 import { EmptyState } from '@/shared/components/EmptyState';
-import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { usePageMeta, useStructuredData } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import {
+  buildStoreLocalBusinessJsonLd,
+  buildStoreSeoDescription,
+  buildStoreSeoTitle,
+  canonicalUrl,
+  safeImageUrl,
+} from '@/shared/lib/seo';
 import { getPublicStore, getPublicStoreById } from '@/shared/lib/services/mvpService';
 import { touchVisitorSession } from '@/shared/lib/services/publicPageService';
 import { buildStoreIdPath, buildStorePath } from '@/shared/lib/storeSlug';
@@ -53,13 +60,30 @@ export function StorePublicLayout() {
   const reservationPath = publicStore ? `/s/${publicStore.store.id}/reservation` : '#';
   const waitingPath = publicStore ? `/s/${publicStore.store.id}/waiting` : '#';
   const waitingEnabled = Boolean(publicStore?.capabilities.waitingEnabled);
+  const seoStore = publicStore
+    ? {
+        address: publicStore.location?.address || publicStore.store.address,
+        business_type: publicStore.store.business_type,
+        description: publicStore.store.description,
+        id: publicStore.store.id,
+        logo_url: publicStore.store.logo_url || publicStore.media[0]?.image_url,
+        name: publicStore.store.name,
+        phone: publicStore.store.phone,
+        slug: publicStore.store.slug,
+        updated_at: publicStore.store.updated_at,
+      }
+    : null;
 
   usePageMeta(
-    publicStore ? `${publicStore.store.name} 공개 스토어` : '공개 스토어',
-    publicStore
-      ? `${publicStore.store.name}의 메뉴와 방문 안내, 문의·예약·웨이팅·주문 시작 화면입니다.`
-      : '매장 공개 페이지입니다.',
+    seoStore ? buildStoreSeoTitle(seoStore) : '공개 스토어',
+    seoStore ? buildStoreSeoDescription(seoStore) : '매장 공개 페이지입니다.',
+    {
+      canonicalUrl: publicStore ? canonicalUrl(publicBasePath) : undefined,
+      ogImage: safeImageUrl(seoStore?.logo_url),
+      ogType: 'website',
+    },
   );
+  useStructuredData('store-local-business', seoStore ? buildStoreLocalBusinessJsonLd({ store: seoStore }) : null);
 
   useEffect(() => {
     if (!publicStore) {

@@ -10,6 +10,7 @@ import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { useAdminAccess } from '@/shared/lib/adminSession';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import { canonicalUrl } from '@/shared/lib/seo';
 import {
   approveSocialPublishJob,
   archiveStoreBlogPost,
@@ -603,6 +604,8 @@ export function ContentBlogPage() {
 
   const posts = postsQuery.data || [];
   const canCreate = form.title.trim() && form.body.trim();
+  const publishedPosts = posts.filter((post) => post.status === 'published');
+  const blogCanonicalPreview = currentStore ? canonicalUrl(`/${currentStore.slug}/blog`) : '';
 
   return (
     <div className="space-y-6">
@@ -611,6 +614,25 @@ export function ContentBlogPage() {
         title="블로그/소식"
         description="MyBiz 매장 안에서 검색과 공유에 활용할 소식 글을 관리합니다. 공개 페이지는 published 글만 보여줍니다."
       />
+
+      <Panel title="SEO 미리보기" subtitle="검색 노출은 공개된 매장과 published 글만 대상으로 생성됩니다.">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <p className="text-xs font-black text-slate-500">Canonical</p>
+            <p className="mt-2 break-all text-sm font-semibold text-slate-700">{blogCanonicalPreview}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              리뷰 요청 토큰 URL과 초안/보관 글은 sitemap과 schema에 포함하지 않습니다.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <p className="text-xs font-black text-slate-500">Sitemap 포함 상태</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">{publishedPosts.length}개 published 글</p>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              noindex 토글과 세부 OG 이미지 편집은 다음 배포에서 제공됩니다.
+            </p>
+          </div>
+        </div>
+      </Panel>
 
       <Panel title="새 초안 만들기" subtitle="리뷰 전환 초안은 리뷰 관리 화면에서 만들 수 있고, 여기서는 직접 작성 초안을 등록합니다.">
         <div className="grid gap-4 md:grid-cols-2">

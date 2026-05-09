@@ -14,8 +14,14 @@ import {
   handlePublicVisitorSessionRequest,
   handlePublicWaitingRequest,
 } from '../src/server/publicApi.js';
+import {
+  handleRobotsRequest,
+  handleSitemapRequest,
+  handleStoreSitemapRequest,
+} from '../src/server/seoRoutes.js';
 import { handlePlatformPublicRequest } from '../src/server/platformAdminApi.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
+import { getSupabaseAdminClient } from '../src/server/supabaseAdmin.js';
 import { config, methodNotAllowed, type PublicRequestLike } from './public/_shared.js';
 
 function notFound() {
@@ -49,6 +55,24 @@ function getResource(request: PublicRequestLike) {
   }
 }
 
+function getRequestUrl(request: PublicRequestLike) {
+  const rawUrl = typeof request.url === 'string' && request.url.trim() ? request.url : '/';
+  return new URL(rawUrl, 'https://mybiz.ai.kr');
+}
+
+function getStoreSlug(request: PublicRequestLike) {
+  const url = getRequestUrl(request);
+  return url.searchParams.get('storeSlug')?.trim() || undefined;
+}
+
+function getOptionalAdminClient() {
+  try {
+    return getSupabaseAdminClient();
+  } catch {
+    return undefined;
+  }
+}
+
 async function routePublicRequest(request: PublicRequestLike) {
   const method = getRequestMethod(request);
   const resource = getResource(request);
@@ -64,6 +88,19 @@ async function routePublicRequest(request: PublicRequestLike) {
     case 'platform-banners':
     case 'platform-chrome':
       return method === 'GET' ? handlePlatformPublicRequest(request) : methodNotAllowed('GET');
+    case 'seo-sitemap':
+      return method === 'GET'
+        ? handleSitemapRequest(request, { client: getOptionalAdminClient() })
+        : methodNotAllowed('GET');
+    case 'seo-robots':
+      return method === 'GET' ? handleRobotsRequest(request) : methodNotAllowed('GET');
+    case 'seo-store-sitemap':
+      return method === 'GET'
+        ? handleStoreSitemapRequest(request, {
+            client: getOptionalAdminClient(),
+            storeSlug: getStoreSlug(request),
+          })
+        : methodNotAllowed('GET');
     case 'store':
       return method === 'GET' ? handlePublicStoreRequest(request) : methodNotAllowed('GET');
     case 'inquiry-form':

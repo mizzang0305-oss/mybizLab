@@ -6,6 +6,11 @@ import { EmptyState } from '@/shared/components/EmptyState';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
+  buildBlogPostingJsonLd,
+  canonicalUrl,
+  safeImageUrl,
+} from '@/shared/lib/seo';
+import {
   getPublicStoreBlogPost,
   listPublicStoreBlogPosts,
 } from '@/shared/lib/services/contentEngineService';
@@ -21,8 +26,23 @@ function formatDate(value?: string) {
 export function StoreBlogListPage() {
   const { publicBasePath, publicStore } = useStorePublicContext();
   const storeId = publicStore.store.id;
+  const seoStore = {
+    address: publicStore.location?.address || publicStore.store.address,
+    business_type: publicStore.store.business_type,
+    description: publicStore.store.description,
+    id: publicStore.store.id,
+    logo_url: publicStore.store.logo_url || publicStore.media[0]?.image_url,
+    name: publicStore.store.name,
+    phone: publicStore.store.phone,
+    slug: publicStore.store.slug,
+    updated_at: publicStore.store.updated_at,
+  };
 
-  usePageMeta(`${publicStore.store.name} 블로그`, `${publicStore.store.name}의 매장 소식과 방문 경험 콘텐츠입니다.`);
+  usePageMeta(`${publicStore.store.name} 블로그`, `${publicStore.store.name}의 매장 소식과 방문 경험 콘텐츠입니다.`, {
+    canonicalUrl: canonicalUrl(`${publicBasePath}/blog`),
+    ogImage: safeImageUrl(seoStore.logo_url),
+    ogType: 'website',
+  });
 
   const postsQuery = useQuery({
     queryKey: queryKeys.publicStoreBlog(storeId),
@@ -76,10 +96,27 @@ export function StoreBlogPostPage() {
     queryFn: () => getPublicStoreBlogPost(storeId, postSlug),
   });
   const post = postQuery.data;
+  const seoStore = {
+    address: publicStore.location?.address || publicStore.store.address,
+    business_type: publicStore.store.business_type,
+    description: publicStore.store.description,
+    id: publicStore.store.id,
+    logo_url: publicStore.store.logo_url || publicStore.media[0]?.image_url,
+    name: publicStore.store.name,
+    phone: publicStore.store.phone,
+    slug: publicStore.store.slug,
+    updated_at: publicStore.store.updated_at,
+  };
 
   usePageMeta(
     post?.seo_title || post?.title || `${publicStore.store.name} 소식`,
     post?.seo_description || post?.excerpt || publicStore.store.description,
+    {
+      canonicalUrl: canonicalUrl(`${publicBasePath}/blog/${postSlug}`),
+      jsonLd: post ? buildBlogPostingJsonLd({ post, store: seoStore }) : null,
+      ogImage: safeImageUrl(post?.cover_image_url) || safeImageUrl(seoStore.logo_url),
+      ogType: 'article',
+    },
   );
 
   if (postQuery.isLoading) {

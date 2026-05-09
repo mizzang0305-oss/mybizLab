@@ -2,6 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "routes": [
     {
+      "src": "/sitemap.xml",
+      "dest": "/api/public?resource=seo-sitemap"
+    },
+    {
+      "src": "/robots.txt",
+      "dest": "/api/public?resource=seo-robots"
+    },
+    {
+      "src": "/s/([^/]+)/sitemap.xml",
+      "dest": "/api/public?resource=seo-store-sitemap&storeSlug=$1"
+    },
+    {
       "src": "/api/public/store",
       "dest": "/api/public?resource=store"
     },

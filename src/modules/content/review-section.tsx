@@ -5,8 +5,13 @@ import { useSearchParams } from 'react-router-dom';
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { Panel } from '@/shared/components/Panel';
-import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { usePageMeta, useStructuredData } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
+import {
+  buildStoreReviewJsonLd,
+  canonicalUrl,
+  safeImageUrl,
+} from '@/shared/lib/seo';
 import {
   listPublicStoreReviews,
   submitPublicStoreReview,
@@ -98,6 +103,22 @@ export function StoreReviewSection({ showPublishedReviews = true }: { showPublis
   });
 
   const reviews = showPublishedReviews ? reviewsQuery.data || [] : [];
+  const seoStore = {
+    address: publicStore.location?.address || publicStore.store.address,
+    business_type: publicStore.store.business_type,
+    description: publicStore.store.description,
+    id: publicStore.store.id,
+    logo_url: publicStore.store.logo_url || publicStore.media[0]?.image_url,
+    name: publicStore.store.name,
+    phone: publicStore.store.phone,
+    slug: publicStore.store.slug,
+    updated_at: publicStore.store.updated_at,
+  };
+
+  useStructuredData(
+    'store-reviews',
+    showPublishedReviews && reviews.length ? buildStoreReviewJsonLd({ reviews, store: seoStore }) : null,
+  );
 
   return (
     <Panel
@@ -212,6 +233,11 @@ export function StoreReviewRequestPage() {
   usePageMeta(
     `${publicStore.store.name} 리뷰 작성`,
     `${publicStore.store.name} 방문 경험을 MyBiz 리뷰로 남겨 주세요. 리뷰는 매장 확인 후 공개될 수 있습니다.`,
+    {
+      canonicalUrl: canonicalUrl(`/s/${publicStore.store.slug}/review`),
+      ogImage: safeImageUrl(publicStore.store.logo_url || publicStore.media[0]?.image_url),
+      ogType: 'website',
+    },
   );
 
   return (
