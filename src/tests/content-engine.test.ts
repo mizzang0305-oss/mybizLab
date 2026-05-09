@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetDatabase } from '@/shared/lib/mockDb';
@@ -248,5 +251,21 @@ describe('store content engine service', () => {
 
     expect(reviews).toContainEqual(expect.objectContaining({ review_id: goldenReview.review_id }));
     expect(reviews).not.toContainEqual(expect.objectContaining({ store_id: 'store_mint_bbq' }));
+  });
+
+  it('keeps optional content links compatible with legacy live schema key names', () => {
+    const migrationSql = readFileSync(
+      join(process.cwd(), 'supabase', 'migrations', '20260509_store_content_engine_mvp.sql'),
+      'utf8',
+    );
+
+    expect(migrationSql).toContain('store_id uuid not null references public.stores(store_id)');
+    expect(migrationSql).not.toMatch(/references public\.(customers|orders|reservations|profiles)\(id\)/);
+    expect(migrationSql).toContain('customer_id uuid null');
+    expect(migrationSql).toContain('order_id uuid null');
+    expect(migrationSql).toContain('reservation_id uuid null');
+    expect(migrationSql).toContain('author_profile_id uuid null');
+    expect(migrationSql).toContain('uploaded_by uuid null');
+    expect(migrationSql).toContain('approved_by uuid null');
   });
 });
