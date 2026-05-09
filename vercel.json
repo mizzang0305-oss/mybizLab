@@ -3,15 +3,15 @@
   "routes": [
     {
       "src": "/sitemap.xml",
-      "dest": "/api/seo?resource=sitemap"
+      "dest": "/api/public?resource=seo-sitemap"
     },
     {
       "src": "/robots.txt",
-      "dest": "/api/seo?resource=robots"
+      "dest": "/api/public?resource=seo-robots"
     },
     {
       "src": "/s/([^/]+)/sitemap.xml",
-      "dest": "/api/seo?resource=store-sitemap&storeSlug=$1"
+      "dest": "/api/public?resource=seo-store-sitemap&storeSlug=$1"
     },
     {
       "src": "/api/public/store",

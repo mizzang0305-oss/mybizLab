@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import seoHandler from '../../api/seo';
+import seoHandler from '../../api/public';
 import { resetDatabase, updateDatabase } from '@/shared/lib/mockDb';
 import {
   buildBlogPostingJsonLd,
@@ -91,7 +91,7 @@ describe('SEO sitemap, robots, and schema safety', () => {
       );
     });
 
-    const response = await seoHandler(new Request(`${BASE_URL}/sitemap.xml`));
+    const response = await seoHandler(new Request(`${BASE_URL}/api/public?resource=seo-sitemap`));
     const xml = await readText(response);
 
     expect(response.status).toBe(200);
@@ -128,7 +128,9 @@ describe('SEO sitemap, robots, and schema safety', () => {
       { actorProfileId: 'profile_golden_owner' },
     );
 
-    const response = await seoHandler(new Request(`${BASE_URL}/api/seo?resource=store-sitemap&storeSlug=golden-coffee`));
+    const response = await seoHandler(
+      new Request(`${BASE_URL}/api/public?resource=seo-store-sitemap&storeSlug=golden-coffee`),
+    );
     const xml = await readText(response);
 
     expect(response.status).toBe(200);
@@ -143,7 +145,7 @@ describe('SEO sitemap, robots, and schema safety', () => {
   });
 
   it('serves robots.txt with crawl boundaries and a production sitemap URL', async () => {
-    const response = await seoHandler(new Request(`${BASE_URL}/robots.txt`));
+    const response = await seoHandler(new Request(`${BASE_URL}/api/public?resource=seo-robots`));
     const text = await readText(response);
 
     expect(response.status).toBe(200);
