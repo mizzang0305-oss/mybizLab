@@ -49,6 +49,7 @@ export interface SubmitPublicStoreReviewInput {
   reservationId?: string;
   reviewerDisplayName?: string;
   storeId: string;
+  storeSlug?: string;
   title?: string;
 }
 
@@ -115,6 +116,12 @@ const SOCIAL_JOB_STATUSES: SocialPublishJobStatus[] = [
   'failed',
   'canceled',
 ];
+const PUBLIC_REVIEW_COLUMNS =
+  'review_id,store_id,rating,title,body,media_urls,reviewer_display_name,visibility_status,created_at,updated_at';
+const PUBLIC_BLOG_POST_COLUMNS =
+  'post_id,store_id,title,slug,excerpt,body,cover_image_url,media_urls,status,published_at,seo_title,seo_description,tags,created_at,updated_at';
+const SOCIAL_ACCOUNT_SAFE_COLUMNS =
+  'account_id,store_id,provider,provider_account_id,display_name,oauth_status,token_expires_at,scopes,created_at,updated_at';
 
 const PROVIDER_COPY: Record<SocialProvider, { copy: string; title: string }> = {
   kakao_share: {
@@ -195,6 +202,18 @@ function assertStoreExists(storeId: string) {
   }
 }
 
+function assertStoreSlugMatches(storeId: string, storeSlug?: string) {
+  const normalizedSlug = normalizeStoreSlug(normalizeText(storeSlug));
+  if (!normalizedSlug) {
+    return;
+  }
+
+  const store = getDatabase().stores.find((candidate) => candidate.id === storeId);
+  if (!store || normalizeStoreSlug(store.slug) !== normalizedSlug) {
+    throw new Error('Store slug does not match store id.');
+  }
+}
+
 function assertDemoStoreMember(storeId: string, actorProfileId?: string) {
   if (!actorProfileId) {
     return;
@@ -228,6 +247,47 @@ function normalizeReviewBody(body: string) {
   return normalized;
 }
 
+function normalizeSafeHttpUrl(value: unknown, label: string) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    throw new Error(`${label} URL is required.`);
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error(`${label} URL must be a valid http or https URL.`);
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`${label} URL must use http or https.`);
+  }
+
+  return parsed.toString();
+}
+
+function normalizeOptionalSafeHttpUrl(value: unknown, label: string) {
+  const normalized = normalizeText(value);
+  return normalized ? normalizeSafeHttpUrl(normalized, label) : undefined;
+}
+
+function normalizeSafeHttpUrls(values: unknown[], label: string, limit = 5) {
+  const urls: string[] = [];
+  for (const value of values) {
+    const normalized = normalizeOptionalSafeHttpUrl(value, label);
+    if (normalized) {
+      urls.push(normalized);
+    }
+
+    if (urls.length >= limit) {
+      break;
+    }
+  }
+
+  return urls;
+}
+
 function normalizeReviewInput(input: SubmitPublicStoreReviewInput) {
   if (normalizeText(input.honeypot)) {
     throw new Error('Review spam check failed.');
@@ -238,13 +298,10 @@ function normalizeReviewInput(input: SubmitPublicStoreReviewInput) {
   }
 
   const body = normalizeReviewBody(input.body);
-  const mediaUrls = [
-    ...(input.mediaUrls || []),
-    ...(input.mediaUrl ? [input.mediaUrl] : []),
-  ]
-    .map((url) => normalizeText(url))
-    .filter(Boolean)
-    .slice(0, 5);
+  const mediaUrls = normalizeSafeHttpUrls(
+    [...(input.mediaUrls || []), ...(input.mediaUrl ? [input.mediaUrl] : [])],
+    'Review media',
+  );
 
   return {
     body,
@@ -463,6 +520,7 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
   }
 
   assertStoreExists(input.storeId);
+  assertStoreSlugMatches(input.storeId, input.storeSlug);
   const review: StoreReview = {
     review_id: createId('store_review'),
     store_id: input.storeId,
@@ -530,7 +588,7 @@ export async function listPublicStoreReviews(storeId: string, options?: ContentS
 
     const { data, error } = await client
       .from('store_reviews')
-      .select('*')
+      .select(PUBLIC_REVIEW_COLUMNS)
       .eq('store_id', storeId)
       .eq('visibility_status', 'published')
       .order('created_at', { ascending: false });
@@ -625,6 +683,8 @@ export async function createStoreBlogPost(
   const status = input.status || 'draft';
   assertEnumValue(input.sourceType, ['manual', 'review', 'ai', 'video', 'campaign'], 'blog source type');
   assertEnumValue(status, BLOG_STATUSES, 'blog status');
+  const coverImageUrl = normalizeOptionalSafeHttpUrl(input.coverImageUrl, 'Blog cover image');
+  const mediaUrls = normalizeSafeHttpUrls(input.mediaUrls || [], 'Blog media');
 
   if (isSupabaseContentEnabled(options)) {
     await assertSupabaseBlogSlugAvailable(storeId, slug, options);
@@ -638,9 +698,9 @@ export async function createStoreBlogPost(
       .insert({
         author_profile_id: options?.actorProfileId || null,
         body: input.body.trim(),
-        cover_image_url: input.coverImageUrl?.trim() || null,
+        cover_image_url: coverImageUrl || null,
         excerpt: input.excerpt?.trim() || null,
-        media_urls: input.mediaUrls || [],
+        media_urls: mediaUrls,
         published_at: status === 'published' ? timestamp : null,
         seo_description: input.seoDescription?.trim() || null,
         seo_title: input.seoTitle?.trim() || null,
@@ -674,8 +734,8 @@ export async function createStoreBlogPost(
     slug,
     excerpt: toOptionalText(input.excerpt),
     body: input.body.trim(),
-    cover_image_url: toOptionalText(input.coverImageUrl),
-    media_urls: (input.mediaUrls || []).map((url) => normalizeText(url)).filter(Boolean),
+    cover_image_url: coverImageUrl,
+    media_urls: mediaUrls,
     status,
     published_at: status === 'published' ? timestamp : undefined,
     seo_title: toOptionalText(input.seoTitle),
@@ -860,7 +920,7 @@ export async function listPublicStoreBlogPosts(storeId: string, options?: Conten
 
     const { data, error } = await client
       .from('store_blog_posts')
-      .select('*')
+      .select(PUBLIC_BLOG_POST_COLUMNS)
       .eq('store_id', storeId)
       .eq('status', 'published')
       .order('published_at', { ascending: false });
@@ -889,7 +949,7 @@ export async function getPublicStoreBlogPost(storeId: string, slug: string, opti
 
     const { data, error } = await client
       .from('store_blog_posts')
-      .select('*')
+      .select(PUBLIC_BLOG_POST_COLUMNS)
       .eq('store_id', storeId)
       .eq('slug', normalizedSlug)
       .eq('status', 'published')
@@ -918,6 +978,8 @@ export async function createStoreMediaAsset(
   const status = input.status || 'draft';
   assertEnumValue(status, MEDIA_ASSET_STATUSES, 'media asset status');
   const timestamp = nowIso();
+  const assetUrl = normalizeSafeHttpUrl(input.url, 'Media asset');
+  const thumbnailUrl = normalizeOptionalSafeHttpUrl(input.thumbnailUrl, 'Media thumbnail');
 
   if (isSupabaseContentEnabled(options)) {
     const client = getContentClient(options);
@@ -939,10 +1001,10 @@ export async function createStoreMediaAsset(
         status,
         storage_path: input.storagePath || null,
         store_id: storeId,
-        thumbnail_url: input.thumbnailUrl?.trim() || null,
+        thumbnail_url: thumbnailUrl || null,
         transcript: input.transcript || null,
         uploaded_by: options?.actorProfileId || null,
-        url: input.url.trim(),
+        url: assetUrl,
       })
       .select('*')
       .single();
@@ -960,9 +1022,9 @@ export async function createStoreMediaAsset(
     store_id: storeId,
     uploaded_by: options?.actorProfileId,
     asset_type: input.assetType,
-    url: input.url.trim(),
+    url: assetUrl,
     storage_path: toOptionalText(input.storagePath),
-    thumbnail_url: toOptionalText(input.thumbnailUrl),
+    thumbnail_url: thumbnailUrl,
     alt_text: toOptionalText(input.altText),
     duration_seconds: input.durationSeconds,
     transcript: toOptionalText(input.transcript),
@@ -1091,7 +1153,7 @@ export async function listSocialProviderCards(storeId: string, options?: Content
   if (isSupabaseContentEnabled(options)) {
     const client = getContentClient(options);
     if (client) {
-      const { data, error } = await client.from('social_accounts').select('*').eq('store_id', storeId);
+      const { data, error } = await client.from('social_accounts').select(SOCIAL_ACCOUNT_SAFE_COLUMNS).eq('store_id', storeId);
       if (error) {
         throw new Error(`Failed to list social accounts: ${error.message}`);
       }

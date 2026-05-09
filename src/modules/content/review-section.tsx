@@ -33,6 +33,7 @@ export function StoreReviewSection() {
   });
   const [message, setMessage] = useState<string | null>(null);
   const storeId = publicStore.store.id;
+  const storeSlug = publicStore.store.slug;
 
   const reviewsQuery = useQuery({
     queryKey: queryKeys.publicStoreReviews(storeId),
@@ -50,6 +51,7 @@ export function StoreReviewSection() {
         rating: form.rating,
         reviewerDisplayName: form.reviewerDisplayName,
         storeId,
+        storeSlug,
         title: form.title,
       }),
     onSuccess: async () => {

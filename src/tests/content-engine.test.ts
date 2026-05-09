@@ -36,6 +36,7 @@ async function createPendingReview(overrides: Partial<Parameters<typeof submitPu
     rating: 5,
     reviewerDisplayName: '방문 고객',
     storeId: STORE_ID,
+    storeSlug: 'golden-coffee',
     title: '따뜻한 방문 경험',
     ...overrides,
   });
@@ -78,6 +79,7 @@ describe('store content engine service', () => {
     await expect(createPendingReview({ rating: 6 })).rejects.toThrow(/rating/i);
     await expect(createPendingReview({ honeypot: 'bot-filled' })).rejects.toThrow(/spam/i);
     await expect(createPendingReview({ body: '!!!!!!!!!!!!!!!!!' })).rejects.toThrow(/review body/i);
+    await expect(createPendingReview({ storeSlug: 'mint-izakaya' })).rejects.toThrow(/store slug/i);
 
     const review = await createPendingReview();
     await expect(
@@ -85,6 +87,35 @@ describe('store content engine service', () => {
         actorProfileId: OTHER_PROFILE_ID,
       }),
     ).rejects.toThrow(/store member/i);
+  });
+
+  it('rejects dangerous content URL schemes before storing merchant or customer content', async () => {
+    await expect(createPendingReview({ mediaUrl: 'javascript:alert(1)' })).rejects.toThrow(/url/i);
+
+    await expect(
+      createStoreBlogPost(
+        STORE_ID,
+        {
+          body: 'Blog content for URL validation.',
+          coverImageUrl: 'data:image/svg+xml,<svg></svg>',
+          sourceType: 'manual',
+          status: 'draft',
+          title: 'URL validation',
+        },
+        { actorProfileId: OWNER_PROFILE_ID },
+      ),
+    ).rejects.toThrow(/url/i);
+
+    await expect(
+      createStoreMediaAsset(
+        STORE_ID,
+        {
+          assetType: 'image',
+          url: 'data:text/html,<script>alert(1)</script>',
+        },
+        { actorProfileId: OWNER_PROFILE_ID },
+      ),
+    ).rejects.toThrow(/url/i);
   });
 
   it('converts an approved real review to a privacy-safe blog draft and publishes only published posts', async () => {
@@ -243,7 +274,7 @@ describe('store content engine service', () => {
 
   it('keeps dashboard review listing store scoped', async () => {
     const goldenReview = await createPendingReview();
-    await createPendingReview({ storeId: 'store_mint_bbq', title: '다른 매장 후기' });
+    await createPendingReview({ storeId: 'store_mint_bbq', storeSlug: 'mint-izakaya', title: '다른 매장 후기' });
 
     const reviews = await listStoreReviews(STORE_ID, {
       actorProfileId: OWNER_PROFILE_ID,
@@ -267,5 +298,17 @@ describe('store content engine service', () => {
     expect(migrationSql).toContain('author_profile_id uuid null');
     expect(migrationSql).toContain('uploaded_by uuid null');
     expect(migrationSql).toContain('approved_by uuid null');
+  });
+
+  it('keeps live public and social account queries on safe explicit column lists', () => {
+    const serviceSource = readFileSync(
+      join(process.cwd(), 'src', 'shared', 'lib', 'services', 'contentEngineService.ts'),
+      'utf8',
+    );
+
+    expect(serviceSource).toContain('PUBLIC_REVIEW_COLUMNS');
+    expect(serviceSource).toContain('PUBLIC_BLOG_POST_COLUMNS');
+    expect(serviceSource).toContain('SOCIAL_ACCOUNT_SAFE_COLUMNS');
+    expect(serviceSource).not.toContain("from('social_accounts').select('*')");
   });
 });

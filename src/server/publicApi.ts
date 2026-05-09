@@ -1181,10 +1181,34 @@ export async function handlePublicWaitingRequest(request: PublicApiRequestLike) 
 
 export async function handlePublicReviewRequest(request: PublicApiRequestLike) {
   try {
-    const body = await parseJsonBody<Parameters<typeof submitPublicStoreReview>[0]>(request);
-    const review = await submitPublicStoreReview(body, {
-      client: getSupabaseAdminClient(),
-    });
+    const body = await parseJsonBody<Omit<Parameters<typeof submitPublicStoreReview>[0], 'storeId'> & { storeId?: string }>(
+      request,
+    );
+    const storeSlug = normalizeText(body.storeSlug);
+    if (!storeSlug) {
+      return createPublicApiErrorResponse(new Error('storeSlug is required.'), 400);
+    }
+
+    const snapshot = await buildPublicStoreSnapshot({ slug: storeSlug });
+    if (!snapshot) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
+
+    const requestedStoreId = normalizeText(body.storeId);
+    if (requestedStoreId && requestedStoreId !== snapshot.store.id) {
+      return createPublicApiErrorResponse(new Error('storeId does not match storeSlug.'), 403);
+    }
+
+    const review = await submitPublicStoreReview(
+      {
+        ...body,
+        storeId: snapshot.store.id,
+        storeSlug,
+      },
+      {
+        client: getSupabaseAdminClient(),
+      },
+    );
 
     return responseJson({ ok: true, data: review });
   } catch (error) {
