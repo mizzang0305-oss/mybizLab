@@ -178,6 +178,14 @@ describe('app routing', () => {
     expect(matchedPaths('/s/golden-coffee/review')).toContain('(index)');
   });
 
+  it('resolves /s store slug aliases for public shareable pages', () => {
+    expect(matchedPaths('/s/golden-coffee')).toContain('/s/:storeSlug');
+    expect(matchedPaths('/s/golden-coffee')).toContain('(index)');
+    expect(matchedPaths('/s/golden-coffee/blog')).toContain('blog');
+    expect(matchedPaths('/s/golden-coffee/blog/spring-update')).toContain('blog/:postSlug');
+    expect(matchedPaths('/s/golden-coffee/reviews')).toContain('reviews');
+  });
+
   it('keeps critical public routes in stable eager-loaded components', () => {
     expect(unwrapRoutedComponent('/s/:storeId/inquiry')).toEqual({
       mode: 'public',

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
+import { KakaoShareButton } from '@/shared/components/KakaoShareButton';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
@@ -54,10 +55,23 @@ export function StoreBlogListPage() {
     <div className="space-y-6">
       <section className="rounded-[32px] border border-slate-200 bg-white p-6">
         <p className="eyebrow">Store Blog</p>
-        <h1 className="mt-3 font-display text-3xl font-black text-slate-950">{publicStore.store.name} 블로그/소식</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-          매장 승인 후 공개된 소식과 고객 경험 기반 콘텐츠만 보여줍니다.
-        </p>
+        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="font-display text-3xl font-black text-slate-950">{publicStore.store.name} 블로그/소식</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+              매장 승인 후 공개된 소식과 고객 경험 기반 콘텐츠만 보여줍니다.
+            </p>
+          </div>
+          <KakaoShareButton
+            description={`${publicStore.store.name}의 공개 블로그 소식입니다.`}
+            imageUrl={seoStore.logo_url}
+            label="블로그 카카오톡 공유"
+            sourceId={`${storeId}:blog`}
+            sourceType="blog_list"
+            title={`${publicStore.store.name} 블로그`}
+            webUrl={canonicalUrl(`${publicBasePath}/blog`)}
+          />
+        </div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -135,9 +149,20 @@ export function StoreBlogPostPage() {
 
   return (
     <article className="mx-auto max-w-3xl rounded-[32px] border border-slate-200 bg-white p-6 sm:p-8">
-      <Link className="text-sm font-black text-orange-700" to={`${publicBasePath}/blog`}>
-        블로그 목록
-      </Link>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <Link className="text-sm font-black text-orange-700" to={`${publicBasePath}/blog`}>
+          블로그 목록
+        </Link>
+        <KakaoShareButton
+          description={post.seo_description || post.excerpt || publicStore.store.description}
+          imageUrl={post.cover_image_url || seoStore.logo_url}
+          label="카카오톡 공유"
+          sourceId={post.post_id}
+          sourceType="blog_post"
+          title={post.title}
+          webUrl={canonicalUrl(`${publicBasePath}/blog/${post.slug}`)}
+        />
+      </div>
       <p className="mt-6 text-xs font-black text-slate-500">{formatDate(post.published_at)}</p>
       <h1 className="mt-3 font-display text-4xl font-black text-slate-950">{post.title}</h1>
       {post.excerpt ? <p className="mt-3 text-base leading-7 text-slate-600">{post.excerpt}</p> : null}

@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom';
 
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
 import { StoreReviewSection } from '@/modules/content/review-section';
+import { KakaoShareButton } from '@/shared/components/KakaoShareButton';
 import { Panel } from '@/shared/components/Panel';
 import { formatCurrency } from '@/shared/lib/format';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
+import { canonicalUrl } from '@/shared/lib/seo';
 import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { getBusinessTypeLabel } from '@/shared/lib/storeLabels';
 import { buildStoreUrl } from '@/shared/lib/storeSlug';
@@ -102,6 +104,16 @@ export function StoreHomePage() {
               <Link className="btn-secondary justify-center border-white/15 bg-white/5 text-white hover:bg-white hover:text-slate-900" to={`${publicBasePath}/menu`}>
                 메뉴 보기
               </Link>
+              <KakaoShareButton
+                className="btn-secondary justify-center border-white/15 bg-white/5 text-white hover:bg-white hover:text-slate-900"
+                description={publicStore.store.description}
+                imageUrl={heroMedia?.image_url || publicStore.store.logo_url}
+                label="매장 카카오톡 공유"
+                sourceId={publicStore.store.id}
+                sourceType="store"
+                title={publicStore.store.name}
+                webUrl={canonicalUrl(publicBasePath)}
+              />
               {canInquire ? (
                 <Link className="btn-secondary justify-center border-white/15 bg-white/5 text-white hover:bg-white hover:text-slate-900" to={inquiryPath}>
                   문의 남기기

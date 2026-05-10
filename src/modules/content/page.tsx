@@ -1214,7 +1214,8 @@ export function ContentSocialPage() {
               <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
               {provider.provider === 'kakao_share' ? (
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  카카오 공유는 자동 게시가 아니라 사용자가 직접 공유하는 방식으로 제공됩니다.
+                  카카오 공유는 사용자가 직접 공유하는 방식으로 제공됩니다. public store/blog/review 페이지 버튼은 SDK/env 설정이
+                  준비되지 않으면 disabled 상태로 표시됩니다.
                 </p>
               ) : null}
               {provider.requiredScopes?.length ? (

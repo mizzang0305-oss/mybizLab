@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
+import { KakaoShareButton } from '@/shared/components/KakaoShareButton';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { Panel } from '@/shared/components/Panel';
 import { usePageMeta, useStructuredData } from '@/shared/hooks/usePageMeta';
@@ -35,7 +36,7 @@ function normalizeRequestSource(value: string | null) {
 }
 
 export function StoreReviewSection({ showPublishedReviews = true }: { showPublishedReviews?: boolean } = {}) {
-  const { publicStore, publicStoreQueryKey } = useStorePublicContext();
+  const { publicBasePath, publicStore, publicStoreQueryKey } = useStorePublicContext();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({
@@ -215,7 +216,19 @@ export function StoreReviewSection({ showPublishedReviews = true }: { showPublis
               </div>
               <h3 className="mt-2 text-lg font-black text-slate-950">{review.title || '방문 리뷰'}</h3>
               <p className="mt-2 text-sm leading-7 text-slate-600">{review.body}</p>
-              <p className="mt-3 text-sm font-semibold text-slate-500">{review.reviewer_display_name || '방문 고객'}</p>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <p className="text-sm font-semibold text-slate-500">{review.reviewer_display_name || '방문 고객'}</p>
+                <KakaoShareButton
+                  description={review.body}
+                  imageUrl={review.media_urls[0] || publicStore.store.logo_url || publicStore.media[0]?.image_url}
+                  label="리뷰 카카오톡 공유"
+                  reviewStatus="published"
+                  sourceId={review.review_id}
+                  sourceType="review"
+                  title={review.title || `${publicStore.store.name} 방문 리뷰`}
+                  webUrl={`${canonicalUrl(`${publicBasePath}/review`)}#${encodeURIComponent(review.review_id)}`}
+                />
+              </div>
             </article>
           ))}
           {showPublishedReviews && !reviewsQuery.isLoading && !reviews.length ? (
