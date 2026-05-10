@@ -13,6 +13,7 @@ import {
   submitPublicStoreReview,
   updateStoreReviewStatus,
 } from '@/shared/lib/services/contentEngineService';
+import { saveProviderTokens } from '@/server/socialAccountTokens';
 import { ENABLE_MYBI_COMPANION } from '@/shared/lib/mybiFeatureFlag';
 import { FALLBACK_PRICING_PLANS, PAYMENT_TEST_100_PRODUCT } from '@/shared/lib/platformAdminConfig';
 
@@ -36,7 +37,7 @@ const readyExternalEnv = {
   THREADS_CLIENT_SECRET: 'threads-secret-should-not-leak',
   THREADS_PUBLISH_ENABLED: 'true',
   THREADS_REDIRECT_URI: 'https://mybiz.ai.kr/api/social/threads/oauth/callback',
-  TOKEN_ENCRYPTION_KEY: 'token-secret-should-not-leak',
+  TOKEN_ENCRYPTION_KEY: 'token-secret-should-not-leak-0123456789',
   YOUTUBE_CLIENT_ID: 'youtube-client',
   YOUTUBE_CLIENT_SECRET: 'youtube-secret-should-not-leak',
   YOUTUBE_OAUTH_ENABLED: 'true',
@@ -152,13 +153,16 @@ describe('content readiness dashboard', () => {
       'stt',
       'payment_test_100',
     ]);
-    expect(dashboard.approvalQueue[0]).toMatchObject({
-      approvalStatus: 'waiting_approval',
-      consentStatus: 'not_required',
-      provider: 'threads',
-      sourceTitle: '상태판 게시 글',
-      sourceType: 'blog_post',
-    });
+    expect(
+      dashboard.approvalQueue.some(
+        (item) =>
+          item.approvalStatus === 'waiting_approval' &&
+          item.consentStatus === 'not_required' &&
+          item.provider === 'threads' &&
+          item.sourceTitle === '상태판 게시 글' &&
+          item.sourceType === 'blog_post',
+      ),
+    ).toBe(true);
     expect(dashboard.blockedQueue.some((item) => item.reasonCode === 'content_usage_consent_missing')).toBe(true);
     expect(dashboard.blockedQueue.some((item) => item.reasonCode === 'failed')).toBe(true);
 
@@ -198,6 +202,71 @@ describe('content readiness dashboard', () => {
     });
     expect(JSON.stringify(dashboard)).not.toContain('threads-secret-should-not-leak');
     expect(dashboard.blockedQueue.some((item) => item.reasonCode === 'provider_disabled')).toBe(true);
+  });
+
+  it('summarizes OAuth token status without returning raw or encrypted token values', async () => {
+    await saveProviderTokens(
+      STORE_ID,
+      'youtube',
+      {
+        accessToken: 'dashboard-youtube-access-token-should-not-leak',
+        expiresAt: '2026-06-01T00:00:00.000Z',
+        providerAccountId: 'youtube-channel-1',
+        refreshToken: 'dashboard-youtube-refresh-token-should-not-leak',
+        scopes: ['https://www.googleapis.com/auth/youtube.upload'],
+        displayName: 'Golden Coffee YouTube',
+      },
+      {
+        actorProfileId: OWNER_PROFILE_ID,
+        env: readyExternalEnv,
+      },
+    );
+    await saveProviderTokens(
+      STORE_ID,
+      'naver_blog',
+      {
+        accessToken: 'dashboard-naver-access-token-should-not-leak',
+        expiresAt: '2020-01-01T00:00:00.000Z',
+        providerAccountId: 'naver-blog-1',
+        refreshToken: 'dashboard-naver-refresh-token-should-not-leak',
+        scopes: ['blog.write'],
+        displayName: 'Golden Coffee Blog',
+      },
+      {
+        actorProfileId: OWNER_PROFILE_ID,
+        env: readyExternalEnv,
+      },
+    );
+
+    const dashboard = await getContentReadinessDashboard(STORE_ID, {
+      actorProfileId: OWNER_PROFILE_ID,
+      env: readyExternalEnv,
+    });
+    const youtube = dashboard.providerCards.find((card) => card.provider === 'youtube');
+    const naver = dashboard.providerCards.find((card) => card.provider === 'naver_blog');
+    const threads = dashboard.providerCards.find((card) => card.provider === 'threads');
+
+    expect(youtube).toMatchObject({
+      displayName: 'Golden Coffee YouTube',
+      providerAccountId: 'youtube-channel-1',
+      status: 'connected',
+    });
+    expect(naver).toMatchObject({
+      displayName: 'Golden Coffee Blog',
+      providerAccountId: 'naver-blog-1',
+      status: 'expired',
+    });
+    expect(threads).toMatchObject({
+      status: 'not_connected',
+    });
+
+    const serialized = JSON.stringify(dashboard);
+    expect(serialized).not.toContain('dashboard-youtube-access-token-should-not-leak');
+    expect(serialized).not.toContain('dashboard-youtube-refresh-token-should-not-leak');
+    expect(serialized).not.toContain('dashboard-naver-access-token-should-not-leak');
+    expect(serialized).not.toContain('dashboard-naver-refresh-token-should-not-leak');
+    expect(serialized).not.toContain('access_token_encrypted');
+    expect(serialized).not.toContain('refresh_token_encrypted');
   });
 
   it('rejects another store member and preserves pricing, payment test, MYBI, review, YouTube, STT, and social gates', async () => {

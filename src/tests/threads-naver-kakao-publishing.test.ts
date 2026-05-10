@@ -22,6 +22,7 @@ import {
   handleExternalSocialOAuthStartRequest,
   validateExternalSocialOAuthState,
 } from '@/server/externalSocialOAuth';
+import { getProviderTokenStatus } from '@/server/socialAccountTokens';
 
 const STORE_ID = 'store_golden_coffee';
 const STORE_SLUG = 'golden-coffee';
@@ -63,7 +64,7 @@ function addConnectedAccount(provider: 'threads' | 'naver_blog') {
       refresh_token_encrypted: `encrypted-${provider}-refresh-token`,
       scopes: [],
       store_id: STORE_ID,
-      token_expires_at: '2026-05-10T06:00:00.000Z',
+      token_expires_at: '2026-05-12T06:00:00.000Z',
       updated_at: '2026-05-10T05:00:00.000Z',
     });
   });
@@ -96,12 +97,12 @@ describe('Threads, Naver Blog, and Kakao Share publishing foundation', () => {
     expect(threads.status).toBe('disabled');
     expect(threads.missingEnvNames).toContain('THREADS_CLIENT_ID');
     expect(threads.missingEnvNames).toContain('TOKEN_ENCRYPTION_KEY');
-    expect(threads.message).toBe('Threads 게시 기능은 점주 계정 연동과 게시 권한 확인 후 사용할 수 있습니다.');
+    expect(threads.message).toBe('외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.');
     expect(JSON.stringify(threads)).not.toContain('threads-secret-should-not-leak');
 
     expect(naver.status).toBe('disabled');
     expect(naver.missingEnvNames).toContain('NAVER_CLIENT_ID');
-    expect(naver.message).toBe('네이버 블로그 글쓰기는 네이버 로그인 연동과 권한 설정 후 사용할 수 있습니다.');
+    expect(naver.message).toBe('외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.');
     expect(JSON.stringify(naver)).not.toContain('naver-secret-should-not-leak');
 
     expect(kakao.status).toBe('disabled');
@@ -159,7 +160,7 @@ describe('Threads, Naver Blog, and Kakao Share publishing foundation', () => {
     );
     const missingEnvPayload = await missingEnv.json();
     expect(missingEnv.status).toBe(503);
-    expect(missingEnvPayload.error).toContain('Threads 게시 기능은 점주 계정 연동과 게시 권한 확인 후 사용할 수 있습니다.');
+    expect(missingEnvPayload.error).toContain('외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.');
     expect(JSON.stringify(missingEnvPayload)).not.toContain('threads-secret-should-not-leak');
 
     const threadsStart = await handleExternalSocialOAuthStartRequest(
@@ -205,8 +206,56 @@ describe('Threads, Naver Blog, and Kakao Share publishing foundation', () => {
     );
     const callbackPayload = await callback.json();
     expect(callback.status).toBe(501);
-    expect(callbackPayload.error).toContain('계정 연동 저장은 토큰 암호화와 교환 구현이 완료되면 사용할 수 있습니다.');
+    expect(callbackPayload.error).toContain('외부 계정 연결 저장은 암호화 설정이 완료되면 사용할 수 있습니다.');
     expect(JSON.stringify(callbackPayload)).not.toContain(naverReadyEnv.NAVER_CLIENT_SECRET);
+  });
+
+  it('stores Threads tokens only after callback token exchange and encrypted storage succeeds', async () => {
+    const state = createExternalSocialOAuthState({
+      issuedAt: NOW_MS,
+      nonce: 'nonce_threads_store',
+      profileId: OWNER_PROFILE_ID,
+      provider: 'threads',
+      storeId: STORE_ID,
+    });
+    const response = await handleExternalSocialOAuthCallbackRequest(
+      'threads',
+      new Request(`https://mybiz.ai.kr/api/social/threads/oauth/callback?code=oauth-code&state=${encodeURIComponent(state)}`, {
+        headers: { Cookie: 'mybiz_threads_oauth_state=nonce_threads_store' },
+      }),
+      {
+        env: threadsReadyEnv,
+        now: () => NOW_MS + 1000,
+        tokenExchangeAdapter: async () => ({
+          accessToken: 'threads-access-token-should-not-leak',
+          displayName: 'Golden Threads',
+          expiresAt: '2026-05-11T00:00:00.000Z',
+          providerAccountId: 'threads-profile-1',
+          refreshToken: 'threads-refresh-token-should-not-leak',
+          scopes: ['threads_basic', 'threads_content_publish'],
+        }),
+      },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.data).toMatchObject({
+      oauthStatus: 'connected',
+      provider: 'threads',
+      storeId: STORE_ID,
+    });
+    expect(JSON.stringify(payload)).not.toContain('threads-access-token-should-not-leak');
+    expect(JSON.stringify(payload)).not.toContain('threads-refresh-token-should-not-leak');
+    await expect(
+      getProviderTokenStatus(STORE_ID, 'threads', {
+        actorProfileId: OWNER_PROFILE_ID,
+        env: threadsReadyEnv,
+      }),
+    ).resolves.toMatchObject({
+      displayName: 'Golden Threads',
+      oauthStatus: 'connected',
+      providerAccountId: 'threads-profile-1',
+    });
   });
 
   it('renders provider cards without leaking social account tokens', async () => {

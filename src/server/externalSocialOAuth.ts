@@ -7,6 +7,10 @@ import {
   type ExternalOAuthProvider,
   type ExternalSocialEnv,
 } from '../shared/lib/services/externalSocialProvider.js';
+import {
+  saveProviderTokens,
+  type ProviderTokenPayload,
+} from './socialAccountTokens.js';
 import { getRequestMethod } from './nodeResponse.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 
@@ -39,6 +43,7 @@ type MerchantAccessResult =
     };
 
 interface ExternalSocialOAuthHandlerOptions {
+  client?: SupabaseClient;
   env?: ExternalSocialEnv;
   nonceFactory?: () => string;
   now?: () => number;
@@ -47,6 +52,12 @@ interface ExternalSocialOAuthHandlerOptions {
     storeId: string,
     bearerToken: string,
   ) => Promise<MerchantAccessResult>;
+  tokenExchangeAdapter?: (input: {
+    code: string;
+    env?: ExternalSocialEnv;
+    provider: ExternalOAuthProvider;
+    redirectUri: string;
+  }) => Promise<ProviderTokenPayload> | ProviderTokenPayload;
 }
 
 const STATE_MAX_AGE_SECONDS = 10 * 60;
@@ -373,16 +384,65 @@ export async function handleExternalSocialOAuthCallbackRequest(
     );
   }
 
-  return json(
-    {
-      ok: false,
-      error: `${EXTERNAL_SOCIAL_PROVIDER_ENV[provider].title} 계정 연동 저장은 토큰 암호화와 교환 구현이 완료되면 사용할 수 있습니다.`,
+  if (!options.tokenExchangeAdapter) {
+    return json(
+      {
+        ok: false,
+        error: '외부 계정 연결 저장은 암호화 설정이 완료되면 사용할 수 있습니다.',
+        provider,
+        storeId: validatedState.state.storeId,
+      },
+      501,
+      {
+        'set-cookie': expireStateCookie(provider),
+      },
+    );
+  }
+
+  try {
+    const tokenPayload = await options.tokenExchangeAdapter({
+      code,
+      env: options.env,
       provider,
-      storeId: validatedState.state.storeId,
-    },
-    501,
-    {
-      'set-cookie': expireStateCookie(provider),
-    },
-  );
+      redirectUri: getRedirectUri(provider, options.env),
+    });
+    const tokenStatus = await saveProviderTokens(validatedState.state.storeId, provider, tokenPayload, {
+      actorProfileId: validatedState.state.profileId,
+      client: options.client,
+      env: options.env,
+    });
+
+    return json(
+      {
+        ok: true,
+        data: {
+          displayName: tokenStatus.displayName,
+          oauthStatus: tokenStatus.oauthStatus,
+          provider,
+          providerAccountId: tokenStatus.providerAccountId,
+          scopes: tokenStatus.scopes,
+          storeId: validatedState.state.storeId,
+          tokenExpiresAt: tokenStatus.tokenExpiresAt,
+          tokenExpiringSoon: tokenStatus.tokenExpiringSoon,
+        },
+      },
+      200,
+      {
+        'set-cookie': expireStateCookie(provider),
+      },
+    );
+  } catch {
+    return json(
+      {
+        ok: false,
+        error: '외부 계정 연결 저장에 실패했습니다.',
+        provider,
+        storeId: validatedState.state.storeId,
+      },
+      503,
+      {
+        'set-cookie': expireStateCookie(provider),
+      },
+    );
+  }
 }
