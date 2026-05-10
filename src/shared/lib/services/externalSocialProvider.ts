@@ -14,7 +14,7 @@ export const EXTERNAL_SOCIAL_PROVIDER_ENV = {
     title: 'Kakao',
   },
   naver_blog: {
-    message: '네이버 블로그 글쓰기는 네이버 로그인 연동과 권한 설정 후 사용할 수 있습니다.',
+    message: '네이버 블로그 글쓰기는 네이버 계정 연결과 게시 설정이 완료된 뒤 사용할 수 있습니다.',
     oauthCookieName: 'mybiz_naver_oauth_state',
     oauthPath: '/api/social/naver/oauth',
     optionalEnvNames: [],

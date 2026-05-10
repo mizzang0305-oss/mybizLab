@@ -275,7 +275,7 @@ describe('Threads, Naver Blog, and Kakao Share publishing foundation', () => {
       title: 'Threads',
     });
     expect(cards.find((card) => card.provider === 'naver_blog')?.copy).toBe(
-      '네이버 블로그 글쓰기는 네이버 로그인 연동과 권한 설정 후 사용할 수 있습니다.',
+      '네이버 블로그 글쓰기는 네이버 계정 연결과 게시 설정이 완료된 뒤 사용할 수 있습니다.',
     );
     expect(cards.find((card) => card.provider === 'kakao_share')).toMatchObject({
       copy: '카카오 공유는 자동 게시가 아니라 사용자가 직접 공유하는 방식으로 제공됩니다.',

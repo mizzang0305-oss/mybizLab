@@ -179,6 +179,11 @@ describe('merchant UX routes', () => {
     expect(socialHtml).toContain('외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.');
     expect(socialHtml).toContain('TOKEN_ENCRYPTION_KEY');
     expect(socialHtml).toContain('disabled=""');
+    expect(socialHtml).toContain('Naver Blog writePost 준비');
+    expect(socialHtml).toContain('네이버 블로그 글쓰기는 네이버 계정 연결과 게시 설정이 완료된 뒤 사용할 수 있습니다.');
+    expect(socialHtml).toContain('네이버 플레이스 리뷰를 대신 작성하거나 자동 등록하지 않습니다.');
+    expect(socialHtml).toContain('발행 전 미리보기');
+    expect(socialHtml).toContain('네이버 발행');
     expect(socialHtml).not.toContain('access_token');
     expect(socialHtml).not.toContain('refresh_token');
   });

@@ -1168,7 +1168,9 @@ export function ContentSocialPage() {
   }, [providersQuery.data]);
   const youtubeReadiness = useMemo(() => getYouTubeProviderReadiness(), []);
   const youtubeProvider = (providersQuery.data || []).find((provider) => provider.provider === 'youtube');
+  const naverProvider = (providersQuery.data || []).find((provider) => provider.provider === 'naver_blog');
   const youtubeJobs = (jobsQuery.data || []).filter((job) => job.provider === 'youtube').slice(0, 3);
+  const naverJobs = (jobsQuery.data || []).filter((job) => job.provider === 'naver_blog').slice(0, 3);
   const externalProviderCards = (providersQuery.data || []).filter((provider) =>
     ['threads', 'naver_blog', 'kakao_share'].includes(provider.provider),
   );
@@ -1275,6 +1277,57 @@ export function ContentSocialPage() {
                 아직 외부 채널 게시 초안이 없습니다. 승인 전에는 외부 게시가 실행되지 않습니다.
               </p>
             ) : null}
+          </div>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Naver Blog writePost 준비"
+        subtitle="점주가 승인한 MyBiz 블로그 콘텐츠만 점주 본인 네이버 블로그 계정으로 발행할 수 있도록 준비합니다."
+      >
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-black text-slate-500">네이버 블로그 상태</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{naverProvider?.status || 'disabled'}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button className="btn-secondary" disabled type="button">
+                  발행 전 미리보기
+                </button>
+                <button className="btn-secondary" disabled type="button">
+                  네이버 발행
+                </button>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              네이버 블로그 글쓰기는 네이버 계정 연결과 게시 설정이 완료된 뒤 사용할 수 있습니다.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              네이버 플레이스 리뷰를 대신 작성하거나 자동 등록하지 않습니다. 고객이 직접 작성할 수 있도록 링크와 안내를 제공합니다.
+            </p>
+            {naverProvider?.missingEnvNames?.length ? (
+              <p className="mt-3 text-xs font-bold leading-5 text-amber-700">
+                설정 대기: {naverProvider.missingEnvNames.join(', ')}
+              </p>
+            ) : null}
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <p className="text-xs font-black text-slate-500">발행 전 미리보기</p>
+            <div className="mt-3 space-y-2">
+              {naverJobs.map((job) => (
+                <div className="rounded-2xl bg-slate-50 p-3" key={job.job_id}>
+                  <p className="text-sm font-black text-slate-800">{job.status}</p>
+                  <p className="mt-1 line-clamp-3 text-sm text-slate-600">{job.caption || '문안 없음'}</p>
+                </div>
+              ))}
+              {!naverJobs.length ? (
+                <p className="text-sm leading-6 text-slate-500">
+                  아직 네이버 블로그 발행 초안이 없습니다. 게시 전에는 고객 동의, 점주 승인, provider 설정을 확인합니다.
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
       </Panel>
