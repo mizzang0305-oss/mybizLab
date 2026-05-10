@@ -1169,6 +1169,8 @@ export function ContentSocialPage() {
   const youtubeReadiness = useMemo(() => getYouTubeProviderReadiness(), []);
   const youtubeProvider = (providersQuery.data || []).find((provider) => provider.provider === 'youtube');
   const youtubeJobs = (jobsQuery.data || []).filter((job) => job.provider === 'youtube').slice(0, 3);
+  const threadsProvider = (providersQuery.data || []).find((provider) => provider.provider === 'threads');
+  const threadsJobs = (jobsQuery.data || []).filter((job) => job.provider === 'threads').slice(0, 3);
   const externalProviderCards = (providersQuery.data || []).filter((provider) =>
     ['threads', 'naver_blog', 'kakao_share'].includes(provider.provider),
   );
@@ -1260,6 +1262,39 @@ export function ContentSocialPage() {
               ) : null}
             </article>
           ))}
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-slate-950">Threads publish adapter 준비</p>
+                <p className="mt-2 text-xs font-bold text-slate-500">{threadsProvider?.status || 'disabled'}</p>
+              </div>
+              <button className="btn-secondary" disabled type="button">
+                Threads 발행
+              </button>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              Threads 발행은 게시 권한, 점주 승인, 토큰 암호화, connected 계정이 모두 준비된 서버 작업에서만 실행됩니다.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-amber-700">
+              대시보드 버튼은 provider readiness와 job worker 연결이 완료되기 전까지 비활성화됩니다.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <p className="text-sm font-black text-slate-950">Threads jobs</p>
+            <div className="mt-3 space-y-2">
+              {threadsJobs.map((job) => (
+                <div className="rounded-2xl bg-slate-50 p-3" key={job.job_id}>
+                  <p className="text-sm font-black text-slate-800">{job.status}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{job.caption || '문안 없음'}</p>
+                </div>
+              ))}
+              {!threadsJobs.length ? (
+                <p className="text-sm leading-6 text-slate-500">아직 Threads 게시 job이 없습니다. 승인 전에는 외부 게시가 실행되지 않습니다.</p>
+              ) : null}
+            </div>
+          </div>
         </div>
         <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
           <p className="text-sm font-black text-slate-950">최근 Threads/Naver/Kakao 게시 초안</p>
