@@ -91,17 +91,17 @@ export function getYouTubeCaptionReadiness(mediaAsset?: StoreMediaAsset) {
   };
 }
 
-function hasSafeMediaUrl(mediaAsset?: StoreMediaAsset) {
-  if (!mediaAsset?.url) {
+function hasInternalStoragePath(mediaAsset?: StoreMediaAsset) {
+  const storagePath = mediaAsset?.storage_path?.trim();
+  if (!storagePath) {
     return false;
   }
 
-  try {
-    const parsed = new URL(mediaAsset.url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
+  if (/^https?:\/\//i.test(storagePath) || /^[a-z]:/i.test(storagePath) || storagePath.startsWith('/') || storagePath.startsWith('\\')) {
     return false;
   }
+
+  return !storagePath.split(/[\\/]/).some((part) => part === '..');
 }
 
 export function getYouTubeUploadExecutionReadiness(input: YouTubeUploadExecutionInput) {
@@ -134,9 +134,9 @@ export function getYouTubeUploadExecutionReadiness(input: YouTubeUploadExecution
     };
   }
 
-  if (input.job.source_type === 'media' && !hasSafeMediaUrl(input.mediaAsset)) {
+  if (input.job.source_type === 'media' && !hasInternalStoragePath(input.mediaAsset)) {
     return {
-      message: 'YouTube 업로드에는 안전한 http/https 미디어 URL이 필요합니다.',
+      message: 'YouTube 업로드에는 내부 storage_path 기반 파일 handoff가 필요합니다.',
       ready: false,
     };
   }
