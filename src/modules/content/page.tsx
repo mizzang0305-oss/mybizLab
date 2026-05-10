@@ -94,6 +94,17 @@ const approvalStatusLabels: Record<string, string> = {
   waiting_approval: '승인 대기',
 };
 
+const blockedReasonLabels: Record<string, string> = {
+  approval_missing: '점주 승인 필요',
+  content_usage_consent_missing: '고객 동의 부족',
+  customer_impersonation_copy_detected: '고객 사칭 문구 감지',
+  failed: '실패 상태',
+  missing_env: '환경 설정 필요',
+  provider_disabled: '제공자 비활성',
+  token_not_connected: '계정 연결 필요',
+  unsafe_copy_detected: '안전하지 않은 문구 감지',
+};
+
 const reviewRequestSourceOptions: Array<{ label: string; value: ReviewRequestLinkSourceType }> = [
   { label: '매장 기본 링크', value: 'store' },
   { label: '주문 연결', value: 'order' },
@@ -945,7 +956,8 @@ export function ContentStatusPage() {
         { label: '블로그 draft', value: stats.blogDraftCount },
         { label: '블로그 published', value: stats.blogPublishedCount },
         { label: '미디어 asset', value: stats.mediaAssetCount },
-        { label: 'transcript/caption ready', value: stats.transcriptReadyAssetCount },
+        { label: 'transcript ready asset', value: stats.transcriptReadyAssetCount },
+        { label: 'caption ready asset', value: stats.captionReadyAssetCount },
         { label: 'social draft', value: stats.socialDraftCount },
         { label: 'waiting approval', value: stats.socialWaitingApprovalCount },
         { label: 'failed', value: stats.socialFailedCount },
@@ -1071,7 +1083,7 @@ export function ContentStatusPage() {
             <div className="space-y-3">
               {dashboard.blockedQueue.map((item, index) => (
                 <article className="rounded-3xl border border-slate-200 bg-white p-5" key={`${item.reasonCode}-${item.jobId || index}`}>
-                  <p className="text-xs font-black text-rose-500">{item.reasonCode}</p>
+                  <p className="text-xs font-black text-rose-500">{blockedReasonLabels[item.reasonCode] || '차단 사유 확인'}</p>
                   <p className="mt-2 text-sm font-black text-slate-900">{item.sourceTitle}</p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">{item.reason}</p>
                 </article>

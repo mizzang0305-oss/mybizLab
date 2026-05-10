@@ -134,6 +134,7 @@ describe('content readiness dashboard', () => {
     expect(dashboard.stats).toMatchObject({
       blogDraftCount: baseline.stats.blogDraftCount + 1,
       blogPublishedCount: baseline.stats.blogPublishedCount + 1,
+      captionReadyAssetCount: baseline.stats.captionReadyAssetCount + 1,
       consentBlockedJobCount: baseline.stats.consentBlockedJobCount + 1,
       mediaAssetCount: baseline.stats.mediaAssetCount + 2,
       pendingReviewCount: baseline.stats.pendingReviewCount + 1,

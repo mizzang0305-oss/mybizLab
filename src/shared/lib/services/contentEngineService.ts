@@ -168,6 +168,7 @@ export type ContentReadinessBlockReason =
 export interface ContentReadinessStats {
   blogDraftCount: number;
   blogPublishedCount: number;
+  captionReadyAssetCount: number;
   consentBlockedJobCount: number;
   mediaAssetCount: number;
   pendingReviewCount: number;
@@ -2461,8 +2462,12 @@ function getProviderNextAction(card: ContentReadinessProviderCard) {
   return '기능이 비활성화되어 있습니다. 외부 게시 호출은 실행되지 않습니다.';
 }
 
-function hasTranscriptOrCaption(asset: StoreMediaAsset) {
-  return Boolean(asset.transcript?.trim() || asset.captions_srt?.trim() || asset.captions_vtt?.trim());
+function hasCaption(asset: StoreMediaAsset) {
+  return Boolean(asset.captions_srt?.trim() || asset.captions_vtt?.trim());
+}
+
+function hasTranscript(asset: StoreMediaAsset) {
+  return Boolean(asset.transcript?.trim());
 }
 
 function getReviewTitle(review: StoreReview) {
@@ -2823,6 +2828,7 @@ export async function getContentReadinessDashboard(
     stats: {
       blogDraftCount: posts.filter((post) => post.status === 'draft').length,
       blogPublishedCount: posts.filter((post) => post.status === 'published').length,
+      captionReadyAssetCount: assets.filter((asset) => hasCaption(asset)).length,
       consentBlockedJobCount: publishedReviewsWithoutConsent.length,
       mediaAssetCount: assets.length,
       pendingReviewCount: reviews.filter((review) => review.visibility_status === 'pending').length,
@@ -2831,7 +2837,7 @@ export async function getContentReadinessDashboard(
       socialDraftCount: jobs.filter((job) => job.status === 'draft').length,
       socialFailedCount: jobs.filter((job) => job.status === 'failed').length,
       socialWaitingApprovalCount: jobs.filter((job) => job.status === 'waiting_approval').length,
-      transcriptReadyAssetCount: assets.filter((asset) => hasTranscriptOrCaption(asset)).length,
+      transcriptReadyAssetCount: assets.filter((asset) => hasTranscript(asset)).length,
     },
   };
 }
