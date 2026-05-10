@@ -4,6 +4,7 @@ import { supabase } from '../../../integrations/supabase/client.js';
 import { DATA_PROVIDER, IS_LIVE_RUNTIME } from '../appConfig.js';
 import { createId } from '../ids.js';
 import { getDatabase, updateDatabase } from '../mockDb.js';
+import { PAYMENT_TEST_100_PRODUCT } from '../platformAdminConfig.js';
 import { requestPublicApi } from '../publicApiClient.js';
 import { normalizeStoreSlug } from '../storeSlug.js';
 import {
@@ -148,6 +149,77 @@ export interface SocialProviderCard {
   requiredScopes?: string[];
   status: SocialAccountStatus | ExternalSocialProviderStatus;
   title: string;
+}
+
+export type ContentReadinessProviderKey = SocialProvider | 'stt' | 'payment_test_100';
+export type ContentReadinessProviderStatus = 'disabled' | 'missing_config' | 'ready' | 'connected' | 'error';
+export type ContentReadinessConsentStatus = 'granted' | 'missing' | 'not_required' | 'unknown';
+export type ContentReadinessApprovalStatus = 'approved' | 'approval_missing' | 'waiting_approval';
+export type ContentReadinessBlockReason =
+  | 'approval_missing'
+  | 'content_usage_consent_missing'
+  | 'customer_impersonation_copy_detected'
+  | 'failed'
+  | 'missing_env'
+  | 'provider_disabled'
+  | 'token_not_connected'
+  | 'unsafe_copy_detected';
+
+export interface ContentReadinessStats {
+  blogDraftCount: number;
+  blogPublishedCount: number;
+  consentBlockedJobCount: number;
+  mediaAssetCount: number;
+  pendingReviewCount: number;
+  publishedReviewCount: number;
+  reviewRequestLinkCount: number;
+  socialDraftCount: number;
+  socialFailedCount: number;
+  socialWaitingApprovalCount: number;
+  transcriptReadyAssetCount: number;
+}
+
+export interface ContentReadinessProviderCard {
+  copy: string;
+  missingEnvNames: string[];
+  nextAction: string;
+  provider: ContentReadinessProviderKey;
+  requiredScopes: string[];
+  status: ContentReadinessProviderStatus;
+  title: string;
+}
+
+export interface ContentReadinessApprovalQueueItem {
+  approvalStatus: ContentReadinessApprovalStatus;
+  consentStatus: ContentReadinessConsentStatus;
+  createdAt: string;
+  jobId: string;
+  nextAction: string;
+  provider: SocialPublishProvider;
+  sourceTitle: string;
+  sourceType: SocialPublishSourceType;
+  status: SocialPublishJobStatus;
+}
+
+export interface ContentReadinessBlockedQueueItem {
+  createdAt: string;
+  jobId?: string;
+  provider?: SocialPublishProvider | ContentReadinessProviderKey;
+  reason: string;
+  reasonCode: ContentReadinessBlockReason;
+  sourceTitle: string;
+  sourceType?: SocialPublishSourceType | 'provider' | 'review';
+}
+
+export interface ContentReadinessDashboard {
+  approvalQueue: ContentReadinessApprovalQueueItem[];
+  blockedQueue: ContentReadinessBlockedQueueItem[];
+  providerCards: ContentReadinessProviderCard[];
+  safetyCopy: {
+    externalPosting: string;
+    reviewPolicy: string;
+  };
+  stats: ContentReadinessStats;
 }
 
 const REVIEW_STATUSES: StoreReviewStatus[] = ['pending', 'published', 'hidden', 'reported'];
@@ -2339,4 +2411,427 @@ export async function listSocialPublishJobs(storeId: string, options?: ContentSe
 
   assertDemoStoreMember(storeId, options?.actorProfileId);
   return sortNewestFirst(getDatabase().social_publish_jobs.filter((job) => job.store_id === storeId));
+}
+
+function normalizeReadinessStatus(input: {
+  configured: boolean;
+  connected?: boolean;
+  enabled?: boolean;
+  error?: boolean;
+  ready?: boolean;
+}): ContentReadinessProviderStatus {
+  if (input.error) {
+    return 'error';
+  }
+
+  if (!input.configured) {
+    return 'missing_config';
+  }
+
+  if (input.connected) {
+    return 'connected';
+  }
+
+  if (input.ready) {
+    return 'ready';
+  }
+
+  return input.enabled === false ? 'disabled' : 'ready';
+}
+
+function getProviderNextAction(card: ContentReadinessProviderCard) {
+  if (card.status === 'missing_config') {
+    return `환경 설정 대기: ${card.missingEnvNames.join(', ')}`;
+  }
+
+  if (card.status === 'connected') {
+    return '계정 연결은 확인되었습니다. 점주 승인 큐와 콘텐츠 동의 상태를 확인하세요.';
+  }
+
+  if (card.status === 'ready') {
+    return card.provider === 'kakao_share'
+      ? 'SDK 설정이 준비되었습니다. 사용자가 직접 공유하는 흐름만 제공합니다.'
+      : '제공자 설정은 준비되었습니다. 계정 연결과 점주 승인을 완료하세요.';
+  }
+
+  if (card.status === 'error') {
+    return '오류 내용을 확인하고 provider 설정을 점검하세요.';
+  }
+
+  return '기능이 비활성화되어 있습니다. 외부 게시 호출은 실행되지 않습니다.';
+}
+
+function hasTranscriptOrCaption(asset: StoreMediaAsset) {
+  return Boolean(asset.transcript?.trim() || asset.captions_srt?.trim() || asset.captions_vtt?.trim());
+}
+
+function getReviewTitle(review: StoreReview) {
+  return review.title?.trim() || review.body?.trim().slice(0, 48) || '고객 리뷰';
+}
+
+function getSourceTitle(
+  job: SocialPublishJob,
+  lookups: {
+    assets: Map<string, StoreMediaAsset>;
+    posts: Map<string, StoreBlogPost>;
+    reviews: Map<string, StoreReview>;
+  },
+) {
+  if (!job.source_id) {
+    return job.caption?.trim().slice(0, 48) || '수동 문안';
+  }
+
+  if (job.source_type === 'review') {
+    const review = lookups.reviews.get(job.source_id);
+    return review ? getReviewTitle(review) : '리뷰 소스 확인 필요';
+  }
+
+  if (job.source_type === 'blog_post') {
+    return lookups.posts.get(job.source_id)?.title || '블로그 소스 확인 필요';
+  }
+
+  if (job.source_type === 'media') {
+    const asset = lookups.assets.get(job.source_id);
+    return asset?.ai_title || asset?.alt_text || asset?.url || '미디어 소스 확인 필요';
+  }
+
+  return job.caption?.trim().slice(0, 48) || '수동 문안';
+}
+
+function getConsentStatus(job: SocialPublishJob, reviewLookup: Map<string, StoreReview>): ContentReadinessConsentStatus {
+  if (job.source_type !== 'review') {
+    return 'not_required';
+  }
+
+  const review = job.source_id ? reviewLookup.get(job.source_id) : null;
+  if (!review) {
+    return 'unknown';
+  }
+
+  return review.content_usage_consent ? 'granted' : 'missing';
+}
+
+function getApprovalStatus(job: SocialPublishJob): ContentReadinessApprovalStatus {
+  if (job.approved_at && job.approved_by) {
+    return 'approved';
+  }
+
+  return job.status === 'waiting_approval' ? 'waiting_approval' : 'approval_missing';
+}
+
+function detectUnsafeCopy(caption?: string | null): ContentReadinessBlockReason | null {
+  const normalized = normalizeText(caption);
+  if (!normalized) {
+    return null;
+  }
+
+  const customerVoicePatterns = [
+    /제가\s*(방문|다녀|먹|마셔|구매|이용|써|가봤|갔)/i,
+    /방문했는데요/i,
+    /내돈내산/i,
+    /I\s+(visited|bought|tried|ate|went)/i,
+    /my\s+(visit|review|experience)/i,
+  ];
+  if (customerVoicePatterns.some((pattern) => pattern.test(normalized))) {
+    return 'customer_impersonation_copy_detected';
+  }
+
+  return /대신\s*(작성|등록)|자동\s*등록|리뷰\s*대행/i.test(normalized) ? 'unsafe_copy_detected' : null;
+}
+
+function getProviderBlockReason(status?: SocialAccountStatus | ExternalSocialProviderStatus) {
+  if (status === 'not_connected') {
+    return 'token_not_connected' as const;
+  }
+
+  if (status === 'disabled' || status === 'error') {
+    return 'provider_disabled' as const;
+  }
+
+  return null;
+}
+
+function buildProviderCards(
+  socialCards: SocialProviderCard[],
+  options?: ContentServiceOptions,
+): ContentReadinessProviderCard[] {
+  const socialCardByProvider = new Map(socialCards.map((card) => [card.provider, card]));
+  const youtube = getYouTubeProviderReadiness(options?.env);
+  const youtubeSocialCard = socialCardByProvider.get('youtube');
+  const youtubeStatus = normalizeReadinessStatus({
+    configured: youtube.missingOAuthEnvNames.length === 0 && youtube.uploadEnabled,
+    connected: youtubeSocialCard?.status === 'connected',
+    enabled: youtube.oauthEnabled || youtube.uploadEnabled,
+    ready: youtube.uploadReady,
+  });
+  const providerCards: ContentReadinessProviderCard[] = [
+    {
+      copy: youtube.disabledMessage,
+      missingEnvNames: [...new Set(youtube.missingOAuthEnvNames.concat(youtube.uploadEnabled ? [] : ['YOUTUBE_UPLOAD_ENABLED']))],
+      nextAction: '',
+      provider: 'youtube',
+      requiredScopes: youtube.requiredScopes,
+      status: youtubeStatus,
+      title: 'YouTube',
+    },
+  ];
+
+  (['threads', 'naver_blog', 'kakao_share'] as const).forEach((provider) => {
+    const baseCard = socialCardByProvider.get(provider);
+    const readiness = getExternalSocialProviderReadiness(provider, options?.env, {
+      accountStatus: baseCard?.status,
+    });
+    const status = normalizeReadinessStatus({
+      configured: readiness.missingEnvNames.length === 0,
+      connected: readiness.status === 'connected',
+      enabled: readiness.enabled,
+      ready: readiness.status === 'ready',
+    });
+    providerCards.push({
+      copy: readiness.message,
+      missingEnvNames: readiness.missingEnvNames,
+      nextAction: '',
+      provider,
+      requiredScopes: readiness.requiredScopes,
+      status,
+      title: readiness.title,
+    });
+  });
+
+  const stt = getSttReadiness(options?.env);
+  providerCards.push({
+    copy: stt.message,
+    missingEnvNames: stt.missingEnvNames,
+    nextAction: '',
+    provider: 'stt',
+    requiredScopes: [],
+    status: normalizeReadinessStatus({
+      configured: stt.missingEnvNames.length === 0,
+      enabled: stt.enabled,
+      ready: stt.ready,
+    }),
+    title: 'STT provider',
+  });
+
+  const paymentTestReady =
+    PAYMENT_TEST_100_PRODUCT.amount === 100 &&
+    PAYMENT_TEST_100_PRODUCT.grants_entitlement === false &&
+    PAYMENT_TEST_100_PRODUCT.is_visible_public === false;
+  providerCards.push({
+    copy: 'PortOne 100원 테스트 상품은 참고 상태로만 표시되며 콘텐츠 게시 흐름과 연결하지 않습니다.',
+    missingEnvNames: [],
+    nextAction: '',
+    provider: 'payment_test_100',
+    requiredScopes: [],
+    status: paymentTestReady ? 'ready' : 'error',
+    title: 'PortOne payment test',
+  });
+
+  return providerCards.map((card) => ({
+    ...card,
+    nextAction: getProviderNextAction(card),
+  }));
+}
+
+function buildApprovalQueue(
+  jobs: SocialPublishJob[],
+  lookups: {
+    assets: Map<string, StoreMediaAsset>;
+    posts: Map<string, StoreBlogPost>;
+    reviews: Map<string, StoreReview>;
+  },
+): ContentReadinessApprovalQueueItem[] {
+  return jobs
+    .filter((job) => job.status === 'draft' || job.status === 'waiting_approval')
+    .map((job) => {
+      const consentStatus = getConsentStatus(job, lookups.reviews);
+      const approvalStatus = getApprovalStatus(job);
+      return {
+        approvalStatus,
+        consentStatus,
+        createdAt: job.created_at,
+        jobId: job.job_id,
+        nextAction:
+          consentStatus === 'missing'
+            ? '고객 콘텐츠 활용 동의가 필요합니다.'
+            : approvalStatus === 'approval_missing'
+              ? '점주가 문안을 검토하고 승인해야 합니다.'
+              : 'provider 설정을 확인한 뒤 게시 실행은 별도 단계에서 진행합니다.',
+        provider: job.provider,
+        sourceTitle: getSourceTitle(job, lookups),
+        sourceType: job.source_type,
+        status: job.status,
+      };
+    });
+}
+
+function buildBlockedQueue(
+  input: {
+    jobs: SocialPublishJob[];
+    lookups: {
+      assets: Map<string, StoreMediaAsset>;
+      posts: Map<string, StoreBlogPost>;
+      reviews: Map<string, StoreReview>;
+    };
+    providerCards: ContentReadinessProviderCard[];
+    reviews: StoreReview[];
+    socialCards: SocialProviderCard[];
+  },
+): ContentReadinessBlockedQueueItem[] {
+  const blocked: ContentReadinessBlockedQueueItem[] = [];
+  const providerStatus = new Map(input.socialCards.map((card) => [card.provider, card.status]));
+  const readinessByProvider = new Map(input.providerCards.map((card) => [card.provider, card]));
+
+  input.reviews
+    .filter((review) => review.visibility_status === 'published' && !review.content_usage_consent)
+    .forEach((review) => {
+      blocked.push({
+        createdAt: review.created_at,
+        reason: '고객 콘텐츠 활용 동의가 없어 외부 채널 소개 초안으로 사용할 수 없습니다.',
+        reasonCode: 'content_usage_consent_missing',
+        sourceTitle: getReviewTitle(review),
+        sourceType: 'review',
+      });
+    });
+
+  input.jobs.forEach((job) => {
+    const sourceTitle = getSourceTitle(job, input.lookups);
+    const unsafeCopyReason = detectUnsafeCopy(job.caption);
+    const consentStatus = getConsentStatus(job, input.lookups.reviews);
+    const directProviderStatus = providerStatus.get(job.provider as SocialProvider);
+    const providerBlock = getProviderBlockReason(directProviderStatus);
+    const readiness = readinessByProvider.get(job.provider as ContentReadinessProviderKey);
+
+    if (job.status === 'failed') {
+      blocked.push({
+        createdAt: job.created_at,
+        jobId: job.job_id,
+        provider: job.provider,
+        reason: job.error_message || '게시 작업이 실패 상태입니다. 실제 외부 게시 성공으로 표시하지 않습니다.',
+        reasonCode: 'failed',
+        sourceTitle,
+        sourceType: job.source_type,
+      });
+    }
+
+    if (consentStatus === 'missing') {
+      blocked.push({
+        createdAt: job.created_at,
+        jobId: job.job_id,
+        provider: job.provider,
+        reason: '고객 콘텐츠 활용 동의가 필요합니다.',
+        reasonCode: 'content_usage_consent_missing',
+        sourceTitle,
+        sourceType: job.source_type,
+      });
+    }
+
+    if (unsafeCopyReason) {
+      blocked.push({
+        createdAt: job.created_at,
+        jobId: job.job_id,
+        provider: job.provider,
+        reason:
+          unsafeCopyReason === 'customer_impersonation_copy_detected'
+            ? '고객인 척 작성한 문구가 감지되었습니다.'
+            : '외부 리뷰 대행 또는 자동 등록처럼 보이는 문구가 감지되었습니다.',
+        reasonCode: unsafeCopyReason,
+        sourceTitle,
+        sourceType: job.source_type,
+      });
+    }
+
+    if (!job.approved_at && (job.status === 'draft' || job.status === 'waiting_approval')) {
+      blocked.push({
+        createdAt: job.created_at,
+        jobId: job.job_id,
+        provider: job.provider,
+        reason: '점주 승인 전에는 queued/publishing/published 상태로 전환할 수 없습니다.',
+        reasonCode: 'approval_missing',
+        sourceTitle,
+        sourceType: job.source_type,
+      });
+    }
+
+    if (isExternalProvider(job.provider) && providerBlock) {
+      blocked.push({
+        createdAt: job.created_at,
+        jobId: job.job_id,
+        provider: job.provider,
+        reason:
+          providerBlock === 'token_not_connected'
+            ? '계정 토큰 연결이 완료되지 않았습니다.'
+            : 'provider가 비활성 상태라 외부 게시 큐로 이동할 수 없습니다.',
+        reasonCode: providerBlock,
+        sourceTitle,
+        sourceType: job.source_type,
+      });
+    }
+
+    if (readiness?.missingEnvNames.length) {
+      blocked.push({
+        createdAt: job.created_at,
+        jobId: job.job_id,
+        provider: job.provider,
+        reason: `필수 환경 설정이 필요합니다: ${readiness.missingEnvNames.join(', ')}`,
+        reasonCode: 'missing_env',
+        sourceTitle,
+        sourceType: job.source_type,
+      });
+    }
+  });
+
+  return blocked.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function getContentReadinessDashboard(
+  storeId: string,
+  options?: ContentServiceOptions,
+): Promise<ContentReadinessDashboard> {
+  const [reviewLinks, reviews, posts, assets, socialCards, jobs] = await Promise.all([
+    listReviewRequestLinks(storeId, options),
+    listStoreReviews(storeId, options),
+    listStoreBlogPosts(storeId, options),
+    listStoreMediaAssets(storeId, options),
+    listSocialProviderCards(storeId, options),
+    listSocialPublishJobs(storeId, options),
+  ]);
+  const lookups = {
+    assets: new Map(assets.map((asset) => [asset.asset_id, asset])),
+    posts: new Map(posts.map((post) => [post.post_id, post])),
+    reviews: new Map(reviews.map((review) => [review.review_id, review])),
+  };
+  const providerCards = buildProviderCards(socialCards, options);
+  const publishedReviewsWithoutConsent = reviews.filter(
+    (review) => review.visibility_status === 'published' && !review.content_usage_consent,
+  );
+
+  return {
+    approvalQueue: buildApprovalQueue(jobs, lookups),
+    blockedQueue: buildBlockedQueue({
+      jobs,
+      lookups,
+      providerCards,
+      reviews,
+      socialCards,
+    }),
+    providerCards,
+    safetyCopy: {
+      externalPosting: '외부 채널 게시 기능은 계정 연동, 고객 동의, 점주 승인, 제공자 설정이 모두 완료된 뒤 사용할 수 있습니다.',
+      reviewPolicy: '외부 플랫폼 리뷰를 대신 작성하거나 자동 등록하지 않습니다.',
+    },
+    stats: {
+      blogDraftCount: posts.filter((post) => post.status === 'draft').length,
+      blogPublishedCount: posts.filter((post) => post.status === 'published').length,
+      consentBlockedJobCount: publishedReviewsWithoutConsent.length,
+      mediaAssetCount: assets.length,
+      pendingReviewCount: reviews.filter((review) => review.visibility_status === 'pending').length,
+      publishedReviewCount: reviews.filter((review) => review.visibility_status === 'published').length,
+      reviewRequestLinkCount: reviewLinks.length,
+      socialDraftCount: jobs.filter((job) => job.status === 'draft').length,
+      socialFailedCount: jobs.filter((job) => job.status === 'failed').length,
+      socialWaitingApprovalCount: jobs.filter((job) => job.status === 'waiting_approval').length,
+      transcriptReadyAssetCount: assets.filter((asset) => hasTranscriptOrCaption(asset)).length,
+    },
+  };
 }

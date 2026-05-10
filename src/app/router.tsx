@@ -66,6 +66,7 @@ const ContentMediaPage = lazyPage(() => import('@/modules/content/page'), 'Conte
 const ContentReviewRequestsPage = lazyPage(() => import('@/modules/content/page'), 'ContentReviewRequestsPage');
 const ContentReviewsPage = lazyPage(() => import('@/modules/content/page'), 'ContentReviewsPage');
 const ContentSocialPage = lazyPage(() => import('@/modules/content/page'), 'ContentSocialPage');
+const ContentStatusPage = lazyPage(() => import('@/modules/content/page'), 'ContentStatusPage');
 const ContractsPage = lazyPage(() => import('@/modules/contracts/page'), 'ContractsPage');
 const CustomersPage = lazyPage(() => import('@/modules/customers/page'), 'CustomersPage');
 const DashboardPage = lazyPage(() => import('@/modules/dashboard/page'), 'DashboardPage');
@@ -402,6 +403,10 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'content/social',
             element: routeElement(ContentSocialPage),
+          },
+          {
+            path: 'content/status',
+            element: routeElement(ContentStatusPage),
           },
           {
             path: 'sales',

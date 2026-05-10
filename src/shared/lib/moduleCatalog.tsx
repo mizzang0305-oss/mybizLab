@@ -165,6 +165,7 @@ export const adminNavigation: AdminNavigationItem[] = [
   { label: '블로그/소식', route: '/dashboard/content/blog', icon: Icons.Contract },
   { label: '사진·영상', route: '/dashboard/content/media', icon: Icons.Globe },
   { label: '게시 초안/소셜', route: '/dashboard/content/social', icon: Icons.Zap },
+  { label: '콘텐츠 상태판', route: '/dashboard/content/status', icon: Icons.Chart },
 ];
 
 export function resolveAdminNavigation(pathname: string) {
