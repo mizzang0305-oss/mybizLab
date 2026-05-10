@@ -32,4 +32,15 @@ describe('vercel public API rewrites', () => {
       ]),
     );
   });
+
+  it('routes dashboard media STT actions through the existing merchant function', () => {
+    expect(vercelConfig.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dest: '/api/merchant?resource=media-transcribe&assetId=$1',
+          src: '/api/dashboard/content/media/([^/]+)/transcribe',
+        }),
+      ]),
+    );
+  });
 });

@@ -1,4 +1,5 @@
 import {
+  handleMerchantMediaTranscribeRequest,
   handleMerchantOrderEventRequest,
   type MerchantRequestLike,
 } from '../src/server/merchantApi.js';
@@ -64,6 +65,8 @@ async function routeMerchantRequest(request: MerchantRequestLike): Promise<Respo
   switch (resource) {
     case 'order-event':
       return method === 'POST' ? handleMerchantOrderEventRequest(request) : methodNotAllowed();
+    case 'media-transcribe':
+      return method === 'POST' ? handleMerchantMediaTranscribeRequest(request) : methodNotAllowed();
     case 'youtube-oauth-callback':
       return method === 'GET' ? handleYouTubeOAuthCallbackRequest(request) : getMethodNotAllowed();
     case 'youtube-oauth-start':

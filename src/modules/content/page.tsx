@@ -11,6 +11,7 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { useAdminAccess } from '@/shared/lib/adminSession';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { canonicalUrl } from '@/shared/lib/seo';
+import { getSttReadiness } from '@/shared/lib/services/sttProvider';
 import { YOUTUBE_REQUIRED_SCOPES, getYouTubeProviderReadiness } from '@/shared/lib/services/youtubeProvider';
 import {
   approveSocialPublishJob,
@@ -30,6 +31,7 @@ import {
   listStoreMediaAssets,
   listStoreReviews,
   publishStoreBlogPost,
+  transcribeStoreMediaAsset,
   updateStoreReviewStatus,
 } from '@/shared/lib/services/contentEngineService';
 import type {
@@ -709,7 +711,9 @@ export function ContentMediaPage() {
     url: '',
   });
   const [draftByAssetId, setDraftByAssetId] = useState<Record<string, string>>({});
+  const [sttMessageByAssetId, setSttMessageByAssetId] = useState<Record<string, string>>({});
   const storeId = currentStore?.id || '';
+  const sttReadiness = useMemo(() => getSttReadiness(), []);
 
   usePageMeta('사진·영상', '매장 미디어 URL을 등록하고 안전한 캡션·자막 초안을 준비합니다.');
 
@@ -739,6 +743,20 @@ export function ContentMediaPage() {
     },
   });
 
+  const transcribeMutation = useMutation({
+    mutationFn: (assetId: string) =>
+      transcribeStoreMediaAsset(storeId, assetId, {
+        actorProfileId,
+      }),
+    onSuccess: async (result) => {
+      setSttMessageByAssetId((current) => ({
+        ...current,
+        [result.asset.asset_id]: result.message,
+      }));
+      await queryClient.invalidateQueries({ queryKey: queryKeys.contentMedia(storeId) });
+    },
+  });
+
   if (!currentStore) {
     return <EmptyStoreGuard />;
   }
@@ -761,6 +779,29 @@ export function ContentMediaPage() {
         title="사진·영상"
         description="업로드 인프라가 준비되기 전까지 이미지/영상 URL을 등록하고 AI 캡션·자막 초안 인터페이스를 제공합니다."
       />
+
+      <Panel title="STT 자막 생성 준비" subtitle="음성 분석 설정이 완료되면 영상 자막과 설명 초안을 생성할 수 있습니다.">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-black text-slate-500">provider</p>
+            <p className="mt-2 text-lg font-black text-slate-950">{sttReadiness.provider}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-black text-slate-500">상태</p>
+            <p className="mt-2 text-lg font-black text-slate-950">{sttReadiness.ready ? 'ready' : 'disabled'}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-black text-slate-500">최대 길이</p>
+            <p className="mt-2 text-lg font-black text-slate-950">{sttReadiness.maxDurationSeconds}초</p>
+          </div>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-slate-600">
+          {sttReadiness.message}
+        </p>
+        <p className="mt-2 text-sm leading-6 text-amber-700">
+          URL 등록 자산은 서버가 외부 파일을 직접 가져오지 않습니다. 업로드된 내부 파일이 준비된 뒤 STT를 실행할 수 있습니다.
+        </p>
+      </Panel>
 
       <Panel title="미디어 URL 등록" subtitle="외부 업로드는 아직 실행하지 않고 안전한 URL 등록만 지원합니다.">
         <div className="grid gap-4 md:grid-cols-2">
@@ -793,24 +834,66 @@ export function ContentMediaPage() {
         </button>
       </Panel>
 
-      <Panel title="미디어 목록" subtitle="캡션과 자막 초안은 실제 음성 분석이 아니라 안전한 개발용 초안입니다.">
+      <Panel title="미디어 목록" subtitle="STT가 비활성화된 경우 실제 전사나 자막을 생성하지 않습니다.">
         <StatusTabs onChange={setStatus} tabs={mediaStatusTabs} value={status} />
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {assets.map((asset) => (
-            <article className="rounded-3xl border border-slate-200 bg-white p-5" key={asset.asset_id}>
-              <p className="text-xs font-black text-slate-500">{asset.asset_type} · {asset.status}</p>
-              <p className="mt-2 break-all text-sm font-semibold text-slate-900">{asset.url}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{asset.alt_text || '대체 텍스트 없음'}</p>
-              <button className="btn-secondary mt-4" onClick={() => void handleDraft(asset)} type="button">
-                캡션·자막 초안
-              </button>
-              {draftByAssetId[asset.asset_id] ? (
-                <pre className="mt-4 whitespace-pre-wrap rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-                  {draftByAssetId[asset.asset_id]}
-                </pre>
-              ) : null}
-            </article>
-          ))}
+          {assets.map((asset) => {
+            const sttDisabled = !sttReadiness.ready || asset.asset_type !== 'video' || !asset.storage_path;
+
+            return (
+              <article className="rounded-3xl border border-slate-200 bg-white p-5" key={asset.asset_id}>
+                <p className="text-xs font-black text-slate-500">{asset.asset_type} · {asset.status}</p>
+                <p className="mt-2 break-all text-sm font-semibold text-slate-900">{asset.url}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{asset.alt_text || '대체 텍스트 없음'}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button className="btn-secondary" onClick={() => void handleDraft(asset)} type="button">
+                    캡션 초안 보기
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    disabled={sttDisabled || transcribeMutation.isPending}
+                    onClick={() => transcribeMutation.mutate(asset.asset_id)}
+                    type="button"
+                  >
+                    자막 초안 생성
+                  </button>
+                </div>
+                {sttDisabled ? (
+                  <p className="mt-3 text-sm leading-6 text-amber-700">
+                    음성 분석 설정과 내부 업로드 파일이 준비되면 자막 초안을 생성할 수 있습니다.
+                  </p>
+                ) : null}
+                {sttMessageByAssetId[asset.asset_id] ? (
+                  <p className="mt-3 text-sm font-bold text-slate-700">{sttMessageByAssetId[asset.asset_id]}</p>
+                ) : null}
+                {asset.transcript ? (
+                  <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-black text-slate-500">transcript</p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{asset.transcript}</p>
+                  </div>
+                ) : null}
+                {asset.captions_srt || asset.captions_vtt ? (
+                  <div className="mt-4 grid gap-3">
+                    {asset.captions_srt ? (
+                      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-700">
+                        {asset.captions_srt}
+                      </pre>
+                    ) : null}
+                    {asset.captions_vtt ? (
+                      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-700">
+                        {asset.captions_vtt}
+                      </pre>
+                    ) : null}
+                  </div>
+                ) : null}
+                {draftByAssetId[asset.asset_id] ? (
+                  <pre className="mt-4 whitespace-pre-wrap rounded-3xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                    {draftByAssetId[asset.asset_id]}
+                  </pre>
+                ) : null}
+              </article>
+            );
+          })}
           {!assets.length ? <EmptyState title="등록된 미디어가 없습니다" description="매장 사진 또는 영상 URL을 먼저 등록해 주세요." /> : null}
         </div>
       </Panel>

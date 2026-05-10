@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
+import { transcribeStoreMediaAsset } from '../shared/lib/services/contentEngineService.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 
 export type MerchantRequestLike =
@@ -74,6 +75,11 @@ function normalizeText(value: unknown) {
   return '';
 }
 
+function getRequestUrl(request: MerchantRequestLike) {
+  const rawUrl = typeof request.url === 'string' && request.url.trim() ? request.url : '/';
+  return new URL(rawUrl, 'https://mybiz.ai.kr');
+}
+
 function normalizeNumber(value: unknown, fallback = 0) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -116,7 +122,7 @@ async function parseJsonBody<T>(request: MerchantRequestLike): Promise<T> {
 async function assertMerchantStoreAccess(
   request: MerchantRequestLike,
   storeId: string,
-): Promise<{ adminClient: SupabaseClient } | { error: Response }> {
+): Promise<{ adminClient: SupabaseClient; profileId: string } | { error: Response }> {
   const token = getBearerToken(request);
   if (!token) {
     return { error: json({ ok: false, error: 'Authorization bearer token is required.' }, 401) };
@@ -143,7 +149,7 @@ async function assertMerchantStoreAccess(
     return { error: json({ ok: false, error: 'The authenticated merchant does not have access to this store.' }, 403) };
   }
 
-  return { adminClient };
+  return { adminClient, profileId: resolvedAccess.profile?.id || authData.user.id };
 }
 
 async function assertOrderBelongsToStore(client: SupabaseClient, storeId: string, orderId: string): Promise<boolean> {
@@ -212,6 +218,45 @@ export async function handleMerchantOrderEventRequest(request: MerchantRequestLi
         paymentId,
         status,
       },
+    });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Unknown merchant API error.',
+      },
+      500,
+    );
+  }
+}
+
+export async function handleMerchantMediaTranscribeRequest(request: MerchantRequestLike): Promise<Response> {
+  try {
+    const body = await parseJsonBody<{
+      storeId?: string;
+    }>(request);
+    const url = getRequestUrl(request);
+    const storeId = normalizeText(body.storeId);
+    const assetId = normalizeText(url.searchParams.get('assetId'));
+
+    if (!storeId || !assetId) {
+      return json({ ok: false, error: 'storeId and assetId are required.' }, 400);
+    }
+
+    const access = await assertMerchantStoreAccess(request, storeId);
+    if ('error' in access) {
+      return access.error;
+    }
+
+    const result = await transcribeStoreMediaAsset(storeId, assetId, {
+      actorProfileId: access.profileId,
+      client: access.adminClient,
+      env: process.env,
+    });
+
+    return json({
+      ok: true,
+      data: result,
     });
   } catch (error) {
     return json(
