@@ -14,6 +14,13 @@ import {
   type SttEnv,
   type SttProviderAdapter,
 } from './sttProvider.js';
+import {
+  EXTERNAL_SOCIAL_PROVIDER_ENV,
+  getExternalSocialProviderReadiness,
+  isExternalFoundationProvider,
+  type ExternalSocialEnv,
+  type ExternalSocialProviderStatus,
+} from './externalSocialProvider.js';
 import { getYouTubeProviderReadiness, type YouTubeEnv } from './youtubeProvider.js';
 import type {
   SocialAccount,
@@ -39,7 +46,7 @@ import type {
 type ContentServiceOptions = {
   actorProfileId?: string;
   client?: SupabaseClient;
-  env?: YouTubeEnv & SttEnv;
+  env?: YouTubeEnv & SttEnv & ExternalSocialEnv;
   sttProviderAdapter?: SttProviderAdapter;
 };
 
@@ -136,8 +143,10 @@ export interface TranscribeStoreMediaAssetResult {
 
 export interface SocialProviderCard {
   copy: string;
+  missingEnvNames?: string[];
   provider: SocialProvider;
-  status: SocialAccountStatus;
+  requiredScopes?: string[];
+  status: SocialAccountStatus | ExternalSocialProviderStatus;
   title: string;
 }
 
@@ -166,15 +175,15 @@ const SOCIAL_ACCOUNT_SAFE_COLUMNS =
 
 const PROVIDER_COPY: Record<SocialProvider, { copy: string; title: string }> = {
   kakao_share: {
-    copy: '카카오 공유는 사용자가 직접 공유하는 방식으로 제공됩니다.',
+    copy: EXTERNAL_SOCIAL_PROVIDER_ENV.kakao_share.message,
     title: 'Kakao',
   },
   naver_blog: {
-    copy: '네이버 블로그 글쓰기는 네이버 로그인 연동 후 사용할 수 있습니다.',
+    copy: EXTERNAL_SOCIAL_PROVIDER_ENV.naver_blog.message,
     title: 'Naver Blog',
   },
   threads: {
-    copy: '점주 계정 승인 후 리뷰 소개글이나 소식 게시를 지원할 예정입니다.',
+    copy: EXTERNAL_SOCIAL_PROVIDER_ENV.threads.message,
     title: 'Threads',
   },
   tiktok: {
@@ -1933,26 +1942,89 @@ async function getReviewForReuse(storeId: string, reviewId: string, options?: Co
   return reviews.find((review) => review.review_id === reviewId) || null;
 }
 
-async function assertReviewExternalReuseAllowed(input: CreateSocialPublishJobInput, storeId: string, options?: ContentServiceOptions) {
-  if (input.sourceType !== 'review' || !isExternalProvider(input.provider)) {
+async function getBlogPostForExternalPublish(storeId: string, postId: string, options?: ContentServiceOptions) {
+  const posts = await listStoreBlogPosts(storeId, options);
+  return posts.find((post) => post.post_id === postId) || null;
+}
+
+async function getMediaAssetForExternalPublish(storeId: string, assetId: string, options?: ContentServiceOptions) {
+  const assets = await listStoreMediaAssets(storeId, options);
+  return assets.find((asset) => asset.asset_id === assetId) || null;
+}
+
+function assertNoCustomerImpersonationCopy(caption?: string | null) {
+  const normalized = normalizeText(caption);
+  if (!normalized) {
+    return;
+  }
+
+  const customerVoicePatterns = [
+    /제가\s*(방문|다녀|먹|마셔|구매|이용|써|가봤|갔)/i,
+    /방문했는데요/i,
+    /내돈내산/i,
+    /I\s+(visited|bought|tried|ate|went)/i,
+    /my\s+(visit|review|experience)/i,
+  ];
+
+  if (customerVoicePatterns.some((pattern) => pattern.test(normalized))) {
+    throw new Error('Customer impersonation copy is not allowed. 고객 대신 작성하는 문구는 사용할 수 없습니다.');
+  }
+}
+
+async function assertSocialPublishSourceAllowed(input: CreateSocialPublishJobInput, storeId: string, options?: ContentServiceOptions) {
+  if (!isExternalProvider(input.provider)) {
+    return;
+  }
+
+  assertNoCustomerImpersonationCopy(input.caption);
+
+  if (input.sourceType === 'manual') {
     return;
   }
 
   if (!input.sourceId) {
-    throw new Error('Review source is required for external review reuse.');
+    throw new Error('Source id is required before external publishing.');
   }
 
-  const review = await getReviewForReuse(storeId, input.sourceId, options);
-  if (!review) {
-    throw new Error('Review not found.');
+  if (input.sourceType === 'review') {
+    const review = await getReviewForReuse(storeId, input.sourceId, options);
+    if (!review) {
+      throw new Error('Review not found.');
+    }
+
+    if (!review.content_usage_consent) {
+      throw new Error('Customer content usage consent is required before external reuse.');
+    }
+
+    if (review.visibility_status !== 'published') {
+      throw new Error('Merchant approval is required before external review reuse.');
+    }
+
+    return;
   }
 
-  if (!review.content_usage_consent) {
-    throw new Error('Customer content usage consent is required before external reuse.');
+  if (input.sourceType === 'blog_post') {
+    const post = await getBlogPostForExternalPublish(storeId, input.sourceId, options);
+    if (!post) {
+      throw new Error('Blog post not found.');
+    }
+
+    if (post.status !== 'published') {
+      throw new Error('Published blog post is required before external publishing.');
+    }
+
+    return;
   }
 
-  if (review.visibility_status !== 'published') {
-    throw new Error('Merchant approval is required before external review reuse.');
+  if (input.sourceType === 'media') {
+    const asset = await getMediaAssetForExternalPublish(storeId, input.sourceId, options);
+    if (!asset) {
+      throw new Error('Media asset not found.');
+    }
+
+    if (asset.status !== 'ready' && asset.status !== 'published') {
+      throw new Error('Media asset must be ready before external publishing.');
+    }
   }
 }
 
@@ -1980,13 +2052,23 @@ export async function listSocialProviderCards(storeId: string, options?: Content
       accounts.find((entry) => entry.provider === provider && entry.oauth_status === 'connected') ||
       accounts.find((entry) => entry.provider === provider);
     const youtubeReadiness = provider === 'youtube' ? getYouTubeProviderReadiness(options?.env) : null;
-    const status =
-      account?.oauth_status === 'connected'
-        ? 'connected'
-        : account?.oauth_status || (youtubeReadiness?.oauthReady ? 'not_connected' : 'disabled');
+    const externalReadiness = isExternalFoundationProvider(provider)
+      ? getExternalSocialProviderReadiness(provider, options?.env, { accountStatus: account?.oauth_status })
+      : null;
+    const status: SocialProviderCard['status'] = externalReadiness
+      ? externalReadiness.status
+      : youtubeReadiness
+        ? account?.oauth_status === 'connected'
+          ? 'connected'
+          : account?.oauth_status || (youtubeReadiness.oauthReady ? 'not_connected' : 'disabled')
+        : account?.oauth_status === 'connected'
+          ? 'connected'
+          : account?.oauth_status || 'disabled';
 
     return {
+      missingEnvNames: externalReadiness?.missingEnvNames,
       provider,
+      requiredScopes: externalReadiness?.requiredScopes,
       status,
       ...PROVIDER_COPY[provider],
     };
@@ -2040,7 +2122,7 @@ export async function createSocialPublishJob(
   if (isExternalProvider(input.provider) && ['queued', 'publishing', 'published'].includes(status)) {
     throw new Error('Merchant approval is required before an external publish job can be queued.');
   }
-  await assertReviewExternalReuseAllowed(input, storeId, options);
+  await assertSocialPublishSourceAllowed(input, storeId, options);
   const timestamp = nowIso();
 
   if (isSupabaseContentEnabled(options)) {
@@ -2102,6 +2184,22 @@ async function getSocialPublishReadiness(storeId: string, provider: SocialPublis
 
   const cards = await listSocialProviderCards(storeId, options);
   const card = cards.find((entry) => entry.provider === provider);
+
+  if (isExternalFoundationProvider(provider)) {
+    if (card?.status !== 'ready') {
+      return {
+        errorCode: 'provider_not_connected',
+        errorMessage: '외부 채널 게시 기능은 계정 연동과 점주 승인 후 사용할 수 있습니다.',
+        ready: false,
+      };
+    }
+
+    return {
+      errorCode: undefined,
+      errorMessage: undefined,
+      ready: true,
+    };
+  }
 
   if (card?.status !== 'connected') {
     return {
@@ -2207,7 +2305,7 @@ export async function approveSocialPublishJob(
     });
   });
 
-  if (nextJob.status === 'queued' && options?.publishAdapter && nextJob.provider !== 'youtube') {
+  if (nextJob.status === 'queued' && options?.publishAdapter && nextJob.provider === 'mybiz_blog') {
     const publishResult = await options.publishAdapter(nextJob);
     nextJob = {
       ...nextJob,

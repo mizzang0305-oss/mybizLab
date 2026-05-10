@@ -960,6 +960,12 @@ export function ContentSocialPage() {
   const youtubeReadiness = useMemo(() => getYouTubeProviderReadiness(), []);
   const youtubeProvider = (providersQuery.data || []).find((provider) => provider.provider === 'youtube');
   const youtubeJobs = (jobsQuery.data || []).filter((job) => job.provider === 'youtube').slice(0, 3);
+  const externalProviderCards = (providersQuery.data || []).filter((provider) =>
+    ['threads', 'naver_blog', 'kakao_share'].includes(provider.provider),
+  );
+  const externalJobs = (jobsQuery.data || [])
+    .filter((job) => ['threads', 'naver_blog', 'kakao_share'].includes(job.provider))
+    .slice(0, 4);
 
   if (!currentStore) {
     return <EmptyStoreGuard />;
@@ -993,6 +999,60 @@ export function ContentSocialPage() {
           </article>
         ))}
       </div>
+
+      <Panel title="Threads · Naver Blog · Kakao Share 준비" subtitle="외부 채널 게시 기능은 계정 연동과 점주 승인 후 사용할 수 있습니다.">
+        <div className="grid gap-4 lg:grid-cols-3">
+          {externalProviderCards.map((provider) => (
+            <article className="rounded-3xl border border-slate-200 bg-white p-5" key={provider.provider}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-950">{provider.title}</p>
+                  <p className="mt-2 text-xs font-bold text-slate-500">{provider.status}</p>
+                </div>
+                <button className="btn-secondary" disabled type="button">
+                  {provider.provider === 'kakao_share' ? '공유 미리보기' : '계정 연동'}
+                </button>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
+              {provider.provider === 'kakao_share' ? (
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  카카오 공유는 자동 게시가 아니라 사용자가 직접 공유하는 방식으로 제공됩니다.
+                </p>
+              ) : null}
+              {provider.requiredScopes?.length ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {provider.requiredScopes.map((scope) => (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600" key={scope}>
+                      {scope}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {provider.missingEnvNames?.length ? (
+                <p className="mt-4 text-xs font-bold leading-5 text-amber-700">
+                  설정 대기: {provider.missingEnvNames.join(', ')}
+                </p>
+              ) : null}
+            </article>
+          ))}
+        </div>
+        <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
+          <p className="text-sm font-black text-slate-950">최근 Threads/Naver/Kakao 게시 초안</p>
+          <div className="mt-3 space-y-2">
+            {externalJobs.map((job) => (
+              <div className="rounded-2xl bg-slate-50 p-3" key={job.job_id}>
+                <p className="text-sm font-black text-slate-800">{job.provider} · {job.status}</p>
+                <p className="mt-1 line-clamp-2 text-sm text-slate-600">{job.caption || '문안 없음'}</p>
+              </div>
+            ))}
+            {!externalJobs.length ? (
+              <p className="text-sm leading-6 text-slate-500">
+                아직 외부 채널 게시 초안이 없습니다. 승인 전에는 외부 게시가 실행되지 않습니다.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </Panel>
 
       <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 업로드 설정이 모두 준비된 뒤에만 진행됩니다.">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -1097,9 +1157,15 @@ export function ContentSocialPage() {
                   <p className="mt-2 text-sm leading-6 text-slate-700">{job.caption || '문안 없음'}</p>
                   {job.error_message ? <p className="mt-2 text-sm font-semibold text-amber-700">{job.error_message}</p> : null}
                 </div>
-                <button className="btn-secondary" disabled={approveMutation.isPending} onClick={() => approveMutation.mutate(job.job_id)} type="button">
-                  승인
-                </button>
+                {job.status === 'draft' || job.status === 'waiting_approval' ? (
+                  <button className="btn-secondary" disabled={approveMutation.isPending} onClick={() => approveMutation.mutate(job.job_id)} type="button">
+                    승인
+                  </button>
+                ) : (
+                  <button className="btn-secondary" disabled type="button">
+                    승인 완료
+                  </button>
+                )}
               </div>
             </article>
           ))}
