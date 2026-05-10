@@ -66,6 +66,14 @@
       "dest": "/api/merchant?resource=order-event"
     },
     {
+      "src": "/api/social/youtube/oauth/start",
+      "dest": "/api/merchant?resource=youtube-oauth-start"
+    },
+    {
+      "src": "/api/social/youtube/oauth/callback",
+      "dest": "/api/merchant?resource=youtube-oauth-callback"
+    },
+    {
       "src": "/api/admin/platform/(.*)",
       "dest": "/api/admin?resource=$1"
     },

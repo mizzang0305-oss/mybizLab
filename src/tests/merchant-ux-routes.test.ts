@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { BrandPage } from '@/modules/brand/page';
+import { ContentSocialPage } from '@/modules/content/page';
 import { CustomersPage } from '@/modules/customers/page';
 import { DashboardPage } from '@/modules/dashboard/page';
 import { OrdersPage } from '@/modules/orders/page';
@@ -27,6 +28,7 @@ import {
   listStoreTables,
   listWaitingEntries,
 } from '@/shared/lib/services/mvpService';
+import { listSocialProviderCards, listSocialPublishJobs } from '@/shared/lib/services/contentEngineService';
 import { getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
 import { useUiStore } from '@/shared/lib/uiStore';
 
@@ -149,5 +151,25 @@ describe('merchant UX routes', () => {
     expect(customersHtml).toContain('AI 상담 / 고객 기억 맥락');
     expect(reservationsHtml).toContain('다음:');
     expect(waitingHtml).toContain('다음:');
+  });
+
+  it('renders YouTube social foundation with disabled connection copy and scopes', async () => {
+    const socialHtml = await renderMerchantPage(createElement(ContentSocialPage), async (queryClient) => {
+      await Promise.all([
+        queryClient.prefetchQuery({
+          queryKey: queryKeys.contentSocial(storeId),
+          queryFn: () => listSocialProviderCards(storeId),
+        }),
+        queryClient.prefetchQuery({
+          queryKey: [...queryKeys.contentSocial(storeId), 'jobs'],
+          queryFn: () => listSocialPublishJobs(storeId),
+        }),
+      ]);
+    });
+
+    expect(socialHtml).toContain('YouTube 업로드 준비');
+    expect(socialHtml).toContain('YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.');
+    expect(socialHtml).toContain('https://www.googleapis.com/auth/youtube.upload');
+    expect(socialHtml).toContain('계정 연동은 설정이 완료되면 사용할 수 있습니다.');
   });
 });

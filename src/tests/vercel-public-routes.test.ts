@@ -17,4 +17,19 @@ describe('vercel public API rewrites', () => {
       src: '/api/public/order-customer',
     });
   });
+
+  it('routes YouTube OAuth foundation endpoints through the existing merchant function', () => {
+    expect(vercelConfig.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dest: '/api/merchant?resource=youtube-oauth-start',
+          src: '/api/social/youtube/oauth/start',
+        }),
+        expect.objectContaining({
+          dest: '/api/merchant?resource=youtube-oauth-callback',
+          src: '/api/social/youtube/oauth/callback',
+        }),
+      ]),
+    );
+  });
 });
