@@ -6,6 +6,14 @@ import { createId } from '../ids.js';
 import { getDatabase, updateDatabase } from '../mockDb.js';
 import { requestPublicApi } from '../publicApiClient.js';
 import { normalizeStoreSlug } from '../storeSlug.js';
+import {
+  generateCaptionFiles as generateSttCaptionFiles,
+  generateMediaContentDraft,
+  getSttReadiness,
+  transcribeMediaAsset,
+  type SttEnv,
+  type SttProviderAdapter,
+} from './sttProvider.js';
 import { getYouTubeProviderReadiness, type YouTubeEnv } from './youtubeProvider.js';
 import type {
   SocialAccount,
@@ -31,7 +39,8 @@ import type {
 type ContentServiceOptions = {
   actorProfileId?: string;
   client?: SupabaseClient;
-  env?: YouTubeEnv;
+  env?: YouTubeEnv & SttEnv;
+  sttProviderAdapter?: SttProviderAdapter;
 };
 
 type ApproveSocialPublishOptions = ContentServiceOptions & {
@@ -117,6 +126,12 @@ export interface CreateYouTubeUploadJobInput {
   sourceType: SocialPublishSourceType;
   status?: Extract<SocialPublishJobStatus, 'draft' | 'waiting_approval'>;
   title: string;
+}
+
+export interface TranscribeStoreMediaAssetResult {
+  asset: StoreMediaAsset;
+  message: string;
+  updated: boolean;
 }
 
 export interface SocialProviderCard {
@@ -1742,6 +1757,134 @@ export async function listStoreMediaAssets(
   );
 }
 
+async function getStoreMediaAsset(storeId: string, assetId: string, options?: ContentServiceOptions) {
+  const normalizedAssetId = normalizeText(assetId);
+  if (!normalizedAssetId) {
+    throw new Error('Media asset id is required.');
+  }
+
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      throw new Error('Supabase client is not configured.');
+    }
+
+    const { data, error } = await client
+      .from('store_media_assets')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('asset_id', normalizedAssetId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load media asset: ${error.message}`);
+    }
+
+    return data ? mapMediaAssetRow(data as Record<string, unknown>) : null;
+  }
+
+  assertDemoStoreMember(storeId, options?.actorProfileId);
+  return getDatabase().store_media_assets.find((asset) => asset.store_id === storeId && asset.asset_id === normalizedAssetId) || null;
+}
+
+export async function transcribeStoreMediaAsset(
+  storeId: string,
+  assetId: string,
+  options?: ContentServiceOptions,
+): Promise<TranscribeStoreMediaAssetResult> {
+  const asset = await getStoreMediaAsset(storeId, assetId, options);
+  if (!asset) {
+    throw new Error('Media asset not found.');
+  }
+
+  const transcription = await transcribeMediaAsset(asset, {
+    env: options?.env,
+    providerAdapter: options?.sttProviderAdapter,
+  });
+
+  if (!transcription.ok) {
+    return {
+      asset,
+      message: transcription.message,
+      updated: false,
+    };
+  }
+
+  const captions = generateSttCaptionFiles(transcription.transcript);
+  const draft = generateMediaContentDraft(transcription.transcript, asset);
+  const timestamp = nowIso();
+  const updatePayload = {
+    ai_description: draft.aiDescription,
+    ai_hashtags: draft.aiHashtags,
+    ai_title: draft.aiTitle,
+    captions_srt: captions.srt || null,
+    captions_vtt: captions.vtt || null,
+    transcript: transcription.transcript.text,
+    updated_at: timestamp,
+  };
+
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      throw new Error('Supabase client is not configured.');
+    }
+
+    const { data, error } = await client
+      .from('store_media_assets')
+      .update(updatePayload)
+      .eq('store_id', storeId)
+      .eq('asset_id', asset.asset_id)
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update media asset transcript: ${error.message}`);
+    }
+
+    return {
+      asset: mapMediaAssetRow(data as Record<string, unknown>),
+      message: transcription.message,
+      updated: true,
+    };
+  }
+
+  let updatedAsset: StoreMediaAsset | null = null;
+  updateDatabase((database) => {
+    database.store_media_assets = database.store_media_assets.map((entry) => {
+      if (entry.store_id !== storeId || entry.asset_id !== asset.asset_id) {
+        return entry;
+      }
+
+      updatedAsset = {
+        ...entry,
+        ai_description: updatePayload.ai_description,
+        ai_hashtags: updatePayload.ai_hashtags,
+        ai_title: updatePayload.ai_title,
+        captions_srt: captions.srt,
+        captions_vtt: captions.vtt,
+        transcript: transcription.transcript.text,
+        updated_at: timestamp,
+      };
+      return updatedAsset;
+    });
+  });
+
+  return {
+    asset: updatedAsset || {
+      ...asset,
+      ai_description: updatePayload.ai_description,
+      ai_hashtags: updatePayload.ai_hashtags,
+      ai_title: updatePayload.ai_title,
+      captions_srt: captions.srt,
+      captions_vtt: captions.vtt,
+      transcript: transcription.transcript.text,
+      updated_at: timestamp,
+    },
+    message: transcription.message,
+    updated: true,
+  };
+}
+
 export async function generateCaptionDraft(mediaAsset: StoreMediaAsset) {
   const title = mediaAsset.ai_title || mediaAsset.alt_text || (mediaAsset.asset_type === 'video' ? '매장 영상 초안' : '매장 이미지 초안');
   const description =
@@ -1763,7 +1906,7 @@ export async function generateTranscriptDraft(mediaAsset: StoreMediaAsset) {
   }
 
   return {
-    transcript: '영상 자막 초안은 음성 분석 설정이 완료되면 생성할 수 있습니다.',
+    transcript: getSttReadiness().message,
   };
 }
 

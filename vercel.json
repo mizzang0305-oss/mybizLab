@@ -74,6 +74,10 @@
       "dest": "/api/merchant?resource=youtube-oauth-callback"
     },
     {
+      "src": "/api/dashboard/content/media/([^/]+)/transcribe",
+      "dest": "/api/merchant?resource=media-transcribe&assetId=$1"
+    },
+    {
       "src": "/api/admin/platform/(.*)",
       "dest": "/api/admin?resource=$1"
     },

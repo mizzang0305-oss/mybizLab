@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { BrandPage } from '@/modules/brand/page';
-import { ContentSocialPage } from '@/modules/content/page';
+import { ContentMediaPage, ContentSocialPage } from '@/modules/content/page';
 import { CustomersPage } from '@/modules/customers/page';
 import { DashboardPage } from '@/modules/dashboard/page';
 import { OrdersPage } from '@/modules/orders/page';
@@ -28,7 +28,12 @@ import {
   listStoreTables,
   listWaitingEntries,
 } from '@/shared/lib/services/mvpService';
-import { listSocialProviderCards, listSocialPublishJobs } from '@/shared/lib/services/contentEngineService';
+import {
+  createStoreMediaAsset,
+  listSocialProviderCards,
+  listSocialPublishJobs,
+  listStoreMediaAssets,
+} from '@/shared/lib/services/contentEngineService';
 import { getStoreEntitlements } from '@/shared/lib/services/storeEntitlementsService';
 import { useUiStore } from '@/shared/lib/uiStore';
 
@@ -171,5 +176,26 @@ describe('merchant UX routes', () => {
     expect(socialHtml).toContain('YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.');
     expect(socialHtml).toContain('https://www.googleapis.com/auth/youtube.upload');
     expect(socialHtml).toContain('계정 연동은 설정이 완료되면 사용할 수 있습니다.');
+  });
+
+  it('renders media STT foundation with disabled action copy', async () => {
+    await createStoreMediaAsset(storeId, {
+      assetType: 'video',
+      durationSeconds: 20,
+      status: 'ready',
+      url: 'https://example.com/store-video.mp4',
+    });
+
+    const mediaHtml = await renderMerchantPage(createElement(ContentMediaPage), async (queryClient) => {
+      await queryClient.prefetchQuery({
+        queryKey: queryKeys.contentMedia(storeId, 'all'),
+        queryFn: () => listStoreMediaAssets(storeId),
+      });
+    });
+
+    expect(mediaHtml).toContain('STT 자막 생성 준비');
+    expect(mediaHtml).toContain('음성 분석 설정이 완료되면 영상 자막과 설명 초안을 생성할 수 있습니다.');
+    expect(mediaHtml).toContain('영상 자막 초안은 음성 분석 설정이 완료되면 생성할 수 있습니다.');
+    expect(mediaHtml).toContain('자막 초안 생성');
   });
 });

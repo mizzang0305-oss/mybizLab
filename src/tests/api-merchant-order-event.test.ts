@@ -57,10 +57,21 @@ vi.mock('../shared/lib/repositories/supabaseRepository.js', () => ({
   }),
 }));
 
-import { handleMerchantOrderEventRequest } from '../server/merchantApi.js';
+import { handleMerchantMediaTranscribeRequest, handleMerchantOrderEventRequest } from '../server/merchantApi.js';
 
 function merchantRequest(body: Record<string, unknown>, token?: string) {
   return new Request('https://example.com/api/merchant/order-event', {
+    body: JSON.stringify(body),
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
+}
+
+function merchantMediaTranscribeRequest(body: Record<string, unknown>, token?: string) {
+  return new Request('https://example.com/api/dashboard/content/media/asset_live_001/transcribe?assetId=asset_live_001', {
     body: JSON.stringify(body),
     headers: {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
@@ -174,5 +185,18 @@ describe('/api/merchant/order-event', () => {
 
     expect(response.status).toBe(403);
     expect(state.paymentEvents).toHaveLength(0);
+  });
+});
+
+describe('/api/dashboard/content/media/:assetId/transcribe', () => {
+  it('requires an authenticated merchant token before running STT', async () => {
+    const response = await handleMerchantMediaTranscribeRequest(
+      merchantMediaTranscribeRequest({
+        storeId: 'store-live-001',
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(state.authGetUser).not.toHaveBeenCalled();
   });
 });
