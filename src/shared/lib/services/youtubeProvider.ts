@@ -16,6 +16,9 @@ export const YOUTUBE_REQUIRED_ENV_NAMES = [
 
 export type YouTubeEnv = Partial<Record<(typeof YOUTUBE_REQUIRED_ENV_NAMES)[number] | string, string | undefined>>;
 
+const MIN_TOKEN_ENCRYPTION_KEY_BYTES = 32;
+const TOKEN_ENCRYPTION_DISABLED_MESSAGE = '외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.';
+
 export interface YouTubeProviderReadiness {
   disabledMessage: string;
   missingOAuthEnvNames: string[];
@@ -51,12 +54,17 @@ function hasEnvValue(env: YouTubeEnv, name: string) {
   return Boolean(String(env[name] || '').trim());
 }
 
+function hasTokenEncryptionKey(env: YouTubeEnv) {
+  const key = String(env.TOKEN_ENCRYPTION_KEY || '').trim();
+  return new TextEncoder().encode(key).length >= MIN_TOKEN_ENCRYPTION_KEY_BYTES;
+}
+
 export function getYouTubeProviderReadiness(env: YouTubeEnv = readProcessEnv()): YouTubeProviderReadiness {
   const oauthEnabled = normalizeEnvFlag(env.YOUTUBE_OAUTH_ENABLED);
   const uploadEnabled = normalizeEnvFlag(env.YOUTUBE_UPLOAD_ENABLED);
-  const tokenEncryptionConfigured = hasEnvValue(env, 'TOKEN_ENCRYPTION_KEY');
+  const tokenEncryptionConfigured = hasTokenEncryptionKey(env);
   const missingOAuthEnvNames = ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REDIRECT_URI', 'TOKEN_ENCRYPTION_KEY'].filter(
-    (name) => !hasEnvValue(env, name),
+    (name) => (name === 'TOKEN_ENCRYPTION_KEY' ? !tokenEncryptionConfigured : !hasEnvValue(env, name)),
   );
   if (!oauthEnabled) {
     missingOAuthEnvNames.push('YOUTUBE_OAUTH_ENABLED');
@@ -66,9 +74,11 @@ export function getYouTubeProviderReadiness(env: YouTubeEnv = readProcessEnv()):
   const uploadReady = oauthReady && uploadEnabled;
 
   return {
-    disabledMessage: oauthReady
-      ? 'YouTube 영상 업로드는 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.'
-      : 'YouTube 계정 연동은 설정이 완료되면 사용할 수 있습니다.',
+    disabledMessage: !tokenEncryptionConfigured
+      ? TOKEN_ENCRYPTION_DISABLED_MESSAGE
+      : oauthReady
+        ? 'YouTube 영상 업로드는 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.'
+        : 'YouTube 계정 연동은 설정이 완료되면 사용할 수 있습니다.',
     missingOAuthEnvNames,
     oauthEnabled,
     oauthReady,

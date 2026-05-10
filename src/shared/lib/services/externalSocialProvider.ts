@@ -44,6 +44,9 @@ type ExternalSocialEnvName =
 
 export type ExternalSocialEnv = Partial<Record<ExternalSocialEnvName | string, string | undefined>>;
 
+const MIN_TOKEN_ENCRYPTION_KEY_BYTES = 32;
+const TOKEN_ENCRYPTION_DISABLED_MESSAGE = '외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.';
+
 export interface ExternalSocialProviderReadiness {
   connectionReady: boolean;
   enabled: boolean;
@@ -76,6 +79,11 @@ function hasEnvValue(env: ExternalSocialEnv, name: string) {
   return Boolean(String(env[name] || '').trim());
 }
 
+function hasTokenEncryptionKey(env: ExternalSocialEnv) {
+  const key = String(env.TOKEN_ENCRYPTION_KEY || '').trim();
+  return new TextEncoder().encode(key).length >= MIN_TOKEN_ENCRYPTION_KEY_BYTES;
+}
+
 function getClientEnvNames(provider: ExternalOAuthProvider) {
   return provider === 'threads'
     ? {
@@ -92,7 +100,9 @@ function getClientEnvNames(provider: ExternalOAuthProvider) {
 
 function getOAuthMissingEnvNames(provider: ExternalOAuthProvider, env: ExternalSocialEnv) {
   const names = getClientEnvNames(provider);
-  return [names.clientId, names.clientSecret, names.redirectUri, 'TOKEN_ENCRYPTION_KEY'].filter((name) => !hasEnvValue(env, name));
+  return [names.clientId, names.clientSecret, names.redirectUri, 'TOKEN_ENCRYPTION_KEY'].filter((name) =>
+    name === 'TOKEN_ENCRYPTION_KEY' ? !hasTokenEncryptionKey(env) : !hasEnvValue(env, name),
+  );
 }
 
 function getProviderMissingEnvNames(provider: ExternalSocialProvider, env: ExternalSocialEnv) {
@@ -120,7 +130,7 @@ export function getExternalSocialProviderReadiness(
   const config = EXTERNAL_SOCIAL_PROVIDER_ENV[provider];
   const enabled = normalizeEnvFlag(env[config.publishEnabledEnvName]);
   const missingEnvNames = getProviderMissingEnvNames(provider, env);
-  const tokenEncryptionConfigured = provider === 'kakao_share' ? true : hasEnvValue(env, 'TOKEN_ENCRYPTION_KEY');
+  const tokenEncryptionConfigured = provider === 'kakao_share' ? true : hasTokenEncryptionKey(env);
   const oauthReady =
     provider === 'kakao_share'
       ? false
@@ -140,7 +150,7 @@ export function getExternalSocialProviderReadiness(
   return {
     connectionReady,
     enabled,
-    message: config.message,
+    message: !tokenEncryptionConfigured ? TOKEN_ENCRYPTION_DISABLED_MESSAGE : config.message,
     missingEnvNames,
     oauthReady,
     optionalEnvNames: [...config.optionalEnvNames],

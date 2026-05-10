@@ -22,6 +22,7 @@ import {
   handleYouTubeOAuthStartRequest,
   validateYouTubeOAuthState,
 } from '@/server/youtubeOAuth';
+import { getProviderTokenStatus } from '@/server/socialAccountTokens';
 import type { SocialPublishJob } from '@/shared/types/models';
 
 const STORE_ID = 'store_golden_coffee';
@@ -65,7 +66,7 @@ describe('YouTube OAuth and upload foundation', () => {
       'YOUTUBE_UPLOAD_ENABLED',
     ]);
     expect(readiness.missingOAuthEnvNames).toContain('YOUTUBE_CLIENT_ID');
-    expect(readiness.disabledMessage).toBe('YouTube 계정 연동은 설정이 완료되면 사용할 수 있습니다.');
+    expect(readiness.disabledMessage).toBe('외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.');
     expect(JSON.stringify(readiness)).not.toContain('youtube-client-secret');
   });
 
@@ -96,7 +97,7 @@ describe('YouTube OAuth and upload foundation', () => {
     const missingEnvPayload = await missingEnv.json();
 
     expect(missingEnv.status).toBe(503);
-    expect(missingEnvPayload.error).toContain('YouTube 계정 연동은 설정이 완료되면 사용할 수 있습니다.');
+    expect(missingEnvPayload.error).toContain('외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.');
 
     const response = await handleYouTubeOAuthStartRequest(
       new Request(`https://mybiz.ai.kr/api/social/youtube/oauth/start?storeId=${STORE_ID}`, {
@@ -152,6 +153,72 @@ describe('YouTube OAuth and upload foundation', () => {
     expect(payload.error).toContain('OAuth state');
   });
 
+  it('stores YouTube tokens only when the callback token adapter succeeds', async () => {
+    const state = createYouTubeOAuthState({
+      issuedAt: NOW_MS,
+      nonce: 'nonce_youtube_store',
+      profileId: OWNER_PROFILE_ID,
+      storeId: STORE_ID,
+    });
+    const disabledAdapter = await handleYouTubeOAuthCallbackRequest(
+      new Request(`https://mybiz.ai.kr/api/social/youtube/oauth/callback?code=oauth-code&state=${encodeURIComponent(state)}`, {
+        headers: { Cookie: 'mybiz_youtube_oauth_state=nonce_youtube_store' },
+      }),
+      {
+        env: oauthReadyEnv,
+        now: () => NOW_MS + 1000,
+      },
+    );
+    const disabledPayload = await disabledAdapter.json();
+
+    expect(disabledAdapter.status).toBe(501);
+    expect(disabledPayload.error).toContain('외부 계정 연결 저장은 암호화 설정이 완료되면 사용할 수 있습니다.');
+    await expect(
+      getProviderTokenStatus(STORE_ID, 'youtube', {
+        actorProfileId: OWNER_PROFILE_ID,
+        env: oauthReadyEnv,
+      }),
+    ).resolves.toMatchObject({ oauthStatus: 'disabled' });
+
+    const connected = await handleYouTubeOAuthCallbackRequest(
+      new Request(`https://mybiz.ai.kr/api/social/youtube/oauth/callback?code=oauth-code&state=${encodeURIComponent(state)}`, {
+        headers: { Cookie: 'mybiz_youtube_oauth_state=nonce_youtube_store' },
+      }),
+      {
+        env: oauthReadyEnv,
+        now: () => NOW_MS + 2000,
+        tokenExchangeAdapter: async () => ({
+          accessToken: 'youtube-access-token-should-not-leak',
+          displayName: 'Golden Coffee YouTube',
+          expiresAt: '2026-05-11T00:00:00.000Z',
+          providerAccountId: 'youtube-channel-1',
+          refreshToken: 'youtube-refresh-token-should-not-leak',
+          scopes: [...YOUTUBE_REQUIRED_SCOPES],
+        }),
+      },
+    );
+    const connectedPayload = await connected.json();
+
+    expect(connected.status).toBe(200);
+    expect(connectedPayload.data).toMatchObject({
+      oauthStatus: 'connected',
+      provider: 'youtube',
+      storeId: STORE_ID,
+    });
+    expect(JSON.stringify(connectedPayload)).not.toContain('youtube-access-token-should-not-leak');
+    expect(JSON.stringify(connectedPayload)).not.toContain('youtube-refresh-token-should-not-leak');
+    await expect(
+      getProviderTokenStatus(STORE_ID, 'youtube', {
+        actorProfileId: OWNER_PROFILE_ID,
+        env: oauthReadyEnv,
+      }),
+    ).resolves.toMatchObject({
+      displayName: 'Golden Coffee YouTube',
+      oauthStatus: 'connected',
+      providerAccountId: 'youtube-channel-1',
+    });
+  });
+
   it('creates YouTube upload jobs as drafts and blocks queueing when upload readiness is disabled', async () => {
     const asset = await createStoreMediaAsset(
       STORE_ID,
@@ -205,7 +272,7 @@ describe('YouTube OAuth and upload foundation', () => {
         refresh_token_encrypted: 'encrypted-refresh-token',
         scopes: [...YOUTUBE_REQUIRED_SCOPES],
         store_id: STORE_ID,
-        token_expires_at: '2026-05-10T04:00:00.000Z',
+        token_expires_at: '2026-05-12T04:00:00.000Z',
         updated_at: '2026-05-10T03:00:00.000Z',
       });
     });

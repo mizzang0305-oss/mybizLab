@@ -144,15 +144,27 @@ export interface TranscribeStoreMediaAssetResult {
 
 export interface SocialProviderCard {
   copy: string;
+  displayName?: string;
   missingEnvNames?: string[];
   provider: SocialProvider;
+  providerAccountId?: string;
   requiredScopes?: string[];
   status: SocialAccountStatus | ExternalSocialProviderStatus;
+  tokenExpiresAt?: string;
+  tokenExpiringSoon?: boolean;
   title: string;
 }
 
 export type ContentReadinessProviderKey = SocialProvider | 'stt' | 'payment_test_100';
-export type ContentReadinessProviderStatus = 'disabled' | 'missing_config' | 'ready' | 'connected' | 'error';
+export type ContentReadinessProviderStatus =
+  | 'connected'
+  | 'disabled'
+  | 'error'
+  | 'expired'
+  | 'missing_config'
+  | 'not_connected'
+  | 'ready'
+  | 'revoked';
 export type ContentReadinessConsentStatus = 'granted' | 'missing' | 'not_required' | 'unknown';
 export type ContentReadinessApprovalStatus = 'approved' | 'approval_missing' | 'waiting_approval';
 export type ContentReadinessBlockReason =
@@ -182,12 +194,16 @@ export interface ContentReadinessStats {
 
 export interface ContentReadinessProviderCard {
   copy: string;
+  displayName?: string;
   missingEnvNames: string[];
   nextAction: string;
   provider: ContentReadinessProviderKey;
+  providerAccountId?: string;
   requiredScopes: string[];
   status: ContentReadinessProviderStatus;
   title: string;
+  tokenExpiresAt?: string;
+  tokenExpiringSoon?: boolean;
 }
 
 export interface ContentReadinessApprovalQueueItem {
@@ -569,6 +585,27 @@ function mapSocialAccountRow(row: Record<string, unknown>): SocialAccount {
     created_at: normalizeText(row.created_at) || nowIso(),
     updated_at: normalizeText(row.updated_at) || normalizeText(row.created_at) || nowIso(),
   };
+}
+
+function isTokenExpired(expiresAt?: string, now: Date = new Date()) {
+  if (!expiresAt) return false;
+  const expiresAtMs = Date.parse(expiresAt);
+  return Number.isFinite(expiresAtMs) && expiresAtMs <= now.getTime();
+}
+
+function isTokenExpiringSoon(expiresAt?: string, now: Date = new Date(), windowMs = 60 * 60 * 1000) {
+  if (!expiresAt || isTokenExpired(expiresAt, now)) return false;
+  const expiresAtMs = Date.parse(expiresAt);
+  return Number.isFinite(expiresAtMs) && expiresAtMs - now.getTime() <= windowMs;
+}
+
+function resolveSocialAccountStatus(account?: SocialAccount) {
+  if (!account) return undefined;
+  if (account.oauth_status === 'connected' && isTokenExpired(account.token_expires_at)) {
+    return 'expired' as const;
+  }
+
+  return account.oauth_status;
 }
 
 function mapSocialPublishJobRow(row: Record<string, unknown>): SocialPublishJob {
@@ -2124,25 +2161,32 @@ export async function listSocialProviderCards(storeId: string, options?: Content
     const account =
       accounts.find((entry) => entry.provider === provider && entry.oauth_status === 'connected') ||
       accounts.find((entry) => entry.provider === provider);
+    const accountStatus = resolveSocialAccountStatus(account);
     const youtubeReadiness = provider === 'youtube' ? getYouTubeProviderReadiness(options?.env) : null;
     const externalReadiness = isExternalFoundationProvider(provider)
-      ? getExternalSocialProviderReadiness(provider, options?.env, { accountStatus: account?.oauth_status })
+      ? getExternalSocialProviderReadiness(provider, options?.env, { accountStatus })
       : null;
     const status: SocialProviderCard['status'] = externalReadiness
-      ? externalReadiness.status
+      ? accountStatus === 'expired' || accountStatus === 'revoked'
+        ? accountStatus
+        : externalReadiness.status
       : youtubeReadiness
-        ? account?.oauth_status === 'connected'
+        ? accountStatus === 'connected'
           ? 'connected'
-          : account?.oauth_status || (youtubeReadiness.oauthReady ? 'not_connected' : 'disabled')
-        : account?.oauth_status === 'connected'
+          : accountStatus || (youtubeReadiness.oauthReady ? 'not_connected' : 'disabled')
+        : accountStatus === 'connected'
           ? 'connected'
-          : account?.oauth_status || 'disabled';
+          : accountStatus || 'disabled';
 
     return {
-      missingEnvNames: externalReadiness?.missingEnvNames,
+      displayName: account?.display_name,
+      missingEnvNames: externalReadiness?.missingEnvNames || youtubeReadiness?.missingOAuthEnvNames,
       provider,
+      providerAccountId: account?.provider_account_id,
       requiredScopes: externalReadiness?.requiredScopes,
       status,
+      tokenExpiresAt: account?.token_expires_at,
+      tokenExpiringSoon: status === 'connected' && isTokenExpiringSoon(account?.token_expires_at),
       ...PROVIDER_COPY[provider],
     };
   });
@@ -2446,7 +2490,21 @@ function getProviderNextAction(card: ContentReadinessProviderCard) {
   }
 
   if (card.status === 'connected') {
-    return '계정 연결은 확인되었습니다. 점주 승인 큐와 콘텐츠 동의 상태를 확인하세요.';
+    return card.tokenExpiringSoon
+      ? '계정 연결은 확인되었습니다. 토큰 만료가 가까워 갱신 준비 상태를 확인하세요.'
+      : '계정 연결은 확인되었습니다. 점주 승인 큐와 콘텐츠 동의 상태를 확인하세요.';
+  }
+
+  if (card.status === 'not_connected') {
+    return '계정 토큰 연결이 필요합니다. 토큰 암호화 설정 완료 후 연결을 진행하세요.';
+  }
+
+  if (card.status === 'expired') {
+    return '계정 토큰이 만료되었습니다. 토큰 갱신 foundation이 준비되면 다시 연결하세요.';
+  }
+
+  if (card.status === 'revoked') {
+    return '계정 연결이 폐기되었습니다. 다시 연결하기 전에는 외부 게시 큐로 이동할 수 없습니다.';
   }
 
   if (card.status === 'ready') {
@@ -2572,12 +2630,19 @@ function buildProviderCards(
   const providerCards: ContentReadinessProviderCard[] = [
     {
       copy: youtube.disabledMessage,
+      displayName: youtubeSocialCard?.displayName,
       missingEnvNames: [...new Set(youtube.missingOAuthEnvNames.concat(youtube.uploadEnabled ? [] : ['YOUTUBE_UPLOAD_ENABLED']))],
       nextAction: '',
       provider: 'youtube',
+      providerAccountId: youtubeSocialCard?.providerAccountId,
       requiredScopes: youtube.requiredScopes,
-      status: youtubeStatus,
+      status:
+        youtubeSocialCard?.status === 'expired' || youtubeSocialCard?.status === 'revoked' || youtubeSocialCard?.status === 'not_connected'
+          ? youtubeSocialCard.status
+          : youtubeStatus,
       title: 'YouTube',
+      tokenExpiresAt: youtubeSocialCard?.tokenExpiresAt,
+      tokenExpiringSoon: youtubeSocialCard?.tokenExpiringSoon,
     },
   ];
 
@@ -2594,12 +2659,19 @@ function buildProviderCards(
     });
     providerCards.push({
       copy: readiness.message,
+      displayName: baseCard?.displayName,
       missingEnvNames: readiness.missingEnvNames,
       nextAction: '',
       provider,
+      providerAccountId: baseCard?.providerAccountId,
       requiredScopes: readiness.requiredScopes,
-      status,
+      status:
+        baseCard?.status === 'expired' || baseCard?.status === 'revoked' || baseCard?.status === 'not_connected'
+          ? baseCard.status
+          : status,
       title: readiness.title,
+      tokenExpiresAt: baseCard?.tokenExpiresAt,
+      tokenExpiringSoon: baseCard?.tokenExpiringSoon,
     });
   });
 

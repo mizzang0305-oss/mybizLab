@@ -51,7 +51,7 @@ export type StoreMediaAssetType = 'image' | 'video';
 export type StoreMediaAssetStatus = 'draft' | 'ready' | 'published' | 'archived';
 export type SocialProvider = 'youtube' | 'tiktok' | 'threads' | 'naver_blog' | 'kakao_share';
 export type SocialPublishProvider = SocialProvider | 'mybiz_blog';
-export type SocialAccountStatus = 'not_connected' | 'connected' | 'expired' | 'revoked' | 'disabled';
+export type SocialAccountStatus = 'not_connected' | 'connected' | 'expired' | 'revoked' | 'disabled' | 'error';
 export type SocialPublishSourceType = 'review' | 'blog_post' | 'media' | 'manual';
 export type SocialPublishJobStatus =
   | 'draft'

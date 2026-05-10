@@ -77,8 +77,11 @@ const readinessStatusLabels: Record<string, string> = {
   connected: '연결됨',
   disabled: '비활성',
   error: '오류',
+  expired: '만료됨',
   missing_config: '설정 필요',
+  not_connected: '연결 필요',
   ready: '준비됨',
+  revoked: '연결 폐기',
 };
 
 const consentStatusLabels: Record<string, string> = {
@@ -1033,6 +1036,14 @@ export function ContentStatusPage() {
                   </div>
                   <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
                   <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">{provider.nextAction}</p>
+                  {provider.tokenExpiresAt ? (
+                    <p className="mt-3 text-xs font-bold leading-5 text-slate-500">
+                      토큰 만료 예정: {new Date(provider.tokenExpiresAt).toLocaleString('ko-KR')}
+                    </p>
+                  ) : null}
+                  {provider.tokenExpiringSoon ? (
+                    <p className="mt-2 text-xs font-bold leading-5 text-amber-700">토큰 만료가 가까워 갱신 준비가 필요합니다.</p>
+                  ) : null}
                   {provider.missingEnvNames.length ? (
                     <p className="mt-3 text-xs font-bold leading-5 text-amber-700">
                       missing: {provider.missingEnvNames.join(', ')}
@@ -1194,6 +1205,14 @@ export function ContentSocialPage() {
             <p className="text-sm font-black text-slate-950">{provider.title}</p>
             <p className="mt-2 text-xs font-bold text-slate-500">{provider.status}</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">{provider.copy}</p>
+            {provider.missingEnvNames?.includes('TOKEN_ENCRYPTION_KEY') ? (
+              <p className="mt-2 text-sm font-semibold leading-6 text-amber-700">
+                외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.
+              </p>
+            ) : null}
+            {provider.tokenExpiringSoon ? (
+              <p className="mt-2 text-xs font-bold leading-5 text-amber-700">토큰 만료가 가까워 갱신 준비가 필요합니다.</p>
+            ) : null}
           </article>
         ))}
       </div>
@@ -1212,6 +1231,14 @@ export function ContentSocialPage() {
                 </button>
               </div>
               <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
+              {provider.tokenExpiresAt ? (
+                <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+                  토큰 만료 예정: {new Date(provider.tokenExpiresAt).toLocaleString('ko-KR')}
+                </p>
+              ) : null}
+              {provider.tokenExpiringSoon ? (
+                <p className="mt-2 text-xs font-bold leading-5 text-amber-700">토큰 만료가 가까워 갱신 준비가 필요합니다.</p>
+              ) : null}
               {provider.provider === 'kakao_share' ? (
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   카카오 공유는 자동 게시가 아니라 사용자가 직접 공유하는 방식으로 제공됩니다.
@@ -1273,10 +1300,20 @@ export function ContentSocialPage() {
               YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.
             </p>
             <p className="mt-2 text-sm leading-6 text-amber-700">
-              {youtubeReadiness.oauthReady
+              {youtubeProvider?.missingEnvNames?.includes('TOKEN_ENCRYPTION_KEY')
+                ? '외부 계정 연결은 토큰 암호화 설정이 완료된 뒤 사용할 수 있습니다.'
+                : youtubeReadiness.oauthReady
                 ? 'OAuth 설정은 감지되었지만 대시보드 연결 버튼은 다음 배포에서 활성화됩니다.'
                 : 'YouTube 계정 연동은 설정이 완료되면 사용할 수 있습니다.'}
             </p>
+            {youtubeProvider?.missingEnvNames?.length ? (
+              <p className="mt-2 text-xs font-bold leading-5 text-amber-700">
+                설정 대기: {youtubeProvider.missingEnvNames.join(', ')}
+              </p>
+            ) : null}
+            {youtubeProvider?.tokenExpiringSoon ? (
+              <p className="mt-2 text-xs font-bold leading-5 text-amber-700">토큰 만료가 가까워 갱신 준비가 필요합니다.</p>
+            ) : null}
           </div>
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <p className="text-xs font-black text-slate-500">필요 scope</p>
