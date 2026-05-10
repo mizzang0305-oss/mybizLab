@@ -3,6 +3,10 @@ import {
   handleMerchantOrderEventRequest,
   type MerchantRequestLike,
 } from '../src/server/merchantApi.js';
+import {
+  handleExternalSocialOAuthCallbackRequest,
+  handleExternalSocialOAuthStartRequest,
+} from '../src/server/externalSocialOAuth.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 import {
   handleYouTubeOAuthCallbackRequest,
@@ -67,6 +71,14 @@ async function routeMerchantRequest(request: MerchantRequestLike): Promise<Respo
       return method === 'POST' ? handleMerchantOrderEventRequest(request) : methodNotAllowed();
     case 'media-transcribe':
       return method === 'POST' ? handleMerchantMediaTranscribeRequest(request) : methodNotAllowed();
+    case 'naver-oauth-callback':
+      return method === 'GET' ? handleExternalSocialOAuthCallbackRequest('naver_blog', request) : getMethodNotAllowed();
+    case 'naver-oauth-start':
+      return method === 'GET' ? handleExternalSocialOAuthStartRequest('naver_blog', request) : getMethodNotAllowed();
+    case 'threads-oauth-callback':
+      return method === 'GET' ? handleExternalSocialOAuthCallbackRequest('threads', request) : getMethodNotAllowed();
+    case 'threads-oauth-start':
+      return method === 'GET' ? handleExternalSocialOAuthStartRequest('threads', request) : getMethodNotAllowed();
     case 'youtube-oauth-callback':
       return method === 'GET' ? handleYouTubeOAuthCallbackRequest(request) : getMethodNotAllowed();
     case 'youtube-oauth-start':

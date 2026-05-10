@@ -74,6 +74,22 @@
       "dest": "/api/merchant?resource=youtube-oauth-callback"
     },
     {
+      "src": "/api/social/threads/oauth/start",
+      "dest": "/api/merchant?resource=threads-oauth-start"
+    },
+    {
+      "src": "/api/social/threads/oauth/callback",
+      "dest": "/api/merchant?resource=threads-oauth-callback"
+    },
+    {
+      "src": "/api/social/naver/oauth/start",
+      "dest": "/api/merchant?resource=naver-oauth-start"
+    },
+    {
+      "src": "/api/social/naver/oauth/callback",
+      "dest": "/api/merchant?resource=naver-oauth-callback"
+    },
+    {
       "src": "/api/dashboard/content/media/([^/]+)/transcribe",
       "dest": "/api/merchant?resource=media-transcribe&assetId=$1"
     },
