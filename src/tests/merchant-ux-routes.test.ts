@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { BrandPage } from '@/modules/brand/page';
-import { ContentMediaPage, ContentSocialPage } from '@/modules/content/page';
+import { ContentMediaPage, ContentSocialPage, ContentStatusPage } from '@/modules/content/page';
 import { CustomersPage } from '@/modules/customers/page';
 import { DashboardPage } from '@/modules/dashboard/page';
 import { OrdersPage } from '@/modules/orders/page';
@@ -30,6 +30,7 @@ import {
 } from '@/shared/lib/services/mvpService';
 import {
   createStoreMediaAsset,
+  getContentReadinessDashboard,
   listSocialProviderCards,
   listSocialPublishJobs,
   listStoreMediaAssets,
@@ -197,5 +198,20 @@ describe('merchant UX routes', () => {
     expect(mediaHtml).toContain('음성 분석 설정이 완료되면 영상 자막과 설명 초안을 생성할 수 있습니다.');
     expect(mediaHtml).toContain('영상 자막 초안은 음성 분석 설정이 완료되면 생성할 수 있습니다.');
     expect(mediaHtml).toContain('자막 초안 생성');
+  });
+
+  it('renders content status dashboard with separate transcript and caption readiness cards', async () => {
+    const statusHtml = await renderMerchantPage(createElement(ContentStatusPage), async (queryClient) => {
+      await queryClient.prefetchQuery({
+        queryKey: queryKeys.contentStatus(storeId),
+        queryFn: () => getContentReadinessDashboard(storeId),
+      });
+    });
+
+    expect(statusHtml).toContain('transcript ready asset');
+    expect(statusHtml).toContain('caption ready asset');
+    expect(statusHtml).toContain('점주 승인 필요');
+    expect(statusHtml).not.toContain('transcript/caption ready');
+    expect(statusHtml).not.toContain('approval_missing</p>');
   });
 });

@@ -32,6 +32,7 @@ const dashboardNavigationLabelMap: Record<string, string> = {
   '/dashboard/content/blog': '블로그/소식',
   '/dashboard/content/media': '사진·영상',
   '/dashboard/content/social': '게시 초안/소셜',
+  '/dashboard/content/status': '콘텐츠 상태판',
 };
 
 const dashboardNavigationDescriptionMap: Record<string, string> = {
@@ -55,6 +56,7 @@ const dashboardNavigationDescriptionMap: Record<string, string> = {
   '/dashboard/content/blog': '매장 소식과 SEO용 글을 초안, 게시, 보관 상태로 관리합니다.',
   '/dashboard/content/media': '사진과 영상을 URL로 등록하고 캡션·자막 초안을 준비합니다.',
   '/dashboard/content/social': '외부 채널 게시 초안을 만들되 계정 연동 전에는 자동 게시하지 않습니다.',
+  '/dashboard/content/status': '리뷰, 블로그, 미디어, SEO, STT, 소셜 게시 준비 상태를 한눈에 점검합니다.',
 };
 
 function getDashboardNavigationLabel(route: string, fallback: string) {

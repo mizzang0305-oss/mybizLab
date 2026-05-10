@@ -55,6 +55,7 @@ export const queryKeys = {
   contentBlog: (storeId: string, status?: string) => ['content-blog', storeId, status || 'all'] as const,
   contentMedia: (storeId: string, status?: string) => ['content-media', storeId, status || 'all'] as const,
   contentSocial: (storeId: string) => ['content-social', storeId] as const,
+  contentStatus: (storeId: string) => ['content-status', storeId] as const,
   publicStoreReviews: (storeId: string) => ['public-store-reviews', storeId] as const,
   publicStoreBlog: (storeId: string) => ['public-store-blog', storeId] as const,
   publicStoreBlogPost: (storeId: string, slug: string) => ['public-store-blog-post', storeId, slug] as const,

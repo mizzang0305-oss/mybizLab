@@ -24,6 +24,7 @@ import {
   createStoreMediaAsset,
   generateCaptionDraft,
   generateTranscriptDraft,
+  getContentReadinessDashboard,
   listReviewRequestLinks,
   listSocialProviderCards,
   listSocialPublishJobs,
@@ -71,6 +72,38 @@ const mediaStatusTabs: Array<{ label: string; value: StoreMediaAssetStatus | 'al
 ];
 
 const socialProviders: SocialPublishProvider[] = ['threads', 'youtube', 'tiktok', 'naver_blog', 'kakao_share'];
+
+const readinessStatusLabels: Record<string, string> = {
+  connected: '연결됨',
+  disabled: '비활성',
+  error: '오류',
+  missing_config: '설정 필요',
+  ready: '준비됨',
+};
+
+const consentStatusLabels: Record<string, string> = {
+  granted: '동의 완료',
+  missing: '동의 부족',
+  not_required: '동의 불필요',
+  unknown: '확인 필요',
+};
+
+const approvalStatusLabels: Record<string, string> = {
+  approval_missing: '승인 필요',
+  approved: '승인 기록 있음',
+  waiting_approval: '승인 대기',
+};
+
+const blockedReasonLabels: Record<string, string> = {
+  approval_missing: '점주 승인 필요',
+  content_usage_consent_missing: '고객 동의 부족',
+  customer_impersonation_copy_detected: '고객 사칭 문구 감지',
+  failed: '실패 상태',
+  missing_env: '환경 설정 필요',
+  provider_disabled: '제공자 비활성',
+  token_not_connected: '계정 연결 필요',
+  unsafe_copy_detected: '안전하지 않은 문구 감지',
+};
 
 const reviewRequestSourceOptions: Array<{ label: string; value: ReviewRequestLinkSourceType }> = [
   { label: '매장 기본 링크', value: 'store' },
@@ -897,6 +930,171 @@ export function ContentMediaPage() {
           {!assets.length ? <EmptyState title="등록된 미디어가 없습니다" description="매장 사진 또는 영상 URL을 먼저 등록해 주세요." /> : null}
         </div>
       </Panel>
+    </div>
+  );
+}
+
+export function ContentStatusPage() {
+  const { currentStore } = useCurrentStore();
+  const actorProfileId = useActorProfileId();
+  const storeId = currentStore?.id || '';
+
+  usePageMeta('콘텐츠 상태판', '콘텐츠 확산 readiness와 승인 대기 상태를 확인합니다.');
+
+  const dashboardQuery = useQuery({
+    queryKey: queryKeys.contentStatus(storeId),
+    queryFn: () => getContentReadinessDashboard(storeId, { actorProfileId }),
+    enabled: Boolean(currentStore),
+  });
+  const dashboard = dashboardQuery.data;
+  const stats = dashboard?.stats;
+  const statCards = stats
+    ? [
+        { label: '리뷰 요청 링크', value: stats.reviewRequestLinkCount },
+        { label: 'pending 리뷰', value: stats.pendingReviewCount },
+        { label: 'published 리뷰', value: stats.publishedReviewCount },
+        { label: '블로그 draft', value: stats.blogDraftCount },
+        { label: '블로그 published', value: stats.blogPublishedCount },
+        { label: '미디어 asset', value: stats.mediaAssetCount },
+        { label: 'transcript ready asset', value: stats.transcriptReadyAssetCount },
+        { label: 'caption ready asset', value: stats.captionReadyAssetCount },
+        { label: 'social draft', value: stats.socialDraftCount },
+        { label: 'waiting approval', value: stats.socialWaitingApprovalCount },
+        { label: 'failed', value: stats.socialFailedCount },
+        { label: 'consent 부족 차단', value: stats.consentBlockedJobCount },
+      ]
+    : [];
+
+  if (!currentStore) {
+    return <EmptyStoreGuard />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="콘텐츠"
+        title="콘텐츠 확산 운영 상태판"
+        description="리뷰, 블로그, 미디어, SEO, YouTube, STT, Threads, Naver, Kakao 준비 상태를 점주 승인 흐름 기준으로 확인합니다."
+      />
+
+      <Panel title="안전 게이트" subtitle="외부 게시 실행 전에 확인해야 하는 운영 기준입니다.">
+        <div className="grid gap-3 md:grid-cols-2">
+          <p className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-800">
+            {dashboard?.safetyCopy.externalPosting ||
+              '외부 채널 게시 기능은 계정 연동, 고객 동의, 점주 승인, 제공자 설정이 모두 완료된 뒤 사용할 수 있습니다.'}
+          </p>
+          <p className="rounded-3xl border border-slate-200 bg-white p-4 text-sm font-semibold leading-6 text-slate-700">
+            {dashboard?.safetyCopy.reviewPolicy || '외부 플랫폼 리뷰를 대신 작성하거나 자동 등록하지 않습니다.'}
+          </p>
+        </div>
+      </Panel>
+
+      {dashboardQuery.isLoading ? (
+        <Panel title="상태를 불러오는 중" subtitle="콘텐츠 확산 운영 지표를 집계하고 있습니다.">
+          <p className="text-sm text-slate-500">잠시만 기다려 주세요.</p>
+        </Panel>
+      ) : null}
+
+      {dashboardQuery.isError ? (
+        <Panel title="상태판을 불러오지 못했습니다" subtitle="스토어 권한 또는 데이터 연결 상태를 확인해 주세요.">
+          <p className="text-sm font-semibold text-rose-700">
+            {dashboardQuery.error instanceof Error ? dashboardQuery.error.message : '콘텐츠 상태판 조회 중 오류가 발생했습니다.'}
+          </p>
+        </Panel>
+      ) : null}
+
+      {dashboard ? (
+        <>
+          <Panel title="상태 카드" subtitle="콘텐츠 확산 운영 흐름의 핵심 숫자입니다.">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {statCards.map((card) => (
+                <article className="rounded-3xl border border-slate-200 bg-white p-4" key={card.label}>
+                  <p className="text-xs font-black text-slate-500">{card.label}</p>
+                  <p className="mt-2 text-3xl font-black text-slate-950">{card.value}</p>
+                </article>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="provider readiness" subtitle="값은 표시하지 않고 필요한 환경 변수 이름만 표시합니다.">
+            <div className="grid gap-4 lg:grid-cols-3">
+              {dashboard.providerCards.map((provider) => (
+                <article className="rounded-3xl border border-slate-200 bg-white p-5" key={provider.provider}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">{provider.title}</p>
+                      <p className="mt-2 text-xs font-black text-slate-500">
+                        {readinessStatusLabels[provider.status] || provider.status}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                      {provider.provider}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
+                  <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">{provider.nextAction}</p>
+                  {provider.missingEnvNames.length ? (
+                    <p className="mt-3 text-xs font-bold leading-5 text-amber-700">
+                      missing: {provider.missingEnvNames.join(', ')}
+                    </p>
+                  ) : null}
+                  {provider.requiredScopes.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {provider.requiredScopes.map((scope) => (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600" key={scope}>
+                          {scope}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="승인 대기 큐" subtitle="이 화면에서는 실제 외부 게시를 실행하지 않습니다.">
+            <div className="space-y-3">
+              {dashboard.approvalQueue.map((item) => (
+                <article className="rounded-3xl border border-slate-200 bg-white p-5" key={item.jobId}>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-black text-slate-500">
+                        {item.provider} · {item.sourceType} · {new Date(item.createdAt).toLocaleDateString('ko-KR')}
+                      </p>
+                      <p className="mt-2 text-sm font-black text-slate-900">{item.sourceTitle}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {consentStatusLabels[item.consentStatus]} · {approvalStatusLabels[item.approvalStatus]}
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-slate-700">{item.nextAction}</p>
+                    </div>
+                    <button className="btn-secondary" disabled type="button">
+                      승인 검토
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {!dashboard.approvalQueue.length ? (
+                <EmptyState title="승인 대기 항목이 없습니다" description="새 게시 초안이 만들어지면 이곳에서 동의와 승인 상태를 확인할 수 있습니다." />
+              ) : null}
+            </div>
+          </Panel>
+
+          <Panel title="차단/실패 큐" subtitle="동의, 설정, 승인, 안전 문구 문제를 먼저 해결해야 합니다.">
+            <div className="space-y-3">
+              {dashboard.blockedQueue.map((item, index) => (
+                <article className="rounded-3xl border border-slate-200 bg-white p-5" key={`${item.reasonCode}-${item.jobId || index}`}>
+                  <p className="text-xs font-black text-rose-500">{blockedReasonLabels[item.reasonCode] || '차단 사유 확인'}</p>
+                  <p className="mt-2 text-sm font-black text-slate-900">{item.sourceTitle}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{item.reason}</p>
+                </article>
+              ))}
+              {!dashboard.blockedQueue.length ? (
+                <EmptyState title="차단된 항목이 없습니다" description="동의, 승인, provider 설정 문제를 발견하면 이곳에 표시합니다." />
+              ) : null}
+            </div>
+          </Panel>
+        </>
+      ) : null}
     </div>
   );
 }
