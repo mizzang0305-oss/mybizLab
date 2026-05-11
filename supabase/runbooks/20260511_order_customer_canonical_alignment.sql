@@ -1,6 +1,6 @@
 -- MyBiz PR #84: manual order/customer canonical alignment runbook.
 -- Do not run this automatically. Execute section-by-section in Supabase SQL editor.
--- Keep the first pass inside BEGIN/ROLLBACK until the dry-run count and preview are reviewed.
+-- Dry-run sections are read-only. The reviewed update block includes BEGIN/ROLLBACK.
 
 -- ---------------------------------------------------------------------------
 -- 1) Manual schema inspection
@@ -63,18 +63,8 @@ order by table_name, ordinal_position;
 -- ---------------------------------------------------------------------------
 -- 2) Dry-run candidate build
 -- ---------------------------------------------------------------------------
-
-BEGIN;
-
-create temp table order_customer_backfill_snapshot as
-select
-  o.order_id::text as order_id_text,
-  o.store_id,
-  o.customer_id as previous_customer_id,
-  timezone('utc', now()) as snapshotted_at
-from public.orders o
-where o.customer_id is null
-  and o.order_id is not null;
+-- Read-only: run these queries first and review counts/previews before
+-- selecting the reviewed update block below.
 
 with
 order_scope as (
@@ -223,9 +213,11 @@ limit 50;
 -- ---------------------------------------------------------------------------
 -- 3) Optional reviewed update
 -- ---------------------------------------------------------------------------
--- Keep this in the transaction for the first execution. It updates only
--- orders whose customer_id is still null and whose candidate customer belongs
--- to the same store.
+-- Select this whole block through ROLLBACK for the first execution. It updates
+-- only orders whose customer_id is still null and whose candidate customer
+-- belongs to the same store. Change ROLLBACK to COMMIT only after review.
+
+BEGIN;
 
 with
 order_scope as (
@@ -283,30 +275,30 @@ safe_candidates as (
   where cx_identity.customer_id_text = ac.candidate_customer_id
   group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) = 1
+),
+updated_orders as (
+  update public.orders o
+  set customer_id = sc.customer_id
+  from safe_candidates sc
+  where o.order_id::text = sc.order_id_text
+    and o.store_id = sc.store_id
+    and o.customer_id is null
+  returning
+    o.order_id::text as order_id_text,
+    o.store_id,
+    o.customer_id
 )
-update public.orders o
-set customer_id = sc.customer_id
-from safe_candidates sc
-where o.order_id::text = sc.order_id_text
-  and o.store_id = sc.store_id
-  and o.customer_id is null;
-
 select
   'post-update verification' as check_name,
   count(*) as newly_linked_count
-from public.orders o
-join order_customer_backfill_snapshot s
-  on s.order_id_text = o.order_id::text
- and s.store_id = o.store_id
-where s.previous_customer_id is null
-  and o.customer_id is not null;
+from updated_orders;
 
 -- Review broadness before committing. Use COMMIT only after the dry-run count,
--- preview sample, and manual review rows are acceptable.
+-- preview sample, manual review rows, and post-update verification are acceptable.
 ROLLBACK;
 
 -- Rollback note:
--- If a reviewed COMMIT was already executed, use the temp snapshot pattern in
--- this runbook as a permanent audit table before running the update, then
--- restore only rows captured in that snapshot. Never issue a broad delete or
--- broad customer_id reset.
+-- Before changing the final ROLLBACK to COMMIT, save/export the reviewed
+-- safe_candidates preview rows as an audit record. If a reviewed COMMIT was
+-- already executed, restore only rows captured in that audit record. Never
+-- issue a broad delete or broad customer_id reset.
