@@ -2140,6 +2140,7 @@ export function createSeedDatabase(): MvpDatabase {
       },
     ],
     review_request_links: [],
+    review_submit_attempts: [],
     store_blog_posts: [
       {
         post_id: 'blog_golden_published_1',

@@ -292,6 +292,31 @@ export interface ReviewRequestLink {
   updated_at: string;
 }
 
+export type ReviewSubmitAttemptOutcome = 'allowed' | 'blocked';
+export type ReviewSubmitAttemptReason =
+  | 'allowed'
+  | 'captcha_failed'
+  | 'duplicate_submit_window'
+  | 'honeypot_detected'
+  | 'rate_limit'
+  | 'token_disabled'
+  | 'token_expired'
+  | 'token_invalid'
+  | 'token_max_uses_exceeded'
+  | 'token_store_mismatch';
+
+export interface ReviewSubmitAttempt {
+  attempt_id: string;
+  store_id: string;
+  review_request_link_id?: string;
+  ip_hash: string;
+  user_agent_hash: string;
+  body_hash?: string;
+  outcome: ReviewSubmitAttemptOutcome;
+  reason: ReviewSubmitAttemptReason;
+  created_at: string;
+}
+
 export interface StoreBlogPost {
   post_id: string;
   store_id: string;
@@ -921,6 +946,7 @@ export interface MvpDatabase {
   store_public_pages: StorePublicPage[];
   store_reviews: StoreReview[];
   review_request_links: ReviewRequestLink[];
+  review_submit_attempts: ReviewSubmitAttempt[];
   store_blog_posts: StoreBlogPost[];
   store_media_assets: StoreMediaAsset[];
   social_accounts: SocialAccount[];
