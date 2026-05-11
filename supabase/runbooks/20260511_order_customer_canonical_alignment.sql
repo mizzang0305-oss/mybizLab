@@ -89,12 +89,15 @@ payment_raw_candidates as (
   select
     o.order_id_text,
     o.store_id,
-    nullif(pe.raw ->> 'customer_id', '') as candidate_customer_id,
-    'payment_events.raw.customer_id' as candidate_source
+    pe_payload.candidate_customer_id,
+    'payment_events.raw_or_payload.customer_id' as candidate_source
   from order_scope o
   join public.payment_events pe
     on pe.order_id = o.order_id_text
-  where nullif(pe.raw ->> 'customer_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  cross join lateral (
+    select nullif(coalesce(to_jsonb(pe) #>> '{raw,customer_id}', to_jsonb(pe) #>> '{payload,customer_id}'), '') as candidate_customer_id
+  ) pe_payload
+  where pe_payload.candidate_customer_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ),
 timeline_candidates as (
   select
@@ -106,8 +109,11 @@ timeline_candidates as (
   join public.customer_timeline_events cte
     on cte.store_id = o.store_id
    and cte.event_type = 'order_linked'
-   and cte.metadata ->> 'order_id' = o.order_id_text
+  cross join lateral (
+    select coalesce(to_jsonb(cte) #>> '{metadata,order_id}', to_jsonb(cte) #>> '{payload,order_id}') as event_order_id
+  ) cte_payload
   where cte.customer_id is not null
+    and cte_payload.event_order_id = o.order_id_text
 ),
 all_candidates as (
   select * from payment_raw_candidates
@@ -155,12 +161,15 @@ payment_raw_candidates as (
   select
     o.order_id_text,
     o.store_id,
-    nullif(pe.raw ->> 'customer_id', '') as candidate_customer_id,
-    'payment_events.raw.customer_id' as candidate_source
+    pe_payload.candidate_customer_id,
+    'payment_events.raw_or_payload.customer_id' as candidate_source
   from order_scope o
   join public.payment_events pe
     on pe.order_id = o.order_id_text
-  where nullif(pe.raw ->> 'customer_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  cross join lateral (
+    select nullif(coalesce(to_jsonb(pe) #>> '{raw,customer_id}', to_jsonb(pe) #>> '{payload,customer_id}'), '') as candidate_customer_id
+  ) pe_payload
+  where pe_payload.candidate_customer_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ),
 timeline_candidates as (
   select
@@ -172,8 +181,11 @@ timeline_candidates as (
   join public.customer_timeline_events cte
     on cte.store_id = o.store_id
    and cte.event_type = 'order_linked'
-   and cte.metadata ->> 'order_id' = o.order_id_text
+  cross join lateral (
+    select coalesce(to_jsonb(cte) #>> '{metadata,order_id}', to_jsonb(cte) #>> '{payload,order_id}') as event_order_id
+  ) cte_payload
   where cte.customer_id is not null
+    and cte_payload.event_order_id = o.order_id_text
 ),
 all_candidates as (
   select * from payment_raw_candidates
@@ -222,11 +234,14 @@ payment_raw_candidates as (
   select
     o.order_id_text,
     o.store_id,
-    nullif(pe.raw ->> 'customer_id', '') as candidate_customer_id
+    pe_payload.candidate_customer_id
   from order_scope o
   join public.payment_events pe
     on pe.order_id = o.order_id_text
-  where nullif(pe.raw ->> 'customer_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  cross join lateral (
+    select nullif(coalesce(to_jsonb(pe) #>> '{raw,customer_id}', to_jsonb(pe) #>> '{payload,customer_id}'), '') as candidate_customer_id
+  ) pe_payload
+  where pe_payload.candidate_customer_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ),
 timeline_candidates as (
   select
@@ -237,8 +252,11 @@ timeline_candidates as (
   join public.customer_timeline_events cte
     on cte.store_id = o.store_id
    and cte.event_type = 'order_linked'
-   and cte.metadata ->> 'order_id' = o.order_id_text
+  cross join lateral (
+    select coalesce(to_jsonb(cte) #>> '{metadata,order_id}', to_jsonb(cte) #>> '{payload,order_id}') as event_order_id
+  ) cte_payload
   where cte.customer_id is not null
+    and cte_payload.event_order_id = o.order_id_text
 ),
 all_candidates as (
   select * from payment_raw_candidates

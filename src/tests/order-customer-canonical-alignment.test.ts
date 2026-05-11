@@ -90,6 +90,10 @@ describe('order/customer canonical alignment', () => {
     expect(runbook).not.toMatch(/customers\.(name|phone|email)|\bc\.(name|phone|email)\b/i);
     expect(runbook).not.toMatch(/payment_events\.store_id|\bpe\.store_id\b/i);
     expect(runbook).not.toMatch(/\bo\.id\b/i);
+    expect(runbook).not.toMatch(/\bcte\.(metadata|payload)\b/i);
+    expect(runbook).not.toMatch(/\bpe\.raw\b/i);
+    expect(runbook).toContain('to_jsonb(cte)');
+    expect(runbook).toContain('to_jsonb(pe)');
     expect(runbook).toMatch(/orders\.order_id::text|o\.order_id::text/i);
     expect(runbook).toContain('on pe.order_id = o.order_id_text');
     expect(runbook).toMatch(/^[^]*manual review[^]*$/i);
