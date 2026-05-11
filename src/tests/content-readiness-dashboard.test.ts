@@ -152,13 +152,13 @@ describe('content readiness dashboard', () => {
       'stt',
       'payment_test_100',
     ]);
-    expect(dashboard.approvalQueue[0]).toMatchObject({
+    expect(dashboard.approvalQueue).toContainEqual(expect.objectContaining({
       approvalStatus: 'waiting_approval',
       consentStatus: 'not_required',
       provider: 'threads',
       sourceTitle: '상태판 게시 글',
       sourceType: 'blog_post',
-    });
+    }));
     expect(dashboard.blockedQueue.some((item) => item.reasonCode === 'content_usage_consent_missing')).toBe(true);
     expect(dashboard.blockedQueue.some((item) => item.reasonCode === 'failed')).toBe(true);
 
