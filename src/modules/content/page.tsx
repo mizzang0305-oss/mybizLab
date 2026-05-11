@@ -96,12 +96,21 @@ const approvalStatusLabels: Record<string, string> = {
 
 const blockedReasonLabels: Record<string, string> = {
   approval_missing: '점주 승인 필요',
+  captcha_failed: 'captcha 확인 실패',
   content_usage_consent_missing: '고객 동의 부족',
   customer_impersonation_copy_detected: '고객 사칭 문구 감지',
+  duplicate_submit_window: '중복 제출 차단',
   failed: '실패 상태',
+  honeypot_detected: 'honeypot 탐지',
   missing_env: '환경 설정 필요',
   provider_disabled: '제공자 비활성',
+  rate_limit: 'rate limit 차단',
+  token_disabled: '비활성 token',
+  token_expired: '만료 token',
+  token_invalid: '유효하지 않은 token',
   token_not_connected: '계정 연결 필요',
+  token_max_uses_exceeded: 'token max uses 초과',
+  token_store_mismatch: '다른 매장 token',
   unsafe_copy_detected: '안전하지 않은 문구 감지',
 };
 
@@ -962,6 +971,7 @@ export function ContentStatusPage() {
         { label: 'waiting approval', value: stats.socialWaitingApprovalCount },
         { label: 'failed', value: stats.socialFailedCount },
         { label: 'consent 부족 차단', value: stats.consentBlockedJobCount },
+        { label: 'review abuse 차단', value: stats.reviewSubmitBlockedAttemptCount },
       ]
     : [];
 

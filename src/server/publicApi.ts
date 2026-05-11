@@ -624,6 +624,15 @@ function getRequestUrl(request: PublicApiRequestLike) {
   return new URL(rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`, `${protocol}://${host}`);
 }
 
+function getClientIpAddress(request: PublicApiRequestLike) {
+  const forwardedFor = getHeaderValue(request.headers, 'x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0]?.trim();
+  }
+
+  return getHeaderValue(request.headers, 'cf-connecting-ip') || getHeaderValue(request.headers, 'x-real-ip');
+}
+
 function inferPublicApiErrorStatus(error: unknown) {
   if (!(error instanceof Error)) {
     return 500;
@@ -635,6 +644,14 @@ function inferPublicApiErrorStatus(error: unknown) {
 
   if (/could not be found|not available for this store/i.test(error.message)) {
     return 404;
+  }
+
+  if (/짧은 시간 안에 리뷰 제출/i.test(error.message)) {
+    return 429;
+  }
+
+  if (/자동 제출 방지|자동 제출로 의심|이미 접수된 리뷰|review request token/i.test(error.message)) {
+    return 400;
   }
 
   return 500;
@@ -1211,6 +1228,10 @@ export async function handlePublicReviewRequest(request: PublicApiRequestLike) {
       },
       {
         client: getSupabaseAdminClient(),
+        requestMeta: {
+          ipAddress: getClientIpAddress(request),
+          userAgent: getHeaderValue(request.headers, 'user-agent'),
+        },
       },
     );
 

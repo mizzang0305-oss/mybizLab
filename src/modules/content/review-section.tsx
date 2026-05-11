@@ -40,6 +40,7 @@ export function StoreReviewSection({ showPublishedReviews = true }: { showPublis
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({
     body: '',
+    captchaToken: '',
     contentUsageConsent: false,
     honeypot: '',
     marketingConsent: false,
@@ -64,6 +65,7 @@ export function StoreReviewSection({ showPublishedReviews = true }: { showPublis
     mutationFn: () =>
       submitPublicStoreReview({
         body: form.body,
+        captchaToken: form.captchaToken,
         contentUsageConsent: form.contentUsageConsent,
         honeypot: form.honeypot,
         marketingConsent: form.marketingConsent,
@@ -83,6 +85,7 @@ export function StoreReviewSection({ showPublishedReviews = true }: { showPublis
     onSuccess: async () => {
       setForm({
         body: '',
+        captchaToken: '',
         contentUsageConsent: false,
         honeypot: '',
         marketingConsent: false,

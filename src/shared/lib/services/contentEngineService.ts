@@ -34,6 +34,8 @@ import type {
   PublicStoreReview,
   ReviewRequestLink,
   ReviewRequestLinkSourceType,
+  ReviewSubmitAttempt,
+  ReviewSubmitAttemptReason,
   StoreBlogPost,
   StoreBlogPostSourceType,
   StoreBlogPostStatus,
@@ -46,10 +48,37 @@ import type {
 
 type ContentServiceOptions = {
   actorProfileId?: string;
+  captchaVerifier?: ReviewCaptchaVerifier;
   client?: SupabaseClient;
-  env?: YouTubeEnv & SttEnv & ExternalSocialEnv;
+  env?: YouTubeEnv & SttEnv & ExternalSocialEnv & ReviewAbuseEnv;
+  requestMeta?: ReviewSubmitRequestMeta;
   sttProviderAdapter?: SttProviderAdapter;
 };
+
+export type ReviewAbuseEnv = Partial<Record<
+  | 'REVIEW_CAPTCHA_ENABLED'
+  | 'REVIEW_IP_HASH_SALT'
+  | 'REVIEW_RATE_LIMIT_ENABLED'
+  | 'REVIEW_RATE_LIMIT_MAX_ATTEMPTS'
+  | 'REVIEW_RATE_LIMIT_WINDOW_SECONDS'
+  | 'TURNSTILE_SECRET_KEY'
+  | 'TURNSTILE_SITE_KEY'
+  | string,
+  string | undefined
+>>;
+
+export type ReviewSubmitRequestMeta = {
+  ipAddress?: string;
+  userAgent?: string;
+};
+
+export type ReviewCaptchaVerifier = (
+  token: string,
+  context: {
+    ipAddress?: string;
+    secretKey: string;
+  },
+) => Promise<{ success: boolean }>;
 
 type ApproveSocialPublishOptions = ContentServiceOptions & {
   publishAdapter?: (job: SocialPublishJob) => Promise<{
@@ -60,6 +89,7 @@ type ApproveSocialPublishOptions = ContentServiceOptions & {
 
 export interface SubmitPublicStoreReviewInput {
   body: string;
+  captchaToken?: string;
   contentUsageConsent?: boolean;
   customerId?: string;
   honeypot?: string;
@@ -157,12 +187,21 @@ export type ContentReadinessConsentStatus = 'granted' | 'missing' | 'not_require
 export type ContentReadinessApprovalStatus = 'approved' | 'approval_missing' | 'waiting_approval';
 export type ContentReadinessBlockReason =
   | 'approval_missing'
+  | 'captcha_failed'
   | 'content_usage_consent_missing'
   | 'customer_impersonation_copy_detected'
+  | 'duplicate_submit_window'
   | 'failed'
+  | 'honeypot_detected'
   | 'missing_env'
   | 'provider_disabled'
+  | 'rate_limit'
   | 'token_not_connected'
+  | 'token_disabled'
+  | 'token_expired'
+  | 'token_invalid'
+  | 'token_max_uses_exceeded'
+  | 'token_store_mismatch'
   | 'unsafe_copy_detected';
 
 export interface ContentReadinessStats {
@@ -174,6 +213,7 @@ export interface ContentReadinessStats {
   pendingReviewCount: number;
   publishedReviewCount: number;
   reviewRequestLinkCount: number;
+  reviewSubmitBlockedAttemptCount: number;
   socialDraftCount: number;
   socialFailedCount: number;
   socialWaitingApprovalCount: number;
@@ -431,6 +471,327 @@ function normalizeReviewInput(input: SubmitPublicStoreReviewInput) {
     mediaUrls,
     title: toOptionalText(input.title)?.slice(0, 120),
   };
+}
+
+const REVIEW_RATE_LIMIT_MESSAGE = '짧은 시간 안에 리뷰 제출이 여러 번 시도되었습니다. 잠시 후 다시 시도해 주세요.';
+const REVIEW_CAPTCHA_MESSAGE = '자동 제출 방지를 확인하지 못했습니다. 다시 시도해 주세요.';
+const REVIEW_DUPLICATE_MESSAGE = '이미 접수된 리뷰와 같은 내용입니다. 잠시 후 다시 시도해 주세요.';
+const REVIEW_SPAM_MESSAGE = '자동 제출로 의심되어 리뷰를 접수하지 못했습니다. spam check failed.';
+
+function resolveReviewAbuseEnv(env?: ReviewAbuseEnv): ReviewAbuseEnv {
+  if (env) {
+    return env;
+  }
+
+  return typeof process !== 'undefined' ? process.env : {};
+}
+
+function isEnvEnabled(value: unknown) {
+  return normalizeText(value).toLowerCase() === 'true';
+}
+
+function normalizePositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getReviewAbuseConfig(options?: ContentServiceOptions) {
+  const env = resolveReviewAbuseEnv(options?.env);
+  return {
+    captchaEnabled: isEnvEnabled(env.REVIEW_CAPTCHA_ENABLED),
+    rateLimitEnabled: isEnvEnabled(env.REVIEW_RATE_LIMIT_ENABLED),
+    rateLimitMaxAttempts: normalizePositiveInteger(env.REVIEW_RATE_LIMIT_MAX_ATTEMPTS, 5),
+    rateLimitWindowSeconds: normalizePositiveInteger(env.REVIEW_RATE_LIMIT_WINDOW_SECONDS, 300),
+    salt: normalizeText(env.REVIEW_IP_HASH_SALT),
+    turnstileSecretKey: normalizeText(env.TURNSTILE_SECRET_KEY),
+  };
+}
+
+function toHex(bytes: Uint8Array) {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function fallbackHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+async function hashReviewGuardValue(value: string, salt: string, label: string) {
+  const normalized = normalizeText(value) || label;
+  const payload = `${salt}:${label}:${normalized}`;
+  if (typeof globalThis.crypto?.subtle?.digest === 'function') {
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
+    return `sha256:${toHex(new Uint8Array(digest))}`;
+  }
+
+  return fallbackHash(payload);
+}
+
+function mapReviewSubmitAttemptRow(row: Record<string, unknown>): ReviewSubmitAttempt {
+  return {
+    attempt_id: normalizeText(row.attempt_id || row.id),
+    body_hash: toOptionalText(row.body_hash),
+    created_at: normalizeText(row.created_at) || nowIso(),
+    ip_hash: normalizeText(row.ip_hash),
+    outcome: normalizeText(row.outcome) === 'blocked' ? 'blocked' : 'allowed',
+    reason: (normalizeText(row.reason) || 'allowed') as ReviewSubmitAttemptReason,
+    review_request_link_id: toOptionalText(row.review_request_link_id),
+    store_id: normalizeText(row.store_id),
+    user_agent_hash: normalizeText(row.user_agent_hash),
+  };
+}
+
+async function buildReviewAttemptFingerprint(input: SubmitPublicStoreReviewInput, options?: ContentServiceOptions) {
+  const config = getReviewAbuseConfig(options);
+  if ((config.rateLimitEnabled || config.captchaEnabled) && !config.salt) {
+    throw new Error('리뷰 제출 보호 설정이 완료되지 않았습니다. REVIEW_IP_HASH_SALT 설정을 확인해 주세요.');
+  }
+
+  const salt = config.salt || 'mybiz-review-demo-salt';
+  const ipAddress = normalizeText(options?.requestMeta?.ipAddress) || 'unknown-ip';
+  const userAgent = normalizeText(options?.requestMeta?.userAgent) || 'unknown-user-agent';
+  const body = normalizeReviewBody(input.body);
+
+  return {
+    bodyHash: await hashReviewGuardValue(body, salt, 'review-body'),
+    ipHash: await hashReviewGuardValue(ipAddress, salt, 'ip'),
+    userAgentHash: await hashReviewGuardValue(userAgent, salt, 'user-agent'),
+  };
+}
+
+async function defaultTurnstileVerifier(token: string, context: { ipAddress?: string; secretKey: string }) {
+  const form = new FormData();
+  form.append('secret', context.secretKey);
+  form.append('response', token);
+  if (context.ipAddress) {
+    form.append('remoteip', context.ipAddress);
+  }
+
+  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    body: form,
+    method: 'POST',
+  });
+  if (!response.ok) {
+    return { success: false };
+  }
+
+  const payload = (await response.json()) as { success?: boolean };
+  return { success: payload.success === true };
+}
+
+async function listReviewSubmitAttemptsSince(
+  storeId: string,
+  sinceIso: string,
+  options?: ContentServiceOptions,
+): Promise<ReviewSubmitAttempt[]> {
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('review_submit_attempts')
+      .select('*')
+      .eq('store_id', storeId)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to list review submit attempts: ${error.message}`);
+    }
+
+    return (data || []).map((row) => mapReviewSubmitAttemptRow(row as Record<string, unknown>));
+  }
+
+  return getDatabase().review_submit_attempts.filter((attempt) => attempt.store_id === storeId && attempt.created_at >= sinceIso);
+}
+
+async function recordReviewSubmitAttempt(
+  input: {
+    bodyHash?: string;
+    createdAt: string;
+    ipHash: string;
+    outcome: ReviewSubmitAttempt['outcome'];
+    reason: ReviewSubmitAttemptReason;
+    reviewRequestLinkId?: string;
+    storeId: string;
+    userAgentHash: string;
+  },
+  options?: ContentServiceOptions,
+) {
+  const config = getReviewAbuseConfig(options);
+  const attempt: ReviewSubmitAttempt = {
+    attempt_id: createId('review_submit_attempt'),
+    body_hash: input.bodyHash,
+    created_at: input.createdAt,
+    ip_hash: input.ipHash,
+    outcome: input.outcome,
+    reason: input.reason,
+    review_request_link_id: input.reviewRequestLinkId,
+    store_id: input.storeId,
+    user_agent_hash: input.userAgentHash,
+  };
+
+  if (!config.salt && !config.rateLimitEnabled && !config.captchaEnabled) {
+    return attempt;
+  }
+
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      return attempt;
+    }
+
+    const { error } = await client.from('review_submit_attempts').insert({
+      attempt_id: attempt.attempt_id,
+      body_hash: attempt.body_hash || null,
+      created_at: attempt.created_at,
+      ip_hash: attempt.ip_hash,
+      outcome: attempt.outcome,
+      reason: attempt.reason,
+      review_request_link_id: attempt.review_request_link_id || null,
+      store_id: attempt.store_id,
+      user_agent_hash: attempt.user_agent_hash,
+    });
+
+    if (error) {
+      throw new Error(`Failed to record review submit attempt: ${error.message}`);
+    }
+
+    return attempt;
+  }
+
+  updateDatabase((database) => {
+    database.review_submit_attempts.unshift(attempt);
+  });
+  return attempt;
+}
+
+async function blockReviewSubmitAttempt(
+  input: {
+    createdAt: string;
+    fingerprint: { bodyHash?: string; ipHash: string; userAgentHash: string };
+    message: string;
+    reason: ReviewSubmitAttemptReason;
+    reviewRequestLinkId?: string;
+    storeId: string;
+  },
+  options?: ContentServiceOptions,
+) {
+  await recordReviewSubmitAttempt(
+    {
+      bodyHash: input.fingerprint.bodyHash,
+      createdAt: input.createdAt,
+      ipHash: input.fingerprint.ipHash,
+      outcome: 'blocked',
+      reason: input.reason,
+      reviewRequestLinkId: input.reviewRequestLinkId,
+      storeId: input.storeId,
+      userAgentHash: input.fingerprint.userAgentHash,
+    },
+    options,
+  );
+  throw new Error(input.message);
+}
+
+function getTokenBlockReason(error: unknown): ReviewSubmitAttemptReason | null {
+  if (!(error instanceof Error)) {
+    return null;
+  }
+
+  if (/usage limit/i.test(error.message)) return 'token_max_uses_exceeded';
+  if (/disabled/i.test(error.message)) return 'token_disabled';
+  if (/expired/i.test(error.message)) return 'token_expired';
+  if (/does not match/i.test(error.message)) return 'token_store_mismatch';
+  if (/invalid/i.test(error.message)) return 'token_invalid';
+  return null;
+}
+
+function getDemoReviewRequestLinkByToken(token?: string) {
+  const normalized = normalizeText(token);
+  if (!normalized) {
+    return null;
+  }
+
+  return getDatabase().review_request_links.find((candidate) => candidate.public_token === normalized) || null;
+}
+
+async function validateReviewCaptcha(input: SubmitPublicStoreReviewInput, options: ContentServiceOptions | undefined) {
+  const config = getReviewAbuseConfig(options);
+  if (!config.captchaEnabled) {
+    return;
+  }
+
+  const captchaToken = normalizeText(input.captchaToken);
+  if (!captchaToken || !config.turnstileSecretKey) {
+    throw new Error(REVIEW_CAPTCHA_MESSAGE);
+  }
+
+  const verifier = options?.captchaVerifier || defaultTurnstileVerifier;
+  const result = await verifier(captchaToken, {
+    ipAddress: options?.requestMeta?.ipAddress,
+    secretKey: config.turnstileSecretKey,
+  });
+  if (!result.success) {
+    throw new Error(REVIEW_CAPTCHA_MESSAGE);
+  }
+}
+
+async function assertReviewRateLimit(
+  input: SubmitPublicStoreReviewInput,
+  fingerprint: { bodyHash: string; ipHash: string; userAgentHash: string },
+  timestamp: string,
+  options?: ContentServiceOptions,
+) {
+  const config = getReviewAbuseConfig(options);
+  if (!config.rateLimitEnabled) {
+    return;
+  }
+
+  const windowStart = new Date(Date.parse(timestamp) - config.rateLimitWindowSeconds * 1000).toISOString();
+  const attempts = await listReviewSubmitAttemptsSince(input.storeId, windowStart, options);
+  const actorAttempts = attempts.filter(
+    (attempt) => attempt.ip_hash === fingerprint.ipHash && attempt.user_agent_hash === fingerprint.userAgentHash,
+  );
+
+  if (actorAttempts.length >= config.rateLimitMaxAttempts) {
+    await blockReviewSubmitAttempt(
+      {
+        createdAt: timestamp,
+        fingerprint,
+        message: REVIEW_RATE_LIMIT_MESSAGE,
+        reason: 'rate_limit',
+        reviewRequestLinkId: getDemoReviewRequestLinkByToken(input.reviewRequestToken)?.link_id,
+        storeId: input.storeId,
+      },
+      options,
+    );
+  }
+
+  const duplicateAttempt = actorAttempts.find(
+    (attempt) => attempt.outcome === 'allowed' && attempt.body_hash && attempt.body_hash === fingerprint.bodyHash,
+  );
+  if (duplicateAttempt) {
+    await blockReviewSubmitAttempt(
+      {
+        createdAt: timestamp,
+        fingerprint,
+        message: REVIEW_DUPLICATE_MESSAGE,
+        reason: 'duplicate_submit_window',
+        reviewRequestLinkId: getDemoReviewRequestLinkByToken(input.reviewRequestToken)?.link_id,
+        storeId: input.storeId,
+      },
+      options,
+    );
+  }
 }
 
 function mapReviewRow(row: Record<string, unknown>): StoreReview {
@@ -1158,6 +1519,31 @@ export async function listReviewRequestLinks(storeId: string, options?: ContentS
   return sortNewestFirst(getDatabase().review_request_links.filter((link) => link.store_id === storeId));
 }
 
+export async function listReviewSubmitAttempts(storeId: string, options?: ContentServiceOptions) {
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('review_submit_attempts')
+      .select('*')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      throw new Error(`Failed to list review submit attempts: ${error.message}`);
+    }
+
+    return (data || []).map((row) => mapReviewSubmitAttemptRow(row as Record<string, unknown>));
+  }
+
+  assertDemoStoreMember(storeId, options?.actorProfileId);
+  return sortNewestFirst(getDatabase().review_submit_attempts.filter((attempt) => attempt.store_id === storeId)).slice(0, 50);
+}
+
 async function recordReviewRequestTokenUse(storeId: string, source: ResolvedReviewSource, timestamp: string, options?: ContentServiceOptions) {
   if (!source.requestLinkId) {
     return;
@@ -1226,8 +1612,46 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
     });
   }
 
-  const normalized = normalizeReviewInput(input);
   const timestamp = nowIso();
+  const fingerprint = await buildReviewAttemptFingerprint(input, options);
+  const reviewAbuseConfig = getReviewAbuseConfig(options);
+  const shouldRecordReviewAttempt = Boolean(
+    reviewAbuseConfig.salt || reviewAbuseConfig.rateLimitEnabled || reviewAbuseConfig.captchaEnabled,
+  );
+  const tokenLink = getDemoReviewRequestLinkByToken(input.reviewRequestToken);
+
+  if (normalizeText(input.honeypot)) {
+    await blockReviewSubmitAttempt(
+      {
+        createdAt: timestamp,
+        fingerprint,
+        message: REVIEW_SPAM_MESSAGE,
+        reason: 'honeypot_detected',
+        reviewRequestLinkId: tokenLink?.link_id,
+        storeId: input.storeId,
+      },
+      options,
+    );
+  }
+
+  try {
+    await validateReviewCaptcha(input, options);
+  } catch {
+    await blockReviewSubmitAttempt(
+      {
+        createdAt: timestamp,
+        fingerprint,
+        message: REVIEW_CAPTCHA_MESSAGE,
+        reason: 'captcha_failed',
+        reviewRequestLinkId: tokenLink?.link_id,
+        storeId: input.storeId,
+      },
+      options,
+    );
+  }
+
+  await assertReviewRateLimit(input, fingerprint, timestamp, options);
+  const normalized = normalizeReviewInput(input);
 
   if (isSupabaseContentEnabled(options)) {
     const client = getContentClient(options);
@@ -1235,7 +1659,28 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
       throw new Error('Supabase client is not configured.');
     }
 
-    const source = await resolveReviewSource(input, options);
+    let source: ResolvedReviewSource;
+    try {
+      source = await resolveReviewSource(input, options);
+    } catch (error) {
+      const reason = getTokenBlockReason(error);
+      if (reason) {
+        await recordReviewSubmitAttempt(
+          {
+            bodyHash: fingerprint.bodyHash,
+            createdAt: timestamp,
+            ipHash: fingerprint.ipHash,
+            outcome: 'blocked',
+            reason,
+            reviewRequestLinkId: tokenLink?.link_id,
+            storeId: input.storeId,
+            userAgentHash: fingerprint.userAgentHash,
+          },
+          options,
+        );
+      }
+      throw error;
+    }
     const { data, error } = await client
       .from('store_reviews')
       .insert({
@@ -1261,12 +1706,46 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
     }
 
     await recordReviewRequestTokenUse(input.storeId, source, timestamp, options);
+    await recordReviewSubmitAttempt(
+      {
+        bodyHash: fingerprint.bodyHash,
+        createdAt: timestamp,
+        ipHash: fingerprint.ipHash,
+        outcome: 'allowed',
+        reason: 'allowed',
+        reviewRequestLinkId: source.requestLinkId,
+        storeId: input.storeId,
+        userAgentHash: fingerprint.userAgentHash,
+      },
+      options,
+    );
     return mapReviewRow(data as Record<string, unknown>);
   }
 
   assertStoreExists(input.storeId);
   assertStoreSlugMatches(input.storeId, input.storeSlug);
-  const source = await resolveReviewSource(input);
+  let source: ResolvedReviewSource;
+  try {
+    source = await resolveReviewSource(input);
+  } catch (error) {
+    const reason = getTokenBlockReason(error);
+    if (reason) {
+      await recordReviewSubmitAttempt(
+        {
+          bodyHash: fingerprint.bodyHash,
+          createdAt: timestamp,
+          ipHash: fingerprint.ipHash,
+          outcome: 'blocked',
+          reason,
+          reviewRequestLinkId: tokenLink?.link_id,
+          storeId: input.storeId,
+          userAgentHash: fingerprint.userAgentHash,
+        },
+        options,
+      );
+    }
+    throw error;
+  }
   const review: StoreReview = {
     review_id: createId('store_review'),
     store_id: input.storeId,
@@ -1289,6 +1768,19 @@ export async function submitPublicStoreReview(input: SubmitPublicStoreReviewInpu
   updateDatabase((database) => {
     database.store_reviews.unshift(review);
     applyDemoReviewRequestTokenUse(database, input.storeId, source, timestamp);
+    if (shouldRecordReviewAttempt) {
+      database.review_submit_attempts.unshift({
+        attempt_id: createId('review_submit_attempt'),
+        body_hash: fingerprint.bodyHash,
+        created_at: timestamp,
+        ip_hash: fingerprint.ipHash,
+        outcome: 'allowed',
+        reason: 'allowed',
+        review_request_link_id: source.requestLinkId,
+        store_id: input.storeId,
+        user_agent_hash: fingerprint.userAgentHash,
+      });
+    }
   });
 
   return review;
@@ -2679,6 +3171,7 @@ function buildBlockedQueue(
       reviews: Map<string, StoreReview>;
     };
     providerCards: ContentReadinessProviderCard[];
+    reviewSubmitAttempts: ReviewSubmitAttempt[];
     reviews: StoreReview[];
     socialCards: SocialProviderCard[];
   },
@@ -2695,6 +3188,29 @@ function buildBlockedQueue(
         reason: '고객 콘텐츠 활용 동의가 없어 외부 채널 소개 초안으로 사용할 수 없습니다.',
         reasonCode: 'content_usage_consent_missing',
         sourceTitle: getReviewTitle(review),
+        sourceType: 'review',
+      });
+    });
+
+  const reviewAttemptLabels: Partial<Record<ReviewSubmitAttemptReason, string>> = {
+    captcha_failed: '자동 제출 방지 확인에 실패했습니다.',
+    duplicate_submit_window: '같은 방문자 환경에서 같은 리뷰 내용이 짧은 시간 안에 반복 제출되었습니다.',
+    honeypot_detected: '숨김 봇 필드가 채워져 자동 제출로 판단했습니다.',
+    rate_limit: '짧은 시간 안에 리뷰 제출이 여러 번 시도되었습니다.',
+    token_disabled: '비활성화된 리뷰 요청 링크로 제출이 시도되었습니다.',
+    token_expired: '만료된 리뷰 요청 링크로 제출이 시도되었습니다.',
+    token_invalid: '유효하지 않은 리뷰 요청 링크로 제출이 시도되었습니다.',
+    token_max_uses_exceeded: '리뷰 요청 링크의 최대 사용 횟수를 초과했습니다.',
+    token_store_mismatch: '다른 매장 리뷰 요청 링크로 제출이 시도되었습니다.',
+  };
+  input.reviewSubmitAttempts
+    .filter((attempt) => attempt.outcome === 'blocked')
+    .forEach((attempt) => {
+      blocked.push({
+        createdAt: attempt.created_at,
+        reason: reviewAttemptLabels[attempt.reason] || '리뷰 제출 보호 정책으로 차단되었습니다.',
+        reasonCode: attempt.reason as ContentReadinessBlockReason,
+        sourceTitle: 'public review submit',
         sourceType: 'review',
       });
     });
@@ -2793,8 +3309,9 @@ export async function getContentReadinessDashboard(
   storeId: string,
   options?: ContentServiceOptions,
 ): Promise<ContentReadinessDashboard> {
-  const [reviewLinks, reviews, posts, assets, socialCards, jobs] = await Promise.all([
+  const [reviewLinks, reviewSubmitAttempts, reviews, posts, assets, socialCards, jobs] = await Promise.all([
     listReviewRequestLinks(storeId, options),
+    listReviewSubmitAttempts(storeId, options),
     listStoreReviews(storeId, options),
     listStoreBlogPosts(storeId, options),
     listStoreMediaAssets(storeId, options),
@@ -2817,6 +3334,7 @@ export async function getContentReadinessDashboard(
       jobs,
       lookups,
       providerCards,
+      reviewSubmitAttempts,
       reviews,
       socialCards,
     }),
@@ -2834,6 +3352,7 @@ export async function getContentReadinessDashboard(
       pendingReviewCount: reviews.filter((review) => review.visibility_status === 'pending').length,
       publishedReviewCount: reviews.filter((review) => review.visibility_status === 'published').length,
       reviewRequestLinkCount: reviewLinks.length,
+      reviewSubmitBlockedAttemptCount: reviewSubmitAttempts.filter((attempt) => attempt.outcome === 'blocked').length,
       socialDraftCount: jobs.filter((job) => job.status === 'draft').length,
       socialFailedCount: jobs.filter((job) => job.status === 'failed').length,
       socialWaitingApprovalCount: jobs.filter((job) => job.status === 'waiting_approval').length,
