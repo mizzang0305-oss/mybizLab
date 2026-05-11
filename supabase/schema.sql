@@ -390,14 +390,48 @@ create table if not exists public.orders (
 
 create table if not exists public.order_items (
   id uuid primary key default gen_random_uuid(),
-  order_id uuid not null references public.orders(id) on delete cascade,
+  order_item_id uuid not null default gen_random_uuid(),
+  order_id uuid references public.orders(id) on delete cascade,
+  order_id_text text,
+  source_order_key text,
   store_id uuid not null references public.stores(id) on delete cascade,
+  customer_id uuid references public.customers(id) on delete set null,
+  product_id uuid,
   menu_item_id uuid references public.menu_items(id) on delete set null,
+  item_name text not null,
   menu_name text not null,
-  quantity integer not null default 1,
-  unit_price numeric(12, 2) not null default 0,
-  line_total numeric(12, 2) not null default 0
+  option_summary text,
+  quantity numeric not null default 1 check (quantity >= 0),
+  unit_price numeric(12, 2) not null default 0 check (unit_price >= 0),
+  line_total numeric(12, 2) not null default 0,
+  total_price numeric(12, 2) check (total_price is null or total_price >= 0),
+  currency text not null default 'KRW',
+  source text,
+  raw jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
 );
+
+create unique index if not exists order_items_order_item_id_idx
+  on public.order_items (order_item_id);
+
+create index if not exists order_items_store_order_idx
+  on public.order_items (store_id, order_id);
+
+create index if not exists order_items_store_order_text_idx
+  on public.order_items (store_id, order_id_text);
+
+create index if not exists order_items_store_source_order_key_idx
+  on public.order_items (store_id, source_order_key);
+
+create index if not exists order_items_store_customer_idx
+  on public.order_items (store_id, customer_id);
+
+create index if not exists order_items_store_item_name_idx
+  on public.order_items (store_id, item_name);
+
+create index if not exists order_items_created_at_idx
+  on public.order_items (created_at);
 
 create table if not exists public.kitchen_tickets (
   id uuid primary key default gen_random_uuid(),

@@ -16,6 +16,7 @@ import {
   getPaymentSourceLabel,
   getPaymentStatusLabel,
 } from '@/shared/lib/merchantOperations';
+import { getOrderItemSummary, ORDER_ITEMS_EMPTY_MESSAGE } from '@/shared/lib/orderItemsReadModel';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { listOrders, recordOrderPayment, updateOrderStatus } from '@/shared/lib/services/mvpService';
 import type { OrderPaymentMethod, OrderPaymentSource, OrderStatus } from '@/shared/types/models';
@@ -74,6 +75,13 @@ export function OrdersPage() {
       ? '고객 연결됨'
       : '고객 연결됨 · 표시 정보 보강 필요'
     : '고객 정보 없음';
+  const selectedItemsSource = selectedOrder?.items_source;
+  const selectedItemsSourceLabel =
+    selectedItemsSource === 'canonical'
+      ? 'canonical items 사용 중'
+      : selectedItemsSource === 'raw_payload'
+        ? 'raw payload compatibility 사용 중'
+        : '품목 정보 없음';
   const selectedOrderAction = selectedOrder ? getOrderNextAction(selectedOrder) : null;
 
   if (!currentStore) {
@@ -113,7 +121,7 @@ export function OrdersPage() {
                       <p className="mt-1 text-sm text-slate-500">
                         주문 #{order.id.slice(-6)} · {formatDateTime(order.placed_at)} · {formatCurrency(order.total_amount)}
                       </p>
-                      <p className="mt-2 text-sm text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
+                      <p className="mt-2 text-sm text-slate-500">{getOrderItemSummary(order.items)}</p>
                       <p className="mt-2 text-sm font-semibold text-orange-700">다음: {nextAction.label}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -156,12 +164,19 @@ export function OrdersPage() {
                 </p>
               </div>
               <div className="rounded-3xl border border-slate-200 p-4">
-                {selectedOrder.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between py-2 text-sm">
-                    <span>{item.menu_name} x{item.quantity}</span>
-                    <span className="font-semibold">{formatCurrency(item.line_total)}</span>
-                  </div>
-                ))}
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{selectedItemsSourceLabel}</span>
+                </div>
+                {selectedOrder.items.length ? (
+                  selectedOrder.items.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between py-2 text-sm">
+                      <span>{item.menu_name} x{item.quantity}</span>
+                      <span className="font-semibold">{formatCurrency(item.line_total)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">{ORDER_ITEMS_EMPTY_MESSAGE}</p>
+                )}
               </div>
               <div className="rounded-3xl border border-orange-100 bg-orange-50 p-4">
                 <p className="text-sm font-semibold text-orange-900">다음 액션</p>

@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const routeMocks = vi.hoisted(() => {
   const customerInsertPayloads: Array<Record<string, unknown>> = [];
+  const orderItemsInsertState = {
+    error: null as { code?: string; message: string } | null,
+  };
   const orderInsertPayloads: Array<Record<string, unknown>> = [];
   const paymentEventRows: Array<Record<string, unknown>> = [];
   const sessionInsertPayloads: Array<Record<string, unknown>> = [];
@@ -253,10 +256,12 @@ const routeMocks = vi.hoisted(() => {
             return {
               select: async () => ({
                 data: null,
-                error: {
-                  code: 'PGRST205',
-                  message: 'Could not find the table public.order_items in the schema cache',
-                },
+                error:
+                  orderItemsInsertState.error ||
+                  {
+                    code: 'PGRST205',
+                    message: 'Could not find the table public.order_items in the schema cache',
+                  },
               }),
             };
           },
@@ -291,6 +296,7 @@ const routeMocks = vi.hoisted(() => {
   return {
     client,
     customerInsertPayloads,
+    orderItemsInsertState,
     orderInsertPayloads,
     paymentEventRows,
     publicPage,
@@ -337,6 +343,7 @@ import { handlePublicOrderRequest } from '../server/publicApi';
 describe('public order live schema compatibility', () => {
   beforeEach(() => {
     routeMocks.customerInsertPayloads.length = 0;
+    routeMocks.orderItemsInsertState.error = null;
     routeMocks.orderInsertPayloads.length = 0;
     routeMocks.paymentEventRows.length = 0;
     routeMocks.sessionInsertPayloads.length = 0;
@@ -442,6 +449,59 @@ describe('public order live schema compatibility', () => {
           table_no: '1',
         },
       },
+    });
+  });
+
+  it('keeps the public order when canonical order_items insert fails after raw compatibility payload is stored', async () => {
+    routeMocks.orderItemsInsertState.error = {
+      code: '23514',
+      message: 'new row for relation "order_items" violates check constraint',
+    };
+
+    const response = await handlePublicOrderRequest({
+      body: {
+        items: [{ menu_item_id: 'menu_live_001', quantity: 1 }],
+        note: 'order-item-write-failure-fallback',
+        paymentMethod: 'card',
+        paymentSource: 'mobile',
+        storeSlug: 'mybiz-live-cafe',
+        tableNo: '1',
+      },
+      headers: {
+        host: 'example.com',
+      },
+      method: 'POST',
+      url: '/api/public/order',
+    } as never);
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      ok: true,
+      data: {
+        order: {
+          id: 'order_live_compat_001',
+          total_amount: 19500,
+        },
+        items: [
+          expect.objectContaining({
+            menu_item_id: 'menu_live_001',
+            menu_name: 'Signature Set',
+            quantity: 1,
+          }),
+        ],
+      },
+    });
+    expect(routeMocks.paymentEventRows[0]).toMatchObject({
+      raw: expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            menu_item_id: 'menu_live_001',
+            menu_name: 'Signature Set',
+          }),
+        ],
+      }),
     });
   });
 });

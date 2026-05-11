@@ -17,6 +17,7 @@ import {
   getOrderStatusLabel,
   getPaymentStatusLabel,
 } from '@/shared/lib/merchantOperations';
+import { getOrderItemSummary } from '@/shared/lib/orderItemsReadModel';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   listConversationMessages,
@@ -553,7 +554,7 @@ export function CustomersPage() {
                           <p className="font-bold text-slate-900">
                             {order.table_no ? `테이블 ${order.table_no}` : getOrderChannelLabel(order.channel)}
                           </p>
-                          <p className="mt-2 text-sm leading-6 text-slate-500">{order.items.map((item) => `${item.menu_name} x${item.quantity}`).join(', ')}</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">{getOrderItemSummary(order.items)}</p>
                           <p className="mt-2 text-xs text-slate-400">{formatDateTime(order.placed_at)}</p>
                         </div>
                         <div className="text-left sm:text-right">
