@@ -3,16 +3,21 @@
 
 create extension if not exists pgcrypto;
 
+-- Live MyBiz schemas have used both `id` and domain-specific keys such as
+-- `order_id`, `store_id`, `customer_id`, and `menu_id`. Keep this migration
+-- additive and do not create direct foreign keys here; the read model joins by
+-- safe text aliases until a schema-specific FK migration is reviewed.
+
 create table if not exists public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_item_id uuid not null default gen_random_uuid(),
-  order_id uuid references public.orders(id) on delete cascade,
+  order_id uuid,
   order_id_text text,
   source_order_key text,
-  store_id uuid not null references public.stores(id) on delete cascade,
-  customer_id uuid references public.customers(id) on delete set null,
+  store_id uuid not null,
+  customer_id uuid,
   product_id uuid,
-  menu_item_id uuid references public.menu_items(id) on delete set null,
+  menu_item_id uuid,
   item_name text not null,
   menu_name text not null,
   option_summary text,
@@ -29,12 +34,19 @@ create table if not exists public.order_items (
 
 alter table if exists public.order_items
   add column if not exists order_item_id uuid default gen_random_uuid(),
+  add column if not exists order_id uuid,
   add column if not exists order_id_text text,
   add column if not exists source_order_key text,
+  add column if not exists store_id uuid,
   add column if not exists customer_id uuid,
   add column if not exists product_id uuid,
+  add column if not exists menu_item_id uuid,
   add column if not exists item_name text,
+  add column if not exists menu_name text,
   add column if not exists option_summary text,
+  add column if not exists quantity numeric default 1,
+  add column if not exists unit_price numeric,
+  add column if not exists line_total numeric default 0,
   add column if not exists total_price integer,
   add column if not exists currency text default 'KRW',
   add column if not exists source text,
@@ -45,12 +57,19 @@ alter table if exists public.order_items
 update public.order_items
 set
   item_name = coalesce(nullif(item_name, ''), nullif(menu_name, ''), '메뉴'),
+  menu_name = coalesce(nullif(menu_name, ''), nullif(item_name, ''), '메뉴'),
+  quantity = coalesce(quantity, 1),
+  line_total = coalesce(line_total, 0),
   currency = coalesce(nullif(currency, ''), 'KRW'),
   raw = coalesce(raw, '{}'::jsonb),
   created_at = coalesce(created_at, timezone('utc', now())),
   updated_at = coalesce(updated_at, timezone('utc', now()))
 where item_name is null
    or item_name = ''
+   or menu_name is null
+   or menu_name = ''
+   or quantity is null
+   or line_total is null
    or currency is null
    or currency = ''
    or raw is null
@@ -60,6 +79,9 @@ where item_name is null
 alter table if exists public.order_items
   alter column order_item_id set default gen_random_uuid(),
   alter column item_name set not null,
+  alter column menu_name set not null,
+  alter column quantity set default 1,
+  alter column line_total set default 0,
   alter column currency set not null,
   alter column currency set default 'KRW',
   alter column raw set not null,

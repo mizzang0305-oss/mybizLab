@@ -13,6 +13,7 @@ describe('order_items canonical SQL and runbook', () => {
     expect(migration).toContain('alter table public.order_items enable row level security');
     expect(migration).toContain('using (public.is_store_member(store_id))');
     expect(migration).toContain('with check (public.is_store_member(store_id))');
+    expect(migration).not.toMatch(/references\s+public\.(orders|stores|customers|menu_items)\s*\(\s*id\s*\)/i);
     expect(migration).not.toMatch(/payment_events\.store_id|\bpe\.store_id\b/i);
   });
 
