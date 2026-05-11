@@ -261,7 +261,20 @@ async function loadService(options: { accessToken?: string } = {}) {
         };
       }
 
-      if (table === 'order_items' || table === 'kitchen_tickets') {
+      if (table === 'order_items') {
+        return {
+          select: () =>
+            createThenableQuery(() => ({
+              data: [],
+              error: {
+                code: 'PGRST205',
+                message: 'Could not find the table public.order_items in the schema cache',
+              },
+            })),
+        };
+      }
+
+      if (table === 'kitchen_tickets') {
         missingOrderTableRequested = true;
         throw new Error(`${table} should not be queried for live legacy table-order state`);
       }
@@ -377,7 +390,7 @@ afterEach(() => {
 });
 
 describe('table-order live compatibility', () => {
-  it('builds a usable table board without querying missing kitchen/order item tables', async () => {
+  it('builds a usable table board when canonical order_items are missing', async () => {
     const { service, wasMissingOrderTableRequested } = await loadService();
 
     const board = await service.getTableLiveBoard('store-live-001');

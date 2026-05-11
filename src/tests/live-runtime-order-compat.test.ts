@@ -319,7 +319,7 @@ describe('live runtime order compatibility', () => {
         quantity: 1,
       }),
     ]);
-    expect(orderItemsLookupCount).toBe(0);
+    expect(orderItemsLookupCount).toBe(1);
 
     const paidOrder = await service.recordOrderPayment('store-live-001', 'order_live_001', {
       paymentMethod: 'card',

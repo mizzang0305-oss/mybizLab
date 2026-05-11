@@ -29,6 +29,7 @@ import { repairPublicStorePageCopy } from '../shared/lib/publicStoreText.js';
 import { saveStoreReservation } from '../shared/lib/services/reservationService.js';
 import { saveStoreWaitingEntry } from '../shared/lib/services/waitingService.js';
 import { repairOrderItemMenuName, repairPublicMenuCatalog } from '../shared/lib/menuText.js';
+import { normalizeOrderItemsFromCanonical, normalizeOrderItemsFromRaw } from '../shared/lib/orderItemsReadModel.js';
 import { getStoreBrandConfig, getStoreRecordId, normalizeStoreRecord } from '../shared/lib/storeData.js';
 import type {
   Inquiry,
@@ -155,16 +156,29 @@ function mapOrderRecord(row: Record<string, unknown>): Order {
 }
 
 function mapOrderItemRecord(row: Record<string, unknown>): OrderItem {
-  return repairOrderItemMenuName({
-    id: normalizeText(row.id) || `order_item_${normalizeText(row.order_id)}_${normalizeText(row.menu_item_id || row.menu_id)}`,
-    order_id: normalizeText(row.order_id),
-    store_id: normalizeText(row.store_id),
-    menu_item_id: normalizeText(row.menu_item_id || row.menu_id),
-    menu_name: normalizeText(row.menu_name || row.name),
-    quantity: normalizeInteger(row.quantity, 1),
-    unit_price: normalizeNumeric(row.unit_price),
-    line_total: normalizeNumeric(row.line_total),
-  });
+  const orderId = normalizeText(row.order_id || row.order_id_text || row.source_order_key);
+  const mapped = normalizeOrderItemsFromCanonical(
+    {
+      id: orderId,
+      store_id: normalizeText(row.store_id),
+      total_amount: normalizeNumeric(row.total_amount || row.line_total || row.total_price),
+    },
+    [row],
+  )[0];
+
+  return (
+    mapped ||
+    repairOrderItemMenuName({
+      id: normalizeText(row.id) || `order_item_${orderId}_${normalizeText(row.menu_item_id || row.menu_id)}`,
+      order_id: orderId,
+      store_id: normalizeText(row.store_id),
+      menu_item_id: normalizeText(row.menu_item_id || row.menu_id),
+      menu_name: normalizeText(row.menu_name || row.item_name || row.name),
+      quantity: normalizeInteger(row.quantity, 1),
+      unit_price: normalizeNumeric(row.unit_price),
+      line_total: normalizeNumeric(row.line_total || row.total_price),
+    })
+  );
 }
 
 function mapKitchenTicketRecord(row: Record<string, unknown>): KitchenTicket {
@@ -239,33 +253,14 @@ function mapMenuItemRecord(row: Record<string, unknown>): MenuItem {
 }
 
 function mapCompatEventItems(orderId: string, storeId: string, items: unknown) {
-  if (!Array.isArray(items)) {
-    return [] as OrderItem[];
-  }
-
-  return items
-    .map((item, index) => {
-      const row = toRecord(item);
-      const menuItemId = normalizeText(row.menu_item_id || row.menuItemId || row.menu_id);
-      const menuName = normalizeText(row.menu_name || row.menuName || row.name);
-      if (!menuItemId || !menuName) {
-        return null;
-      }
-
-      const quantity = Math.max(1, normalizeInteger(row.quantity, 1));
-      const unitPrice = normalizeNumeric(row.unit_price || row.unitPrice);
-      return repairOrderItemMenuName({
-        id: normalizeText(row.id) || `compat_item_${orderId}_${index + 1}`,
-        order_id: orderId,
-        store_id: storeId,
-        menu_item_id: menuItemId,
-        menu_name: menuName,
-        quantity,
-        unit_price: unitPrice,
-        line_total: normalizeNumeric(row.line_total || row.lineTotal, unitPrice * quantity),
-      } satisfies OrderItem);
-    })
-    .filter((item): item is OrderItem => Boolean(item));
+  return normalizeOrderItemsFromRaw({
+    id: orderId,
+    raw: {
+      items,
+    },
+    store_id: storeId,
+    total_amount: 0,
+  });
 }
 
 async function createLegacyPublicOrderCustomer(
@@ -1452,11 +1447,7 @@ export async function handlePublicOrderRequest(request: PublicApiRequestLike) {
       )
       .select('*');
     const resolvedItems =
-      canonicalItemsResult.error && !isSchemaCompatError(canonicalItemsResult.error)
-        ? (() => {
-            throw new Error(`Failed to create order items: ${canonicalItemsResult.error.message}`);
-          })()
-        : canonicalItemsResult.data
+      !canonicalItemsResult.error && canonicalItemsResult.data?.length
           ? ((canonicalItemsResult.data as Record<string, unknown>[]).map((item) => mapOrderItemRecord(item)))
           : items;
 

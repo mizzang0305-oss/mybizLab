@@ -57,6 +57,7 @@ const liveState = {
       total_amount: 19500,
     },
   ] as Array<Record<string, unknown>>,
+  orderItems: [] as Array<Record<string, unknown>>,
   paymentEvents: [] as Array<Record<string, unknown>>,
   storeTables: [
     {
@@ -148,7 +149,9 @@ async function loadService() {
       }
 
       if (table === 'order_items') {
-        throw new Error('order_items should not be queried for live legacy orders');
+        return {
+          select: () => createThenableQuery(() => ({ data: liveState.orderItems, error: null })),
+        };
       }
 
       if (table === 'payment_events') {
@@ -257,5 +260,59 @@ describe('merchant orders customer truth', () => {
 
     expect(orders[0]?.customer_id).toBe('a1b2c3d4-e5f6-7890-abcd-111122223333');
     expect(getCustomerDisplayLabel({ customer: orders[0]?.customer, customerId: orders[0]?.customer_id })).toBe('고객 #223333');
+  });
+
+  it('uses canonical order_items when they are available for a legacy live order', async () => {
+    liveState.orders[0] = {
+      created_at: '2026-04-24T05:55:00.000Z',
+      id: '11111111-1111-1111-1111-111111111111',
+      order_id: 'order_live_001',
+      status: 'pending',
+      store_id: 'store-live-001',
+      submitted_at: '2026-04-24T05:55:00.000Z',
+      table_id: 'table_live_001',
+      total_amount: 18000,
+    };
+    liveState.customers = [];
+    liveState.customerContacts = [];
+    liveState.customerTimelineEvents = [];
+    liveState.orderItems = [
+      {
+        id: '22222222-2222-2222-2222-222222222222',
+        order_id: '11111111-1111-1111-1111-111111111111',
+        store_id: 'store-live-001',
+        item_name: 'Canonical set',
+        quantity: 2,
+        unit_price: 9000,
+        total_price: 18000,
+      },
+    ];
+    liveState.paymentEvents = [
+      {
+        created_at: '2026-04-24T05:55:10.000Z',
+        order_id: 'order_live_001',
+        raw: {
+          items: [
+            {
+              item_name: 'Raw fallback item',
+              quantity: 1,
+              unit_price: 19500,
+            },
+          ],
+        },
+        status: 'pending',
+      },
+    ];
+
+    const service = await loadService();
+    const orders = await service.listOrders('store-live-001');
+
+    expect(orders[0]?.items[0]).toMatchObject({
+      id: '22222222-2222-2222-2222-222222222222',
+      menu_name: 'Canonical set',
+      quantity: 2,
+      line_total: 18000,
+    });
+    expect(orders[0]?.items_source).toBe('canonical');
   });
 });

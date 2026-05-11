@@ -15,6 +15,12 @@ import { manualMetricFormSchema, type ManualMetricFormInput } from '../manualMet
 import { repairOrderItemMenuName, repairPublicMenuCatalog } from '../menuText.js';
 import { getDatabase, saveDatabase, updateDatabase } from '../mockDb.js';
 import { createSeedDatabase } from '../mockSeed.js';
+import {
+  getOrderLineItems,
+  normalizeOrderItemsFromCanonical,
+  normalizeOrderItemsFromRaw,
+  type OrderItemsReadSource,
+} from '../orderItemsReadModel.js';
 import { requestPublicApi } from '../publicApiClient.js';
 import { repairPublicStorePageCopy } from '../publicStoreText.js';
 import { getCanonicalMyBizRepository } from '../repositories/index.js';
@@ -733,16 +739,29 @@ function mapLiveOrder(row: Record<string, unknown>): Order {
 }
 
 function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
-  return repairOrderItemMenuName({
-    id: normalizeText(row.id) || `order_item_${normalizeText(row.order_id)}_${normalizeText(row.menu_item_id || row.menu_id)}`,
-    order_id: normalizeText(row.order_id),
-    store_id: normalizeText(row.store_id),
-    menu_item_id: normalizeText(row.menu_item_id || row.menu_id),
-    menu_name: normalizeText(row.menu_name || row.name),
-    quantity: normalizeInteger(row.quantity, 1),
-    unit_price: normalizeNumeric(row.unit_price),
-    line_total: normalizeNumeric(row.line_total),
-  });
+  const orderId = normalizeText(row.order_id || row.order_id_text || row.source_order_key);
+  const mapped = normalizeOrderItemsFromCanonical(
+    {
+      id: orderId,
+      store_id: normalizeText(row.store_id),
+      total_amount: normalizeNumeric(row.total_amount || row.line_total || row.total_price),
+    },
+    [row],
+  )[0];
+
+  return (
+    mapped ||
+    repairOrderItemMenuName({
+      id: normalizeText(row.id) || `order_item_${orderId}_${normalizeText(row.menu_item_id || row.menu_id)}`,
+      order_id: orderId,
+      store_id: normalizeText(row.store_id),
+      menu_item_id: normalizeText(row.menu_item_id || row.menu_id),
+      menu_name: normalizeText(row.menu_name || row.item_name || row.name),
+      quantity: normalizeInteger(row.quantity, 1),
+      unit_price: normalizeNumeric(row.unit_price),
+      line_total: normalizeNumeric(row.line_total || row.total_price),
+    })
+  );
 }
 
 function getLiveOrderIdAliases(row: Record<string, unknown>) {
@@ -804,33 +823,14 @@ function isSchemaCompatError(error?: { code?: string; message?: string } | null)
 }
 
 function buildCompatOrderItems(orderId: string, storeId: string, value: unknown) {
-  if (!Array.isArray(value)) {
-    return [] as OrderItem[];
-  }
-
-  return value
-    .map((item, index) => {
-      const row = toRecord(item);
-      const menuItemId = normalizeText(row.menu_item_id || row.menuItemId || row.menu_id);
-      const menuName = normalizeText(row.menu_name || row.menuName || row.name);
-      if (!menuItemId || !menuName) {
-        return null;
-      }
-
-      const quantity = Math.max(1, normalizeInteger(row.quantity, 1));
-      const unitPrice = normalizeNumeric(row.unit_price || row.unitPrice);
-      return repairOrderItemMenuName({
-        id: normalizeText(row.id) || `compat_item_${orderId}_${index + 1}`,
-        order_id: orderId,
-        store_id: storeId,
-        menu_item_id: menuItemId,
-        menu_name: menuName,
-        quantity,
-        unit_price: unitPrice,
-        line_total: normalizeNumeric(row.line_total || row.lineTotal, unitPrice * quantity),
-      } satisfies OrderItem);
-    })
-    .filter((item): item is OrderItem => Boolean(item));
+  return normalizeOrderItemsFromRaw({
+    id: orderId,
+    raw: {
+      items: value,
+    },
+    store_id: storeId,
+    total_amount: 0,
+  });
 }
 
 function buildLiveCompatOrderState(orderRow: Record<string, unknown>, paymentEventRows: Record<string, unknown>[], tableNoById?: Map<string, string>) {
@@ -944,18 +944,9 @@ async function listLiveOrders(storeId: string) {
   }
 
   const orderRows = (ordersResult.data || []) as Record<string, unknown>[];
-  const useCompatOrderItemsOnly = orderRows.some(
-    (row) =>
-      Boolean(normalizeText(row.order_id)) &&
-      !normalizeText(row.id) &&
-      !normalizeText(row.placed_at) &&
-      Boolean(normalizeText(row.submitted_at) || normalizeText(row.created_at)),
-  );
 
   const [itemsResult, customers, tablesResult, timelineEvents] = await Promise.all([
-    useCompatOrderItemsOnly
-      ? Promise.resolve({ data: [] as Record<string, unknown>[], error: null })
-      : client.from('order_items').select('*').eq('store_id', storeId),
+    client.from('order_items').select('*').eq('store_id', storeId),
     listStoreCustomers(storeId),
     client.from('store_tables').select('*').eq('store_id', storeId),
     listCustomerTimelineEvents(storeId),
@@ -997,8 +988,17 @@ async function listLiveOrders(storeId: string) {
         paymentEvents.filter((event) => orderIdAliases.includes(normalizeText(event.order_id))),
         tableNoById,
       );
-      const canonicalItems = items.filter((item) => item.order_id === orderId);
+      const canonicalItems = items.filter((item) => orderIdAliases.includes(item.order_id));
       const timelineItems = buildTimelineOrderItems(orderId, compat.order.store_id, timelineMetadata, compat.order.total_amount);
+      const itemModel = getOrderLineItems(
+        {
+          ...compat.order,
+          raw: {
+            items: compat.items.length ? compat.items : timelineItems,
+          },
+        },
+        canonicalItems,
+      );
       const candidateCustomerId =
         compat.order.customer_id ||
         orderIdAliases.map((alias) => timelineCustomerIdByOrderId.get(alias)).find(Boolean);
@@ -1008,7 +1008,8 @@ async function listLiveOrders(storeId: string) {
         customer_id: candidateCustomerId || undefined,
         payment_method: compat.order.payment_method || (normalizeText(timelineMetadata.payment_method) as OrderPaymentMethod | undefined),
         payment_source: compat.order.payment_source || (normalizeText(timelineMetadata.payment_source) as OrderPaymentSource | undefined),
-        items: canonicalItems.length ? canonicalItems : compat.items.length ? compat.items : timelineItems,
+        items: itemModel.items,
+        items_source: itemModel.source,
         customer,
       };
     })
@@ -5050,11 +5051,15 @@ export async function listOrders(storeId: string) {
   return data.orders
     .slice()
     .sort((left, right) => right.placed_at.localeCompare(left.placed_at))
-    .map((order) => ({
-      ...order,
-      items: orderItemsForOrder(order.id, data.orderItems),
-      customer: data.customers.find((customer) => customer.id === order.customer_id),
-    }));
+    .map((order) => {
+      const items = orderItemsForOrder(order.id, data.orderItems);
+      return {
+        ...order,
+        items,
+        items_source: (items.length ? 'canonical' : 'none') as OrderItemsReadSource,
+        customer: data.customers.find((customer) => customer.id === order.customer_id),
+      };
+    });
 }
 
 export interface TableLiveBoardRow {
