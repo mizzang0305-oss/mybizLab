@@ -16,6 +16,7 @@ export const queryKeys = {
   aiManager: (storeId: string) => ['ai-manager', storeId] as const,
   aiReports: (storeId: string) => ['ai-reports', storeId] as const,
   customers: (storeId: string) => ['customers', storeId] as const,
+  customerPreferences: (storeId: string) => ['customers', storeId, 'preferences'] as const,
   inquiries: (storeId: string) => ['inquiries', storeId] as const,
   reservations: (storeId: string) => ['reservations', storeId] as const,
   schedules: (storeId: string) => ['schedules', storeId] as const,

@@ -155,6 +155,8 @@ describe('merchant UX routes', () => {
 
     expect(customersHtml).toContain('고객 기억 관리');
     expect(customersHtml).toContain('AI 상담 / 고객 기억 맥락');
+    expect(customersHtml).toContain('고객 타임라인 인텔리전스');
+    expect(customersHtml).toContain('이 기능은 다음 배포에서 제공됩니다.');
     expect(reservationsHtml).toContain('다음:');
     expect(waitingHtml).toContain('다음:');
   });
