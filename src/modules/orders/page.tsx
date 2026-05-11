@@ -69,6 +69,11 @@ export function OrdersPage() {
         customerId: selectedOrder.customer_id,
       })
     : null;
+  const selectedCustomerConnectionLabel = selectedOrder?.customer_id
+    ? selectedOrder.customer
+      ? '고객 연결됨'
+      : '고객 연결됨 · 표시 정보 보강 필요'
+    : '고객 정보 없음';
   const selectedOrderAction = selectedOrder ? getOrderNextAction(selectedOrder) : null;
 
   if (!currentStore) {
@@ -135,6 +140,7 @@ export function OrdersPage() {
               <div className="rounded-3xl bg-slate-50 p-4">
                 <p className="text-sm text-slate-500">고객</p>
                 <p className="font-bold text-slate-900">{selectedCustomerLabel}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">{selectedCustomerConnectionLabel}</p>
                 <p className="mt-2 text-sm text-slate-500">채널</p>
                 <p className="font-bold text-slate-900">
                   {selectedOrder.table_no ? `테이블 ${selectedOrder.table_no}` : getOrderChannelLabel(selectedOrder.channel)}

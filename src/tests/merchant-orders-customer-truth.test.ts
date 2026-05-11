@@ -240,4 +240,22 @@ describe('merchant orders customer truth', () => {
     expect(orders[0]?.customer_id).toBeUndefined();
     expect(getCustomerDisplayLabel({ customer: orders[0]?.customer, customerId: orders[0]?.customer_id })).toBe('미등록 고객');
   });
+
+  it('preserves a direct orders.customer_id even when the customer display record is not readable', async () => {
+    liveState.orders[0] = {
+      ...liveState.orders[0],
+      customer_id: 'a1b2c3d4-e5f6-7890-abcd-111122223333',
+      order_id: 'order_live_001',
+      store_id: 'store-live-001',
+    };
+    liveState.customers = [];
+    liveState.customerContacts = [];
+    liveState.customerTimelineEvents = [];
+
+    const service = await loadService();
+    const orders = await service.listOrders('store-live-001');
+
+    expect(orders[0]?.customer_id).toBe('a1b2c3d4-e5f6-7890-abcd-111122223333');
+    expect(getCustomerDisplayLabel({ customer: orders[0]?.customer, customerId: orders[0]?.customer_id })).toBe('고객 #223333');
+  });
 });
