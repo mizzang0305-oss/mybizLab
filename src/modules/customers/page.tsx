@@ -11,6 +11,7 @@ import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from '@/shared/lib/inquirySchema';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
+import { buildCustomerTimelineIntelligenceDashboard, getCustomerIntelligenceCard } from '@/shared/lib/services/customerTimelineIntelligenceService';
 import {
   getInquiryStatusLabel,
   getOrderChannelLabel,
@@ -22,13 +23,17 @@ import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   listConversationMessages,
   listConversationSessions,
+  listCustomerPreferences,
   listCustomerTimelineEvents,
   listCustomers,
   listInquiries,
   listOrders,
+  listReservations,
+  listWaitingEntries,
   updateInquiryRecord,
   upsertCustomer,
 } from '@/shared/lib/services/mvpService';
+import { listSocialPublishJobs, listStoreBlogPosts, listStoreReviews } from '@/shared/lib/services/contentEngineService';
 
 const initialCustomerForm = {
   id: '',
@@ -99,12 +104,51 @@ export function CustomersPage() {
     enabled: Boolean(currentStore),
   });
 
+  const customerPreferencesQuery = useQuery({
+    queryKey: queryKeys.customerPreferences(currentStore?.id || ''),
+    queryFn: () => listCustomerPreferences(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const reservationsQuery = useQuery({
+    queryKey: queryKeys.reservations(currentStore?.id || ''),
+    queryFn: () => listReservations(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const waitingQuery = useQuery({
+    queryKey: queryKeys.waiting(currentStore?.id || ''),
+    queryFn: () => listWaitingEntries(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const reviewsQuery = useQuery({
+    queryKey: queryKeys.contentReviews(currentStore?.id || '', 'all'),
+    queryFn: () => listStoreReviews(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const blogPostsQuery = useQuery({
+    queryKey: queryKeys.contentBlog(currentStore?.id || '', 'all'),
+    queryFn: () => listStoreBlogPosts(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const socialJobsQuery = useQuery({
+    queryKey: [...queryKeys.contentSocial(currentStore?.id || ''), 'jobs'],
+    queryFn: () => listSocialPublishJobs(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
   const customerMutation = useMutation({
     mutationFn: () => upsertCustomer(currentStore!.id, customerForm),
     onSuccess: async () => {
       setCustomerMessage('고객 정보를 저장했습니다.');
       setCustomerErrors({});
-      await queryClient.invalidateQueries({ queryKey: queryKeys.customers(currentStore!.id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.customers(currentStore!.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.customerPreferences(currentStore!.id) }),
+      ]);
     },
     onError: (error) => {
       setCustomerMessage(error instanceof Error ? error.message : '고객 정보를 저장하지 못했습니다.');
@@ -137,6 +181,12 @@ export function CustomersPage() {
   const orders = ordersQuery.data || [];
   const inquiries = inquiriesQuery.data || [];
   const conversationSessions = conversationSessionsQuery.data || [];
+  const customerPreferences = customerPreferencesQuery.data || [];
+  const reservations = reservationsQuery.data || [];
+  const waitingEntries = waitingQuery.data || [];
+  const reviews = reviewsQuery.data || [];
+  const blogPosts = blogPostsQuery.data || [];
+  const socialJobs = socialJobsQuery.data || [];
 
   useEffect(() => {
     if (!selectedInquiryId && inquiries[0]) {
@@ -198,6 +248,21 @@ export function CustomersPage() {
   });
   const conversationMessages = conversationMessagesQuery.data || [];
   const customerTimeline = customerTimelineQuery.data || [];
+  const intelligenceDashboard = buildCustomerTimelineIntelligenceDashboard({
+    blogPosts,
+    customers,
+    inquiries,
+    orders,
+    preferences: customerPreferences,
+    reservations,
+    reviews,
+    socialJobs,
+    storeId: currentStore?.id || '',
+    timelineEvents: customerTimeline,
+    waitingEntries,
+  });
+  const selectedCustomerInsight = getCustomerIntelligenceCard(intelligenceDashboard, selectedCustomer?.id);
+  const selectedIntelligenceTimeline = selectedCustomerInsight?.timeline || [];
 
   useEffect(() => {
     if (!selectedConversationSessionId && relatedConversationSessions[0]) {
@@ -252,6 +317,57 @@ export function CustomersPage() {
         <MetricCard accent="orange" label="미처리 문의" value={openInquiryCount} />
         <MetricCard accent="slate" label="전체 문의" value={inquiries.length} />
       </div>
+
+      <Panel title="고객 타임라인 인텔리전스" subtitle="주문, 문의, 예약, 웨이팅, 리뷰를 고객 기억 카드로 묶어 다음 행동 후보를 보여줍니다.">
+        {intelligenceDashboard.cards.length ? (
+          <div className="grid gap-4 xl:grid-cols-3">
+            {intelligenceDashboard.cards.slice(0, 6).map((card) => (
+              <button
+                className={`rounded-[28px] border p-5 text-left transition ${
+                  selectedCustomer?.id === card.customerId ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white'
+                }`}
+                key={card.customerId}
+                onClick={() => setSelectedCustomerId(card.customerId)}
+                type="button"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-slate-900">{card.displayLabel}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      최근 행동 {card.lastActivityAt ? formatDateTime(card.lastActivityAt) : '데이터 없음'}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">
+                    {card.counts.orders}회 주문
+                  </span>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {card.statusBadges.slice(0, 3).map((badge) => (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700" key={`${card.customerId}-${badge.status}`}>
+                      {badge.label}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-4 grid gap-2 text-sm text-slate-600">
+                  <p>평균 객단가 {formatCurrency(card.averageOrderAmount)}</p>
+                  <p>최근 품목 {card.recentOrderItemSummary}</p>
+                  <p>자주 주문 {card.frequentItems[0]?.menuName || '데이터 없음'}</p>
+                </div>
+                <div className="mt-4 rounded-2xl bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-500">다음 추천 액션</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{card.nextActions[0]?.label}</p>
+                  <p className="mt-1 text-xs text-slate-500">{card.nextActions[0]?.disabledReason || '이 기능은 다음 배포에서 제공됩니다.'}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="고객 기억 카드가 아직 없습니다"
+            description="문의, 주문, 예약, 웨이팅, 리뷰가 고객과 연결되면 이 영역에서 다음 행동 후보를 볼 수 있습니다."
+          />
+        )}
+      </Panel>
 
       <div className="grid gap-8 xl:grid-cols-[1.02fr_0.98fr]">
         <Panel title="문의함" subtitle="사장님이 위에서 아래로 바로 훑어볼 수 있게 단순하게 정리한 목록입니다.">
@@ -537,6 +653,56 @@ export function CustomersPage() {
             </div>
           </Panel>
 
+          <Panel title="고객 인텔리전스 상세" subtitle="선택한 고객의 행동 요약과 다음 추천 액션을 안전한 내부 운영 정보로만 보여줍니다.">
+            {selectedCustomerInsight ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold text-slate-500">총 주문금액</p>
+                    <p className="mt-1 text-lg font-black text-slate-900">{formatCurrency(selectedCustomerInsight.totalOrderAmount)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold text-slate-500">평균 객단가</p>
+                    <p className="mt-1 text-lg font-black text-slate-900">{formatCurrency(selectedCustomerInsight.averageOrderAmount)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold text-slate-500">품목 수량</p>
+                    <p className="mt-1 text-lg font-black text-slate-900">{selectedCustomerInsight.totalItemQuantity}</p>
+                  </div>
+                </div>
+                <div className="rounded-[28px] border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-slate-500">추천 액션</p>
+                  <div className="mt-3 space-y-3">
+                    {selectedCustomerInsight.nextActions.slice(0, 3).map((action) => (
+                      <div className="rounded-2xl bg-slate-50 p-4" key={action.id}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-bold text-slate-900">{action.label}</p>
+                            <p className="mt-1 text-sm leading-6 text-slate-500">{action.description}</p>
+                          </div>
+                          <button className="btn-secondary" disabled type="button">
+                            이 기능은 다음 배포에서 제공됩니다.
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {selectedCustomerInsight.tags.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCustomerInsight.tags.map((tag) => (
+                      <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700" key={`${selectedCustomerInsight.customerId}-${tag}`}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <EmptyState title="고객 인텔리전스가 아직 없습니다" description="고객을 선택하면 주문, 리뷰, 문의 기반의 다음 행동 후보가 표시됩니다." />
+            )}
+          </Panel>
+
           <Panel title="최근 주문 맥락" subtitle="이 고객이 실제로 무엇을 주문했는지 바로 보여줘서 현장에서 곧바로 응대할 수 있게 합니다.">
             {selectedCustomer ? (
               <div className="space-y-3">
@@ -633,11 +799,16 @@ export function CustomersPage() {
                       <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
                         <p className="text-sm font-semibold text-slate-500">최근 고객 타임라인</p>
                         <div className="mt-3 space-y-3">
-                          {customerTimeline.length ? (
-                            customerTimeline.slice(0, 4).map((event) => (
+                          {selectedIntelligenceTimeline.length ? (
+                            selectedIntelligenceTimeline.slice(0, 6).map((event) => (
                               <div key={event.id} className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700">
-                                <p className="font-semibold text-slate-900">{event.summary}</p>
-                                <p className="mt-1 text-xs text-slate-400">{formatDateTime(event.occurred_at)}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">{event.label}</span>
+                                  <span className="rounded-full bg-orange-100 px-2 py-1 text-[11px] font-bold text-orange-700">{event.sourceBadge}</span>
+                                </div>
+                                <p className="mt-2 font-semibold text-slate-900">{event.summary}</p>
+                                {event.orderItemSummary ? <p className="mt-1 text-xs text-slate-500">{event.orderItemSummary}</p> : null}
+                                <p className="mt-1 text-xs text-slate-400">{formatDateTime(event.occurredAt)}</p>
                               </div>
                             ))
                           ) : (

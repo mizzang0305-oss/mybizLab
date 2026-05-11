@@ -3437,6 +3437,10 @@ export async function listCustomerTimelineEvents(storeId: string, customerId?: s
   return getCanonicalMyBizRepository().listCustomerTimelineEvents(storeId, customerId);
 }
 
+export async function listCustomerPreferences(storeId: string, customerId?: string) {
+  return getCanonicalMyBizRepository().listCustomerPreferences(storeId, customerId);
+}
+
 export async function attachCustomerToOrder(
   storeId: string,
   orderId: string,
