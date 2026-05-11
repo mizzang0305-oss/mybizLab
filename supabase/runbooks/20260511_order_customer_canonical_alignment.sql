@@ -124,12 +124,15 @@ safe_candidates as (
   select
     ac.order_id_text,
     ac.store_id,
-    min(cx.id::text)::uuid as customer_id,
+    min(cx_identity.customer_id_text)::uuid as customer_id,
     string_agg(distinct ac.candidate_source, ', ' order by ac.candidate_source) as candidate_sources
   from all_candidates ac
   join public.customers cx
-    on cx.id::text = ac.candidate_customer_id
-   and cx.store_id = ac.store_id
+    on cx.store_id = ac.store_id
+  cross join lateral (
+    select coalesce(to_jsonb(cx) #>> '{id}', to_jsonb(cx) #>> '{customer_id}') as customer_id_text
+  ) cx_identity
+  where cx_identity.customer_id_text = ac.candidate_customer_id
   group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) = 1
 ),
@@ -196,12 +199,15 @@ safe_candidates as (
   select
     ac.order_id_text,
     ac.store_id,
-    min(cx.id::text)::uuid as customer_id,
+    min(cx_identity.customer_id_text)::uuid as customer_id,
     string_agg(distinct ac.candidate_source, ', ' order by ac.candidate_source) as candidate_sources
   from all_candidates ac
   join public.customers cx
-    on cx.id::text = ac.candidate_customer_id
-   and cx.store_id = ac.store_id
+    on cx.store_id = ac.store_id
+  cross join lateral (
+    select coalesce(to_jsonb(cx) #>> '{id}', to_jsonb(cx) #>> '{customer_id}') as customer_id_text
+  ) cx_identity
+  where cx_identity.customer_id_text = ac.candidate_customer_id
   group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) = 1
 )
@@ -267,11 +273,14 @@ safe_candidates as (
   select
     ac.order_id_text,
     ac.store_id,
-    min(cx.id::text)::uuid as customer_id
+    min(cx_identity.customer_id_text)::uuid as customer_id
   from all_candidates ac
   join public.customers cx
-    on cx.id::text = ac.candidate_customer_id
-   and cx.store_id = ac.store_id
+    on cx.store_id = ac.store_id
+  cross join lateral (
+    select coalesce(to_jsonb(cx) #>> '{id}', to_jsonb(cx) #>> '{customer_id}') as customer_id_text
+  ) cx_identity
+  where cx_identity.customer_id_text = ac.candidate_customer_id
   group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) = 1
 )
