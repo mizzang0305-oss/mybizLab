@@ -68,38 +68,36 @@ BEGIN;
 
 create temp table order_customer_backfill_snapshot as
 select
-  o.id as order_pk,
   o.order_id::text as order_id_text,
   o.store_id,
   o.customer_id as previous_customer_id,
   timezone('utc', now()) as snapshotted_at
 from public.orders o
-where o.customer_id is null;
+where o.customer_id is null
+  and o.order_id is not null;
 
 with
 order_scope as (
   select
-    o.id as order_pk,
     o.order_id::text as order_id_text,
     o.store_id
   from public.orders o
   where o.customer_id is null
+    and o.order_id is not null
 ),
 payment_raw_candidates as (
   select
-    o.order_pk,
     o.order_id_text,
     o.store_id,
     nullif(pe.raw ->> 'customer_id', '') as candidate_customer_id,
     'payment_events.raw.customer_id' as candidate_source
   from order_scope o
   join public.payment_events pe
-    on pe.order_id = any(array_remove(array[o.order_id_text, o.order_pk::text], null))
+    on pe.order_id = o.order_id_text
   where nullif(pe.raw ->> 'customer_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ),
 timeline_candidates as (
   select
-    o.order_pk,
     o.order_id_text,
     o.store_id,
     cte.customer_id::text as candidate_customer_id,
@@ -108,10 +106,7 @@ timeline_candidates as (
   join public.customer_timeline_events cte
     on cte.store_id = o.store_id
    and cte.event_type = 'order_linked'
-   and (
-      cte.metadata ->> 'order_id' = o.order_id_text
-      or cte.metadata ->> 'order_id' = o.order_pk::text
-   )
+   and cte.metadata ->> 'order_id' = o.order_id_text
   where cte.customer_id is not null
 ),
 all_candidates as (
@@ -121,27 +116,25 @@ all_candidates as (
 ),
 safe_candidates as (
   select
-    ac.order_pk,
     ac.order_id_text,
     ac.store_id,
-    min(ac.candidate_customer_id)::uuid as customer_id,
+    min(cx.id::text)::uuid as customer_id,
     string_agg(distinct ac.candidate_source, ', ' order by ac.candidate_source) as candidate_sources
   from all_candidates ac
   join public.customers cx
-    on cx.id = ac.candidate_customer_id::uuid
+    on cx.id::text = ac.candidate_customer_id
    and cx.store_id = ac.store_id
-  group by ac.order_pk, ac.order_id_text, ac.store_id
+  group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) = 1
 ),
 manual_review as (
   select
-    ac.order_pk,
     ac.order_id_text,
     ac.store_id,
     array_agg(distinct ac.candidate_customer_id order by ac.candidate_customer_id) as candidate_customer_ids,
     array_agg(distinct ac.candidate_source order by ac.candidate_source) as candidate_sources
   from all_candidates ac
-  group by ac.order_pk, ac.order_id_text, ac.store_id
+  group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) <> 1
 )
 select
@@ -152,27 +145,25 @@ from safe_candidates;
 with
 order_scope as (
   select
-    o.id as order_pk,
     o.order_id::text as order_id_text,
     o.store_id
   from public.orders o
   where o.customer_id is null
+    and o.order_id is not null
 ),
 payment_raw_candidates as (
   select
-    o.order_pk,
     o.order_id_text,
     o.store_id,
     nullif(pe.raw ->> 'customer_id', '') as candidate_customer_id,
     'payment_events.raw.customer_id' as candidate_source
   from order_scope o
   join public.payment_events pe
-    on pe.order_id = any(array_remove(array[o.order_id_text, o.order_pk::text], null))
+    on pe.order_id = o.order_id_text
   where nullif(pe.raw ->> 'customer_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ),
 timeline_candidates as (
   select
-    o.order_pk,
     o.order_id_text,
     o.store_id,
     cte.customer_id::text as candidate_customer_id,
@@ -181,10 +172,7 @@ timeline_candidates as (
   join public.customer_timeline_events cte
     on cte.store_id = o.store_id
    and cte.event_type = 'order_linked'
-   and (
-      cte.metadata ->> 'order_id' = o.order_id_text
-      or cte.metadata ->> 'order_id' = o.order_pk::text
-   )
+   and cte.metadata ->> 'order_id' = o.order_id_text
   where cte.customer_id is not null
 ),
 all_candidates as (
@@ -194,20 +182,18 @@ all_candidates as (
 ),
 safe_candidates as (
   select
-    ac.order_pk,
     ac.order_id_text,
     ac.store_id,
-    min(ac.candidate_customer_id)::uuid as customer_id,
+    min(cx.id::text)::uuid as customer_id,
     string_agg(distinct ac.candidate_source, ', ' order by ac.candidate_source) as candidate_sources
   from all_candidates ac
   join public.customers cx
-    on cx.id = ac.candidate_customer_id::uuid
+    on cx.id::text = ac.candidate_customer_id
    and cx.store_id = ac.store_id
-  group by ac.order_pk, ac.order_id_text, ac.store_id
+  group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) = 1
 )
 select
-  order_pk,
   order_id_text,
   store_id,
   customer_id,
@@ -226,26 +212,24 @@ limit 50;
 with
 order_scope as (
   select
-    o.id as order_pk,
     o.order_id::text as order_id_text,
     o.store_id
   from public.orders o
   where o.customer_id is null
+    and o.order_id is not null
 ),
 payment_raw_candidates as (
   select
-    o.order_pk,
     o.order_id_text,
     o.store_id,
     nullif(pe.raw ->> 'customer_id', '') as candidate_customer_id
   from order_scope o
   join public.payment_events pe
-    on pe.order_id = any(array_remove(array[o.order_id_text, o.order_pk::text], null))
+    on pe.order_id = o.order_id_text
   where nullif(pe.raw ->> 'customer_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ),
 timeline_candidates as (
   select
-    o.order_pk,
     o.order_id_text,
     o.store_id,
     cte.customer_id::text as candidate_customer_id
@@ -253,10 +237,7 @@ timeline_candidates as (
   join public.customer_timeline_events cte
     on cte.store_id = o.store_id
    and cte.event_type = 'order_linked'
-   and (
-      cte.metadata ->> 'order_id' = o.order_id_text
-      or cte.metadata ->> 'order_id' = o.order_pk::text
-   )
+   and cte.metadata ->> 'order_id' = o.order_id_text
   where cte.customer_id is not null
 ),
 all_candidates as (
@@ -266,20 +247,20 @@ all_candidates as (
 ),
 safe_candidates as (
   select
-    ac.order_pk,
+    ac.order_id_text,
     ac.store_id,
-    min(ac.candidate_customer_id)::uuid as customer_id
+    min(cx.id::text)::uuid as customer_id
   from all_candidates ac
   join public.customers cx
-    on cx.id = ac.candidate_customer_id::uuid
+    on cx.id::text = ac.candidate_customer_id
    and cx.store_id = ac.store_id
-  group by ac.order_pk, ac.store_id
+  group by ac.order_id_text, ac.store_id
   having count(distinct ac.candidate_customer_id) = 1
 )
 update public.orders o
 set customer_id = sc.customer_id
 from safe_candidates sc
-where o.id = sc.order_pk
+where o.order_id::text = sc.order_id_text
   and o.store_id = sc.store_id
   and o.customer_id is null;
 
@@ -288,7 +269,8 @@ select
   count(*) as newly_linked_count
 from public.orders o
 join order_customer_backfill_snapshot s
-  on s.order_pk = o.id
+  on s.order_id_text = o.order_id::text
+ and s.store_id = o.store_id
 where s.previous_customer_id is null
   and o.customer_id is not null;
 

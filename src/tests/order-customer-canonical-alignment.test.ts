@@ -89,8 +89,9 @@ describe('order/customer canonical alignment', () => {
     expect(runbook).toMatch(/where\s+o\.customer_id\s+is\s+null/i);
     expect(runbook).not.toMatch(/customers\.(name|phone|email)|\bc\.(name|phone|email)\b/i);
     expect(runbook).not.toMatch(/payment_events\.store_id|\bpe\.store_id\b/i);
-    expect(runbook).toMatch(/orders\.order_id::text|o\.order_id::text|o\.id::text/i);
-    expect(runbook).toContain('array_remove(array[o.order_id_text, o.order_pk::text], null)');
+    expect(runbook).not.toMatch(/\bo\.id\b/i);
+    expect(runbook).toMatch(/orders\.order_id::text|o\.order_id::text/i);
+    expect(runbook).toContain('on pe.order_id = o.order_id_text');
     expect(runbook).toMatch(/^[^]*manual review[^]*$/i);
   });
 
