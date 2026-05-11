@@ -180,6 +180,10 @@ function mapKitchenTicketRecord(row: Record<string, unknown>): KitchenTicket {
   };
 }
 
+function getOrderIdAliases(row: Record<string, unknown>) {
+  return [...new Set([normalizeText(row.id), normalizeText(row.order_id)].filter(Boolean))];
+}
+
 function isSchemaCompatError(error?: { code?: string; message?: string } | null) {
   const message = error?.message?.toLowerCase() || '';
   return (
@@ -855,6 +859,26 @@ async function selectOptionalList<T>(
   }
 }
 
+async function selectOptionalPaymentEventsForOrders(client: SupabaseClient, orders: Array<Record<string, unknown>>) {
+  const orderIds = [...new Set(orders.flatMap((order) => getOrderIdAliases(order)))];
+  if (!orderIds.length) {
+    return [] as Array<Record<string, unknown>>;
+  }
+
+  try {
+    const { data, error } = await client.from('payment_events').select('*').in('order_id', orderIds);
+    if (error) {
+      return [] as Array<Record<string, unknown>>;
+    }
+
+    return ((data || []) as Array<Record<string, unknown>>).filter((event) =>
+      orderIds.includes(normalizeText(event.order_id)),
+    );
+  } catch {
+    return [] as Array<Record<string, unknown>>;
+  }
+}
+
 async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string }) {
   const client = getSupabaseAdminClient();
   const repository = createSupabaseRepository(client);
@@ -879,7 +903,6 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     inquiries,
     orders,
     orderItems,
-    paymentEvents,
   ] = await Promise.all([
     repository.getStorePublicPage(storeId),
     selectOptionalList<StoreFeature>(client, 'store_features', storeId),
@@ -894,8 +917,9 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     repository.listInquiries(storeId),
     selectOptionalList<Order>(client, 'orders', storeId),
     selectOptionalList<OrderItem>(client, 'order_items', storeId),
-    selectOptionalList<Record<string, unknown>>(client, 'payment_events', storeId),
   ]);
+  const orderRows = orders as unknown as Record<string, unknown>[];
+  const paymentEvents = await selectOptionalPaymentEventsForOrders(client, orderRows);
 
   const sortedMedia = sortMedia(media);
   const publishedNotices = sortNotices(notices);
@@ -954,18 +978,18 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
   const tableRecords = (tables as unknown as Record<string, unknown>[])
     .map((row) => mapStoreTableRecord(row, publicStoreRecord.slug))
     .filter((table) => table.is_active);
-  const ordersWithCompat = (orders as unknown as Record<string, unknown>[]).map((row) =>
+  const ordersWithCompat = orderRows.map((row) =>
     buildCompatOrderState(
       row,
-      (paymentEvents as Record<string, unknown>[]).filter((event) => normalizeText(event.order_id) === normalizeText(row.id || row.order_id)),
+      (paymentEvents as Record<string, unknown>[]).filter((event) => getOrderIdAliases(row).includes(normalizeText(event.order_id))),
     ).order,
   );
   const orderItemsWithCompat = [
     ...((orderItems as unknown as Record<string, unknown>[]).map((row) => mapOrderItemRecord(row))),
-    ...((orders as unknown as Record<string, unknown>[]).flatMap((row) =>
+    ...(orderRows.flatMap((row) =>
       buildCompatOrderState(
         row,
-        (paymentEvents as Record<string, unknown>[]).filter((event) => normalizeText(event.order_id) === normalizeText(row.id || row.order_id)),
+        (paymentEvents as Record<string, unknown>[]).filter((event) => getOrderIdAliases(row).includes(normalizeText(event.order_id))),
       ).items,
     )),
   ].filter(

@@ -745,6 +745,10 @@ function mapLiveOrderItem(row: Record<string, unknown>): OrderItem {
   });
 }
 
+function getLiveOrderIdAliases(row: Record<string, unknown>) {
+  return [...new Set([normalizeText(row.id), normalizeText(row.order_id)].filter(Boolean))];
+}
+
 function mapLiveStoreTable(row: Record<string, unknown>): StoreTable {
   const tableNo = normalizeText(row.table_no);
   return {
@@ -965,7 +969,7 @@ async function listLiveOrders(storeId: string) {
     throw new Error(`Failed to load live tables for orders: ${tablesResult.error.message}`);
   }
 
-  const orderIds = orderRows.map((row) => normalizeText(row.id || row.order_id)).filter(Boolean);
+  const orderIds = [...new Set(orderRows.flatMap((row) => getLiveOrderIdAliases(row)))];
   const paymentEventsResult = orderIds.length
     ? await client.from('payment_events').select('*').in('order_id', orderIds)
     : { data: [], error: null };
@@ -985,19 +989,23 @@ async function listLiveOrders(storeId: string) {
   return orderRows
     .map((row) => {
       const orderId = normalizeText(row.id || row.order_id);
-      const timelineMetadata = timelineMetadataByOrderId.get(orderId) || {};
+      const orderIdAliases = getLiveOrderIdAliases(row);
+      const timelineMetadata =
+        orderIdAliases.map((alias) => timelineMetadataByOrderId.get(alias)).find(Boolean) || {};
       const compat = buildLiveCompatOrderState(
         row,
-        paymentEvents.filter((event) => normalizeText(event.order_id) === orderId),
+        paymentEvents.filter((event) => orderIdAliases.includes(normalizeText(event.order_id))),
         tableNoById,
       );
       const canonicalItems = items.filter((item) => item.order_id === orderId);
       const timelineItems = buildTimelineOrderItems(orderId, compat.order.store_id, timelineMetadata, compat.order.total_amount);
-      const candidateCustomerId = compat.order.customer_id || timelineCustomerIdByOrderId.get(orderId);
+      const candidateCustomerId =
+        compat.order.customer_id ||
+        orderIdAliases.map((alias) => timelineCustomerIdByOrderId.get(alias)).find(Boolean);
       const customer = candidateCustomerId ? customerById.get(candidateCustomerId) : undefined;
       return {
         ...compat.order,
-        customer_id: customer ? candidateCustomerId : undefined,
+        customer_id: candidateCustomerId || undefined,
         payment_method: compat.order.payment_method || (normalizeText(timelineMetadata.payment_method) as OrderPaymentMethod | undefined),
         payment_source: compat.order.payment_source || (normalizeText(timelineMetadata.payment_source) as OrderPaymentSource | undefined),
         items: canonicalItems.length ? canonicalItems : compat.items.length ? compat.items : timelineItems,

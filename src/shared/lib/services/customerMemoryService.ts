@@ -11,7 +11,7 @@ import {
 } from '../domain/customerMemory.js';
 import { getCanonicalMyBizRepository } from '../repositories/index.js';
 import type { CanonicalCustomerMemoryRepository } from '../repositories';
-import type { Customer, CustomerContact, CustomerPreference } from '../../types/models';
+import type { Customer, CustomerContact, CustomerPreference, CustomerTimelineEvent } from '../../types/models';
 import type { CustomerMemoryRecord, CustomerMemoryUpsertInput } from '../repositories/contracts';
 
 function nowIso() {
@@ -50,6 +50,40 @@ function resolveCustomerMatch(
     normalizedEmail,
     normalizedPhone,
   };
+}
+
+function resolveTimelineOrderId(metadata: CustomerTimelineEvent['metadata'] | undefined) {
+  const rawValue = metadata?.order_id || metadata?.orderId || metadata?.orderID;
+  return typeof rawValue === 'string' ? rawValue.trim() : '';
+}
+
+async function findExistingOrderLinkedEvent(
+  repository: CanonicalCustomerMemoryRepository,
+  input: {
+    customerId: string;
+    eventType?: CustomerTimelineEvent['event_type'];
+    metadata?: CustomerTimelineEvent['metadata'];
+    storeId: string;
+  },
+) {
+  if (input.eventType !== 'order_linked') {
+    return null;
+  }
+
+  const orderId = resolveTimelineOrderId(input.metadata);
+  if (!orderId) {
+    return null;
+  }
+
+  const events = await repository.listCustomerTimelineEvents(input.storeId, input.customerId);
+  return (
+    events.find(
+      (event) =>
+        event.customer_id === input.customerId &&
+        event.event_type === 'order_linked' &&
+        resolveTimelineOrderId(event.metadata) === orderId,
+    ) || null
+  );
 }
 
 export async function listStoreCustomers(storeId: string) {
@@ -185,25 +219,35 @@ export async function upsertCustomerMemory(
         });
   const savedPreference = await repository.saveCustomerPreference(nextPreference);
 
-  const timelineEvent = await repository.appendTimelineEvent(
-    buildCustomerTimelineEvent({
-      customerId: savedCustomerId,
-      eventType: input.eventType || (created ? 'customer_created' : 'contact_captured'),
-      metadata: {
-        email: input.email?.trim().toLowerCase() || null,
-        name: input.name?.trim() || null,
-        normalizedEmail: match.normalizedEmail || null,
-        normalizedPhone: match.normalizedPhone || null,
-        phone: input.phone?.trim() || null,
-        ...(input.metadata || {}),
-      },
-      occurredAt: input.occurredAt,
-      source: input.source,
-      storeId: input.storeId,
-      summary: input.summary,
-      timestamp,
-    }),
-  );
+  const eventType = input.eventType || (created ? 'customer_created' : 'contact_captured');
+  const eventMetadata = {
+    email: input.email?.trim().toLowerCase() || null,
+    name: input.name?.trim() || null,
+    normalizedEmail: match.normalizedEmail || null,
+    normalizedPhone: match.normalizedPhone || null,
+    phone: input.phone?.trim() || null,
+    ...(input.metadata || {}),
+  };
+  const existingOrderLinkedEvent = await findExistingOrderLinkedEvent(repository, {
+    customerId: savedCustomerId,
+    eventType,
+    metadata: eventMetadata,
+    storeId: input.storeId,
+  });
+  const timelineEvent =
+    existingOrderLinkedEvent ||
+    (await repository.appendTimelineEvent(
+      buildCustomerTimelineEvent({
+        customerId: savedCustomerId,
+        eventType,
+        metadata: eventMetadata,
+        occurredAt: input.occurredAt,
+        source: input.source,
+        storeId: input.storeId,
+        summary: input.summary,
+        timestamp,
+      }),
+    ));
 
   return {
     contacts: nextContacts,
