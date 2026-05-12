@@ -13,6 +13,12 @@ import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { buildCustomerTimelineIntelligenceDashboard, getCustomerIntelligenceCard } from '@/shared/lib/services/customerTimelineIntelligenceService';
 import {
+  buildCustomerRecommendations,
+  listCustomerRecommendationActions,
+  listRecommendedCustomers,
+  upsertCustomerRecommendationAction,
+} from '@/shared/lib/services/customerRecommendationService';
+import {
   getInquiryStatusLabel,
   getOrderChannelLabel,
   getOrderStatusLabel,
@@ -23,6 +29,7 @@ import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   listConversationMessages,
   listConversationSessions,
+  listCustomerContacts,
   listCustomerPreferences,
   listCustomerTimelineEvents,
   listCustomers,
@@ -64,6 +71,33 @@ const conversationChannelLabelMap: Record<string, string> = {
   public_inquiry: '공개 문의',
 };
 
+const recommendationTypeLabelMap: Record<string, string> = {
+  content_conversion: '콘텐츠 전환',
+  reorder: '재주문',
+  reservation_followup: '예약 확인',
+  revisit: '재방문',
+  review_request: '리뷰 요청',
+  upsell: '업셀',
+  waiting_followup: '웨이팅 후속',
+};
+
+const recommendationBlockedReasonMap: Record<string, string> = {
+  contact_missing: '연락 가능한 고객 정보가 없어 상태 기록만 가능합니다.',
+  content_usage_consent_missing: '콘텐츠 활용 동의가 없어 외부 콘텐츠 전환은 차단됩니다.',
+  marketing_consent_missing: '마케팅 수신 동의가 없어 안내 발송 후보에서 제외됩니다.',
+  quiet_mode: '조용한 고객 설정이 있어 발송성 추천은 실행하지 않습니다.',
+};
+
+const recommendationFilterOptions = [
+  { label: '전체', value: 'all' },
+  { label: '재방문 필요', value: 'revisit' },
+  { label: '재주문 후보', value: 'reorder' },
+  { label: '업셀 후보', value: 'upsell' },
+  { label: '리뷰 요청 후보', value: 'review_request' },
+] as const;
+
+type RecommendationFilter = (typeof recommendationFilterOptions)[number]['value'];
+
 export function CustomersPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
@@ -77,6 +111,7 @@ export function CustomersPage() {
   const [inquiryStatus, setInquiryStatus] = useState<(typeof inquiryStatusValues)[number]>('new');
   const [inquiryMessage, setInquiryMessage] = useState<string | null>(null);
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState('');
+  const [recommendationFilter, setRecommendationFilter] = useState<RecommendationFilter>('all');
 
   usePageMeta('고객 기억 관리', '문의함, 응대 상태, 고객 정보, 최근 주문 흐름을 한 화면에서 보는 점주용 고객 기억 화면입니다.');
 
@@ -107,6 +142,18 @@ export function CustomersPage() {
   const customerPreferencesQuery = useQuery({
     queryKey: queryKeys.customerPreferences(currentStore?.id || ''),
     queryFn: () => listCustomerPreferences(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const customerContactsQuery = useQuery({
+    queryKey: queryKeys.customerContacts(currentStore?.id || ''),
+    queryFn: () => listCustomerContacts(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const recommendationActionsQuery = useQuery({
+    queryKey: queryKeys.customerRecommendationActions(currentStore?.id || ''),
+    queryFn: () => listCustomerRecommendationActions(currentStore!.id),
     enabled: Boolean(currentStore),
   });
 
@@ -177,11 +224,30 @@ export function CustomersPage() {
     },
   });
 
+  const recommendationActionMutation = useMutation({
+    mutationFn: (input: {
+      customerId: string;
+      recommendationKey: string;
+      recommendationType: Parameters<typeof upsertCustomerRecommendationAction>[2]['recommendationType'];
+      status: Parameters<typeof upsertCustomerRecommendationAction>[2]['status'];
+    }) =>
+      upsertCustomerRecommendationAction(currentStore!.id, input.customerId, {
+        recommendationKey: input.recommendationKey,
+        recommendationType: input.recommendationType,
+        status: input.status,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.customerRecommendationActions(currentStore!.id) });
+    },
+  });
+
   const customers = customersQuery.data || [];
   const orders = ordersQuery.data || [];
   const inquiries = inquiriesQuery.data || [];
   const conversationSessions = conversationSessionsQuery.data || [];
+  const customerContacts = customerContactsQuery.data || [];
   const customerPreferences = customerPreferencesQuery.data || [];
+  const recommendationActions = recommendationActionsQuery.data || [];
   const reservations = reservationsQuery.data || [];
   const waitingEntries = waitingQuery.data || [];
   const reviews = reviewsQuery.data || [];
@@ -261,8 +327,32 @@ export function CustomersPage() {
     timelineEvents: customerTimeline,
     waitingEntries,
   });
+  const recommendationInput = {
+    actions: recommendationActions,
+    contacts: customerContacts,
+    customers,
+    orders,
+    preferences: customerPreferences,
+    reservations,
+    reviews,
+    storeId: currentStore?.id || '',
+    waitingEntries,
+  };
+  const customerRecommendations = buildCustomerRecommendations(recommendationInput);
+  const recommendedCustomers = listRecommendedCustomers(recommendationInput);
+  const recommendedCustomerMap = new Map(recommendedCustomers.map((item) => [item.customer_id, item]));
   const selectedCustomerInsight = getCustomerIntelligenceCard(intelligenceDashboard, selectedCustomer?.id);
   const selectedIntelligenceTimeline = selectedCustomerInsight?.timeline || [];
+  const selectedCustomerRecommendations = customerRecommendations.filter(
+    (recommendation) => recommendation.customer_id === selectedCustomer?.id,
+  );
+  const filteredCustomers = customers.filter((customer) => {
+    if (recommendationFilter === 'all') {
+      return true;
+    }
+
+    return recommendedCustomerMap.get(customer.id)?.top_recommendation_type === recommendationFilter;
+  });
 
   useEffect(() => {
     if (!selectedConversationSessionId && relatedConversationSessions[0]) {
@@ -321,15 +411,18 @@ export function CustomersPage() {
       <Panel title="고객 타임라인 인텔리전스" subtitle="주문, 문의, 예약, 웨이팅, 리뷰를 고객 기억 카드로 묶어 다음 행동 후보를 보여줍니다.">
         {intelligenceDashboard.cards.length ? (
           <div className="grid gap-4 xl:grid-cols-3">
-            {intelligenceDashboard.cards.slice(0, 6).map((card) => (
-              <button
-                className={`rounded-[28px] border p-5 text-left transition ${
-                  selectedCustomer?.id === card.customerId ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white'
-                }`}
-                key={card.customerId}
-                onClick={() => setSelectedCustomerId(card.customerId)}
-                type="button"
-              >
+            {intelligenceDashboard.cards.slice(0, 6).map((card) => {
+              const recommendationSummary = recommendedCustomerMap.get(card.customerId);
+
+              return (
+                <button
+                  className={`rounded-[28px] border p-5 text-left transition ${
+                    selectedCustomer?.id === card.customerId ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white'
+                  }`}
+                  key={card.customerId}
+                  onClick={() => setSelectedCustomerId(card.customerId)}
+                  type="button"
+                >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-bold text-slate-900">{card.displayLabel}</p>
@@ -358,8 +451,22 @@ export function CustomersPage() {
                   <p className="mt-1 text-sm font-semibold text-slate-900">{card.nextActions[0]?.label}</p>
                   <p className="mt-1 text-xs text-slate-500">{card.nextActions[0]?.disabledReason || '이 기능은 다음 배포에서 제공됩니다.'}</p>
                 </div>
-              </button>
-            ))}
+                {recommendationSummary ? (
+                  <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+                    <p className="text-xs font-bold text-emerald-700">
+                      추천 배지 · {recommendationTypeLabelMap[recommendationSummary.top_recommendation_type] || recommendationSummary.top_recommendation_type}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-emerald-950">{recommendationSummary.top_recommendation_label}</p>
+                    <p className="mt-1 text-xs text-emerald-700">
+                      {recommendationSummary.blocked_reason
+                        ? recommendationBlockedReasonMap[recommendationSummary.blocked_reason]
+                        : '점주가 상태만 기록할 수 있으며 실제 발송은 실행하지 않습니다.'}
+                    </p>
+                  </div>
+                ) : null}
+                </button>
+              );
+            })}
           </div>
         ) : (
           <EmptyState
@@ -509,47 +616,72 @@ export function CustomersPage() {
         <Panel title="고객 목록" subtitle="단골 고객과 문의 리드를 한 화면에서 함께 찾을 수 있게 정리했습니다.">
           {customers.length ? (
             <div className="space-y-3">
-              {customers.map((customer) => {
-                const customerLabel = getCustomerDisplayLabel({
-                  customer,
-                  customerId: customer.id,
-                });
-
-                return (
+              <div className="flex flex-wrap gap-2">
+                {recommendationFilterOptions.map((option) => (
                   <button
-                    className={`w-full rounded-[28px] border p-4 text-left transition ${
-                      selectedCustomer?.id === customer.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white'
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                      recommendationFilter === option.value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
-                    key={customer.id}
-                    onClick={() => {
-                      setSelectedCustomerId(customer.id);
-                      setCustomerForm({
-                        id: customer.id,
-                        name: customer.name,
-                        phone: customer.phone,
-                        email: customer.email || '',
-                        marketing_opt_in: customer.marketing_opt_in,
-                      });
-                      setCustomerErrors({});
-                      setCustomerMessage(null);
-                    }}
+                    key={option.value}
+                    onClick={() => setRecommendationFilter(option.value)}
                     type="button"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-bold">{customerLabel}</p>
-                        <p className={`mt-1 text-sm ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>{customer.phone || '전화번호 없음'}</p>
-                      </div>
-                      <div className="text-right">
-                        {customer.is_regular ? <StatusBadge label="단골" status="ready" /> : null}
-                        <p className={`mt-2 text-sm font-semibold ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>
-                          {customer.visit_count}회 방문
-                        </p>
-                      </div>
-                    </div>
+                    {option.label}
                   </button>
-                );
-              })}
+                ))}
+              </div>
+
+              {filteredCustomers.length ? (
+                filteredCustomers.map((customer) => {
+                  const customerLabel = getCustomerDisplayLabel({
+                    customer,
+                    customerId: customer.id,
+                  });
+                  const recommendationSummary = recommendedCustomerMap.get(customer.id);
+
+                  return (
+                    <button
+                      className={`w-full rounded-[28px] border p-4 text-left transition ${
+                        selectedCustomer?.id === customer.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white'
+                      }`}
+                      key={customer.id}
+                      onClick={() => {
+                        setSelectedCustomerId(customer.id);
+                        setCustomerForm({
+                          id: customer.id,
+                          name: customer.name,
+                          phone: customer.phone,
+                          email: customer.email || '',
+                          marketing_opt_in: customer.marketing_opt_in,
+                        });
+                        setCustomerErrors({});
+                        setCustomerMessage(null);
+                      }}
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-bold">{customerLabel}</p>
+                          <p className={`mt-1 text-sm ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>{customer.phone || '전화번호 없음'}</p>
+                        </div>
+                        <div className="text-right">
+                          {customer.is_regular ? <StatusBadge label="단골" status="ready" /> : null}
+                          <p className={`mt-2 text-sm font-semibold ${selectedCustomer?.id === customer.id ? 'text-slate-200' : 'text-slate-500'}`}>
+                            {customer.visit_count}회 방문
+                          </p>
+                          {recommendationSummary ? (
+                            <p className={`mt-2 text-xs font-bold ${selectedCustomer?.id === customer.id ? 'text-emerald-200' : 'text-emerald-700'}`}>
+                              {recommendationTypeLabelMap[recommendationSummary.top_recommendation_type] || recommendationSummary.top_recommendation_type}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <EmptyState title="필터에 맞는 고객이 없습니다" description="다른 추천 필터를 선택하거나 고객 행동 데이터가 더 쌓인 뒤 다시 확인해 주세요." />
+              )}
             </div>
           ) : (
             <EmptyState title="아직 고객 정보가 없습니다" description="주문, 문의, 수기 등록으로 고객 정보가 생기면 이곳에서 바로 관리할 수 있습니다." />
@@ -700,6 +832,95 @@ export function CustomersPage() {
               </div>
             ) : (
               <EmptyState title="고객 인텔리전스가 아직 없습니다" description="고객을 선택하면 주문, 리뷰, 문의 기반의 다음 행동 후보가 표시됩니다." />
+            )}
+          </Panel>
+
+          <Panel title="재주문·업셀 추천 v1" subtitle="이 추천은 고객 행동 데이터를 바탕으로 만든 실행 후보입니다. 실제 발송은 점주 승인 후 별도 기능에서 제공됩니다.">
+            {selectedCustomerRecommendations.length ? (
+              <div className="space-y-3">
+                {selectedCustomerRecommendations.slice(0, 6).map((recommendation) => (
+                  <div className="rounded-[28px] border border-slate-200 bg-white p-5" key={recommendation.recommendation_key}>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">
+                            {recommendationTypeLabelMap[recommendation.type] || recommendation.type}
+                          </span>
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                            {recommendation.priority} priority
+                          </span>
+                          <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
+                            {recommendation.confidence} confidence
+                          </span>
+                        </div>
+                        <p className="mt-3 font-black text-slate-900">{recommendation.title}</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{recommendation.description}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {recommendation.source_signals.map((signal) => (
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600" key={`${recommendation.recommendation_key}-${signal}`}>
+                              {signal}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="mt-3 text-xs font-semibold text-slate-500">
+                          {recommendation.blocked_reason
+                            ? recommendationBlockedReasonMap[recommendation.blocked_reason]
+                            : '상태 기록만 가능합니다. 카카오/문자/이메일 발송은 실행하지 않습니다.'}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                        <button
+                          className="btn-secondary"
+                          disabled={recommendationActionMutation.isPending}
+                          onClick={() =>
+                            recommendationActionMutation.mutate({
+                              customerId: recommendation.customer_id,
+                              recommendationKey: recommendation.recommendation_key,
+                              recommendationType: recommendation.type,
+                              status: 'snoozed',
+                            })
+                          }
+                          type="button"
+                        >
+                          나중에 보기
+                        </button>
+                        <button
+                          className="btn-secondary"
+                          disabled={recommendationActionMutation.isPending}
+                          onClick={() =>
+                            recommendationActionMutation.mutate({
+                              customerId: recommendation.customer_id,
+                              recommendationKey: recommendation.recommendation_key,
+                              recommendationType: recommendation.type,
+                              status: 'dismissed',
+                            })
+                          }
+                          type="button"
+                        >
+                          추천 숨기기
+                        </button>
+                        <button
+                          className="btn-primary"
+                          disabled={recommendationActionMutation.isPending}
+                          onClick={() =>
+                            recommendationActionMutation.mutate({
+                              customerId: recommendation.customer_id,
+                              recommendationKey: recommendation.recommendation_key,
+                              recommendationType: recommendation.type,
+                              status: 'completed',
+                            })
+                          }
+                          type="button"
+                        >
+                          완료로 표시
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="추천 후보가 아직 없습니다" description="주문 품목, 리뷰, 예약, 웨이팅 데이터가 더 쌓이면 재주문·업셀·재방문 후보가 표시됩니다." />
             )}
           </Panel>
 

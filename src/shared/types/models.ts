@@ -508,6 +508,32 @@ export interface CustomerTimelineEvent {
   created_at: string;
 }
 
+export type CustomerRecommendationType =
+  | 'content_conversion'
+  | 'reorder'
+  | 'reservation_followup'
+  | 'revisit'
+  | 'review_request'
+  | 'upsell'
+  | 'waiting_followup';
+
+export type CustomerRecommendationActionStatus = 'completed' | 'dismissed' | 'snoozed' | 'suggested';
+
+export interface CustomerRecommendationAction {
+  action_id: string;
+  store_id: string;
+  customer_id: string;
+  recommendation_key: string;
+  recommendation_type: CustomerRecommendationType;
+  status: CustomerRecommendationActionStatus;
+  note?: string;
+  acted_by?: string;
+  acted_at?: string;
+  snoozed_until?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface StoreSubscription {
   id: string;
   store_id: string;
@@ -965,6 +991,7 @@ export interface MvpDatabase {
   customers: Customer[];
   customer_contacts: CustomerContact[];
   customer_preferences: CustomerPreference[];
+  customer_recommendation_actions: CustomerRecommendationAction[];
   customer_timeline_events: CustomerTimelineEvent[];
   inquiries: Inquiry[];
   conversation_sessions: ConversationSession[];
