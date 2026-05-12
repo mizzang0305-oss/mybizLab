@@ -1108,6 +1108,7 @@ export function createSeedDatabase(): MvpDatabase {
         updated_at: isoDaysAgo(1, 19),
       },
     ],
+    customer_recommendation_actions: [],
     customer_timeline_events: [
       {
         id: 'customer_timeline_hana_created',

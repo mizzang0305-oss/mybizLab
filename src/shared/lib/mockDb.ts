@@ -91,6 +91,9 @@ function normalizeDatabase(database: Record<string, unknown>) {
     (database.social_accounts as MvpDatabase['social_accounts']) ?? seeded.social_accounts;
   nextDatabase.social_publish_jobs =
     (database.social_publish_jobs as MvpDatabase['social_publish_jobs']) ?? seeded.social_publish_jobs;
+  nextDatabase.customer_recommendation_actions =
+    (database.customer_recommendation_actions as MvpDatabase['customer_recommendation_actions']) ??
+    seeded.customer_recommendation_actions;
   nextDatabase.store_features = normalizeStoreFeatures((database.store_features as MvpDatabase['store_features']) ?? seeded.store_features);
   nextDatabase.stores = ((database.stores as MvpDatabase['stores']) ?? seeded.stores).map((store) => {
     const seededStore = seeded.stores.find((seededRecord) => seededRecord.id === store.id);
