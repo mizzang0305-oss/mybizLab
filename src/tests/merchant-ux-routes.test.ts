@@ -177,6 +177,9 @@ describe('merchant UX routes', () => {
 
     expect(socialHtml).toContain('YouTube 업로드 준비');
     expect(socialHtml).toContain('YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.');
+    expect(socialHtml).toContain('승인된 media job만 서버 adapter에서 YouTube 업로드를 실행합니다.');
+    expect(socialHtml).toContain('내부 storage_path 기반 파일 handoff가 필요합니다.');
+    expect(socialHtml).toContain('STT가 없으면 fake caption을 만들지 않습니다.');
     expect(socialHtml).toContain('https://www.googleapis.com/auth/youtube.upload');
     expect(socialHtml).toContain('계정 연동은 설정이 완료되면 사용할 수 있습니다.');
   });

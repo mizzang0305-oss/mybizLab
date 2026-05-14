@@ -1262,7 +1262,7 @@ export function ContentSocialPage() {
         </div>
       </Panel>
 
-      <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 업로드 설정이 모두 준비된 뒤에만 진행됩니다.">
+      <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 토큰 암호화, 내부 파일 handoff가 모두 준비된 뒤에만 진행됩니다.">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1274,13 +1274,16 @@ export function ContentSocialPage() {
                 <button className="btn-secondary" disabled type="button">
                   계정 연동
                 </button>
-                <button className="btn-secondary" disabled type="button">
-                  연결 해제
+                <button className="btn-secondary" disabled title="승인된 media job만 서버 adapter에서 실행됩니다." type="button">
+                  서버 업로드
                 </button>
               </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-slate-600">
               YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              승인된 media job만 서버 adapter에서 YouTube 업로드를 실행합니다. 외부 URL-only asset은 업로드하지 않고, 내부 storage_path 기반 파일 handoff가 필요합니다.
             </p>
             <p className="mt-2 text-sm leading-6 text-amber-700">
               {youtubeReadiness.oauthReady
@@ -1298,7 +1301,7 @@ export function ContentSocialPage() {
               ))}
             </div>
             <p className="mt-4 text-sm leading-6 text-slate-600">
-              자막 업로드는 자막 파일이 준비되고 YouTube 연동이 완료되면 사용할 수 있습니다.
+              자막 업로드는 SRT/VTT 자막 파일이 준비되고 YouTube 연동이 완료되면 사용할 수 있습니다. STT가 없으면 fake caption을 만들지 않습니다.
             </p>
           </div>
         </div>
@@ -1309,6 +1312,12 @@ export function ContentSocialPage() {
               <div className="rounded-2xl bg-slate-50 p-3" key={job.job_id}>
                 <p className="text-sm font-black text-slate-800">{job.status}</p>
                 <p className="mt-1 line-clamp-2 text-sm text-slate-600">{job.caption || '문안 없음'}</p>
+                {job.provider_url && job.status === 'published' ? (
+                  <a className="mt-2 inline-flex text-sm font-black text-blue-700" href={job.provider_url} rel="noreferrer" target="_blank">
+                    업로드 결과 URL
+                  </a>
+                ) : null}
+                {job.error_message ? <p className="mt-2 text-sm font-semibold text-amber-700">{job.error_message}</p> : null}
               </div>
             ))}
             {!youtubeJobs.length ? (
