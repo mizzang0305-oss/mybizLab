@@ -470,6 +470,28 @@ export const appRoutes: RouteObject[] = [
         ],
       },
       {
+        path: '/s/:storeSlug',
+        element: <StorePublicLayout />,
+        children: [
+          {
+            index: true,
+            element: routeElement(StoreHomePage, { mode: 'public' }),
+          },
+          {
+            path: 'blog',
+            element: routeElement(StoreBlogListPage, { mode: 'public' }),
+          },
+          {
+            path: 'blog/:postSlug',
+            element: routeElement(StoreBlogPostPage, { mode: 'public' }),
+          },
+          {
+            path: 'reviews',
+            element: routeElement(StoreReviewRequestPage, { mode: 'public' }),
+          },
+        ],
+      },
+      {
         path: '/:storeSlug',
         element: <StorePublicLayout />,
         children: [

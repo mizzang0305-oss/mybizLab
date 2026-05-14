@@ -3138,6 +3138,8 @@ function buildApprovalQueue(
     reviews: Map<string, StoreReview>;
   },
 ): ContentReadinessApprovalQueueItem[] {
+  const statusPriority = (status: SocialPublishJob['status']) => (status === 'waiting_approval' ? 0 : 1);
+
   return jobs
     .filter((job) => job.status === 'draft' || job.status === 'waiting_approval')
     .map((job) => {
@@ -3159,6 +3161,10 @@ function buildApprovalQueue(
         sourceType: job.source_type,
         status: job.status,
       };
+    })
+    .sort((left, right) => {
+      const priorityDiff = statusPriority(left.status) - statusPriority(right.status);
+      return priorityDiff || right.createdAt.localeCompare(left.createdAt);
     });
 }
 

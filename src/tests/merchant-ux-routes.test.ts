@@ -179,6 +179,8 @@ describe('merchant UX routes', () => {
     expect(socialHtml).toContain('YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.');
     expect(socialHtml).toContain('https://www.googleapis.com/auth/youtube.upload');
     expect(socialHtml).toContain('계정 연동은 설정이 완료되면 사용할 수 있습니다.');
+    expect(socialHtml).toContain('카카오 공유는 사용자가 직접 공유하는 방식으로 제공됩니다.');
+    expect(socialHtml).toContain('public store/blog/review 페이지 버튼은 SDK/env 설정이 준비되지 않으면 disabled 상태로 표시됩니다.');
   });
 
   it('renders media STT foundation with disabled action copy', async () => {
