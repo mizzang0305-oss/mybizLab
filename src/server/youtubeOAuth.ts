@@ -8,6 +8,7 @@ import {
 } from '../shared/lib/services/youtubeProvider.js';
 import { getRequestMethod } from './nodeResponse.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
+import { encryptToken } from './tokenEncryption.js';
 
 export type YouTubeOAuthRequestLike =
   | Request
@@ -335,15 +336,144 @@ export async function handleYouTubeOAuthCallbackRequest(
     );
   }
 
-  return json(
-    {
-      ok: false,
-      error: 'YouTube 계정 연동 저장은 토큰 암호화와 교환 구현이 완료되면 사용할 수 있습니다.',
-      storeId: validatedState.state.storeId,
-    },
-    501,
-    {
-      'set-cookie': expireStateCookie(),
-    },
-  );
+  const { storeId, profileId } = validatedState.state;
+  const env = options.env ?? readProcessEnvForCallback();
+  const encryptionKey = normalizeText(env?.TOKEN_ENCRYPTION_KEY);
+  if (!encryptionKey) {
+    return json({ ok: false, error: 'Token encryption key is not configured.' }, 503, { 'set-cookie': expireStateCookie() });
+  }
+
+  try {
+    // Exchange authorization code for tokens
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      body: new URLSearchParams({
+        client_id: normalizeText(env?.YOUTUBE_CLIENT_ID),
+        client_secret: normalizeText(env?.YOUTUBE_CLIENT_SECRET),
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: normalizeText(env?.YOUTUBE_REDIRECT_URI),
+      }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      method: 'POST',
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      return json({ ok: false, error: `YouTube token exchange failed: ${errText}` }, 502, { 'set-cookie': expireStateCookie() });
+    }
+
+    const tokenData = (await tokenRes.json()) as {
+      access_token?: string;
+      error?: string;
+      expires_in?: number;
+      refresh_token?: string;
+      scope?: string;
+    };
+
+    if (!tokenData.access_token) {
+      return json({ ok: false, error: `YouTube token missing: ${tokenData.error ?? 'unknown'}` }, 502, { 'set-cookie': expireStateCookie() });
+    }
+
+    // Fetch YouTube channel info
+    const channelRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const channelData = (await channelRes.json()) as {
+      items?: Array<{ id?: string; snippet?: { title?: string } }>;
+    };
+    const channel = channelData.items?.[0];
+    const displayName = channel?.snippet?.title || 'YouTube';
+    const providerAccountId = channel?.id || profileId;
+
+    const expiresAt = tokenData.expires_in
+      ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+      : new Date(Date.now() + 3600 * 1000).toISOString();
+
+    const scopes = tokenData.scope ? tokenData.scope.split(/\s+/).filter(Boolean) : [...YOUTUBE_REQUIRED_SCOPES];
+
+    // Encrypt and save to social_accounts
+    const supabase = getSupabaseAdminClient();
+    const { error: dbError } = await supabase.from('social_accounts').upsert(
+      {
+        access_token_encrypted: encryptToken(tokenData.access_token, encryptionKey),
+        display_name: displayName,
+        oauth_status: 'connected',
+        provider: 'youtube',
+        provider_account_id: providerAccountId,
+        refresh_token_encrypted: tokenData.refresh_token ? encryptToken(tokenData.refresh_token, encryptionKey) : null,
+        scopes,
+        store_id: storeId,
+        token_expires_at: expiresAt,
+      },
+      { onConflict: 'store_id,provider' },
+    );
+
+    if (dbError) {
+      return json({ ok: false, error: `Failed to save YouTube account: ${dbError.message}` }, 500, { 'set-cookie': expireStateCookie() });
+    }
+
+    return new Response(null, {
+      headers: {
+        Location: `/dashboard/content/social?connected=youtube`,
+        'set-cookie': expireStateCookie(),
+      },
+      status: 302,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return json({ ok: false, error: `YouTube OAuth callback error: ${message}` }, 500, { 'set-cookie': expireStateCookie() });
+  }
+}
+
+export async function handleYouTubeDisconnectRequest(
+  request: YouTubeOAuthRequestLike,
+  options: YouTubeOAuthHandlerOptions = {},
+) {
+  if (getRequestMethod(request) !== 'POST') {
+    return new Response('Method Not Allowed', { headers: { allow: 'POST' }, status: 405 });
+  }
+
+  const url = getRequestUrl(request);
+  const storeId = normalizeText(url.searchParams.get('storeId'));
+  if (!storeId) {
+    return json({ ok: false, error: 'storeId is required.' }, 400);
+  }
+
+  const bearerToken = getBearerToken(request);
+  if (!bearerToken) {
+    return json({ ok: false, error: 'Authorization bearer token is required.' }, 401);
+  }
+
+  const resolveAccess = options.resolveMerchantAccess || resolveDefaultMerchantAccess;
+  const access = await resolveAccess(request, storeId, bearerToken);
+  if (!access.ok) {
+    return json({ ok: false, error: access.error }, access.status);
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase
+    .from('social_accounts')
+    .update({
+      access_token_encrypted: null,
+      oauth_status: 'revoked',
+      refresh_token_encrypted: null,
+      token_expires_at: null,
+    })
+    .eq('store_id', storeId)
+    .eq('provider', 'youtube');
+
+  if (error) {
+    return json({ ok: false, error: `Failed to disconnect YouTube account: ${error.message}` }, 500);
+  }
+
+  return json({ ok: true });
+}
+
+function readProcessEnvForCallback(): YouTubeEnv & { TOKEN_ENCRYPTION_KEY?: string } {
+  return {
+    TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
+    YOUTUBE_CLIENT_ID: process.env.YOUTUBE_CLIENT_ID,
+    YOUTUBE_CLIENT_SECRET: process.env.YOUTUBE_CLIENT_SECRET,
+    YOUTUBE_REDIRECT_URI: process.env.YOUTUBE_REDIRECT_URI,
+  };
 }

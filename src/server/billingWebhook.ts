@@ -633,6 +633,36 @@ async function persistToSupabase(mutation: BillingWebhookMutation) {
     return false;
   }
 
+  // Activate subscription in store_subscriptions when a subscription payment is confirmed paid.
+  if (mutation.nextState.paymentStatus === 'paid') {
+    const customData = toRecord(mutation.nextState.payload.customData ?? (mutation.nextState.payload.resource as Record<string, unknown>)?.customData);
+    const kind = toStringValue(customData.kind);
+    const storeId = toStringValue(customData.storeId);
+    const plan = toStringValue(customData.plan);
+    const periodEndsAt = toStringValue(customData.periodEndsAt);
+
+    const isValidPlan = plan === 'free' || plan === 'pro' || plan === 'vip';
+
+    if (kind === 'subscription' && storeId && isValidPlan) {
+      const { error: subError } = await supabase.from('store_subscriptions').upsert(
+        {
+          store_id: storeId,
+          plan,
+          status: 'active',
+          billing_provider: 'portone',
+          current_period_starts_at: mutation.nextState.updatedAt,
+          current_period_ends_at: periodEndsAt ?? null,
+          updated_at: mutation.nextState.updatedAt,
+        },
+        { onConflict: 'store_id' },
+      );
+
+      if (subError) {
+        console.error('[billing-webhook] failed to upsert store_subscriptions', subError);
+      }
+    }
+  }
+
   return true;
 }
 
@@ -768,7 +798,6 @@ export async function handleBillingWebhook(input: HandleBillingWebhookInput): Pr
     payload: mutation.eventLog.payload,
   });
 
-  // TODO: Wire this resolved PortOne snapshot into the production billing tables when the final subscription schema is ready.
   const persistence = await persistBillingWebhookMutation(mutation);
   const sideEffect = buildBillingWebhookSideEffect(mutation, resolvedResource);
   const sideEffectStatus = await applyBillingWebhookSideEffect(sideEffect);

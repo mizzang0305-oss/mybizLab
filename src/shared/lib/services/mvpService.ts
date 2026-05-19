@@ -1,7 +1,7 @@
 import { generateGeminiSummary } from '../../../integrations/gemini/gemini.js';
 import { supabase } from '../../../integrations/supabase/client.js';
 import { DATA_PROVIDER, IS_DEMO_RUNTIME, IS_LIVE_RUNTIME, IS_PRODUCTION_RUNTIME } from '../appConfig.js';
-import { refreshAdminSession } from '../adminSession.js';
+import { DEMO_STORE_ORDER, refreshAdminSession } from '../adminSession.js';
 import { buildStoreAnalyticsProfile, buildStoreDailyMetrics, buildStorePrioritySettings } from '../analyticsSeed.js';
 import { buildStoreFeatures } from '../domain/features.js';
 import { buildOrderItems, calculateOrderTotal, upsertSalesDailyForCompletedOrder } from '../domain/orders.js';
@@ -122,7 +122,6 @@ const SETUP_FEE_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
   pro: 390000,
   vip: 590000,
 };
-const DEMO_STORE_ORDER = ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'] as const;
 const SUBSCRIPTION_AMOUNT_BY_PLAN: Record<SubscriptionPlan, number> = {
   free: 0,
   pro: 79000,
@@ -3561,6 +3560,14 @@ export async function saveSchedule(storeId: string, input: Omit<StoreSchedule, '
   return schedule;
 }
 
+export async function deleteSchedule(storeId: string, scheduleId: string) {
+  updateDatabase((database) => {
+    database.store_schedules = database.store_schedules.filter(
+      (item) => !(item.store_id === storeId && item.id === scheduleId),
+    );
+  });
+}
+
 export async function listSurveys(storeId: string) {
   const data = getStoreScopedData(storeId);
   return data.surveys
@@ -5581,6 +5588,14 @@ export async function saveContract(
   });
 
   return contract;
+}
+
+export async function deleteContract(storeId: string, contractId: string) {
+  updateDatabase((database) => {
+    database.contracts = database.contracts.filter(
+      (item) => !(item.store_id === storeId && item.id === contractId),
+    );
+  });
 }
 
 export async function listStoreTables(storeId: string) {

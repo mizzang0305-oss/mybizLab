@@ -22,6 +22,8 @@ import {
   createSocialPublishJob,
   createStoreBlogPost,
   createStoreMediaAsset,
+  deleteStoreMediaAsset,
+  disconnectSocialAccount,
   generateCaptionDraft,
   generateTranscriptDraft,
   getContentReadinessDashboard,
@@ -32,6 +34,7 @@ import {
   listStoreMediaAssets,
   listStoreReviews,
   publishStoreBlogPost,
+  startSocialOAuth,
   transcribeStoreMediaAsset,
   updateStoreReviewStatus,
 } from '@/shared/lib/services/contentEngineService';
@@ -204,6 +207,18 @@ function EmptyStoreGuard() {
   );
 }
 
+function downloadQrAsSvg(url: string) {
+  const svgEl = document.querySelector<SVGElement>(`[data-review-qr-url="${CSS.escape(url)}"]`);
+  if (!svgEl) return;
+
+  const blob = new Blob([svgEl.outerHTML], { type: 'image/svg+xml' });
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = 'review-qr.svg';
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
+}
+
 export function ContentReviewRequestsPage() {
   const { currentStore } = useCurrentStore();
   const actorProfileId = useActorProfileId();
@@ -317,8 +332,8 @@ export function ContentReviewRequestsPage() {
                 <Link className="btn-secondary" to={`/dashboard/content/reviews`}>
                   리뷰 관리로 이동
                 </Link>
-                <button className="btn-secondary" disabled type="button">
-                  QR 이미지 다운로드는 다음 배포에서 제공됩니다.
+                <button className="btn-secondary" onClick={() => downloadQrAsSvg(defaultReviewLink)} type="button">
+                  QR 이미지 다운로드 (SVG)
                 </button>
               </div>
               {copyMessage ? <p className="mt-3 text-sm font-semibold text-slate-600">{copyMessage}</p> : null}
@@ -799,6 +814,11 @@ export function ContentMediaPage() {
     },
   });
 
+  const deleteAssetMutation = useMutation({
+    mutationFn: (assetId: string) => deleteStoreMediaAsset(storeId, assetId, { actorProfileId }),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: queryKeys.contentMedia(storeId) }),
+  });
+
   if (!currentStore) {
     return <EmptyStoreGuard />;
   }
@@ -884,7 +904,17 @@ export function ContentMediaPage() {
 
             return (
               <article className="rounded-3xl border border-slate-200 bg-white p-5" key={asset.asset_id}>
-                <p className="text-xs font-black text-slate-500">{asset.asset_type} · {asset.status}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-black text-slate-500">{asset.asset_type} · {asset.status}</p>
+                  <button
+                    className="shrink-0 rounded-full px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                    disabled={deleteAssetMutation.isPending}
+                    onClick={() => deleteAssetMutation.mutate(asset.asset_id)}
+                    type="button"
+                  >
+                    삭제
+                  </button>
+                </div>
                 <p className="mt-2 break-all text-sm font-semibold text-slate-900">{asset.url}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">{asset.alt_text || '대체 텍스트 없음'}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -947,6 +977,7 @@ export function ContentStatusPage() {
   const { currentStore } = useCurrentStore();
   const actorProfileId = useActorProfileId();
   const storeId = currentStore?.id || '';
+  const queryClient = useQueryClient();
 
   usePageMeta('콘텐츠 상태판', '콘텐츠 확산 readiness와 승인 대기 상태를 확인합니다.');
 
@@ -954,6 +985,11 @@ export function ContentStatusPage() {
     queryKey: queryKeys.contentStatus(storeId),
     queryFn: () => getContentReadinessDashboard(storeId, { actorProfileId }),
     enabled: Boolean(currentStore),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (jobId: string) => approveSocialPublishJob(storeId, jobId, { actorProfileId }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.contentStatus(storeId) }),
   });
   const dashboard = dashboardQuery.data;
   const stats = dashboard?.stats;
@@ -1077,7 +1113,12 @@ export function ContentStatusPage() {
                       </p>
                       <p className="mt-2 text-sm font-semibold text-slate-700">{item.nextAction}</p>
                     </div>
-                    <button className="btn-secondary" disabled type="button">
+                    <button
+                      className="btn-secondary"
+                      disabled={approveMutation.isPending}
+                      onClick={() => approveMutation.mutate(item.jobId)}
+                      type="button"
+                    >
                       승인 검토
                     </button>
                   </div>
@@ -1162,6 +1203,18 @@ export function ContentSocialPage() {
     onSuccess: invalidate,
   });
 
+  const connectMutation = useMutation({
+    mutationFn: async (provider: 'threads' | 'naver_blog' | 'youtube') => {
+      const { authorizeUrl } = await startSocialOAuth(storeId, provider);
+      window.location.href = authorizeUrl;
+    },
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: (provider: 'threads' | 'naver_blog' | 'youtube') => disconnectSocialAccount(storeId, provider),
+    onSuccess: invalidate,
+  });
+
   const providerStatus = useMemo(() => {
     return new Map((providersQuery.data || []).map((provider) => [provider.provider, provider.status]));
   }, [providersQuery.data]);
@@ -1210,39 +1263,70 @@ export function ContentSocialPage() {
 
       <Panel title="Threads · Naver Blog · Kakao Share 준비" subtitle="외부 채널 게시 기능은 계정 연동과 점주 승인 후 사용할 수 있습니다.">
         <div className="grid gap-4 lg:grid-cols-3">
-          {externalProviderCards.map((provider) => (
-            <article className="rounded-3xl border border-slate-200 bg-white p-5" key={provider.provider}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-slate-950">{provider.title}</p>
-                  <p className="mt-2 text-xs font-bold text-slate-500">{provider.status}</p>
+          {externalProviderCards.map((provider) => {
+            const isKakao = provider.provider === 'kakao_share';
+            const isConnectable = !isKakao && (provider.provider === 'threads' || provider.provider === 'naver_blog');
+            const isConnected = provider.status === 'connected';
+            const hasMissingEnv = (provider.missingEnvNames?.length ?? 0) > 0;
+            const isPending = connectMutation.isPending || disconnectMutation.isPending;
+            return (
+              <article className="rounded-3xl border border-slate-200 bg-white p-5" key={provider.provider}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-slate-950">{provider.title}</p>
+                    <p className={`mt-2 text-xs font-bold ${isConnected ? 'text-emerald-600' : 'text-slate-500'}`}>{provider.status}</p>
+                    {isConnected && provider.displayName ? (
+                      <p className="mt-1 text-xs text-slate-500">@{provider.displayName}</p>
+                    ) : null}
+                  </div>
+                  {isKakao ? (
+                    <button className="btn-secondary" disabled type="button" title="카카오 JavaScript SDK 키 설정 후 활성화">
+                      공유 미리보기
+                    </button>
+                  ) : isConnected ? (
+                    <button
+                      className="btn-secondary text-rose-600"
+                      disabled={isPending}
+                      onClick={() => disconnectMutation.mutate(provider.provider as 'threads' | 'naver_blog')}
+                      type="button"
+                    >
+                      연결 해제
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-secondary"
+                      disabled={hasMissingEnv || isPending || !isConnectable}
+                      onClick={() => !hasMissingEnv && isConnectable && connectMutation.mutate(provider.provider as 'threads' | 'naver_blog')}
+                      title={hasMissingEnv ? `설정 대기: ${provider.missingEnvNames?.join(', ')}` : '계정 연동'}
+                      type="button"
+                    >
+                      계정 연동
+                    </button>
+                  )}
                 </div>
-                <button className="btn-secondary" disabled type="button">
-                  {provider.provider === 'kakao_share' ? '공유 미리보기' : '계정 연동'}
-                </button>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
-              {provider.provider === 'kakao_share' ? (
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  카카오 공유는 자동 게시가 아니라 사용자가 직접 공유하는 방식으로 제공됩니다.
-                </p>
-              ) : null}
-              {provider.requiredScopes?.length ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {provider.requiredScopes.map((scope) => (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600" key={scope}>
-                      {scope}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {provider.missingEnvNames?.length ? (
-                <p className="mt-4 text-xs font-bold leading-5 text-amber-700">
-                  설정 대기: {provider.missingEnvNames.join(', ')}
-                </p>
-              ) : null}
-            </article>
-          ))}
+                <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
+                {isKakao ? (
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    카카오 공유는 자동 게시가 아니라 사용자가 직접 공유하는 방식으로 제공됩니다.
+                  </p>
+                ) : null}
+                {provider.requiredScopes?.length ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {provider.requiredScopes.map((scope) => (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600" key={scope}>
+                        {scope}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {hasMissingEnv ? (
+                  <p className="mt-4 text-xs font-bold leading-5 text-amber-700">
+                    설정 대기: {provider.missingEnvNames?.join(', ')}
+                  </p>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
         <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
           <p className="text-sm font-black text-slate-950">최근 Threads/Naver/Kakao 게시 초안</p>
@@ -1271,22 +1355,39 @@ export function ContentSocialPage() {
                 <p className="mt-2 text-2xl font-black text-slate-950">{youtubeProvider?.status || 'disabled'}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="btn-secondary" disabled type="button">
-                  계정 연동
-                </button>
-                <button className="btn-secondary" disabled type="button">
-                  연결 해제
-                </button>
+                {youtubeProvider?.status === 'connected' ? (
+                  <button
+                    className="btn-secondary text-rose-600"
+                    disabled={disconnectMutation.isPending}
+                    onClick={() => disconnectMutation.mutate('youtube')}
+                    type="button"
+                  >
+                    연결 해제
+                  </button>
+                ) : (
+                  <button
+                    className="btn-secondary"
+                    disabled={!youtubeReadiness.oauthReady || connectMutation.isPending}
+                    onClick={() => youtubeReadiness.oauthReady && connectMutation.mutate('youtube')}
+                    title={youtubeReadiness.oauthReady ? 'YouTube 계정 연동' : 'YouTube OAuth 환경 변수를 설정하세요'}
+                    type="button"
+                  >
+                    계정 연동
+                  </button>
+                )}
               </div>
             </div>
+            {youtubeProvider?.status === 'connected' && youtubeProvider.displayName ? (
+              <p className="mt-2 text-xs font-bold text-emerald-600">연결됨: {youtubeProvider.displayName}</p>
+            ) : null}
             <p className="mt-4 text-sm leading-6 text-slate-600">
               YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.
             </p>
-            <p className="mt-2 text-sm leading-6 text-amber-700">
-              {youtubeReadiness.oauthReady
-                ? 'OAuth 설정은 감지되었지만 대시보드 연결 버튼은 다음 배포에서 활성화됩니다.'
-                : 'YouTube 계정 연동은 설정이 완료되면 사용할 수 있습니다.'}
-            </p>
+            {!youtubeReadiness.oauthReady ? (
+              <p className="mt-2 text-xs font-bold leading-5 text-amber-700">
+                설정 대기: {youtubeReadiness.missingOAuthEnvNames.join(', ')}
+              </p>
+            ) : null}
           </div>
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <p className="text-xs font-black text-slate-500">필요 scope</p>

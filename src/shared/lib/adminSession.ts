@@ -10,7 +10,7 @@ import { useUiStore } from './uiStore.js';
 import type { Store, StoreMember } from '../types/models.js';
 
 const DEFAULT_NEXT_PATH = '/dashboard';
-const DEMO_STORE_ORDER = ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'] as const;
+export const DEMO_STORE_ORDER = ['store_golden_coffee', 'store_mint_bbq', 'store_seoul_buffet'] as const;
 const FALLBACK_PROFILE_ID = 'profile_platform_owner';
 const FALLBACK_FULL_NAME = '운영 관리자';
 const DASHBOARD_ACCESS_ROLES: StoreMember['role'][] = ['owner', 'manager', 'staff'];

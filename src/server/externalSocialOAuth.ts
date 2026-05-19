@@ -9,6 +9,7 @@ import {
 } from '../shared/lib/services/externalSocialProvider.js';
 import { getRequestMethod } from './nodeResponse.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
+import { encryptToken } from './tokenEncryption.js';
 
 export type ExternalSocialOAuthRequestLike =
   | Request
@@ -47,6 +48,15 @@ interface ExternalSocialOAuthHandlerOptions {
     storeId: string,
     bearerToken: string,
   ) => Promise<MerchantAccessResult>;
+}
+
+interface TokenExchangeResult {
+  accessToken: string;
+  displayName: string;
+  expiresAt: string | null;
+  providerAccountId: string;
+  refreshToken: string | null;
+  scopes: string[];
 }
 
 const STATE_MAX_AGE_SECONDS = 10 * 60;
@@ -259,8 +269,132 @@ function getClientId(provider: ExternalOAuthProvider, env?: ExternalSocialEnv) {
   return normalizeText(provider === 'threads' ? env?.THREADS_CLIENT_ID : env?.NAVER_CLIENT_ID);
 }
 
+function getClientSecret(provider: ExternalOAuthProvider, env?: ExternalSocialEnv) {
+  return normalizeText(provider === 'threads' ? env?.THREADS_CLIENT_SECRET : env?.NAVER_CLIENT_SECRET);
+}
+
 function getRedirectUri(provider: ExternalOAuthProvider, env?: ExternalSocialEnv) {
   return normalizeText(provider === 'threads' ? env?.THREADS_REDIRECT_URI : env?.NAVER_REDIRECT_URI);
+}
+
+async function exchangeThreadsToken(code: string, env: ExternalSocialEnv): Promise<TokenExchangeResult> {
+  const clientId = getClientId('threads', env);
+  const clientSecret = getClientSecret('threads', env);
+  const redirectUri = getRedirectUri('threads', env);
+
+  // Step 1: short-lived token exchange
+  const tokenRes = await fetch('https://graph.threads.net/oauth/access_token', {
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code', redirect_uri: redirectUri }),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    method: 'POST',
+  });
+
+  if (!tokenRes.ok) {
+    const err = await tokenRes.text();
+    throw new Error(`Threads token exchange failed: ${err}`);
+  }
+
+  const tokenData = (await tokenRes.json()) as { access_token?: string; error_message?: string };
+  if (!tokenData.access_token) {
+    throw new Error(`Threads token exchange missing access_token: ${tokenData.error_message || 'unknown'}`);
+  }
+
+  // Step 2: exchange for long-lived token (valid 60 days)
+  const longUrl = new URL('https://graph.threads.net/access_token');
+  longUrl.searchParams.set('grant_type', 'th_exchange_token');
+  longUrl.searchParams.set('client_secret', clientSecret);
+  longUrl.searchParams.set('access_token', tokenData.access_token);
+
+  const longRes = await fetch(longUrl.toString());
+  const longData = (await longRes.json()) as { access_token?: string; expires_in?: number };
+  const finalToken = longData.access_token || tokenData.access_token;
+  const expiresIn = longData.expires_in ?? 3600;
+
+  // Step 3: get user profile
+  const meUrl = new URL('https://graph.threads.net/v1.0/me');
+  meUrl.searchParams.set('fields', 'id,username');
+  meUrl.searchParams.set('access_token', finalToken);
+  const meRes = await fetch(meUrl.toString());
+  const meData = (await meRes.json()) as { id?: string; username?: string };
+
+  return {
+    accessToken: finalToken,
+    displayName: meData.username || meData.id || 'Threads',
+    expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+    providerAccountId: meData.id || '',
+    refreshToken: null,
+    scopes: ['threads_basic', 'threads_content_publish'],
+  };
+}
+
+async function exchangeNaverToken(code: string, state: string, env: ExternalSocialEnv): Promise<TokenExchangeResult> {
+  const clientId = getClientId('naver_blog', env);
+  const clientSecret = getClientSecret('naver_blog', env);
+  const redirectUri = getRedirectUri('naver_blog', env);
+
+  const tokenUrl = new URL('https://nid.naver.com/oauth2.0/token');
+  tokenUrl.searchParams.set('grant_type', 'authorization_code');
+  tokenUrl.searchParams.set('client_id', clientId);
+  tokenUrl.searchParams.set('client_secret', clientSecret);
+  tokenUrl.searchParams.set('redirect_uri', redirectUri);
+  tokenUrl.searchParams.set('code', code);
+  tokenUrl.searchParams.set('state', state);
+
+  const tokenRes = await fetch(tokenUrl.toString());
+  if (!tokenRes.ok) {
+    const err = await tokenRes.text();
+    throw new Error(`Naver token exchange failed: ${err}`);
+  }
+
+  const tokenData = (await tokenRes.json()) as { access_token?: string; refresh_token?: string; expires_in?: string; error?: string; error_description?: string };
+  if (!tokenData.access_token) {
+    throw new Error(`Naver token exchange missing access_token: ${tokenData.error_description || tokenData.error || 'unknown'}`);
+  }
+
+  // Get user profile
+  const meRes = await fetch('https://openapi.naver.com/v1/nid/me', {
+    headers: { Authorization: `Bearer ${tokenData.access_token}` },
+  });
+  const meData = (await meRes.json()) as { response?: { id?: string; name?: string; email?: string } };
+  const profile = meData.response || {};
+
+  const expiresIn = Number(tokenData.expires_in || 3600);
+
+  return {
+    accessToken: tokenData.access_token,
+    displayName: profile.name || profile.email || profile.id || 'Naver',
+    expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+    providerAccountId: profile.id || '',
+    refreshToken: tokenData.refresh_token || null,
+    scopes: ['blog.write'],
+  };
+}
+
+async function saveSocialAccount(
+  supabase: SupabaseClient,
+  storeId: string,
+  provider: ExternalOAuthProvider,
+  result: TokenExchangeResult,
+  encryptionKey: string,
+) {
+  const { error } = await supabase.from('social_accounts').upsert(
+    {
+      access_token_encrypted: encryptToken(result.accessToken, encryptionKey),
+      display_name: result.displayName,
+      oauth_status: 'connected',
+      provider,
+      provider_account_id: result.providerAccountId,
+      refresh_token_encrypted: result.refreshToken ? encryptToken(result.refreshToken, encryptionKey) : null,
+      scopes: result.scopes,
+      store_id: storeId,
+      token_expires_at: result.expiresAt,
+    },
+    { onConflict: 'store_id,provider' },
+  );
+
+  if (error) {
+    throw new Error(`Failed to save social account: ${error.message}`);
+  }
 }
 
 export async function handleExternalSocialOAuthStartRequest(
@@ -342,13 +476,13 @@ export async function handleExternalSocialOAuthCallbackRequest(
 
   const url = getRequestUrl(request);
   const code = normalizeText(url.searchParams.get('code'));
-  const state = normalizeText(url.searchParams.get('state'));
-  if (!code || !state) {
+  const stateParam = normalizeText(url.searchParams.get('state'));
+  if (!code || !stateParam) {
     return json({ ok: false, error: 'OAuth code and state are required.' }, 400);
   }
 
   const nonce = readCookie(request, getCookieName(provider));
-  const validatedState = validateExternalSocialOAuthState(state, {
+  const validatedState = validateExternalSocialOAuthState(stateParam, {
     expectedNonce: nonce,
     expectedProvider: provider,
     maxAgeMs: STATE_MAX_AGE_MS,
@@ -358,31 +492,88 @@ export async function handleExternalSocialOAuthCallbackRequest(
     return json({ ok: false, error: `OAuth state validation failed: ${validatedState.ok ? 'missing nonce' : validatedState.error}` }, 400);
   }
 
-  const readiness = getExternalSocialProviderReadiness(provider, options.env);
+  const env = options.env ?? (typeof process !== 'undefined' ? (process.env as ExternalSocialEnv) : {});
+  const readiness = getExternalSocialProviderReadiness(provider, env);
   if (!readiness.oauthReady) {
     return json(
-      {
-        ok: false,
-        error: readiness.message,
-        missingEnvNames: readiness.missingEnvNames,
-      },
+      { ok: false, error: readiness.message, missingEnvNames: readiness.missingEnvNames },
       503,
-      {
-        'set-cookie': expireStateCookie(provider),
-      },
+      { 'set-cookie': expireStateCookie(provider) },
     );
   }
 
-  return json(
-    {
-      ok: false,
-      error: `${EXTERNAL_SOCIAL_PROVIDER_ENV[provider].title} 계정 연동 저장은 토큰 암호화와 교환 구현이 완료되면 사용할 수 있습니다.`,
-      provider,
-      storeId: validatedState.state.storeId,
-    },
-    501,
-    {
-      'set-cookie': expireStateCookie(provider),
-    },
-  );
+  const encryptionKey = normalizeText(env.TOKEN_ENCRYPTION_KEY);
+  if (!encryptionKey) {
+    return json({ ok: false, error: 'TOKEN_ENCRYPTION_KEY is not configured.' }, 503, { 'set-cookie': expireStateCookie(provider) });
+  }
+
+  try {
+    let tokenResult: TokenExchangeResult;
+    if (provider === 'threads') {
+      tokenResult = await exchangeThreadsToken(code, env);
+    } else {
+      tokenResult = await exchangeNaverToken(code, stateParam, env);
+    }
+
+    const supabase = getSupabaseAdminClient();
+    await saveSocialAccount(supabase, validatedState.state.storeId, provider, tokenResult, encryptionKey);
+
+    const redirectBase = normalizeText(env.VITE_APP_BASE_URL) || 'https://mybiz.ai.kr';
+    const successUrl = new URL('/dashboard/content/social', redirectBase);
+    successUrl.searchParams.set('connected', provider);
+
+    return new Response(null, {
+      headers: {
+        'location': successUrl.toString(),
+        'set-cookie': expireStateCookie(provider),
+      },
+      status: 302,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '계정 연동 중 오류가 발생했습니다.';
+    return json(
+      { ok: false, error: message, provider, storeId: validatedState.state.storeId },
+      500,
+      { 'set-cookie': expireStateCookie(provider) },
+    );
+  }
+}
+
+export async function handleExternalSocialDisconnectRequest(
+  provider: ExternalOAuthProvider,
+  request: ExternalSocialOAuthRequestLike,
+  options: ExternalSocialOAuthHandlerOptions = {},
+) {
+  if (getRequestMethod(request) !== 'POST') {
+    return new Response('Method Not Allowed', { headers: { allow: 'POST' }, status: 405 });
+  }
+
+  const storeId = normalizeText(getRequestUrl(request).searchParams.get('storeId'));
+  if (!storeId) {
+    return json({ ok: false, error: 'storeId is required.' }, 400);
+  }
+
+  const bearerToken = getBearerToken(request);
+  if (!bearerToken) {
+    return json({ ok: false, error: 'Authorization bearer token is required.' }, 401);
+  }
+
+  const resolveAccess = options.resolveMerchantAccess || resolveDefaultMerchantAccess;
+  const access = await resolveAccess(request, storeId, bearerToken);
+  if (!access.ok) {
+    return json({ ok: false, error: access.error }, access.status);
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase
+    .from('social_accounts')
+    .update({ oauth_status: 'revoked', access_token_encrypted: null, refresh_token_encrypted: null })
+    .eq('store_id', storeId)
+    .eq('provider', provider);
+
+  if (error) {
+    return json({ ok: false, error: `Failed to disconnect account: ${error.message}` }, 500);
+  }
+
+  return json({ ok: true, provider, storeId });
 }

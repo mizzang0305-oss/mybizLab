@@ -6,6 +6,7 @@ import { createId } from '../ids.js';
 import { getDatabase, updateDatabase } from '../mockDb.js';
 import { PAYMENT_TEST_100_PRODUCT } from '../platformAdminConfig.js';
 import { requestPublicApi } from '../publicApiClient.js';
+import { resolveServerApiUrl } from '../serverApiUrl.js';
 import { normalizeStoreSlug } from '../storeSlug.js';
 import {
   generateCaptionFiles as generateSttCaptionFiles,
@@ -174,6 +175,7 @@ export interface TranscribeStoreMediaAssetResult {
 
 export interface SocialProviderCard {
   copy: string;
+  displayName?: string;
   missingEnvNames?: string[];
   provider: SocialProvider;
   requiredScopes?: string[];
@@ -2331,6 +2333,34 @@ export async function listStoreMediaAssets(
   );
 }
 
+export async function deleteStoreMediaAsset(storeId: string, assetId: string, options?: ContentServiceOptions) {
+  const normalizedAssetId = normalizeText(assetId);
+  if (!normalizedAssetId) {
+    throw new Error('Media asset id is required.');
+  }
+
+  if (isSupabaseContentEnabled(options)) {
+    const client = getContentClient(options);
+    if (!client) throw new Error('Supabase client is not configured.');
+
+    const { error } = await client
+      .from('store_media_assets')
+      .delete()
+      .eq('store_id', storeId)
+      .eq('asset_id', normalizedAssetId);
+
+    if (error) throw new Error(`Failed to delete media asset: ${error.message}`);
+    return;
+  }
+
+  assertDemoStoreMember(storeId, options?.actorProfileId);
+  updateDatabase((database) => {
+    database.store_media_assets = database.store_media_assets.filter(
+      (asset) => !(asset.store_id === storeId && asset.asset_id === normalizedAssetId),
+    );
+  });
+}
+
 async function getStoreMediaAsset(storeId: string, assetId: string, options?: ContentServiceOptions) {
   const normalizedAssetId = normalizeText(assetId);
   if (!normalizedAssetId) {
@@ -2631,6 +2661,7 @@ export async function listSocialProviderCards(storeId: string, options?: Content
           : account?.oauth_status || 'disabled';
 
     return {
+      displayName: account?.oauth_status === 'connected' ? (account.display_name || undefined) : undefined,
       missingEnvNames: externalReadiness?.missingEnvNames,
       provider,
       requiredScopes: externalReadiness?.requiredScopes,
@@ -3359,4 +3390,69 @@ export async function getContentReadinessDashboard(
       transcriptReadyAssetCount: assets.filter((asset) => hasTranscript(asset)).length,
     },
   };
+}
+
+type OAuthProvider = 'threads' | 'naver_blog' | 'youtube';
+
+function getOAuthStartResource(provider: OAuthProvider): string {
+  if (provider === 'youtube') return 'youtube-oauth-start';
+  if (provider === 'naver_blog') return 'naver-oauth-start';
+  return 'threads-oauth-start';
+}
+
+function getOAuthDisconnectResource(provider: OAuthProvider): string {
+  if (provider === 'youtube') return 'youtube-oauth-disconnect';
+  if (provider === 'naver_blog') return 'naver-oauth-disconnect';
+  return 'threads-oauth-disconnect';
+}
+
+async function getAccessToken(): Promise<string | null> {
+  if (!supabase) return null;
+  const session = typeof supabase.auth?.getSession === 'function' ? await supabase.auth.getSession().catch(() => null) : null;
+  return session?.data?.session?.access_token ?? null;
+}
+
+export async function startSocialOAuth(storeId: string, provider: OAuthProvider): Promise<{ authorizeUrl: string }> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다.');
+  }
+
+  const resource = getOAuthStartResource(provider);
+  const url = resolveServerApiUrl(`/api/merchant?resource=${resource}&storeId=${encodeURIComponent(storeId)}`);
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    method: 'GET',
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+    throw new Error(body.error || `OAuth start failed (${res.status})`);
+  }
+
+  const body = await res.json() as { data?: { authorizeUrl?: string }; ok?: boolean };
+  if (!body.data?.authorizeUrl) {
+    throw new Error('OAuth 연동 URL을 가져오지 못했습니다.');
+  }
+
+  return { authorizeUrl: body.data.authorizeUrl };
+}
+
+export async function disconnectSocialAccount(storeId: string, provider: OAuthProvider): Promise<void> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다.');
+  }
+
+  const resource = getOAuthDisconnectResource(provider);
+  const url = resolveServerApiUrl(`/api/merchant?resource=${resource}&storeId=${encodeURIComponent(storeId)}`);
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string };
+    throw new Error(body.error || `Disconnect failed (${res.status})`);
+  }
 }
