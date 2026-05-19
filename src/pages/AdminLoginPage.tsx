@@ -17,6 +17,7 @@ import { getPlatformAdminSession } from '@/shared/lib/services/platformAdminCont
 import { LEGAL_LINKS } from '@/shared/lib/siteConfig';
 
 type LoginMethod = 'google' | 'email' | 'demo';
+type LoginMode = 'store' | 'platform';
 type MessageTone = 'error' | 'info';
 
 interface MessageState {
@@ -34,7 +35,7 @@ function getMessageClassName(tone: MessageTone) {
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAdminAccess();
   const [pendingMethod, setPendingMethod] = useState<LoginMethod | null>(null);
   const [email, setEmail] = useState('');
@@ -45,8 +46,22 @@ export function AdminLoginPage() {
   const nextPath = sanitizeAdminNextPath(searchParams.get('next'));
   const shouldValidatePlatformAdmin = isPlatformAdminPath(nextPath);
 
+  // 탭 상태는 URL의 next 파라미터에서 파생
+  const activeMode: LoginMode = shouldValidatePlatformAdmin ? 'platform' : 'store';
+
+  function switchMode(mode: LoginMode) {
+    setMessage(null);
+    setEmail('');
+    setPassword('');
+    if (mode === 'platform') {
+      setSearchParams({ next: '/admin' });
+    } else {
+      setSearchParams({});
+    }
+  }
+
   usePageMeta(
-    shouldValidatePlatformAdmin ? 'MyBiz 플랫폼 관리자 로그인' : 'MyBiz 점주 로그인',
+    activeMode === 'platform' ? 'MyBiz 플랫폼 관리자 로그인' : 'MyBiz 점주 로그인',
     '점주는 매장 운영 화면으로, 플랫폼 관리자는 MyBiz 서비스 운영 콘솔로 안전하게 로그인합니다.',
   );
 
@@ -171,6 +186,7 @@ export function AdminLoginPage() {
   return (
     <main className="page-shell py-12 sm:py-16">
       <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        {/* 왼쪽: 안내 패널 */}
         <section className="relative overflow-hidden rounded-[36px] bg-slate-950 px-8 py-10 text-white shadow-[0_45px_90px_-40px_rgba(15,23,42,0.85)] sm:px-10 sm:py-12">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,91,19,0.55),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(251,146,60,0.18),_transparent_25%)]" />
           <div className="relative space-y-6">
@@ -180,7 +196,7 @@ export function AdminLoginPage() {
 
             <div className="space-y-4">
               <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">
-                {shouldValidatePlatformAdmin ? '플랫폼 관리자 로그인' : '점주 로그인'}
+                {activeMode === 'platform' ? '플랫폼 관리자 로그인' : '점주 로그인'}
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
                 점주는 매장 운영과 고객 기억을 관리하고, 플랫폼 관리자는 홈페이지·가격표·공지·결제 테스트를 관리합니다.
@@ -189,13 +205,13 @@ export function AdminLoginPage() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div className={`rounded-3xl border p-5 transition-colors ${activeMode === 'store' ? 'border-orange-400/40 bg-orange-500/10' : 'border-white/10 bg-white/5'}`}>
                 <p className="text-sm font-semibold text-orange-300">점주 운영</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
                   고객, 문의, 예약, 웨이팅, 주문을 한 매장의 고객 기억 흐름으로 확인합니다.
                 </p>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div className={`rounded-3xl border p-5 transition-colors ${activeMode === 'platform' ? 'border-orange-400/40 bg-orange-500/10' : 'border-white/10 bg-white/5'}`}>
                 <p className="text-sm font-semibold text-orange-300">플랫폼 관리</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
                   MyBiz 공개 사이트와 가격표, 공지, 결제 점검 상품을 관리합니다.
@@ -205,15 +221,42 @@ export function AdminLoginPage() {
           </div>
         </section>
 
+        {/* 오른쪽: 로그인 폼 */}
         <section className="section-card p-8 sm:p-10">
           <div className="space-y-6">
+            {/* 모드 탭 스위처 */}
+            <div className="flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+              <button
+                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+                  activeMode === 'store'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => switchMode('store')}
+                type="button"
+              >
+                점주 로그인
+              </button>
+              <button
+                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+                  activeMode === 'platform'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => switchMode('platform')}
+                type="button"
+              >
+                플랫폼 관리자
+              </button>
+            </div>
+
             <div className="space-y-2">
               <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-orange-100 text-orange-700">
                 <Icons.Dashboard size={26} />
               </div>
               <h2 className="pt-2 font-display text-3xl font-black tracking-tight text-slate-900">이메일 로그인</h2>
               <p className="text-sm leading-6 text-slate-500">
-                {shouldValidatePlatformAdmin
+                {activeMode === 'platform'
                   ? '플랫폼 관리자 권한이 있는 계정만 /admin 화면으로 이동합니다.'
                   : '매장 운영 권한이 있는 계정만 /dashboard 화면으로 이동합니다.'}
               </p>
@@ -261,7 +304,7 @@ export function AdminLoginPage() {
                 </label>
               </div>
 
-              {demoPasswordLoginEnabled ? (
+              {demoPasswordLoginEnabled && activeMode === 'store' ? (
                 <div className="mt-4 rounded-xl bg-slate-50 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm text-slate-500">체험 계정으로 빠르게 확인하려면</p>
@@ -281,22 +324,39 @@ export function AdminLoginPage() {
               </button>
             </form>
 
-            <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5">
-              <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700">
-                  <Icons.Zap size={20} />
+            {activeMode === 'store' ? (
+              <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700">
+                    <Icons.Zap size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-900">운영 대시보드 체험</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      실제 데이터 없이 MyBiz 점주 화면을 둘러볼 수 있습니다.
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900">운영 대시보드 체험</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    실제 데이터 없이 MyBiz 점주 화면을 둘러볼 수 있습니다.
-                  </p>
+                <Link className="btn-primary mt-4 w-full justify-center" to="/demo/dashboard">
+                  데모 대시보드 보기
+                </Link>
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-600">
+                    <Icons.ShieldCheck size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-900">플랫폼 관리자 전용</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      MyBiz 운영자만 접근할 수 있는 콘솔입니다. <br />
+                      점주 계정으로는 로그인되지 않습니다.
+                    </p>
+                  </div>
                 </div>
               </div>
-              <Link className="btn-primary mt-4 w-full justify-center" to="/demo/dashboard">
-                데모 대시보드 보기
-              </Link>
-            </div>
+            )}
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
               <p className="font-semibold text-slate-900">정책 문서</p>
@@ -315,9 +375,6 @@ export function AdminLoginPage() {
               </Link>
               <Link className="btn-secondary" to="/pricing">
                 요금제 보기
-              </Link>
-              <Link className="btn-secondary" to="/login?next=/admin">
-                플랫폼 관리자 로그인
               </Link>
             </div>
           </div>

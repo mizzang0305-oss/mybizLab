@@ -5,7 +5,7 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { listContracts, saveContract } from '@/shared/lib/services/mvpService';
+import { deleteContract, listContracts, saveContract } from '@/shared/lib/services/mvpService';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import type { ContractStatus } from '@/shared/types/models';
 
@@ -34,6 +34,11 @@ export function ContractsPage() {
       setForm(initialForm);
       await queryClient.invalidateQueries({ queryKey: queryKeys.contracts(currentStore!.id) });
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (contractId: string) => deleteContract(currentStore!.id, contractId),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: queryKeys.contracts(currentStore!.id) }),
   });
 
   if (!currentStore) {
@@ -85,13 +90,23 @@ export function ContractsPage() {
           <div className="space-y-3">
             {contractsQuery.data?.map((contract) => (
               <div key={contract.id} className="rounded-3xl border border-slate-200 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="font-bold text-slate-900">{contract.title}</p>
                     <p className="text-sm text-slate-500">{contract.counterparty}</p>
                     {contract.file_url ? <a className="mt-2 inline-flex text-sm font-semibold text-orange-700" href={contract.file_url}>파일 열기</a> : <p className="mt-2 text-sm text-slate-400">파일 업로드 placeholder</p>}
                   </div>
-                  <StatusBadge status={contract.status} />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={contract.status} />
+                    <button
+                      className="rounded-full px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                      disabled={deleteMutation.isPending}
+                      onClick={() => deleteMutation.mutate(contract.id)}
+                      type="button"
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </div>
                 {contract.metadata.note ? <p className="mt-3 text-sm text-slate-500">{contract.metadata.note}</p> : null}
               </div>

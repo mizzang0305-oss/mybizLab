@@ -5,7 +5,7 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
 import { formatDateTime, toDateInputValue } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { listSchedules, saveSchedule } from '@/shared/lib/services/mvpService';
+import { deleteSchedule, listSchedules, saveSchedule } from '@/shared/lib/services/mvpService';
 import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import type { ScheduleType } from '@/shared/types/models';
 
@@ -40,6 +40,11 @@ export function SchedulesPage() {
       setForm(initialForm);
       await queryClient.invalidateQueries({ queryKey: queryKeys.schedules(currentStore!.id) });
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (scheduleId: string) => deleteSchedule(currentStore!.id, scheduleId),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: queryKeys.schedules(currentStore!.id) }),
   });
 
   const groupedByDay = useMemo(() => {
@@ -110,9 +115,19 @@ export function SchedulesPage() {
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {entries?.map((entry) => (
                     <div key={entry.id} className="rounded-3xl bg-slate-50 p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="font-bold text-slate-900">{entry.title}</p>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">{entry.type}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-slate-900">{entry.title}</p>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">{entry.type}</span>
+                        </div>
+                        <button
+                          className="shrink-0 rounded-full px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => deleteMutation.mutate(entry.id)}
+                          type="button"
+                        >
+                          삭제
+                        </button>
                       </div>
                       <p className="mt-2 text-sm text-slate-500">
                         {formatDateTime(entry.starts_at)} → {formatDateTime(entry.ends_at)}
