@@ -261,7 +261,8 @@ describe('public marketing/runtime surfaces', () => {
     const html = renderRoute('/login');
 
     expect(html).toContain('점주 로그인');
-    expect(html).toContain('플랫폼 관리자 로그인');
+    // Tab switcher always shows '플랫폼 관리자'; '플랫폼 관리자 로그인' only renders when activeMode==='platform'
+    expect(html).toContain('플랫폼 관리자');
     expect(html).not.toContain('localStorage');
     expectNoMybiCompanion(html);
   });
