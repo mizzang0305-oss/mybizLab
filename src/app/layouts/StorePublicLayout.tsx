@@ -215,8 +215,10 @@ export function StorePublicLayout() {
   }
 
   if (publicStoreQuery.isError) {
-    const description =
-      publicStoreQuery.error instanceof Error
+    const isDemo = storeSlug === 'mybiz-live-cafe';
+    const description = isDemo
+      ? '데모 스토어 데이터를 불러오는 중 오류가 발생했습니다. 운영 대시보드 데모를 먼저 체험해 보세요.'
+      : publicStoreQuery.error instanceof Error
         ? publicStoreQuery.error.message
         : '공개 스토어 데이터를 불러오지 못했습니다.';
 
@@ -225,20 +227,37 @@ export function StorePublicLayout() {
         <EmptyState
           action={
             <div className="flex flex-wrap justify-center gap-3">
-              <button
-                className="btn-primary"
-                onClick={() => void publicStoreQuery.refetch()}
-                type="button"
-              >
-                다시 시도
-              </button>
-              <Link className="btn-secondary" to="/">
-                홈으로 이동
-              </Link>
+              {isDemo ? (
+                <>
+                  <Link className="btn-primary" to="/demo/dashboard">
+                    데모 대시보드 보기
+                  </Link>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => void publicStoreQuery.refetch()}
+                    type="button"
+                  >
+                    다시 시도
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="btn-primary"
+                    onClick={() => void publicStoreQuery.refetch()}
+                    type="button"
+                  >
+                    다시 시도
+                  </button>
+                  <Link className="btn-secondary" to="/">
+                    홈으로 이동
+                  </Link>
+                </>
+              )}
             </div>
           }
           description={description}
-          title="공개 스토어를 불러오지 못했습니다"
+          title={isDemo ? '데모 스토어를 불러오지 못했습니다' : '공개 스토어를 불러오지 못했습니다'}
         />
       </div>
     );
