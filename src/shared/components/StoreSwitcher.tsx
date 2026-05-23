@@ -24,11 +24,13 @@ const previewTargetLabelMap = {
   survey: '설문 바로가기',
 } as const;
 
-const themeLabelMap = {
+const themeLabelMap: Record<string, string> = {
   light: '기본 톤',
   modern: '모던 톤',
   warm: '따뜻한 톤',
-} as const;
+  minimal: '미니멀',
+  bold: '볼드',
+};
 
 function getStoreTypeLabel(store: Store) {
   return getBusinessTypeLabel(store.business_type || store.brand_config.business_type);

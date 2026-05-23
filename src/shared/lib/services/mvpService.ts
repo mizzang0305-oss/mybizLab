@@ -217,6 +217,8 @@ export interface UpdateStoreSettingsInput {
   interiorImageUrl: string;
   noticeTitle: string;
   noticeContent: string;
+  themePreset: 'light' | 'warm' | 'modern' | 'minimal' | 'bold';
+  fontFamily: 'pretendard' | 'noto' | 'inter';
 }
 
 const liveStoreRuntimeCache: LiveStoreRuntimeCache = {
@@ -4284,6 +4286,8 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
       brand_color: input.brandColor.trim() || currentStore.brand_color,
       tagline: input.tagline.trim(),
       description: input.description.trim(),
+      theme_preset: input.themePreset ?? currentStore.theme_preset ?? 'light',
+      font_family: input.fontFamily ?? currentStore.font_family ?? 'pretendard',
       updated_at: timestamp,
     });
 
@@ -4296,7 +4300,8 @@ export async function updateStoreSettings(storeId: string, input: UpdateStoreSet
         mobileCtaLabel: currentStore.mobile_cta_label,
         previewTarget: currentStore.preview_target,
         primaryCtaLabel: currentStore.primary_cta_label,
-        themePreset: currentStore.theme_preset,
+        themePreset: input.themePreset ?? currentStore.theme_preset,
+        fontFamily: input.fontFamily ?? currentStore.font_family ?? 'pretendard',
       },
       currentPage,
     );

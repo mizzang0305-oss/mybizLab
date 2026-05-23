@@ -146,7 +146,8 @@ export interface StoreRequest {
   description: string;
   opening_hours?: string;
   public_status?: StoreVisibility;
-  theme_preset?: 'light' | 'warm' | 'modern';
+  theme_preset?: 'light' | 'warm' | 'modern' | 'minimal' | 'bold';
+  font_family?: 'pretendard' | 'noto' | 'inter';
   primary_cta_label?: string;
   mobile_cta_label?: string;
   preview_target?: 'survey' | 'order' | 'inquiry';
@@ -196,7 +197,8 @@ export interface Store {
   description: string;
   store_mode?: 'order_first' | 'survey_first' | 'hybrid' | 'brand_inquiry_first';
   data_mode?: 'order_only' | 'survey_only' | 'manual_only' | 'order_survey' | 'survey_manual' | 'order_survey_manual';
-  theme_preset?: 'light' | 'warm' | 'modern';
+  theme_preset?: 'light' | 'warm' | 'modern' | 'minimal' | 'bold';
+  font_family?: 'pretendard' | 'noto' | 'inter';
   primary_cta_label?: string;
   mobile_cta_label?: string;
   preview_target?: 'survey' | 'order' | 'inquiry';
@@ -659,7 +661,8 @@ export interface StorePublicPage {
   inquiry_enabled: boolean;
   reservation_enabled: boolean;
   order_entry_enabled: boolean;
-  theme_preset?: 'light' | 'warm' | 'modern';
+  theme_preset?: 'light' | 'warm' | 'modern' | 'minimal' | 'bold';
+  font_family?: 'pretendard' | 'noto' | 'inter';
   preview_target?: 'survey' | 'order' | 'inquiry';
   hero_title: string;
   hero_subtitle: string;
@@ -1011,7 +1014,8 @@ export interface SetupRequestInput {
   description?: string;
   opening_hours?: string;
   public_status?: StoreVisibility;
-  theme_preset?: 'light' | 'warm' | 'modern';
+  theme_preset?: 'light' | 'warm' | 'modern' | 'minimal' | 'bold';
+  font_family?: 'pretendard' | 'noto' | 'inter';
   primary_cta_label?: string;
   mobile_cta_label?: string;
   preview_target?: 'survey' | 'order' | 'inquiry';

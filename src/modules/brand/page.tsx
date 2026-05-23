@@ -18,6 +18,32 @@ import {
 import { buildStorePath, buildStoreUrl, ensureUniqueStoreSlug, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
 import type { StorePriorityWeights } from '@/shared/types/models';
 
+const THEME_OPTIONS: Array<{
+  value: UpdateStoreSettingsInput['themePreset'];
+  label: string;
+  description: string;
+  bg: string;
+  text: string;
+  accent: string;
+}> = [
+  { value: 'light',   label: '라이트',   description: '다크 슬레이트 + 브랜드 포인트',  bg: 'bg-slate-950', text: 'text-white',       accent: 'bg-orange-400' },
+  { value: 'warm',    label: '따뜻함',   description: '앰버 톤, 카페·푸드에 잘 어울림', bg: 'bg-amber-900',  text: 'text-amber-50',   accent: 'bg-amber-300' },
+  { value: 'modern',  label: '모던',     description: '에메랄드 다크, 세련된 인상',       bg: 'bg-teal-950',  text: 'text-emerald-50', accent: 'bg-teal-400' },
+  { value: 'minimal', label: '미니멀',   description: '화이트 베이스, 깔끔한 정보 전달', bg: 'bg-white border border-slate-200', text: 'text-slate-900',  accent: 'bg-slate-900' },
+  { value: 'bold',    label: '볼드',     description: '풀 블랙, 강렬한 브랜드 인상',     bg: 'bg-black',     text: 'text-white',      accent: 'bg-white' },
+];
+
+const FONT_OPTIONS: Array<{
+  value: UpdateStoreSettingsInput['fontFamily'];
+  label: string;
+  description: string;
+  sample: string;
+}> = [
+  { value: 'pretendard', label: 'Pretendard', description: '기본값 · 한국어에 최적화된 현대적 서체', sample: '안녕하세요 Hello 123' },
+  { value: 'noto',       label: 'Noto Sans KR', description: '가독성 중심 · 본문이 많은 매장에 적합', sample: '안녕하세요 Hello 123' },
+  { value: 'inter',      label: 'Inter',        description: '국제적 감각 · 영문 브랜드에 잘 어울림', sample: 'Hello Store 123' },
+];
+
 function createInitialForm(): UpdateStoreSettingsInput {
   return {
     storeName: '',
@@ -44,6 +70,8 @@ function createInitialForm(): UpdateStoreSettingsInput {
     interiorImageUrl: '',
     noticeTitle: '',
     noticeContent: '',
+    themePreset: 'light',
+    fontFamily: 'pretendard',
   };
 }
 
@@ -138,6 +166,8 @@ export function BrandPage() {
       orderEntryEnabled: capabilities.orderEntryEnabled,
       logoUrl: settingsQuery.data.store.logo_url || '',
       brandColor: settingsQuery.data.store.brand_color,
+      themePreset: settingsQuery.data.store.theme_preset ?? 'light',
+      fontFamily: settingsQuery.data.store.font_family ?? 'pretendard',
       tagline: settingsQuery.data.store.tagline,
       description: settingsQuery.data.store.description,
       openingHours: settingsQuery.data.location?.opening_hours || '',
@@ -515,93 +545,223 @@ export function BrandPage() {
           </Panel>
 
           <Panel title="브랜딩, 공지, 비주얼" subtitle="공개 매장의 첫인상에 직접 보이는 요소를 이곳에서 다듬습니다.">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label>
-                <span className="field-label">로고 URL</span>
-                <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, logoUrl: event.target.value }))} value={form.logoUrl} />
-              </label>
-              <label>
-                <span className="field-label">브랜드 컬러</span>
-                <div className="flex gap-3">
-                  <input className="h-12 w-16 rounded-2xl border border-slate-200" onChange={(event) => setForm((current) => ({ ...current, brandColor: event.target.value }))} type="color" value={form.brandColor} />
-                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, brandColor: event.target.value }))} value={form.brandColor} />
+            <div className="space-y-7">
+              {/* ── Theme Preset ─────────────────────────────────────────── */}
+              <div>
+                <p className="field-label">테마 프리셋</p>
+                <p className="mb-3 text-sm text-slate-500">공개 대문의 전체적인 분위기를 결정합니다. 선택 즉시 오른쪽 미리보기에 반영됩니다.</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                  {THEME_OPTIONS.map((opt) => (
+                    <button
+                      className={`group flex flex-col gap-3 rounded-[22px] border-2 p-4 text-left transition-all duration-150 ${
+                        form.themePreset === opt.value
+                          ? 'border-[color:var(--brand,#ec5b13)] shadow-md ring-2 ring-[color:var(--brand,#ec5b13)]/20'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                      key={opt.value}
+                      onClick={() => setForm((c) => ({ ...c, themePreset: opt.value }))}
+                      style={form.themePreset === opt.value ? { '--brand': form.brandColor } as React.CSSProperties : {}}
+                      type="button"
+                    >
+                      {/* Mini preview swatch */}
+                      <div className={`h-12 w-full rounded-[14px] ${opt.bg} flex items-center justify-center gap-2`}>
+                        <div className={`h-3 w-3 rounded-full ${opt.accent} opacity-90`} />
+                        <div className={`h-2 w-8 rounded-full bg-current opacity-20 ${opt.text}`} />
+                      </div>
+                      <div>
+                        <p className={`text-sm font-bold text-slate-900 ${form.themePreset === opt.value ? '' : ''}`}>{opt.label}</p>
+                        <p className="mt-0.5 text-xs leading-5 text-slate-500">{opt.description}</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              </label>
-              <label className="md:col-span-2">
-                <span className="field-label">한 줄 소개</span>
-                <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, tagline: event.target.value }))} value={form.tagline} />
-              </label>
-              <label className="md:col-span-2">
-                <span className="field-label">매장 설명</span>
-                <textarea className="input-base min-h-28" onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} value={form.description} />
-              </label>
-              <label>
-                <span className="field-label">히어로 이미지</span>
-                <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, heroImageUrl: event.target.value }))} value={form.heroImageUrl} />
-              </label>
-              <label>
-                <span className="field-label">매장 전경 이미지</span>
-                <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, storefrontImageUrl: event.target.value }))} value={form.storefrontImageUrl} />
-              </label>
-              <label className="md:col-span-2">
-                <span className="field-label">매장 내부 이미지</span>
-                <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, interiorImageUrl: event.target.value }))} value={form.interiorImageUrl} />
-              </label>
-              <label>
-                <span className="field-label">대표 공지 제목</span>
-                <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, noticeTitle: event.target.value }))} value={form.noticeTitle} />
-              </label>
-              <label>
-                <span className="field-label">대표 공지 내용</span>
-                <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, noticeContent: event.target.value }))} value={form.noticeContent} />
-              </label>
+              </div>
+
+              {/* ── Font Family ──────────────────────────────────────────── */}
+              <div>
+                <p className="field-label">대표 폰트</p>
+                <p className="mb-3 text-sm text-slate-500">공개 매장 전체 텍스트에 적용됩니다.</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {FONT_OPTIONS.map((opt) => (
+                    <button
+                      className={`flex flex-col gap-2 rounded-[20px] border-2 p-4 text-left transition-all duration-150 ${
+                        form.fontFamily === opt.value
+                          ? 'border-slate-900 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                      key={opt.value}
+                      onClick={() => setForm((c) => ({ ...c, fontFamily: opt.value }))}
+                      type="button"
+                    >
+                      <p className="text-sm font-bold text-slate-900">{opt.label}</p>
+                      <p className="text-lg font-black text-slate-700 leading-tight">{opt.sample}</p>
+                      <p className="text-xs leading-5 text-slate-400">{opt.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Logo + Color ──────────────────────────────────────────── */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <label>
+                  <span className="field-label">로고 URL</span>
+                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, logoUrl: event.target.value }))} value={form.logoUrl} />
+                </label>
+                <label>
+                  <span className="field-label">브랜드 컬러</span>
+                  <div className="flex gap-3">
+                    <input className="h-12 w-16 rounded-2xl border border-slate-200" onChange={(event) => setForm((current) => ({ ...current, brandColor: event.target.value }))} type="color" value={form.brandColor} />
+                    <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, brandColor: event.target.value }))} value={form.brandColor} />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">버튼, 포인트 컬러, 테마 액센트에 적용됩니다.</p>
+                </label>
+                <label className="md:col-span-2">
+                  <span className="field-label">한 줄 소개</span>
+                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, tagline: event.target.value }))} value={form.tagline} />
+                </label>
+                <label className="md:col-span-2">
+                  <span className="field-label">매장 설명</span>
+                  <textarea className="input-base min-h-28" onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} value={form.description} />
+                </label>
+              </div>
+
+              {/* ── Images ───────────────────────────────────────────────── */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <label>
+                  <span className="field-label">히어로 이미지 URL</span>
+                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, heroImageUrl: event.target.value }))} placeholder="https://..." value={form.heroImageUrl} />
+                  <p className="mt-1 text-xs text-slate-400">대문 배경 전체를 덮는 대표 이미지</p>
+                </label>
+                <label>
+                  <span className="field-label">매장 전경 이미지 URL</span>
+                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, storefrontImageUrl: event.target.value }))} placeholder="https://..." value={form.storefrontImageUrl} />
+                </label>
+                <label className="md:col-span-2">
+                  <span className="field-label">매장 내부 이미지 URL</span>
+                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, interiorImageUrl: event.target.value }))} placeholder="https://..." value={form.interiorImageUrl} />
+                </label>
+              </div>
+
+              {/* ── Notice ───────────────────────────────────────────────── */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <label>
+                  <span className="field-label">대표 공지 제목</span>
+                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, noticeTitle: event.target.value }))} value={form.noticeTitle} />
+                </label>
+                <label>
+                  <span className="field-label">대표 공지 내용</span>
+                  <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, noticeContent: event.target.value }))} value={form.noticeContent} />
+                </label>
+              </div>
             </div>
           </Panel>
         </div>
 
         <div className="space-y-8">
-          <Panel title="공개 매장 미리보기" subtitle="저장 전에도 지금 구성된 톤과 주소, CTA 구성을 바로 확인할 수 있습니다.">
-            <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-[#fffaf3]">
-              <div className="relative min-h-[250px] overflow-hidden bg-slate-950 p-8 text-white">
-                {form.heroImageUrl ? <img alt="매장 대표 이미지" className="absolute inset-0 h-full w-full object-cover opacity-45" src={form.heroImageUrl} /> : null}
-                <div className="relative space-y-4">
-                  <span className="inline-flex max-w-full rounded-full bg-white/12 px-3 py-1 text-xs font-bold tracking-[0.18em] text-orange-200">
-                    <span className="truncate">{slugState.preview}</span>
-                  </span>
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl text-white" style={{ backgroundColor: form.brandColor }}>
-                      {form.logoUrl ? (
-                        <img alt="매장 로고" className="h-16 w-16 rounded-3xl object-cover" src={form.logoUrl} />
-                      ) : (
-                        <span className="font-display text-2xl font-black">{form.storeName.slice(0, 1) || 'S'}</span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="break-words font-display text-3xl font-black">{form.storeName || '매장명'}</p>
-                      <p className="mt-1 break-words text-sm text-slate-200">{form.tagline || '한 줄 소개를 입력하면 공개 매장 상단에 노출됩니다.'}</p>
+          <Panel title="공개 매장 미리보기" subtitle="저장 전에도 지금 구성된 테마, 색상, CTA를 실시간으로 확인할 수 있습니다.">
+            {(() => {
+              const PREVIEW_BG: Record<string, string> = {
+                light: '#0f172a', warm: '#4a1f10', modern: '#052e2b', minimal: '#ffffff', bold: '#000000',
+              };
+              const PREVIEW_OVERLAY: Record<string, string> = {
+                light: 'from-slate-950/90 via-slate-950/70 to-slate-950/40',
+                warm: 'from-amber-950/92 via-amber-900/65 to-transparent',
+                modern: 'from-teal-950/94 via-teal-800/55 to-transparent',
+                minimal: 'from-white/85 via-white/55 to-transparent',
+                bold: 'from-black/97 via-black/75 to-black/45',
+              };
+              const isLight = form.themePreset === 'light' || form.themePreset === 'warm' || form.themePreset === 'modern' || form.themePreset === 'bold';
+              const textColor = form.themePreset === 'minimal' ? '#0f172a' : '#ffffff';
+              const subtextColor = form.themePreset === 'minimal' ? '#64748b' : 'rgba(255,255,255,0.75)';
+              const chipClass = form.themePreset === 'minimal' ? 'bg-slate-100 text-slate-700' : 'bg-white/12 text-white';
+              return (
+                <div className="overflow-hidden rounded-[28px] border border-slate-200">
+                  {/* Hero preview */}
+                  <div
+                    className="relative overflow-hidden p-6"
+                    style={{ backgroundColor: PREVIEW_BG[form.themePreset] || PREVIEW_BG.light, minHeight: 260 }}
+                  >
+                    {form.heroImageUrl ? (
+                      <img alt="히어로" className="absolute inset-0 h-full w-full object-cover opacity-50" src={form.heroImageUrl} />
+                    ) : null}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${PREVIEW_OVERLAY[form.themePreset] || PREVIEW_OVERLAY.light}`} />
+                    <div className="relative space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl font-black text-white text-lg"
+                          style={{ backgroundColor: form.brandColor }}
+                        >
+                          {form.logoUrl ? (
+                            <img alt="로고" className="h-12 w-12 rounded-2xl object-cover" src={form.logoUrl} />
+                          ) : (
+                            form.storeName.slice(0, 1) || 'S'
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xl font-black leading-tight" style={{ color: textColor }}>
+                            {form.storeName || '매장명'}
+                          </p>
+                          <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: form.brandColor }}>
+                            {slugState.preview}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="max-w-sm text-sm leading-6" style={{ color: subtextColor }}>
+                        {form.tagline || '한 줄 소개가 여기에 표시됩니다.'}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {form.consultationEnabled ? <span className={`rounded-full px-3 py-1 text-xs font-bold ${chipClass}`}>상담</span> : null}
+                        {form.inquiryEnabled ? <span className={`rounded-full px-3 py-1 text-xs font-bold ${chipClass}`}>문의</span> : null}
+                        {form.reservationEnabled ? <span className={`rounded-full px-3 py-1 text-xs font-bold ${chipClass}`}>예약</span> : null}
+                        {form.orderEntryEnabled ? <span className={`rounded-full px-3 py-1 text-xs font-bold ${chipClass}`}>주문</span> : null}
+                      </div>
+                      <div className="flex gap-3">
+                        <span
+                          className="rounded-full px-5 py-2 text-sm font-bold text-white"
+                          style={{ backgroundColor: form.brandColor }}
+                        >
+                          주문하기
+                        </span>
+                        <span
+                          className={`rounded-full border px-5 py-2 text-sm font-bold ${
+                            isLight ? 'border-white/20 text-white' : 'border-slate-200 text-slate-900'
+                          }`}
+                        >
+                          메뉴 보기
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <p className="max-w-xl break-words text-sm leading-7 text-slate-200">{form.description || '매장 설명이 이 영역에 노출됩니다.'}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {form.consultationEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">상담</span> : null}
-                    {form.inquiryEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">문의</span> : null}
-                    {form.reservationEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">예약</span> : null}
-                    {form.orderEntryEnabled ? <span className="rounded-full bg-white/12 px-3 py-2 text-xs font-bold">주문</span> : null}
+
+                  {/* Info strip */}
+                  <div className="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100 bg-white">
+                    <div className="p-4">
+                      <p className="text-xs font-semibold text-slate-400">공개 주소</p>
+                      <p className="mt-1 break-all text-sm font-bold text-slate-900">/{slugState.preview}</p>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-xs font-semibold text-slate-400">대표 공지</p>
+                      <p className="mt-1 break-words text-sm font-bold text-slate-900">{form.noticeTitle || '공지 제목을 입력해 주세요.'}</p>
+                    </div>
+                  </div>
+
+                  {/* Theme + font info */}
+                  <div className="flex items-center gap-3 border-t border-slate-100 bg-slate-50 p-4">
+                    <div
+                      className="h-5 w-5 rounded-full shadow-sm ring-2 ring-white"
+                      style={{ backgroundColor: form.brandColor }}
+                      title="브랜드 컬러"
+                    />
+                    <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
+                      {THEME_OPTIONS.find((t) => t.value === form.themePreset)?.label || form.themePreset} 테마
+                    </span>
+                    <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
+                      {FONT_OPTIONS.find((f) => f.value === form.fontFamily)?.label || form.fontFamily}
+                    </span>
                   </div>
                 </div>
-              </div>
-              <div className="space-y-4 p-6">
-                <div className="rounded-3xl bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-500">공개 주소</p>
-                  <p className="mt-2 break-all text-sm font-semibold text-slate-900">{buildStoreUrl(slugState.preview)}</p>
-                </div>
-                <div className="rounded-3xl bg-white p-5">
-                  <p className="text-sm font-semibold text-slate-500">대표 공지</p>
-                  <p className="mt-2 break-words font-semibold text-slate-900">{form.noticeTitle || '공지 제목을 입력해 주세요.'}</p>
-                  <p className="mt-2 break-words text-sm leading-6 text-slate-600">{form.noticeContent || '공지 내용이 공개 매장 상단에 노출됩니다.'}</p>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </Panel>
 
           <Panel title="바로 연결되는 화면" subtitle="설정 저장 후 운영팀이 바로 이어서 확인하는 화면들입니다.">

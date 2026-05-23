@@ -36,6 +36,8 @@ describe('store settings service', () => {
       interiorImageUrl: 'https://example.com/interior.png',
       noticeTitle: '오픈 주간 안내',
       noticeContent: '오픈 첫 주는 예약 고객 우선 응대입니다.',
+      themePreset: 'modern',
+      fontFamily: 'pretendard',
     });
 
     expect(next?.store.slug).toBe('성수-브런치-하우스');

@@ -42,6 +42,7 @@ export interface StorePublicPageUpsertInput {
   noticeTitle: string;
   noticeContent: string;
   themePreset?: Store['theme_preset'];
+  fontFamily?: Store['font_family'];
   previewTarget?: Store['preview_target'];
   primaryCtaLabel?: string;
   mobileCtaLabel?: string;
@@ -219,6 +220,7 @@ export async function saveCanonicalStorePublicPage(
     reservation_enabled: input.reservationEnabled,
     order_entry_enabled: input.orderEntryEnabled,
     theme_preset: input.themePreset || store.theme_preset,
+    font_family: input.fontFamily || store.font_family || 'pretendard',
     preview_target: input.previewTarget || store.preview_target,
     hero_title: input.storeName.trim(),
     hero_subtitle: input.tagline.trim(),
