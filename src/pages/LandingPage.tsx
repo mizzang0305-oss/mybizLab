@@ -415,6 +415,471 @@ function AnimatedStat({ value, suffix = '', prefix = '' }: { value: number; suff
   );
 }
 
+// ─── CSS-art mockup previews ─────────────────────────────────────────────────
+function StorePreview({ accent }: { accent: string }) {
+  return (
+    <div
+      className="flex flex-col overflow-hidden rounded-2xl"
+      style={{ width: 300, background: '#09101d', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 32px 64px rgba(0,0,0,0.8)' }}
+    >
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)' }}>
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-xl flex items-center justify-center text-xs font-black" style={{ background: accent }}>☕</div>
+          <div>
+            <div className="text-[11px] font-black text-white/90">서울 단골 커피</div>
+            <div className="text-[9px] text-white/35">공개 스토어</div>
+          </div>
+        </div>
+        <div className="rounded-full px-2 py-0.5 text-[9px] font-bold" style={{ background: `${accent}22`, color: accent }}>영업중</div>
+      </div>
+      {/* Menu items */}
+      <div className="flex flex-col gap-0 px-4 py-3">
+        {[['아이스 아메리카노', '4,500원'], ['카페라떼', '5,000원'], ['딸기 에이드', '5,500원']].map(([name, price]) => (
+          <div key={name} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <span className="text-[11px] text-white/75">{name}</span>
+            <span className="text-[11px] font-bold" style={{ color: accent }}>{price}</span>
+          </div>
+        ))}
+      </div>
+      {/* CTA buttons */}
+      <div className="flex gap-2 px-4 pb-4">
+        {['예약하기', '웨이팅', 'QR 주문'].map((btn) => (
+          <div key={btn} className="flex-1 rounded-xl py-2 text-center text-[10px] font-black text-white/80" style={{ background: 'rgba(255,255,255,0.08)' }}>{btn}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardPreview({ accent }: { accent: string }) {
+  return (
+    <div
+      className="flex flex-col overflow-hidden rounded-2xl"
+      style={{ width: 300, background: '#09101d', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 32px 64px rgba(0,0,0,0.8)' }}
+    >
+      <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="text-[10px] font-bold tracking-widest text-white/35 uppercase">오늘의 현황</div>
+      </div>
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-px px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        {[['예약', '8'], ['웨이팅', '3'], ['주문', '12']].map(([label, val]) => (
+          <div key={label} className="text-center">
+            <div className="text-xl font-black text-white" style={{ color: accent }}>{val}</div>
+            <div className="text-[9px] text-white/35">{label}</div>
+          </div>
+        ))}
+      </div>
+      {/* Progress bar */}
+      <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="mb-1 flex justify-between">
+          <span className="text-[9px] text-white/35">운영 달성률</span>
+          <span className="text-[9px] font-bold text-white/60">74%</span>
+        </div>
+        <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+          <div className="h-full rounded-full" style={{ width: '74%', background: accent }} />
+        </div>
+      </div>
+      {/* Recent list */}
+      <div className="px-4 py-3">
+        {[['김지수', '예약 확인 요청', '2분전'], ['박민준', '웨이팅 신청', '8분전']].map(([name, action, time]) => (
+          <div key={name} className="flex items-center justify-between py-1.5">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-black text-white" style={{ background: `${accent}44` }}>{name[0]}</div>
+              <span className="text-[10px] text-white/60">{name} · {action}</span>
+            </div>
+            <span className="text-[9px] text-white/25">{time}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MemoryPreview({ accent }: { accent: string }) {
+  return (
+    <div
+      className="flex flex-col overflow-hidden rounded-2xl"
+      style={{ width: 300, background: '#09101d', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 32px 64px rgba(0,0,0,0.8)' }}
+    >
+      {/* Customer header */}
+      <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-black text-white" style={{ background: accent }}>김</div>
+        <div>
+          <div className="text-[12px] font-black text-white">김지수 고객</div>
+          <div className="text-[9px] text-white/40">방문 12회 · 마지막 방문 3일 전</div>
+        </div>
+        <div className="ml-auto text-[10px] font-black" style={{ color: accent }}>VIP</div>
+      </div>
+      {/* Preference tags */}
+      <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="mb-2 text-[9px] font-bold uppercase tracking-widest text-white/30">선호 패턴</div>
+        <div className="flex flex-wrap gap-1.5">
+          {['아이스 라떼', '창가 자리', '주말 오후', '혼자 방문'].map((tag) => (
+            <span key={tag} className="rounded-full px-2 py-0.5 text-[9px] font-bold text-white/70" style={{ background: 'rgba(255,255,255,0.09)' }}>{tag}</span>
+          ))}
+        </div>
+      </div>
+      {/* Timeline dots */}
+      <div className="px-4 py-3">
+        <div className="mb-2 text-[9px] font-bold uppercase tracking-widest text-white/30">방문 타임라인</div>
+        <div className="flex items-center gap-1.5">
+          {[1,1,1,1,0,1,1,0,0,1,1,1].map((v, i) => (
+            <div key={i} className="h-2 w-2 rounded-full" style={{ background: v ? accent : 'rgba(255,255,255,0.1)' }} />
+          ))}
+          <span className="ml-1 text-[9px] text-white/30">12회</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SNSPreview({ accent }: { accent: string }) {
+  return (
+    <div
+      className="flex flex-col overflow-hidden rounded-2xl"
+      style={{ width: 300, background: '#09101d', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 32px 64px rgba(0,0,0,0.8)' }}
+    >
+      <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="flex items-center justify-between">
+          <div className="text-[10px] font-bold tracking-widest text-white/35 uppercase">SNS 자동 발행</div>
+          <div className="rounded-full px-2 py-0.5 text-[9px] font-bold" style={{ background: `${accent}22`, color: accent }}>AI 생성</div>
+        </div>
+      </div>
+      {/* Instagram post */}
+      <div className="mx-4 mt-3 overflow-hidden rounded-xl" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="flex items-center gap-2 px-3 py-2">
+          <div className="h-5 w-5 rounded-full" style={{ background: 'linear-gradient(135deg,#f9a825,#e91e63,#9c27b0)' }} />
+          <span className="text-[9px] font-bold text-white/60">Instagram</span>
+          <span className="ml-auto rounded-full px-1.5 py-0.5 text-[8px]" style={{ background: '#22c55e22', color: '#4ade80' }}>발행 완료</span>
+        </div>
+        <div className="h-16 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${accent}18, rgba(59,130,246,0.1))` }}>
+          <span className="text-2xl">☕</span>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-[9px] leading-4 text-white/55">오늘의 특별 메뉴를 소개합니다 ✨ <span style={{ color: accent }}>#서울카페 #단골커피</span></p>
+        </div>
+      </div>
+      {/* Naver blog row */}
+      <div className="mx-4 my-3 flex items-center justify-between rounded-xl px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-black text-white" style={{ background: '#03c75a' }}>N</div>
+          <span className="text-[9px] text-white/55">네이버 블로그</span>
+        </div>
+        <span className="text-[9px] font-bold" style={{ color: accent }}>예약 발행 ✓</span>
+      </div>
+    </div>
+  );
+}
+
+function AIPreview({ accent }: { accent: string }) {
+  return (
+    <div
+      className="flex flex-col overflow-hidden rounded-2xl"
+      style={{ width: 300, background: '#09101d', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 32px 64px rgba(0,0,0,0.8)' }}
+    >
+      <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="h-6 w-6 rounded-full flex items-center justify-center text-xs" style={{ background: accent }}>AI</div>
+        <div className="text-[10px] font-bold text-white/70">AI 상담 어시스턴트</div>
+        <div className="ml-auto h-2 w-2 rounded-full" style={{ background: '#4ade80' }} />
+      </div>
+      <div className="flex flex-col gap-2 px-4 py-3">
+        {/* Customer message */}
+        <div className="flex justify-end">
+          <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-3 py-2 text-[10px] text-white/80" style={{ background: 'rgba(255,255,255,0.1)' }}>
+            내일 2명 예약 가능한가요?
+          </div>
+        </div>
+        {/* AI reply */}
+        <div className="flex justify-start">
+          <div className="max-w-[80%] rounded-2xl rounded-tl-sm px-3 py-2 text-[10px] text-white/80" style={{ background: `${accent}22`, border: `1px solid ${accent}33` }}>
+            내일 오후 2시 2자리 확인됩니다. 예약 완료해드릴까요? 😊
+          </div>
+        </div>
+        {/* Customer confirm */}
+        <div className="flex justify-end">
+          <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-3 py-2 text-[10px] text-white/80" style={{ background: 'rgba(255,255,255,0.1)' }}>
+            네, 예약해 주세요!
+          </div>
+        </div>
+        {/* Typing */}
+        <div className="flex items-center gap-1.5 pl-1">
+          {[0,1,2].map(i => (
+            <div key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: accent, opacity: 0.6, animationDelay: `${i * 0.2}s` }} />
+          ))}
+          <span className="text-[9px] text-white/30">AI 응답 중...</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Service row with cursor-following preview ────────────────────────────────
+const SERVICE_MOCKUP_MAP: Record<string, (accent: string) => React.ReactElement> = {
+  store: (a) => <StorePreview accent={a} />,
+  dashboard: (a) => <DashboardPreview accent={a} />,
+  memory: (a) => <MemoryPreview accent={a} />,
+  sns: (a) => <SNSPreview accent={a} />,
+  ai: (a) => <AIPreview accent={a} />,
+};
+
+function ServiceRow({
+  num, title, body, accent, link, linkLabel, mockupKey, index,
+}: {
+  num: string; title: string; body: string; accent: string;
+  link: string; linkLabel: string; mockupKey: string; index: number;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const rowRef = useRef<HTMLElement>(null);
+  const mx = useMotionValue(300);
+  const my = useMotionValue(100);
+  const springX = useSpring(mx, { stiffness: 220, damping: 26 });
+  const springY = useSpring(my, { stiffness: 220, damping: 26 });
+
+  function onMouseMove(e: React.MouseEvent) {
+    const rect = rowRef.current!.getBoundingClientRect();
+    mx.set(e.clientX - rect.left);
+    my.set(e.clientY - rect.top);
+  }
+
+  return (
+    <motion.article
+      ref={rowRef as React.RefObject<HTMLElement>}
+      onMouseMove={onMouseMove}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      className="group relative overflow-hidden border-b border-white/[0.06] py-14 transition-colors last:border-b-0 hover:border-white/[0.15]"
+      style={{ cursor: 'none' }}
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, margin: '-8%' }}
+      transition={{ duration: 0.7, ease: EASE_CIRC, delay: index * 0.08 }}
+    >
+      {/* Cursor-following mockup preview */}
+      <motion.div
+        className="pointer-events-none absolute z-30"
+        style={{ left: springX, top: springY, x: '-45%', y: '-55%' }}
+        animate={{ opacity: hovered ? 1 : 0, scale: hovered ? 1 : 0.82, rotate: hovered ? -3 : 2 }}
+        transition={{ duration: 0.4, ease: EASE_CIRC }}
+      >
+        {SERVICE_MOCKUP_MAP[mockupKey]?.(accent)}
+      </motion.div>
+
+      {/* Row layout */}
+      <div className="grid items-center gap-6 lg:grid-cols-[5rem_1.3fr_1fr_auto]">
+        {/* Number */}
+        <div style={{ overflow: 'hidden' }}>
+          <motion.p
+            className="font-mono text-sm font-bold text-white/20 transition-colors group-hover:text-[#ec5b13]/80"
+            initial={{ y: '100%' }}
+            whileInView={{ y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: EASE_EXPO, delay: 0.08 + index * 0.07 }}
+          >
+            {num}
+          </motion.p>
+        </div>
+
+        {/* Title */}
+        <div style={{ overflow: 'hidden' }}>
+          <motion.h2
+            className="break-keep font-display font-black text-white/85 transition-colors group-hover:text-white"
+            style={{ fontSize: 'clamp(1.8rem, 3.8vw, 3.2rem)', lineHeight: 1.08, letterSpacing: '-0.035em' }}
+            initial={{ y: '108%' }}
+            whileInView={{ y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.78, ease: EASE_EXPO, delay: 0.14 + index * 0.07 }}
+          >
+            {title}
+          </motion.h2>
+        </div>
+
+        {/* Body */}
+        <FadeReveal delay={0.22 + index * 0.07} direction="right">
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-2 h-[3px] w-7 shrink-0 rounded-full transition-all duration-500 group-hover:w-11"
+              style={{ background: accent }}
+            />
+            <p className="break-keep text-sm leading-7 text-white/36 transition-colors group-hover:text-white/55">
+              {body}
+            </p>
+          </div>
+        </FadeReveal>
+
+        {/* Link */}
+        <FadeReveal delay={0.3 + index * 0.07}>
+          <Link
+            to={link}
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2.5 text-[11px] font-bold text-white/55 transition-all hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {linkLabel}
+            <span className="transition-transform group-hover:translate-x-0.5">→</span>
+          </Link>
+        </FadeReveal>
+      </div>
+
+      {/* Hover glow */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-600 group-hover:opacity-100"
+        style={{ background: `radial-gradient(ellipse 55% 60% at 25% 50%, ${accent}09, transparent)` }}
+      />
+    </motion.article>
+  );
+}
+
+// ─── Feature card with hover image ────────────────────────────────────────────
+const FEATURE_MOCKUP_SCENES = [
+  // 공개 스토어
+  (accent: string) => (
+    <div className="flex h-full flex-col items-center justify-center gap-2 px-4">
+      <div className="w-full rounded-2xl overflow-hidden" style={{ background: '#0d1525', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="h-4 w-4 rounded-lg flex items-center justify-center text-[8px]" style={{ background: accent }}>☕</div>
+          <div className="text-[9px] font-bold text-white/60">서울 단골 커피</div>
+        </div>
+        {['아이스 아메리카노', '카페라떼', '딸기 에이드'].map(item => (
+          <div key={item} className="flex justify-between px-3 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <span className="text-[8px] text-white/50">{item}</span>
+            <span className="text-[8px] font-bold" style={{ color: accent }}>주문</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  ),
+  // AI 상담
+  (accent: string) => (
+    <div className="flex h-full flex-col justify-center gap-2 px-4">
+      <div className="flex justify-end"><div className="rounded-2xl rounded-tr-sm px-3 py-1.5 text-[9px] text-white/70" style={{ background: 'rgba(255,255,255,0.09)' }}>예약 가능한가요?</div></div>
+      <div className="flex justify-start"><div className="rounded-2xl rounded-tl-sm px-3 py-1.5 text-[9px] text-white/70" style={{ background: `${accent}22` }}>네, 내일 오후 2시 가능합니다 😊</div></div>
+      <div className="flex justify-end"><div className="rounded-2xl rounded-tr-sm px-3 py-1.5 text-[9px] text-white/70" style={{ background: 'rgba(255,255,255,0.09)' }}>예약해 주세요!</div></div>
+    </div>
+  ),
+  // 예약·웨이팅
+  (accent: string) => (
+    <div className="flex h-full flex-col justify-center gap-2 px-4">
+      {[['예약', '8명', '#4ade80'], ['웨이팅', '3팀', accent], ['완료', '14건', 'rgba(255,255,255,0.3)']].map(([label, val, col]) => (
+        <div key={label} className="flex items-center justify-between rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <span className="text-[9px] text-white/50">{label}</span>
+          <span className="text-[11px] font-black" style={{ color: col }}>{val}</span>
+        </div>
+      ))}
+    </div>
+  ),
+  // QR 주문
+  (accent: string) => (
+    <div className="flex h-full items-center justify-center gap-4 px-4">
+      <div className="grid grid-cols-5 gap-0.5">
+        {Array.from({length:25}).map((_, i) => <div key={i} className="h-3 w-3 rounded-[2px]" style={{ background: [0,2,4,5,8,10,12,14,16,20,22,24].includes(i) ? accent : 'rgba(255,255,255,0.1)' }} />)}
+      </div>
+      <div className="text-[9px] text-white/40 leading-4">테이블 QR<br/>바로 주문</div>
+    </div>
+  ),
+  // 고객 프로필
+  (accent: string) => (
+    <div className="flex h-full flex-col justify-center gap-2 px-4">
+      <div className="flex items-center gap-2">
+        <div className="h-8 w-8 rounded-full flex items-center justify-center font-black text-sm text-white" style={{ background: accent }}>김</div>
+        <div>
+          <div className="text-[10px] font-bold text-white/80">김지수</div>
+          <div className="text-[8px] text-white/40">방문 12회 · VIP</div>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {['아이스라떼', '창가자리', '주말오후'].map(t => <span key={t} className="rounded-full px-2 py-0.5 text-[8px] text-white/55" style={{ background: 'rgba(255,255,255,0.08)' }}>{t}</span>)}
+      </div>
+    </div>
+  ),
+  // 운영 대시보드
+  (accent: string) => (
+    <div className="flex h-full flex-col justify-center gap-1.5 px-4">
+      <div className="text-[8px] font-bold uppercase tracking-widest text-white/30">오늘의 현황</div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {[['예약','8',accent],['웨이팅','3','#3b82f6'],['주문','12','#a855f7']].map(([l,v,c]) => (
+          <div key={l} className="rounded-lg p-1.5 text-center" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <div className="text-xs font-black" style={{ color: c }}>{v}</div>
+            <div className="text-[7px] text-white/40">{l}</div>
+          </div>
+        ))}
+      </div>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <div className="h-full rounded-full" style={{ width: '74%', background: accent }} />
+      </div>
+    </div>
+  ),
+];
+
+function FeatureCard({ card, index }: { card: string; index: number }) {
+  const hue = 24 + index * 22;
+  const accent = `hsl(${hue}deg 85% 62%)`;
+  const Scene = FEATURE_MOCKUP_SCENES[index % FEATURE_MOCKUP_SCENES.length];
+
+  return (
+    <motion.article
+      className="group relative overflow-hidden bg-[#03040a]"
+      style={{ cursor: 'default' }}
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-5%' }}
+      transition={{ duration: 0.6, ease: EASE_CIRC, delay: index * 0.07 }}
+    >
+      {/* Preview image area */}
+      <div
+        className="relative h-44 overflow-hidden"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#060810' }}
+      >
+        {/* Scene content — scales slightly on hover */}
+        <motion.div
+          className="absolute inset-0"
+          initial={{ scale: 1.06 }}
+          whileHover={{ scale: 1 }}
+          transition={{ duration: 0.55, ease: EASE_CIRC }}
+        >
+          {Scene(accent)}
+        </motion.div>
+        {/* Overlay gradient — lifts on hover */}
+        <motion.div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'linear-gradient(to top, #03040a 20%, transparent)' }}
+          initial={{ opacity: 0.85 }}
+          whileHover={{ opacity: 0.3 }}
+          transition={{ duration: 0.45 }}
+        />
+        {/* Accent corner glow */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+          style={{ background: `radial-gradient(circle at 80% 20%, ${accent}16, transparent 60%)` }}
+        />
+      </div>
+
+      {/* Text content */}
+      <div className="p-6 sm:p-7 transition-colors hover:bg-white/[0.02]">
+        <span
+          className="font-mono text-[10px] font-bold tracking-widest"
+          style={{ color: accent }}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+        <h3 className="mt-3 break-keep text-lg font-black text-white/85 transition-colors group-hover:text-white">
+          {card}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-white/32 transition-colors group-hover:text-white/50">
+          고객 입력을 고객 기억과 운영 액션으로 연결합니다.
+        </p>
+        {/* Accent line draw */}
+        <motion.div
+          className="mt-4 h-[2px] rounded-full"
+          style={{ background: accent }}
+          initial={{ width: 0 }}
+          whileHover={{ width: '100%' }}
+          transition={{ duration: 0.45, ease: EASE_CIRC }}
+        />
+      </div>
+    </motion.article>
+  );
+}
+
 // ─── Main LandingPage ─────────────────────────────────────────────────────────
 export function LandingPage() {
   const [demoOpen, setDemoOpen] = useState(false);
@@ -645,7 +1110,7 @@ export function LandingPage() {
       </div>
 
       {/* ════════════════════════════════════════════════════════════════
-          02 · SERVICES — 3 panels, numbered editorial
+          02 · SERVICES — 5 panels with cursor-following preview
       ════════════════════════════════════════════════════════════════ */}
       <section
         className="relative bg-[#03040a] px-6 py-24 sm:px-10 lg:px-16"
@@ -653,92 +1118,60 @@ export function LandingPage() {
         data-product-story-flow="connected-panels"
       >
         <div className="mx-auto max-w-[90rem]">
-          {/* Section label */}
           <FadeReveal>
             <p className="mb-16 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-white/30">
               운영 흐름 / Services
             </p>
           </FadeReveal>
 
-          {/* 3 service rows */}
           {[
             {
               num: '01',
               title: '공개 스토어 / 고객 접점',
               body: '문의하기, 예약하기, 웨이팅, QR 주문으로 고객 행동이 자연스럽게 시작됩니다.',
               accent: '#ec5b13',
+              link: '/mybiz-live-cafe',
+              linkLabel: '스토어 데모',
+              mockupKey: 'store',
             },
             {
               num: '02',
               title: '점주 운영 대시보드',
-              body: '예약, 웨이팅, 주문, 알림을 한 화면에서 빠르게 확인합니다.',
+              body: '예약, 웨이팅, 주문, 알림을 한 화면에서 빠르게 파악하고 즉시 대응합니다.',
               accent: '#3b82f6',
+              link: '/demo/dashboard',
+              linkLabel: '대시보드 데모',
+              mockupKey: 'dashboard',
             },
             {
               num: '03',
               title: '고객 기억 / 반복 매출 엔진',
               body: '고객명, 방문 횟수, 선호 메뉴, 추천 액션이 운영 근거로 쌓입니다.',
               accent: '#a855f7',
+              link: '/demo/dashboard',
+              linkLabel: '고객 기억 보기',
+              mockupKey: 'memory',
+            },
+            {
+              num: '04',
+              title: 'SNS 자동 관리',
+              body: 'AI가 매장 데이터를 읽고 Instagram·네이버 블로그·Threads에 자동으로 콘텐츠를 생성·발행합니다.',
+              accent: '#10b981',
+              link: '/features',
+              linkLabel: '기능 살펴보기',
+              mockupKey: 'sns',
+            },
+            {
+              num: '05',
+              title: 'AI 상담 / 자동 응대',
+              body: '고객 문의를 AI가 24시간 응대하고, 대화 내용은 고객 기억으로 자동 연결됩니다.',
+              accent: '#f59e0b',
+              link: '/onboarding?plan=free',
+              linkLabel: '무료로 시작',
+              mockupKey: 'ai',
             },
           ].map((item, i) => (
-            <motion.article
-              key={item.num}
-              className="group relative cursor-default border-b border-white/[0.06] py-12 transition-colors last:border-b-0 hover:border-white/[0.14]"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true, margin: '-8%' }}
-              transition={{ duration: 0.7, ease: EASE_CIRC, delay: i * 0.1 }}
-            >
-              <div className="grid items-start gap-6 lg:grid-cols-[5rem_1fr_1fr]">
-                {/* Number */}
-                <div style={{ overflow: 'hidden' }}>
-                  <motion.p
-                    className="font-mono text-sm font-bold text-white/20 transition-colors group-hover:text-[#ec5b13]/70"
-                    initial={{ y: '100%' }}
-                    whileInView={{ y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.6, ease: EASE_EXPO, delay: 0.1 + i * 0.08 }}
-                  >
-                    {item.num}
-                  </motion.p>
-                </div>
-
-                {/* Title */}
-                <div style={{ overflow: 'hidden' }}>
-                  <motion.h2
-                    className="break-keep font-display font-black text-white/90 transition-all duration-300 group-hover:text-white"
-                    style={{ fontSize: 'clamp(1.6rem, 3.5vw, 3rem)', lineHeight: 1.1, letterSpacing: '-0.03em' }}
-                    initial={{ y: '105%' }}
-                    whileInView={{ y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.75, ease: EASE_EXPO, delay: 0.15 + i * 0.08 }}
-                  >
-                    {item.title}
-                  </motion.h2>
-                </div>
-
-                {/* Body + accent bar */}
-                <FadeReveal delay={0.25 + i * 0.08} direction="right">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className="mt-1.5 h-[3px] w-8 shrink-0 rounded-full transition-all duration-500 group-hover:w-12"
-                      style={{ background: item.accent }}
-                    />
-                    <p className="break-keep text-sm leading-7 text-white/38 transition-colors group-hover:text-white/52">
-                      {item.body}
-                    </p>
-                  </div>
-                </FadeReveal>
-              </div>
-
-              {/* Hover glow */}
-              <div
-                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 rounded-2xl"
-                style={{
-                  background: `radial-gradient(ellipse 60% 50% at 30% 50%, ${item.accent}08, transparent)`,
-                }}
-              />
-            </motion.article>
+            <ServiceRow key={item.num} {...item} index={i} />
           ))}
         </div>
       </section>
@@ -834,38 +1267,10 @@ export function LandingPage() {
               </FadeReveal>
             </div>
 
-            {/* Right: feature grid */}
+            {/* Right: feature grid with preview images */}
             <div className="grid grid-cols-2 gap-px bg-white/[0.06]">
               {featureCards.map((card, i) => (
-                <motion.article
-                  key={card}
-                  className="group relative overflow-hidden bg-[#03040a] p-6 sm:p-8 transition-colors hover:bg-white/[0.03]"
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-5%' }}
-                  transition={{ duration: 0.6, ease: EASE_CIRC, delay: i * 0.06 }}
-                >
-                  <span
-                    className="font-mono text-[10px] font-bold tracking-widest"
-                    style={{ color: `hsl(${24 + i * 20}deg 90% 65%)` }}
-                  >
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <h3 className="mt-4 break-keep text-lg font-black text-white/85 transition-colors group-hover:text-white">
-                    {card}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-white/30">
-                    고객 입력을 고객 기억과 운영 액션으로 연결합니다.
-                  </p>
-                  {/* Hover accent line */}
-                  <motion.div
-                    className="absolute bottom-0 left-0 h-[2px] rounded-full"
-                    style={{ background: `hsl(${24 + i * 20}deg 90% 65%)` }}
-                    initial={{ width: 0 }}
-                    whileHover={{ width: '100%' }}
-                    transition={{ duration: 0.4, ease: EASE_CIRC }}
-                  />
-                </motion.article>
+                <FeatureCard key={card} card={card} index={i} />
               ))}
             </div>
           </div>
