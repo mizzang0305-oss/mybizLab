@@ -65,7 +65,9 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('data-service-orbit-world="hero"');
     expect(html).toContain('data-cinematic-world="service-memory"');
     expect(html).toContain('AI 운영 플랫폼, MyBiz');
-    expect(html).toContain('고객을 기억하는 매장이 더 많이 팝니다');
+    // Title split across shimmer-text span + plain span — check both parts
+    expect(html).toContain('고객을 기억하는');
+    expect(html).toContain('매장이 더 많이 팝니다');
     expect(html).toContain('문의·예약·웨이팅·주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.');
     expect(html).toContain('무료로 시작하기');
     expect(html).toContain('기능 살펴보기');

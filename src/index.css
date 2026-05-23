@@ -178,11 +178,141 @@
     animation-delay: 1.4s;
   }
 
+  /* ── Scroll reveal system ─────────────────────────────────────────────── */
+  .reveal-ready {
+    opacity: 0;
+    transform: translateY(2.5rem) scale(0.92);
+    filter: blur(4px);
+    transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+                filter 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform, filter;
+  }
+
+  .reveal-ready.reveal-up {
+    transform: translateY(3.5rem) scale(0.9);
+  }
+
+  .reveal-ready.reveal-left {
+    transform: translateX(-3rem) scale(0.94);
+  }
+
+  .reveal-ready.reveal-right {
+    transform: translateX(3rem) scale(0.94);
+  }
+
+  .reveal-ready.in-view {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+    filter: blur(0);
+  }
+
+  /* Stagger delays for child cards */
+  .stagger-children > *:nth-child(1) { transition-delay: 0ms; }
+  .stagger-children > *:nth-child(2) { transition-delay: 90ms; }
+  .stagger-children > *:nth-child(3) { transition-delay: 180ms; }
+  .stagger-children > *:nth-child(4) { transition-delay: 270ms; }
+  .stagger-children > *:nth-child(5) { transition-delay: 360ms; }
+  .stagger-children > *:nth-child(6) { transition-delay: 450ms; }
+
+  /* ── Background orbs ──────────────────────────────────────────────────── */
+  @keyframes orb-drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%       { transform: translate(4%, 3%) scale(1.06); }
+    66%       { transform: translate(-3%, 5%) scale(0.96); }
+  }
+
+  @keyframes orb-drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    40%       { transform: translate(-5%, -3%) scale(1.08); }
+    75%       { transform: translate(4%, -2%) scale(0.94); }
+  }
+
+  @keyframes orb-drift-c {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%       { transform: translate(6%, -6%) scale(1.12); }
+  }
+
+  .orb-a { animation: orb-drift-a 18s ease-in-out infinite; }
+  .orb-b { animation: orb-drift-b 22s ease-in-out infinite; }
+  .orb-c { animation: orb-drift-c 28s ease-in-out infinite; }
+
+  /* ── Scroll progress gradient shift ──────────────────────────────────── */
+  @keyframes aurora-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50%       { background-position: 100% 50%; }
+  }
+
+  .aurora-bg {
+    background-size: 400% 400%;
+    animation: aurora-shift 20s ease infinite;
+  }
+
+  /* ── Floating feature cards glow ─────────────────────────────────────── */
+  @keyframes card-glow {
+    0%, 100% { box-shadow: 0 0 0px rgba(251, 146, 60, 0); }
+    50%       { box-shadow: 0 0 40px rgba(251, 146, 60, 0.18); }
+  }
+
+  .feature-card-hover:hover {
+    animation: card-glow 2s ease-in-out infinite;
+    transform: translateY(-4px) scale(1.015);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* ── Hero orbit enhanced ──────────────────────────────────────────────── */
+  @keyframes orbit-rotate {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  @keyframes counter-rotate {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(-360deg); }
+  }
+
+  .orbit-ring-slow { animation: orbit-rotate 38s linear infinite; }
+  .orbit-ring-med  { animation: orbit-rotate 22s linear infinite; }
+  .counter-rotate  { animation: counter-rotate 38s linear infinite; }
+
+  /* ── Connecting line draw ─────────────────────────────────────────────── */
+  @keyframes line-draw {
+    from { stroke-dashoffset: 1000; opacity: 0; }
+    to   { stroke-dashoffset: 0;    opacity: 1; }
+  }
+
+  .draw-on-view { stroke-dasharray: 1000; stroke-dashoffset: 1000; opacity: 0; }
+  .draw-on-view.in-view { animation: line-draw 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+  /* ── Magnetic shimmer on text ─────────────────────────────────────────── */
+  @keyframes text-shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+
+  .shimmer-text {
+    background: linear-gradient(90deg, #fb923c, #f97316, #fdba74, #fb923c);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer 4s linear infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .mybiz-memory-core,
     .mybiz-orbit-node,
-    .mybiz-light-trail {
+    .mybiz-light-trail,
+    .orb-a, .orb-b, .orb-c,
+    .orbit-ring-slow, .orbit-ring-med,
+    .aurora-bg, .shimmer-text, .draw-on-view {
       animation: none;
+    }
+    .reveal-ready {
+      opacity: 1;
+      transform: none;
+      filter: none;
+      transition: none;
     }
   }
 }
