@@ -470,6 +470,10 @@ export const appRoutes: RouteObject[] = [
         ],
       },
       {
+        path: '/mybiz-live-cafe',
+        element: <Navigate replace to="/demo/dashboard" />,
+      },
+      {
         path: '/:storeSlug',
         element: <StorePublicLayout />,
         children: [
