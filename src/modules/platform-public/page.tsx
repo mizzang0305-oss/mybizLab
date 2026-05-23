@@ -245,7 +245,7 @@ export function PlatformPublicUpdatesPage() {
         />
         <div className="relative mx-auto max-w-[90rem]">
           <FadeUp delay={0.05}>
-            <p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">
+            <p className="mb-4 font-mono text-sm font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">
               공지 & 업데이트 / News
             </p>
           </FadeUp>
@@ -505,7 +505,7 @@ function FaqPageContent({ faqItems }: { faqItems: typeof FULL_FAQ_ITEMS }) {
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 50% at 80% 0%, rgba(168,85,247,0.1) 0%, transparent 60%)' }} />
         <div className="relative mx-auto max-w-[90rem]">
           <FadeUp delay={0.05}>
-            <p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">자주 묻는 질문 / FAQ</p>
+            <p className="mb-4 font-mono text-sm font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">자주 묻는 질문 / FAQ</p>
           </FadeUp>
           <LineUp delay={0.1}>
             <h1 className="break-keep font-display font-black text-white" style={{ fontSize: 'clamp(2.8rem, 6vw, 6rem)', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
@@ -548,7 +548,7 @@ function FaqPageContent({ faqItems }: { faqItems: typeof FULL_FAQ_ITEMS }) {
 
           {/* Bottom CTA */}
           <FadeUp delay={0.2} className="mt-16 overflow-hidden rounded-3xl border border-white/[0.07] bg-[#060810] p-8 text-center sm:p-12">
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-[#ec5b13]/70">더 궁금한 게 있으신가요?</p>
+            <p className="font-mono text-sm font-bold uppercase tracking-[0.3em] text-[#ec5b13]/70">더 궁금한 게 있으신가요?</p>
             <h2 className="mt-4 font-display text-3xl font-black text-white tracking-tight">직접 문의해 주세요</h2>
             <p className="mt-3 text-sm leading-7 text-white/45">실제 매장 운영 흐름에 맞춰 친절하게 안내해 드립니다.</p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
@@ -616,7 +616,7 @@ function TrustPageContent() {
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 50% at 10% 0%, rgba(59,130,246,0.1) 0%, transparent 60%)' }} />
         <div className="relative mx-auto max-w-[90rem]">
           <FadeUp delay={0.05}>
-            <p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-[#3b82f6]/80">신뢰센터 / Trust</p>
+            <p className="mb-4 font-mono text-sm font-bold uppercase tracking-[0.35em] text-[#3b82f6]/80">신뢰센터 / Trust</p>
           </FadeUp>
           <LineUp delay={0.1}>
             <h1 className="break-keep font-display font-black text-white" style={{ fontSize: 'clamp(2.4rem, 5.5vw, 5.5rem)', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
@@ -663,7 +663,7 @@ function TrustPageContent() {
           <FadeUp delay={0.2} className="mt-10">
             <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-[#060810]">
               <div className="border-b border-white/[0.07] px-8 py-6">
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">데이터 처리 방식</p>
+                <p className="font-mono text-sm font-bold uppercase tracking-[0.3em] text-white/30">데이터 처리 방식</p>
                 <h2 className="mt-3 font-display text-2xl font-black text-white">투명한 데이터 관리</h2>
               </div>
               <div className="grid gap-px bg-white/[0.04] sm:grid-cols-3">
@@ -673,7 +673,7 @@ function TrustPageContent() {
                   { label: '보유 기간', value: '탈퇴 후 30일', note: '법령에 따른 예외 존재' },
                 ].map((item) => (
                   <div key={item.label} className="bg-[#060810] px-7 py-6">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{item.label}</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-white/30">{item.label}</p>
                     <p className="mt-2 text-lg font-black text-white/85">{item.value}</p>
                     <p className="mt-1 text-xs text-white/30">{item.note}</p>
                   </div>
@@ -711,7 +711,7 @@ function ContactPageContent() {
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 55% 45% at 90% 10%, rgba(16,185,129,0.08) 0%, transparent 55%)' }} />
         <div className="relative mx-auto max-w-[90rem]">
           <FadeUp delay={0.05}>
-            <p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">문의하기 / Contact</p>
+            <p className="mb-4 font-mono text-sm font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">문의하기 / Contact</p>
           </FadeUp>
           <LineUp delay={0.1}>
             <h1 className="break-keep font-display font-black text-white" style={{ fontSize: 'clamp(2.8rem, 6vw, 6rem)', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
@@ -733,7 +733,7 @@ function ContactPageContent() {
             {/* Left: contact channels */}
             <div className="space-y-4">
               <FadeUp delay={0.08}>
-                <p className="mb-6 font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">지원 채널</p>
+                <p className="mb-6 font-mono text-sm font-bold uppercase tracking-[0.3em] text-white/30">지원 채널</p>
               </FadeUp>
               {[
                 {
@@ -771,7 +771,7 @@ function ContactPageContent() {
                         {ch.icon}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{ch.title}</p>
+                        <p className="text-xs font-bold uppercase tracking-widest text-white/30">{ch.title}</p>
                         <p className="mt-1 text-lg font-black text-white/90">{ch.value}</p>
                         <p className="mt-1 text-sm text-white/38">{ch.note}</p>
                         <Link
@@ -791,7 +791,7 @@ function ContactPageContent() {
             {/* Right: quick FAQ + start CTA */}
             <div className="space-y-4">
               <FadeUp delay={0.1}>
-                <p className="mb-6 font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">빠른 안내</p>
+                <p className="mb-6 font-mono text-sm font-bold uppercase tracking-[0.3em] text-white/30">빠른 안내</p>
               </FadeUp>
               <FadeUp delay={0.14}>
                 <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-[#060810] p-7">
@@ -813,7 +813,7 @@ function ContactPageContent() {
 
               <FadeUp delay={0.22}>
                 <div className="overflow-hidden rounded-3xl border border-[#ec5b13]/25 bg-[#ec5b13]/[0.06] p-7 text-center">
-                  <p className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-[#ec5b13]/70">바로 시작하기</p>
+                  <p className="font-mono text-sm font-bold uppercase tracking-[0.3em] text-[#ec5b13]/70">바로 시작하기</p>
                   <h2 className="mt-3 font-display text-2xl font-black text-white">무료로 먼저 써보세요</h2>
                   <p className="mt-3 text-sm leading-6 text-white/45">결제 없이 공개 스토어와 고객 기억 흐름을 바로 시작할 수 있습니다.</p>
                   <Link
@@ -886,7 +886,7 @@ function FeaturesPageContent() {
       <section className="relative overflow-hidden px-6 pb-20 pt-24 sm:px-10 lg:px-16">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(236,91,19,0.1) 0%, transparent 60%)' }} />
         <div className="relative mx-auto max-w-[90rem]">
-          <FadeUp delay={0.05}><p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">핵심 기능 / Features</p></FadeUp>
+          <FadeUp delay={0.05}><p className="mb-4 font-mono text-sm font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">핵심 기능 / Features</p></FadeUp>
           <LineUp delay={0.1}>
             <h1 className="break-keep font-display font-black text-white" style={{ fontSize: 'clamp(2.8rem, 6vw, 6rem)', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
               고객 기억으로 이어지는 매장 운영 기능
@@ -983,7 +983,7 @@ export function PlatformPublicInfoPage({ slug }: { slug: string }) {
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 55% 40% at 20% 0%, rgba(236,91,19,0.09) 0%, transparent 55%)' }} />
         <div className="relative mx-auto max-w-[90rem]">
           <FadeUp delay={0.05}>
-            <p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">MyBiz</p>
+            <p className="mb-4 font-mono text-sm font-bold uppercase tracking-[0.35em] text-[#ec5b13]/70">MyBiz</p>
           </FadeUp>
           <LineUp delay={0.1}>
             <h1 className="break-keep font-display font-black text-white" style={{ fontSize: 'clamp(2.4rem, 5.5vw, 5.5rem)', lineHeight: 1.05, letterSpacing: '-0.05em' }}>
