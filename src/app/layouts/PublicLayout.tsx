@@ -51,12 +51,25 @@ function writeDismissedPopup(popupKey: string, policy?: string | null) {
   window.localStorage.setItem(key, '1');
 }
 
+// Paths that use dark-content pages — header should match
+const DARK_SURFACE_PATHS = [
+  '/demo/dashboard',
+  '/features',
+  '/faq',
+  '/trust',
+  '/contact',
+  '/notices',
+  '/updates',
+];
+
 export function PublicLayout() {
   const location = useLocation();
   const isLandingPage = location.pathname === '/';
   const isDiagnosisShell = isDiagnosisShellPath(location.pathname);
   const shouldHidePublicChrome = isDiagnosisShell && !isLandingPage;
   const isPublicCinematicSurface = isDiagnosisShell;
+  const isDarkSurface =
+    DARK_SURFACE_PATHS.some((p) => location.pathname === p || location.pathname.startsWith(p + '/'));
   const hasMybiCompanion =
     !location.pathname.startsWith('/login') &&
     ENABLE_MYBI_COMPANION &&
@@ -95,23 +108,41 @@ export function PublicLayout() {
   return (
     <PersistentDiagnosisWorldProvider active={hasMybiCompanion} pathname={location.pathname}>
       <div
-        className={`flex min-h-screen flex-col ${shouldHidePublicChrome ? 'bg-[#03050a] text-white' : 'bg-[#f6f2ea] text-slate-900'}`}
-        data-public-shell-theme={shouldHidePublicChrome ? 'diagnosis' : 'default'}
+        className={`flex min-h-screen flex-col ${
+          shouldHidePublicChrome
+            ? 'bg-[#03050a] text-white'
+            : isDarkSurface
+              ? 'bg-[#03040a] text-white'
+              : 'bg-[#f6f2ea] text-slate-900'
+        }`}
+        data-public-shell-theme={shouldHidePublicChrome ? 'diagnosis' : isDarkSurface ? 'dark' : 'default'}
       >
         {shouldHidePublicChrome ? null : (
           <>
             {chrome.banners.map((banner) => (
-              <div key={banner.id || banner.banner_key} className="border-b border-orange-200 bg-orange-50 px-4 py-2 text-center text-sm font-bold text-orange-900">
+              <div
+                key={banner.id || banner.banner_key}
+                className={`border-b px-4 py-2 text-center text-sm font-bold ${isDarkSurface ? 'border-white/10 bg-white/[0.04] text-white/70' : 'border-orange-200 bg-orange-50 text-orange-900'}`}
+              >
                 <span>{banner.message}</span>
                 {banner.cta_href ? (
-                  <Link className="ml-3 underline decoration-orange-400 underline-offset-4" to={banner.cta_href}>
+                  <Link
+                    className={`ml-3 underline underline-offset-4 ${isDarkSurface ? 'decoration-white/30' : 'decoration-orange-400'}`}
+                    to={banner.cta_href}
+                  >
                     {banner.cta_label || '자세히 보기'}
                   </Link>
                 ) : null}
               </div>
             ))}
 
-            <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#f6f2ea]/90 backdrop-blur-xl">
+            <header
+              className={`sticky top-0 z-40 backdrop-blur-xl ${
+                isDarkSurface
+                  ? 'border-b border-white/[0.07] bg-[#03040a]/90'
+                  : 'border-b border-slate-200/80 bg-[#f6f2ea]/90'
+              }`}
+            >
               <div className="page-shell py-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <Link className="flex items-center gap-3" to="/">
@@ -119,18 +150,23 @@ export function PublicLayout() {
                       <Icons.Store size={22} />
                     </div>
                     <div>
-                      <p className="font-display text-xl font-black text-slate-900">{SITE_NAME}</p>
-                      <p className="text-xs text-slate-500">{SERVICE_TAGLINE}</p>
+                      <p className={`font-display text-xl font-black ${isDarkSurface ? 'text-white' : 'text-slate-900'}`}>{SITE_NAME}</p>
+                      <p className={`text-xs ${isDarkSurface ? 'text-white/40' : 'text-slate-500'}`}>{SERVICE_TAGLINE}</p>
                     </div>
                   </Link>
 
                   <div className="flex flex-col gap-3 lg:items-end">
-                    <nav className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600" data-homepage-nav={isLandingPage ? 'primary' : undefined}>
+                    <nav
+                      className={`flex flex-wrap items-center gap-2 text-sm font-semibold ${isDarkSurface ? 'text-white/55' : 'text-slate-600'}`}
+                      data-homepage-nav={isLandingPage ? 'primary' : undefined}
+                    >
                       {primaryNavigationLinks.map((item) => (
                         <NavLink
                           key={item.to}
                           className={({ isActive }) =>
-                            ['rounded-full px-3 py-2 transition', isActive && !item.to.includes('#') ? 'bg-white text-slate-900 shadow-sm' : 'hover:bg-white/70 hover:text-slate-900'].join(' ')
+                            isDarkSurface
+                              ? ['rounded-full px-3 py-2 transition', isActive && !item.to.includes('#') ? 'bg-white/10 text-white' : 'hover:bg-white/[0.08] hover:text-white'].join(' ')
+                              : ['rounded-full px-3 py-2 transition', isActive && !item.to.includes('#') ? 'bg-white text-slate-900 shadow-sm' : 'hover:bg-white/70 hover:text-slate-900'].join(' ')
                           }
                           to={item.to}
                         >
@@ -138,12 +174,16 @@ export function PublicLayout() {
                         </NavLink>
                       ))}
                       <details className="group relative">
-                        <summary className="list-none rounded-full px-3 py-2 transition hover:bg-white/70 hover:text-slate-900">
+                        <summary className={`list-none rounded-full px-3 py-2 transition ${isDarkSurface ? 'hover:bg-white/[0.08] hover:text-white' : 'hover:bg-white/70 hover:text-slate-900'}`}>
                           리소스
                         </summary>
-                        <div className="absolute right-0 z-50 mt-2 min-w-44 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                        <div className={`absolute right-0 z-50 mt-2 min-w-44 rounded-2xl border p-2 shadow-xl ${isDarkSurface ? 'border-white/10 bg-[#0d1525]' : 'border-slate-200 bg-white'}`}>
                           {resourceLinks.map((item) => (
-                            <Link key={item.to} className="block rounded-xl px-3 py-2 text-sm font-bold text-slate-600 hover:bg-orange-50 hover:text-orange-700" to={item.to}>
+                            <Link
+                              key={item.to}
+                              className={`block rounded-xl px-3 py-2 text-sm font-bold ${isDarkSurface ? 'text-white/55 hover:bg-white/[0.07] hover:text-white' : 'text-slate-600 hover:bg-orange-50 hover:text-orange-700'}`}
+                              to={item.to}
+                            >
                               {item.label}
                             </Link>
                           ))}
@@ -152,7 +192,12 @@ export function PublicLayout() {
                     </nav>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <Link className="btn-secondary" to="/login?next=/dashboard">
+                      <Link
+                        className={isDarkSurface
+                          ? 'inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/65 transition hover:border-white/25 hover:text-white'
+                          : 'btn-secondary'}
+                        to="/login?next=/dashboard"
+                      >
                         로그인
                       </Link>
 
