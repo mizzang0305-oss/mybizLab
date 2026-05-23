@@ -666,7 +666,7 @@ function ServiceRow({
       </motion.div>
 
       {/* Row layout */}
-      <div className="grid items-center gap-6 lg:grid-cols-[5rem_1.3fr_1fr_auto]">
+      <div className="grid items-center gap-8 lg:grid-cols-[5rem_1.2fr_1.4fr_auto]">
         {/* Number */}
         <div style={{ overflow: 'hidden' }}>
           <motion.p
@@ -701,7 +701,7 @@ function ServiceRow({
               className="mt-2 h-[3px] w-7 shrink-0 rounded-full transition-all duration-500 group-hover:w-11"
               style={{ background: accent }}
             />
-            <p className="break-keep text-sm leading-7 text-white/36 transition-colors group-hover:text-white/55">
+            <p className="break-keep text-base leading-8 text-white/40 transition-colors group-hover:text-white/65">
               {body}
             </p>
           </div>
@@ -711,7 +711,7 @@ function ServiceRow({
         <FadeReveal delay={0.3 + index * 0.07}>
           <Link
             to={link}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2.5 text-[11px] font-bold text-white/55 transition-all hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-6 py-3 text-sm font-bold text-white/60 transition-all hover:border-white/25 hover:bg-white/[0.1] hover:text-white"
             style={{ whiteSpace: 'nowrap' }}
           >
             {linkLabel}
@@ -1119,7 +1119,7 @@ export function LandingPage() {
       >
         <div className="mx-auto max-w-[90rem]">
           <FadeReveal>
-            <p className="mb-16 font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-white/30">
+            <p className="mb-16 font-mono text-sm font-bold uppercase tracking-[0.35em] text-white/30">
               운영 흐름 / Services
             </p>
           </FadeReveal>
@@ -1243,7 +1243,7 @@ export function LandingPage() {
             {/* Left sticky label */}
             <div>
               <FadeReveal>
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-white/30">
+                <p className="font-mono text-sm font-bold uppercase tracking-[0.35em] text-white/30">
                   핵심 기능 / Features
                 </p>
               </FadeReveal>
