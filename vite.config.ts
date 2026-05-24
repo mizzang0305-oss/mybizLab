@@ -27,10 +27,13 @@ export default defineConfig({
             return undefined;
           }
 
+          // Match only the actual react / react-dom / scheduler packages.
+          // Avoid accidentally matching scoped packages like @tiptap/react or
+          // @fullcalendar/react whose paths also end in /react/.
           if (
-            id.includes('/react/') ||
-            id.includes('/react-dom/') ||
-            id.includes('/scheduler/')
+            /\/node_modules\/react\//.test(id) ||
+            /\/node_modules\/react-dom\//.test(id) ||
+            /\/node_modules\/scheduler\//.test(id)
           ) {
             return 'vendor-react';
           }

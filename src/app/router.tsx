@@ -18,10 +18,13 @@ import { StoreHomePage } from '@/modules/table-order/public-home-page';
 import { StoreMenuPage } from '@/modules/table-order/public-menu-page';
 import { StoreOrderPage } from '@/modules/table-order/public-order-page';
 import { PublicWaitingPage } from '@/modules/waiting/public-page';
-import { AdminLoginPage } from '@/pages/AdminLoginPage';
-import { DemoDashboardPage } from '@/pages/DemoDashboardPage';
-import { LandingPage } from '@/pages/LandingPage';
-import { PricingPage } from '@/pages/PricingPage';
+// Heavy pages — lazy-loaded to keep the initial bundle light and prevent
+// their large vendor dependencies (gsap, recharts, etc.) from blocking
+// the initial app render.
+const AdminLoginPage = lazyPage(() => import('@/pages/AdminLoginPage'), 'AdminLoginPage');
+const DemoDashboardPage = lazyPage(() => import('@/pages/DemoDashboardPage'), 'DemoDashboardPage');
+const LandingPage = lazyPage(() => import('@/pages/LandingPage'), 'LandingPage');
+const PricingPage = lazyPage(() => import('@/pages/PricingPage'), 'PricingPage');
 
 function RouteLoadingFallback() {
   return (
