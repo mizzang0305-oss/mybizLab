@@ -59,7 +59,53 @@ export default defineConfig({
             return 'vendor-motion';
           }
 
-          if (id.includes('lucide-react')) {
+          // ── 3D / Cinematic ────────────────────────────────────────────
+          if (id.includes('/three/') || id.includes('/three-') || id.includes('vanta')) {
+            return 'vendor-3d';
+          }
+
+          // ── Animation ─────────────────────────────────────────────────
+          if (id.includes('gsap')) {
+            return 'vendor-gsap';
+          }
+
+          // ── Charts ────────────────────────────────────────────────────
+          if (
+            id.includes('recharts') ||
+            id.includes('victory-vendor') ||
+            id.includes('/d3-') ||
+            id.includes('d3-shape') ||
+            id.includes('d3-scale') ||
+            id.includes('d3-interpolate') ||
+            id.includes('d3-color') ||
+            id.includes('d3-format') ||
+            id.includes('d3-time')
+          ) {
+            return 'vendor-charts';
+          }
+
+          // ── Calendar ──────────────────────────────────────────────────
+          if (id.includes('@fullcalendar')) {
+            return 'vendor-calendar';
+          }
+
+          // ── Rich text editor ──────────────────────────────────────────
+          if (id.includes('@tiptap') || id.includes('prosemirror')) {
+            return 'vendor-editor';
+          }
+
+          // ── Drag-and-drop ─────────────────────────────────────────────
+          if (id.includes('@dnd-kit')) {
+            return 'vendor-dnd';
+          }
+
+          // ── Data table ────────────────────────────────────────────────
+          if (id.includes('@tanstack/react-table')) {
+            return 'vendor-table';
+          }
+
+          // ── UI utilities ──────────────────────────────────────────────
+          if (id.includes('lucide-react') || id.includes('cmdk')) {
             return 'vendor-ui';
           }
 
