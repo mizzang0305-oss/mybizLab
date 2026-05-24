@@ -1,0 +1,127 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - generic [ref=e12]:
+            - generic [ref=e13]:
+              - paragraph [ref=e14]: mybiz-live-cafe
+              - generic [ref=e15]: 테이블 1
+            - heading "MyBiz Live Cafe" [level=1] [ref=e16]
+            - paragraph [ref=e17]: MyBiz Live Cafe 운영 스토어
+            - paragraph [ref=e18]: 공개 유입을 문의, 예약, 웨이팅, 주문으로 연결하고 그 기록을 고객 메모리로 쌓는 MyBiz 공개 스토어입니다.
+          - generic [ref=e19]:
+            - link "문의 남기기" [ref=e20] [cursor=pointer]:
+              - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/inquiry
+            - link "예약 신청" [ref=e21] [cursor=pointer]:
+              - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/reservation
+            - link "웨이팅 등록" [ref=e22] [cursor=pointer]:
+              - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/waiting
+            - link "AI 상담 시작" [ref=e23] [cursor=pointer]:
+              - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/consultation
+            - link "주문하기" [ref=e24] [cursor=pointer]:
+              - /url: /mybiz-live-cafe/order?table=1
+        - generic [ref=e25]:
+          - link "홈" [ref=e26] [cursor=pointer]:
+            - /url: /mybiz-live-cafe
+          - link "메뉴" [ref=e27] [cursor=pointer]:
+            - /url: /mybiz-live-cafe/menu
+          - link "주문" [ref=e28] [cursor=pointer]:
+            - /url: /mybiz-live-cafe/order?table=1
+          - link "문의" [ref=e29] [cursor=pointer]:
+            - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/inquiry
+          - link "AI 상담" [ref=e30] [cursor=pointer]:
+            - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/consultation
+          - link "예약" [ref=e31] [cursor=pointer]:
+            - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/reservation
+          - link "웨이팅" [ref=e32] [cursor=pointer]:
+            - /url: /s/20d95f47-bae6-43a2-a9c9-a190be176747/waiting
+    - main [ref=e33]:
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - generic [ref=e37]:
+            - heading "메뉴 선택" [level=2] [ref=e38]
+            - paragraph [ref=e39]: 현재 테이블 1
+          - generic [ref=e40]:
+            - generic [ref=e42]:
+              - generic [ref=e43]:
+                - paragraph [ref=e44]: 대표 메뉴 1
+                - paragraph
+                - paragraph [ref=e45]: ₩19,500
+              - generic [ref=e46]:
+                - button "-" [ref=e47]
+                - generic [ref=e48]: "1"
+                - button "+" [ref=e49]
+            - generic [ref=e51]:
+              - generic [ref=e52]:
+                - paragraph [ref=e53]: 대표 메뉴 2
+                - paragraph
+                - paragraph [ref=e54]: ₩18,000
+              - generic [ref=e55]:
+                - button "-" [ref=e56]
+                - generic [ref=e57]: "0"
+                - button "+" [ref=e58]
+        - generic [ref=e59]:
+          - heading "장바구니" [level=2] [ref=e62]
+          - generic [ref=e63]:
+            - generic [ref=e112]:
+              - generic [ref=e113]: 대표 메뉴 1 x1
+              - generic [ref=e114]: ₩19,500
+            - generic [ref=e65]:
+              - generic [ref=e66]: 요청사항
+              - textbox "요청사항" [ref=e67]
+            - generic [ref=e68]:
+              - paragraph [ref=e69]: 총 결제 예상 금액
+              - paragraph [ref=e70]: ₩19,500
+            - generic [ref=e71]:
+              - paragraph [ref=e72]: 결제 방식
+              - generic [ref=e73]:
+                - button "매장에서 결제 카운터 결제 주문으로 접수되고 점주가 결제 완료를 기록합니다." [active] [ref=e74]:
+                  - paragraph [ref=e75]: 매장에서 결제
+                  - paragraph [ref=e76]: 카운터 결제 주문으로 접수되고 점주가 결제 완료를 기록합니다.
+                - button "모바일 결제 PortOne 카드 결제로 바로 확인합니다. 미완료 시 주문은 미결제로 남아 매장에서 다시 확인할 수 있습니다." [ref=e77]:
+                  - paragraph [ref=e78]: 모바일 결제
+                  - paragraph [ref=e79]: PortOne 카드 결제로 바로 확인합니다. 미완료 시 주문은 미결제로 남아 매장에서 다시 확인할 수 있습니다.
+            - button "주문 제출" [ref=e80]
+    - contentinfo [ref=e81]:
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - generic [ref=e85]:
+            - paragraph [ref=e86]: MyBiz
+            - paragraph [ref=e87]: 고객 기억을 매출로 바꾸는 고객-메모리 매출 시스템
+            - paragraph [ref=e88]: mybiz.ai.kr
+          - generic [ref=e89]:
+            - link "요금제" [ref=e90] [cursor=pointer]:
+              - /url: /pricing
+            - link "관리자 로그인" [ref=e91] [cursor=pointer]:
+              - /url: /login
+        - generic [ref=e92]:
+          - paragraph [ref=e93]: 정책 및 안내
+          - generic [ref=e94]:
+            - link "이용약관" [ref=e95] [cursor=pointer]:
+              - /url: /terms
+            - link "개인정보처리방침" [ref=e96] [cursor=pointer]:
+              - /url: /privacy
+            - link "환불정책" [ref=e97] [cursor=pointer]:
+              - /url: /refund
+        - generic [ref=e98]:
+          - paragraph [ref=e99]: 사업자 정보
+          - paragraph [ref=e100]: "상호명: 마이비즈랩"
+          - paragraph [ref=e101]: "대표자: 이정미"
+          - paragraph [ref=e102]: "사업자등록번호: 741-01-03857"
+          - paragraph [ref=e103]: "통신판매업 신고번호: 2026-인천남동구-0346"
+          - paragraph [ref=e104]: "주소: 인천광역시 남동구 만수서로 101, 121-1(만수동, 상원프라자)"
+          - paragraph [ref=e105]: "고객센터: 032-214-5757"
+          - paragraph [ref=e106]:
+            - text: 이메일
+            - link "mybiz.lab3@gmail.com" [ref=e107] [cursor=pointer]:
+              - /url: mailto:mybiz.lab3@gmail.com
+  - generic [ref=e108]:
+    - button "MYBI 대화 열기 또는 위치 이동" [ref=e6]:
+      - paragraph [ref=e7]: MYBI
+      - paragraph [ref=e8]: 열기 · 이동
+    - generic:
+      - generic: 대기 중
+    - generic:
+      - generic: 01 현재 컨텍스트
+      - generic: 공개 화면

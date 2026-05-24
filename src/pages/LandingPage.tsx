@@ -15,6 +15,9 @@ import {
 } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import { getPublicPlatformHomepageContent } from '@/shared/lib/services/platformAdminContentService';
@@ -880,17 +883,141 @@ function FeatureCard({ card, index }: { card: string; index: number }) {
   );
 }
 
+// ─── Animated Beam (Magic UI–style SVG path between two refs) ────────────────
+function AnimatedBeam({
+  containerRef,
+  fromRef,
+  toRef,
+  curvature = 60,
+  delay = 0,
+  color = '#ec5b13',
+}: {
+  containerRef: React.RefObject<HTMLElement | null>;
+  fromRef: React.RefObject<HTMLElement | null>;
+  toRef: React.RefObject<HTMLElement | null>;
+  curvature?: number;
+  delay?: number;
+  color?: string;
+}) {
+  const [d, setD] = useState('');
+  const idRef = useRef(`beam-${Math.random().toString(36).slice(2, 7)}`);
+
+  useEffect(() => {
+    function recalc() {
+      const from = fromRef.current;
+      const to = toRef.current;
+      const box = containerRef.current;
+      if (!from || !to || !box) return;
+      const cr = box.getBoundingClientRect();
+      const fr = from.getBoundingClientRect();
+      const tr = to.getBoundingClientRect();
+      const x1 = fr.left - cr.left + fr.width / 2;
+      const y1 = fr.top - cr.top + fr.height / 2;
+      const x2 = tr.left - cr.left + tr.width / 2;
+      const y2 = tr.top - cr.top + tr.height / 2;
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2 - curvature;
+      setD(`M${x1},${y1} Q${mx},${my} ${x2},${y2}`);
+    }
+    recalc();
+    const ro = new ResizeObserver(recalc);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [fromRef, toRef, containerRef, curvature]);
+
+  if (!d) return null;
+  const gradId = idRef.current;
+  return (
+    <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+      <defs>
+        <linearGradient id={gradId} gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="transparent" />
+          <stop offset="50%" stopColor={color} stopOpacity="0.85" />
+          <stop offset="100%" stopColor="transparent" />
+        </linearGradient>
+      </defs>
+      <path d={d} stroke={`${color}20`} strokeWidth="1.5" fill="none" />
+      <motion.path
+        d={d}
+        stroke={`url(#${gradId})`}
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+        initial={{ pathLength: 0, opacity: 0 }}
+        whileInView={{ pathLength: 1, opacity: 1 }}
+        viewport={{ once: true, margin: '-5%' }}
+        transition={{ duration: 1.6, ease: EASE_EXPO, delay }}
+      />
+    </svg>
+  );
+}
+
 // ─── Main LandingPage ─────────────────────────────────────────────────────────
 export function LandingPage() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
+  const vantaRef = useRef<any>(null);
+  // refs for AnimatedBeam in stats section
+  const statRef0 = useRef<HTMLDivElement>(null);
+  const statRef1 = useRef<HTMLDivElement>(null);
+  const statRef2 = useRef<HTMLDivElement>(null);
+  const statsContainerRef = useRef<HTMLElement>(null);
 
   const { scrollY } = useScroll();
   const heroParallaxY = useTransform(scrollY, [0, 700], [0, -140]);
   const heroOpacity = useTransform(scrollY, [0, 500], [1, 0]);
 
   useEffect(() => setMounted(true), []);
+
+  // ── Vanta.js NET animated hero background ────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined' || !heroRef.current) return;
+    let effect: any;
+    (async () => {
+      try {
+        const [THREE, vantaMod] = await Promise.all([
+          import('three'),
+          // @ts-ignore
+          import('vanta/dist/vanta.net.min'),
+        ]);
+        if (!heroRef.current) return;
+        const NET = (vantaMod as any).default ?? vantaMod;
+        effect = NET({
+          el: heroRef.current,
+          THREE,
+          mouseControls: true,
+          touchControls: false,
+          gyroControls: false,
+          color: 0xec5b13,
+          backgroundColor: 0x03040a,
+          points: 8.0,
+          maxDistance: 22.0,
+          spacing: 20.0,
+          showDots: false,
+        });
+        vantaRef.current = effect;
+      } catch (_) { /* Vanta optional — fail silently */ }
+    })();
+    return () => {
+      vantaRef.current?.destroy();
+      vantaRef.current = null;
+    };
+  }, []);
+
+  // ── GSAP ScrollTrigger + Lenis integration ───────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    gsap.registerPlugin(ScrollTrigger);
+    const lenis = (window as any).__lenis;
+    if (lenis) {
+      lenis.on('scroll', ScrollTrigger.update);
+      gsap.ticker.lagSmoothing(0);
+    }
+    return () => {
+      ScrollTrigger.getAll().forEach((t) => t.kill());
+    };
+  }, []);
 
   const homepageQuery = useQuery({
     queryKey: queryKeys.publicPlatformHomepage,
@@ -1182,6 +1309,7 @@ export function LandingPage() {
       <section
         className="relative overflow-hidden bg-[#03040a] px-6 py-28 sm:px-10 lg:px-16"
         id="cases"
+        ref={statsContainerRef as React.RefObject<HTMLElement>}
       >
         {/* Faint rule */}
         <div className="pointer-events-none absolute left-0 right-0 top-0 h-px"
@@ -1194,14 +1322,35 @@ export function LandingPage() {
             </p>
           </FadeReveal>
 
-          <div className="grid divide-y divide-white/[0.06] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+          <div className="relative grid divide-y divide-white/[0.06] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+            {/* Animated beams connecting the three stat blocks */}
+            {mounted && (
+              <>
+                <AnimatedBeam
+                  containerRef={statsContainerRef as React.RefObject<HTMLElement>}
+                  fromRef={statRef0}
+                  toRef={statRef1}
+                  curvature={-50}
+                  delay={0.5}
+                  color="#ec5b13"
+                />
+                <AnimatedBeam
+                  containerRef={statsContainerRef as React.RefObject<HTMLElement>}
+                  fromRef={statRef1}
+                  toRef={statRef2}
+                  curvature={-50}
+                  delay={0.8}
+                  color="#3b82f6"
+                />
+              </>
+            )}
             {[
-              { value: 34, prefix: '+', suffix: '%', label: '재방문율', note: '고객 기억 활성화 후 평균' },
-              { value: 52, prefix: '–', suffix: '%', label: '운영 응대 시간', note: '문의·예약 자동화 도입 후' },
-              { value: 18, prefix: '+', suffix: '%', label: '객단가', note: '추천 메뉴 엔진 가동 매장' },
+              { value: 34, prefix: '+', suffix: '%', label: '재방문율', note: '고객 기억 활성화 후 평균', ref: statRef0 },
+              { value: 52, prefix: '–', suffix: '%', label: '운영 응대 시간', note: '문의·예약 자동화 도입 후', ref: statRef1 },
+              { value: 18, prefix: '+', suffix: '%', label: '객단가', note: '추천 메뉴 엔진 가동 매장', ref: statRef2 },
             ].map((stat, i) => (
               <FadeReveal key={stat.label} delay={i * 0.12} className="px-0 py-10 lg:px-12 lg:py-0">
-                <div>
+                <div ref={stat.ref}>
                   <p
                     className="font-display font-black leading-none tracking-tight text-white"
                     style={{ fontSize: 'clamp(4rem, 10vw, 9rem)', letterSpacing: '-0.06em' }}

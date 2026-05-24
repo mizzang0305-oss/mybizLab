@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import qrcode from 'qrcode-generator';
 import { Link } from 'react-router-dom';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 
 import { EmptyState } from '@/shared/components/EmptyState';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -603,6 +605,51 @@ export function ContentReviewsPage() {
   );
 }
 
+// ─── Tiptap rich text editor ─────────────────────────────────────────────────
+function TiptapEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: value,
+    onUpdate: ({ editor: e }) => onChange(e.getHTML()),
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm max-w-none min-h-[10rem] focus:outline-none px-4 py-3',
+      },
+    },
+  });
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100">
+      {/* Toolbar */}
+      <div className="flex flex-wrap gap-1 border-b border-slate-100 bg-slate-50 px-3 py-2">
+        {[
+          { label: 'B', title: '굵게', action: () => editor?.chain().focus().toggleBold().run(), active: () => Boolean(editor?.isActive('bold')) },
+          { label: 'I', title: '기울임', action: () => editor?.chain().focus().toggleItalic().run(), active: () => Boolean(editor?.isActive('italic')) },
+          { label: 'S', title: '취소선', action: () => editor?.chain().focus().toggleStrike().run(), active: () => Boolean(editor?.isActive('strike')) },
+          { label: 'H2', title: '소제목', action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run(), active: () => Boolean(editor?.isActive('heading', { level: 2 })) },
+          { label: '≡', title: '목록', action: () => editor?.chain().focus().toggleBulletList().run(), active: () => Boolean(editor?.isActive('bulletList')) },
+          { label: '1.', title: '번호 목록', action: () => editor?.chain().focus().toggleOrderedList().run(), active: () => Boolean(editor?.isActive('orderedList')) },
+          { label: '❝', title: '인용구', action: () => editor?.chain().focus().toggleBlockquote().run(), active: () => Boolean(editor?.isActive('blockquote')) },
+        ].map(({ label, title, action, active }) => (
+          <button
+            key={label}
+            title={title}
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); action(); }}
+            className={[
+              'rounded-lg px-2.5 py-1 text-xs font-bold transition',
+              active() ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-900',
+            ].join(' ')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <EditorContent editor={editor} />
+    </div>
+  );
+}
+
 export function ContentBlogPage() {
   const { currentStore } = useCurrentStore();
   const actorProfileId = useActorProfileId();
@@ -716,10 +763,13 @@ export function ContentBlogPage() {
             <span className="field-label">태그</span>
             <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))} placeholder="소식, 후기" value={form.tags} />
           </label>
-          <label className="md:col-span-2">
+          <div className="md:col-span-2">
             <span className="field-label">본문</span>
-            <textarea className="input-base min-h-40" onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} value={form.body} />
-          </label>
+            <TiptapEditor
+              value={form.body}
+              onChange={(html) => setForm((current) => ({ ...current, body: html }))}
+            />
+          </div>
         </div>
         <button className="btn-primary mt-4" disabled={!canCreate || createMutation.isPending} onClick={() => createMutation.mutate()} type="button">
           초안 저장

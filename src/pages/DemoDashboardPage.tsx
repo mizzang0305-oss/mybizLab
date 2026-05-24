@@ -2,15 +2,54 @@
  * DemoDashboardPage — Read-only demo for prospective merchants.
  * Dark theme matching the landing page. AI-driven hooks to convert visitors.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, useSpring } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
+import {
+  AreaChart, Area, BarChart, Bar, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from 'recharts';
 
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 
 // ─── Easing (matching landing page) ──────────────────────────────────────────
 const EASE_EXPO = [0.16, 1, 0.3, 1] as const;
 const EASE_CIRC = [0.22, 1, 0.36, 1] as const;
+
+// ─── Chart data ──────────────────────────────────────────────────────────────
+const WEEKLY_DATA = [
+  { day: '월', 예약: 4, 웨이팅: 3, 주문: 18 },
+  { day: '화', 예약: 6, 웨이팅: 5, 주문: 24 },
+  { day: '수', 예약: 5, 웨이팅: 4, 주문: 21 },
+  { day: '목', 예약: 8, 웨이팅: 7, 주문: 32 },
+  { day: '금', 예약: 11, 웨이팅: 9, 주문: 42 },
+  { day: '토', 예약: 14, 웨이팅: 12, 주문: 58 },
+  { day: '일', 예약: 10, 웨이팅: 8, 주문: 46 },
+];
+
+const RETENTION_DATA = [
+  { week: '4주전', 재방문율: 54 },
+  { week: '3주전', 재방문율: 61 },
+  { week: '2주전', 재방문율: 68 },
+  { week: '지난주', 재방문율: 74 },
+  { week: '이번주', 재방문율: 82 },
+];
+
+// ─── Custom chart tooltip ────────────────────────────────────────────────────
+function DarkTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#0d1525] px-4 py-3 text-xs shadow-2xl">
+      <p className="mb-2 font-bold text-white/60">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.dataKey} className="font-bold" style={{ color: p.color }}>
+          {p.dataKey}: {p.value}
+        </p>
+      ))}
+    </div>
+  );
+}
 
 // ─── Required by tests ────────────────────────────────────────────────────────
 const readonlyMessage =
@@ -388,17 +427,16 @@ function RevenueIntelligence() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function DemoDashboardPage() {
-  const [toastMsg, setToastMsg] = useState('');
-  const [toastKey, setToastKey] = useState(0);
-
   usePageMeta(
     'MyBiz 운영 대시보드 체험',
     '실제 데이터 없이 MyBiz 점주 화면의 고객 기억, 문의, 예약, 웨이팅, QR 주문 흐름을 둘러봅니다.',
   );
 
   function showReadonly() {
-    setToastMsg(readonlyMessage);
-    setToastKey((k) => k + 1);
+    toast('🔒 ' + readonlyMessage, {
+      duration: 3500,
+      style: { background: '#1a1a2e', border: '1px solid rgba(236,91,19,0.3)', color: '#fff' },
+    });
   }
 
   // Metric counts
@@ -421,25 +459,6 @@ export function DemoDashboardPage() {
         }
       `}</style>
 
-      {/* ── Toast ── */}
-      <AnimatePresence>
-        {toastMsg && (
-          <motion.div
-            key={toastKey}
-            className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 max-w-sm rounded-2xl px-6 py-4 text-sm font-bold text-white shadow-2xl"
-            style={{ background: '#1a1a2e', border: '1px solid rgba(236,91,19,0.4)' }}
-            initial={{ opacity: 0, y: 24, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.95 }}
-            transition={{ duration: 0.35, ease: EASE_CIRC }}
-            onAnimationComplete={() => {
-              setTimeout(() => setToastMsg(''), 3000);
-            }}
-          >
-            🔒 {toastMsg}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="mx-auto max-w-[90rem] px-6 py-10 sm:px-10 lg:px-16">
 
@@ -544,6 +563,77 @@ export function DemoDashboardPage() {
               )}
             </motion.article>
           ))}
+        </section>
+
+        {/* ── Charts: Weekly Trend + Retention ── */}
+        <section className="mb-8 grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+          {/* Weekly ops area chart */}
+          <motion.div
+            className="rounded-3xl p-6 sm:p-8"
+            style={{ background: '#060810', border: '1px solid rgba(255,255,255,0.07)' }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, ease: EASE_EXPO, delay: 0.35 }}
+          >
+            <p className="font-mono text-xs font-bold uppercase tracking-widest text-white/30">Weekly Operations</p>
+            <h2 className="mt-2 mb-6 font-display text-2xl font-black text-white">이번 주 운영 현황</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={WEEKLY_DATA} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gOrder" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ec5b13" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#ec5b13" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gRes" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gWait" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="day" stroke="rgba(255,255,255,0.2)" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }} />
+                <YAxis stroke="rgba(255,255,255,0.2)" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }} />
+                <Tooltip content={<DarkTooltip />} />
+                <Area type="monotone" dataKey="주문" stroke="#ec5b13" strokeWidth={2} fill="url(#gOrder)" dot={false} />
+                <Area type="monotone" dataKey="예약" stroke="#3b82f6" strokeWidth={2} fill="url(#gRes)" dot={false} />
+                <Area type="monotone" dataKey="웨이팅" stroke="#a855f7" strokeWidth={2} fill="url(#gWait)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="mt-4 flex flex-wrap gap-4 text-xs text-white/40">
+              <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-[#ec5b13]" />주문</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-[#3b82f6]" />예약</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-[#a855f7]" />웨이팅</span>
+            </div>
+          </motion.div>
+
+          {/* Retention bar chart */}
+          <motion.div
+            className="rounded-3xl p-6 sm:p-8"
+            style={{ background: '#060810', border: '1px solid rgba(255,255,255,0.07)' }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, ease: EASE_EXPO, delay: 0.45 }}
+          >
+            <p className="font-mono text-xs font-bold uppercase tracking-widest text-white/30">AI Retention</p>
+            <h2 className="mt-2 mb-6 font-display text-2xl font-black text-white">재방문율 추세</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={RETENTION_DATA} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="week" stroke="rgba(255,255,255,0.2)" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }} />
+                <YAxis stroke="rgba(255,255,255,0.2)" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }} unit="%" />
+                <Tooltip content={<DarkTooltip />} />
+                <Bar dataKey="재방문율" radius={[6, 6, 0, 0]}>
+                  {RETENTION_DATA.map((_, i) => (
+                    <Cell key={i} fill={i === RETENTION_DATA.length - 1 ? '#fb923c' : 'rgba(236,91,19,0.55)'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="mt-3 text-xs text-white/30">🤖 고객 기억 누적 → 재방문율 +28%p 향상</p>
+          </motion.div>
         </section>
 
         {/* ── Customer memory + Live ops ── */}

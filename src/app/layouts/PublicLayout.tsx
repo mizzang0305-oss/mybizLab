@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
+import { Toaster } from 'sonner';
 import { AppFooter } from '@/shared/components/AppFooter';
 import { Icons } from '@/shared/components/Icons';
 import { PersistentDiagnosisWorldProvider } from '@/shared/components/PersistentDiagnosisWorldShell';
@@ -242,6 +243,16 @@ export function PublicLayout() {
         ) : null}
 
         {isDiagnosisShell && !isLandingPage ? null : <AppFooter />}
+        <Toaster
+          position="bottom-center"
+          toastOptions={{
+            style: {
+              background: isDarkSurface ? '#1a1a2e' : undefined,
+              border: isDarkSurface ? '1px solid rgba(236,91,19,0.3)' : undefined,
+              color: isDarkSurface ? '#fff' : undefined,
+            },
+          }}
+        />
       </div>
     </PersistentDiagnosisWorldProvider>
   );

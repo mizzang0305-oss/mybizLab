@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
 
 import { EmptyState } from '@/shared/components/EmptyState';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -26,6 +30,7 @@ export function ReservationsPage() {
   const { currentStore } = useCurrentStore();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initialForm);
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
 
   usePageMeta('예약 관리', '예약 상태와 방문 일정을 관리하는 예약 운영 화면입니다.');
 
@@ -64,6 +69,19 @@ export function ReservationsPage() {
     );
   }
 
+  // Map reservations to FullCalendar event objects
+  const calendarEvents = (reservationsQuery.data ?? []).map((r) => ({
+    id: r.id,
+    title: `${r.customer_name || r.phone || '고객'} (${r.party_size}명)`,
+    start: r.reserved_at,
+    backgroundColor:
+      r.status === 'seated' ? '#16a34a'
+      : r.status === 'cancelled' || r.status === 'no_show' ? '#6b7280'
+      : '#f97316',
+    borderColor: 'transparent',
+    extendedProps: { status: r.status },
+  }));
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -72,6 +90,48 @@ export function ReservationsPage() {
         description="예약자, 방문 시간, 다음 처리만 먼저 보고 착석·완료를 빠르게 처리합니다."
       />
 
+      {/* View toggle */}
+      <div className="flex items-center gap-2">
+        {(['list', 'calendar'] as const).map((v) => (
+          <button
+            key={v}
+            className={[
+              'rounded-2xl px-5 py-2 text-sm font-bold transition',
+              viewMode === v
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-600 hover:border-orange-300 hover:text-orange-700',
+            ].join(' ')}
+            onClick={() => setViewMode(v)}
+            type="button"
+          >
+            {v === 'list' ? '📋 리스트' : '📅 달력 보기'}
+          </button>
+        ))}
+      </div>
+
+      {/* Calendar view */}
+      {viewMode === 'calendar' && (
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <FullCalendar
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            initialView="dayGridMonth"
+            locale="ko"
+            headerToolbar={{
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek',
+            }}
+            buttonText={{ today: '오늘', month: '월', week: '주' }}
+            events={calendarEvents}
+            height="auto"
+            eventDisplay="block"
+            dayMaxEvents={3}
+          />
+        </div>
+      )}
+
+      {/* List view */}
+      {viewMode === 'list' && (
       <div className="grid gap-8 xl:grid-cols-[0.75fr_1.25fr]">
         <Panel title="예약 등록">
           <div className="grid gap-4">
@@ -158,6 +218,7 @@ export function ReservationsPage() {
           </div>
         </Panel>
       </div>
+      )}
     </div>
   );
 }

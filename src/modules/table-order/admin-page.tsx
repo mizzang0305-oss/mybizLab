@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Panel } from '@/shared/components/Panel';
@@ -26,6 +43,74 @@ import {
 } from '@/shared/lib/services/mvpService';
 import { buildStorePath } from '@/shared/lib/storeSlug';
 import type { OrderStatus } from '@/shared/types/models';
+
+// ─── Drag-and-drop sortable menu item ────────────────────────────────────────
+type MenuItemDnd = { id: string; name: string; price: number; is_popular: boolean; category_id?: string };
+
+function SortableMenuItem({ item }: { item: MenuItemDnd }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm"
+    >
+      {/* Drag handle */}
+      <span
+        {...attributes}
+        {...listeners}
+        className="cursor-grab touch-none select-none text-slate-300 active:cursor-grabbing"
+        title="드래그해서 순서 변경"
+      >
+        ⠿
+      </span>
+      <span className="flex-1 font-semibold text-slate-900">{item.name}</span>
+      <span className="font-bold text-orange-600">{item.price.toLocaleString('ko-KR')}원</span>
+      {item.is_popular && (
+        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-700">
+          인기
+        </span>
+      )}
+    </div>
+  );
+}
+
+function SortableMenuCategory({ category, allItems }: { category: { id: string; name: string }; allItems: MenuItemDnd[] }) {
+  const initialItems = allItems.filter((i) => i.category_id === category.id);
+  const [items, setItems] = useState(initialItems.map((i) => i.id));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function onDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setItems((ids) => arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id))));
+    }
+  }
+
+  const sortedItems = items
+    .map((id) => initialItems.find((i) => i.id === id))
+    .filter((i): i is MenuItemDnd => Boolean(i));
+
+  return (
+    <div className="rounded-3xl border border-slate-200 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="font-bold text-slate-900">{category.name}</p>
+        <span className="text-xs text-slate-400">{sortedItems.length}개 메뉴 · 드래그로 순서 변경</span>
+      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={items} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {sortedItems.map((item) => <SortableMenuItem key={item.id} item={item} />)}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
 
 export function TableOrderAdminPage() {
   const { currentStore } = useCurrentStore();
@@ -307,21 +392,14 @@ export function TableOrderAdminPage() {
             </div>
           </Panel>
 
-          <Panel title="메뉴 현황">
+          <Panel title="메뉴 현황" subtitle="드래그해서 메뉴 순서를 바꿀 수 있습니다.">
             <div className="space-y-4">
               {menuQuery.data?.categories.map((category) => (
-                <div key={category.id} className="rounded-3xl border border-slate-200 p-4">
-                  <p className="font-bold text-slate-900">{category.name}</p>
-                  <div className="mt-3 space-y-2">
-                    {menuQuery.data.items
-                      .filter((item) => item.category_id === category.id)
-                      .map((item) => (
-                        <div key={item.id} className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-700">
-                          {item.name} · {item.price.toLocaleString('ko-KR')}원
-                        </div>
-                      ))}
-                  </div>
-                </div>
+                <SortableMenuCategory
+                  key={category.id}
+                  category={category}
+                  allItems={menuQuery.data!.items as MenuItemDnd[]}
+                />
               ))}
             </div>
           </Panel>

@@ -1,5 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  flexRender,
+  createColumnHelper,
+  type SortingState,
+} from '@tanstack/react-table';
 
 import { EmptyState } from '@/shared/components/EmptyState';
 import { MetricCard } from '@/shared/components/MetricCard';
@@ -63,6 +72,116 @@ const conversationChannelLabelMap: Record<string, string> = {
   dashboard_manual: '수기 상담',
   public_inquiry: '공개 문의',
 };
+
+// ─── TanStack Table: sortable customer list ───────────────────────────────────
+type CustomerRow = {
+  id: string; name: string; phone: string; email?: string;
+  visit_count: number; last_visit_at?: string; is_regular: boolean;
+};
+
+const colHelper = createColumnHelper<CustomerRow>();
+
+const customerColumns = [
+  colHelper.accessor('name', {
+    header: '고객명',
+    cell: (info) => (
+      <span className="font-semibold text-slate-900">{info.getValue() || '이름 없음'}</span>
+    ),
+  }),
+  colHelper.accessor('phone', {
+    header: '연락처',
+    cell: (info) => <span className="text-slate-600">{info.getValue() || '—'}</span>,
+  }),
+  colHelper.accessor('visit_count', {
+    header: () => <span className="flex items-center gap-1">방문 횟수 <span className="text-[10px] text-slate-400">↕</span></span>,
+    cell: (info) => (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+        {info.getValue()}회
+      </span>
+    ),
+  }),
+  colHelper.accessor('is_regular', {
+    header: '단골',
+    cell: (info) => info.getValue()
+      ? <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">단골</span>
+      : <span className="text-slate-300">—</span>,
+  }),
+  colHelper.accessor('last_visit_at', {
+    header: '최근 방문',
+    cell: (info) => {
+      const v = info.getValue();
+      return <span className="text-xs text-slate-500">{v ? new Date(v).toLocaleDateString('ko-KR') : '—'}</span>;
+    },
+  }),
+];
+
+function CustomerDataTable({ data }: { data: CustomerRow[] }) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState('');
+
+  const table = useReactTable({
+    data,
+    columns: customerColumns,
+    state: { sorting, globalFilter },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  });
+
+  return (
+    <div className="space-y-3">
+      <input
+        className="input-base max-w-xs"
+        placeholder="고객명 · 연락처 검색..."
+        value={globalFilter}
+        onChange={(e) => setGlobalFilter(e.target.value)}
+      />
+      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <table className="w-full text-sm">
+          <thead>
+            {table.getHeaderGroups().map((hg) => (
+              <tr key={hg.id} className="border-b border-slate-200 bg-slate-50">
+                {hg.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-500"
+                    onClick={header.column.getToggleSortingHandler()}
+                    style={{ cursor: header.column.getCanSort() ? 'pointer' : 'default' }}
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                    {header.column.getIsSorted() === 'asc' ? ' ↑' : header.column.getIsSorted() === 'desc' ? ' ↓' : ''}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td colSpan={customerColumns.length} className="py-8 text-center text-sm text-slate-400">
+                  고객 데이터가 없습니다
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <tr key={row.id} className="border-b border-slate-100 hover:bg-orange-50/40 transition-colors">
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-4 py-3">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-slate-400">{table.getFilteredRowModel().rows.length}명 표시 중</p>
+    </div>
+  );
+}
 
 export function CustomersPage() {
   const { currentStore } = useCurrentStore();
@@ -317,6 +436,11 @@ export function CustomersPage() {
         <MetricCard accent="orange" label="미처리 문의" value={openInquiryCount} />
         <MetricCard accent="slate" label="전체 문의" value={inquiries.length} />
       </div>
+
+      {/* TanStack Table: sortable & filterable customer list */}
+      <Panel title="고객 목록" subtitle="이름·방문 횟수로 정렬하고 이름·연락처로 빠르게 검색합니다.">
+        <CustomerDataTable data={customers as CustomerRow[]} />
+      </Panel>
 
       <Panel title="고객 타임라인 인텔리전스" subtitle="주문, 문의, 예약, 웨이팅, 리뷰를 고객 기억 카드로 묶어 다음 행동 후보를 보여줍니다.">
         {intelligenceDashboard.cards.length ? (
