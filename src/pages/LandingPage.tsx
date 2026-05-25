@@ -821,10 +821,14 @@ function FeatureScrollStory() {
     }
 
     const ctx = gsap.context(() => {
+      // Use GSAP pin instead of CSS sticky — parent overflow:hidden auto breaks sticky
       ScrollTrigger.create({
-        trigger: sectionRef.current,
+        trigger: stickyRef.current,
         start: 'top top',
-        end: 'bottom bottom',
+        end: () => `+=${(STORY_FEATURES.length - 1) * window.innerHeight}`,
+        pin: true,
+        pinSpacing: true,
+        anticipatePin: 1,
         onUpdate(self) {
           const raw = self.progress * STORY_FEATURES.length;
           const newIdx = Math.min(Math.floor(raw), STORY_FEATURES.length - 1);
@@ -883,7 +887,7 @@ function FeatureScrollStory() {
           setActiveIdx(newIdx);
         },
       });
-    }, sectionRef);
+    }, stickyRef);
 
     return () => ctx.revert();
   }, []);
@@ -894,14 +898,13 @@ function FeatureScrollStory() {
     <section
       ref={sectionRef as React.RefObject<HTMLElement>}
       className="relative bg-[#03040a]"
-      style={{ height: `${STORY_FEATURES.length * 100}vh` }}
       id="services"
       data-product-story-flow="scrollytelling"
     >
-      {/* Sticky viewport */}
+      {/* GSAP-pinned viewport — GSAP handles pinning via pin:true (bypasses CSS sticky limitation) */}
       <div
         ref={stickyRef}
-        className="sticky top-0 h-screen overflow-hidden"
+        className="h-screen overflow-hidden"
       >
         {/* Ambient glow */}
         <div ref={glowRef} className="pointer-events-none absolute inset-0 transition-none" />
