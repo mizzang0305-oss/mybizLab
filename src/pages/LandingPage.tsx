@@ -732,6 +732,341 @@ function ServiceRow({
   );
 }
 
+// ─── GSAP ScrollTrigger scrollytelling — 5-step feature story ────────────────
+const STORY_FEATURES = [
+  {
+    num: '01',
+    badge: '공개 스토어',
+    headline: '고객의 첫\n방문을 설계하다',
+    body: '문의하기, 예약, 웨이팅, QR 주문으로 고객 행동이 자연스럽게 시작됩니다. 방문 전부터 브랜드를 기억하게 만드세요.',
+    accent: '#ec5b13',
+    link: '/mybiz-live-cafe',
+    linkLabel: '스토어 데모',
+    mockupKey: 'store',
+    tags: ['문의하기', '예약', '웨이팅', 'QR 주문'],
+  },
+  {
+    num: '02',
+    badge: '운영 대시보드',
+    headline: '모든 운영을\n한눈에',
+    body: '예약, 웨이팅, 주문, 알림을 하나의 화면에서 빠르게 파악하고 즉시 대응합니다. 현장이 조용해집니다.',
+    accent: '#3b82f6',
+    link: '/demo/dashboard',
+    linkLabel: '대시보드 데모',
+    mockupKey: 'dashboard',
+    tags: ['실시간 현황', '예약 관리', '주문 처리', '알림'],
+  },
+  {
+    num: '03',
+    badge: '고객 기억',
+    headline: '고객을 기억하면\n매출이 쌓인다',
+    body: '고객명, 방문 횟수, 선호 메뉴, 추천 액션이 운영 근거로 쌓입니다. 재방문율이 올라가는 이유입니다.',
+    accent: '#a855f7',
+    link: '/demo/dashboard',
+    linkLabel: '고객 기억 보기',
+    mockupKey: 'memory',
+    tags: ['방문 기록', '선호 메뉴', 'AI 추천 액션', '재방문'],
+  },
+  {
+    num: '04',
+    badge: 'SNS 자동화',
+    headline: 'AI가 쓰는\n매장 콘텐츠',
+    body: 'AI가 매장 데이터를 읽고 Instagram·네이버 블로그·Threads에 자동으로 콘텐츠를 생성·발행합니다.',
+    accent: '#10b981',
+    link: '/features',
+    linkLabel: '기능 살펴보기',
+    mockupKey: 'sns',
+    tags: ['Instagram', '네이버 블로그', 'Threads', '자동 발행'],
+  },
+  {
+    num: '05',
+    badge: 'AI 상담',
+    headline: '24시간\n자동 응대',
+    body: '고객 문의를 AI가 24시간 응대하고, 대화 내용은 고객 기억으로 자동 연결됩니다. 잠들어 있어도 매출이 쌓입니다.',
+    accent: '#f59e0b',
+    link: '/onboarding?plan=free',
+    linkLabel: '무료로 시작',
+    mockupKey: 'ai',
+    tags: ['24시간 응대', '고객 기억 연결', '자동 답변', '다국어'],
+  },
+];
+
+function FeatureScrollStory() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const stickyRef = useRef<HTMLDivElement>(null);
+  const activeIdxRef = useRef(0);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const contentRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const mockupRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const glowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    gsap.registerPlugin(ScrollTrigger);
+
+    // Set initial states
+    STORY_FEATURES.forEach((_, i) => {
+      gsap.set(contentRefs.current[i], {
+        opacity: i === 0 ? 1 : 0,
+        y: i === 0 ? 0 : 60,
+        visibility: i === 0 ? 'visible' : 'hidden',
+      });
+      gsap.set(mockupRefs.current[i], {
+        opacity: i === 0 ? 1 : 0,
+        scale: i === 0 ? 1 : 0.88,
+      });
+    });
+
+    if (glowRef.current) {
+      gsap.set(glowRef.current, { background: `radial-gradient(ellipse 60% 55% at 65% 50%, ${STORY_FEATURES[0].accent}18, transparent 70%)` });
+    }
+
+    const ctx = gsap.context(() => {
+      ScrollTrigger.create({
+        trigger: sectionRef.current,
+        start: 'top top',
+        end: 'bottom bottom',
+        onUpdate(self) {
+          const raw = self.progress * STORY_FEATURES.length;
+          const newIdx = Math.min(Math.floor(raw), STORY_FEATURES.length - 1);
+          const prevIdx = activeIdxRef.current;
+          if (newIdx === prevIdx) return;
+
+          const dir = newIdx > prevIdx ? 1 : -1;
+          activeIdxRef.current = newIdx;
+
+          // Animate out previous content
+          gsap.to(contentRefs.current[prevIdx], {
+            y: dir * -40,
+            opacity: 0,
+            duration: 0.38,
+            ease: 'expo.in',
+            onComplete: () => {
+              if (contentRefs.current[prevIdx]) {
+                gsap.set(contentRefs.current[prevIdx], { visibility: 'hidden' });
+              }
+            },
+          });
+          gsap.to(mockupRefs.current[prevIdx], {
+            scale: dir === 1 ? 0.84 : 1.1,
+            opacity: 0,
+            duration: 0.32,
+            ease: 'expo.in',
+          });
+
+          // Animate in new content
+          gsap.set(contentRefs.current[newIdx], { visibility: 'visible', y: dir * 55, opacity: 0 });
+          gsap.to(contentRefs.current[newIdx], {
+            y: 0,
+            opacity: 1,
+            duration: 0.7,
+            ease: 'expo.out',
+            delay: 0.1,
+          });
+          gsap.set(mockupRefs.current[newIdx], { scale: dir === 1 ? 1.1 : 0.84, opacity: 0 });
+          gsap.to(mockupRefs.current[newIdx], {
+            scale: 1,
+            opacity: 1,
+            duration: 0.75,
+            ease: 'expo.out',
+            delay: 0.07,
+          });
+
+          // Shift glow colour
+          if (glowRef.current) {
+            gsap.to(glowRef.current, {
+              duration: 0.6,
+              ease: 'power2.out',
+              background: `radial-gradient(ellipse 60% 55% at 65% 50%, ${STORY_FEATURES[newIdx].accent}18, transparent 70%)`,
+            });
+          }
+
+          setActiveIdx(newIdx);
+        },
+      });
+    }, sectionRef);
+
+    return () => ctx.revert();
+  }, []);
+
+  const feature = STORY_FEATURES[activeIdx];
+
+  return (
+    <section
+      ref={sectionRef as React.RefObject<HTMLElement>}
+      className="relative bg-[#03040a]"
+      style={{ height: `${STORY_FEATURES.length * 100}vh` }}
+      id="services"
+      data-product-story-flow="scrollytelling"
+    >
+      {/* Sticky viewport */}
+      <div
+        ref={stickyRef}
+        className="sticky top-0 h-screen overflow-hidden"
+      >
+        {/* Ambient glow */}
+        <div ref={glowRef} className="pointer-events-none absolute inset-0 transition-none" />
+
+        {/* Subtle top rule */}
+        <div
+          className="pointer-events-none absolute left-0 right-0 top-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06) 40%, transparent)' }}
+        />
+
+        <div className="relative flex h-full flex-col px-6 sm:px-10 lg:px-16">
+          {/* Section label */}
+          <div className="pt-16 lg:pt-20">
+            <p className="font-mono text-sm font-bold uppercase tracking-[0.35em] text-white/25">
+              운영 흐름 / Services
+            </p>
+          </div>
+
+          {/* Main content grid */}
+          <div className="relative flex flex-1 items-center">
+            <div className="mx-auto grid w-full max-w-[90rem] grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-16">
+
+              {/* ── Left: text content ── */}
+              <div className="relative flex flex-col justify-center" style={{ minHeight: '22rem' }}>
+                {STORY_FEATURES.map((f, i) => (
+                  <div
+                    key={f.num}
+                    ref={(el) => { contentRefs.current[i] = el; }}
+                    className="absolute inset-0 flex flex-col justify-center"
+                  >
+                    {/* Badge */}
+                    <div className="mb-5 flex items-center gap-3">
+                      <span
+                        className="rounded-full px-3.5 py-1 font-mono text-xs font-bold uppercase tracking-widest"
+                        style={{ background: `${f.accent}22`, color: f.accent, border: `1px solid ${f.accent}44` }}
+                      >
+                        {f.badge}
+                      </span>
+                      <span className="font-mono text-xs font-bold text-white/20">{f.num} / 0{STORY_FEATURES.length}</span>
+                    </div>
+
+                    {/* Headline */}
+                    <h2
+                      className="break-keep font-display font-black text-white"
+                      style={{
+                        fontSize: 'clamp(2.6rem, 5.5vw, 5rem)',
+                        lineHeight: 1.05,
+                        letterSpacing: '-0.04em',
+                        whiteSpace: 'pre-line',
+                      }}
+                    >
+                      {f.headline}
+                    </h2>
+
+                    {/* Accent bar + body */}
+                    <div className="mt-6 flex items-start gap-4">
+                      <div
+                        className="mt-2 h-[3px] w-9 shrink-0 rounded-full"
+                        style={{ background: f.accent }}
+                      />
+                      <p className="break-keep text-base leading-8 text-white/50 lg:text-lg lg:leading-9">
+                        {f.body}
+                      </p>
+                    </div>
+
+                    {/* Tags */}
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {f.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full px-3 py-1 text-xs font-semibold text-white/40"
+                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* CTA link */}
+                    <div className="mt-8">
+                      <Link
+                        to={f.link}
+                        className="inline-flex items-center gap-2.5 rounded-full px-7 py-3.5 text-sm font-bold text-white transition-all"
+                        style={{ background: f.accent, boxShadow: `0 0 28px ${f.accent}55` }}
+                      >
+                        {f.linkLabel}
+                        <span>→</span>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Right: mockup panel ── */}
+              <div className="relative hidden items-center justify-center lg:flex" style={{ minHeight: '26rem' }}>
+                {STORY_FEATURES.map((f, i) => (
+                  <div
+                    key={f.num}
+                    ref={(el) => { mockupRefs.current[i] = el; }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <div
+                      className="w-full max-w-md overflow-hidden rounded-2xl"
+                      style={{
+                        border: `1px solid ${f.accent}30`,
+                        boxShadow: `0 0 60px ${f.accent}18, 0 24px 80px rgba(0,0,0,0.5)`,
+                        background: 'rgba(255,255,255,0.03)',
+                      }}
+                    >
+                      {/* Window chrome */}
+                      <div
+                        className="flex items-center gap-2 px-4 py-3"
+                        style={{ borderBottom: `1px solid ${f.accent}20`, background: 'rgba(0,0,0,0.3)' }}
+                      >
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ background: f.accent }} />
+                        <div className="h-2.5 w-2.5 rounded-full bg-white/10" />
+                        <div className="h-2.5 w-2.5 rounded-full bg-white/10" />
+                        <span
+                          className="ml-3 font-mono text-[10px] font-bold uppercase tracking-widest"
+                          style={{ color: f.accent }}
+                        >
+                          {f.badge}
+                        </span>
+                      </div>
+                      {/* Mockup content */}
+                      <div className="p-2" style={{ height: '340px', overflow: 'hidden' }}>
+                        {SERVICE_MOCKUP_MAP[f.mockupKey]?.(f.accent)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Progress dots ── */}
+          <div className="pb-10 lg:pb-14">
+            <div className="mx-auto flex max-w-[90rem] items-center justify-between">
+              {/* Dot rail */}
+              <div className="flex items-center gap-3">
+                {STORY_FEATURES.map((f, i) => (
+                  <div
+                    key={f.num}
+                    className="rounded-full transition-all duration-500"
+                    style={{
+                      width: i === activeIdx ? '2.5rem' : '0.5rem',
+                      height: '0.5rem',
+                      background: i === activeIdx ? f.accent : 'rgba(255,255,255,0.15)',
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Scroll hint */}
+              <p className="font-mono text-xs text-white/25 hidden sm:block">
+                스크롤하여 다음 기능 →
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── Feature card with hover image ────────────────────────────────────────────
 const FEATURE_MOCKUP_SCENES = [
   // 공개 스토어
@@ -1237,71 +1572,9 @@ export function LandingPage() {
       </div>
 
       {/* ════════════════════════════════════════════════════════════════
-          02 · SERVICES — 5 panels with cursor-following preview
+          02 · SERVICES — GSAP ScrollTrigger scrollytelling
       ════════════════════════════════════════════════════════════════ */}
-      <section
-        className="relative bg-[#03040a] px-6 py-24 sm:px-10 lg:px-16"
-        id="services"
-        data-product-story-flow="connected-panels"
-      >
-        <div className="mx-auto max-w-[90rem]">
-          <FadeReveal>
-            <p className="mb-16 font-mono text-sm font-bold uppercase tracking-[0.35em] text-white/30">
-              운영 흐름 / Services
-            </p>
-          </FadeReveal>
-
-          {[
-            {
-              num: '01',
-              title: '공개 스토어 / 고객 접점',
-              body: '문의하기, 예약하기, 웨이팅, QR 주문으로 고객 행동이 자연스럽게 시작됩니다.',
-              accent: '#ec5b13',
-              link: '/mybiz-live-cafe',
-              linkLabel: '스토어 데모',
-              mockupKey: 'store',
-            },
-            {
-              num: '02',
-              title: '점주 운영 대시보드',
-              body: '예약, 웨이팅, 주문, 알림을 한 화면에서 빠르게 파악하고 즉시 대응합니다.',
-              accent: '#3b82f6',
-              link: '/demo/dashboard',
-              linkLabel: '대시보드 데모',
-              mockupKey: 'dashboard',
-            },
-            {
-              num: '03',
-              title: '고객 기억 / 반복 매출 엔진',
-              body: '고객명, 방문 횟수, 선호 메뉴, 추천 액션이 운영 근거로 쌓입니다.',
-              accent: '#a855f7',
-              link: '/demo/dashboard',
-              linkLabel: '고객 기억 보기',
-              mockupKey: 'memory',
-            },
-            {
-              num: '04',
-              title: 'SNS 자동 관리',
-              body: 'AI가 매장 데이터를 읽고 Instagram·네이버 블로그·Threads에 자동으로 콘텐츠를 생성·발행합니다.',
-              accent: '#10b981',
-              link: '/features',
-              linkLabel: '기능 살펴보기',
-              mockupKey: 'sns',
-            },
-            {
-              num: '05',
-              title: 'AI 상담 / 자동 응대',
-              body: '고객 문의를 AI가 24시간 응대하고, 대화 내용은 고객 기억으로 자동 연결됩니다.',
-              accent: '#f59e0b',
-              link: '/onboarding?plan=free',
-              linkLabel: '무료로 시작',
-              mockupKey: 'ai',
-            },
-          ].map((item, i) => (
-            <ServiceRow key={item.num} {...item} index={i} />
-          ))}
-        </div>
-      </section>
+      <FeatureScrollStory />
 
       {/* ════════════════════════════════════════════════════════════════
           STATS — giant numbers
