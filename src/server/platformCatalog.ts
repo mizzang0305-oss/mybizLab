@@ -439,7 +439,7 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
   }
 
   if (!isPlatformPlanCode(input.plan)) {
-    throw new Error('결제 요청은 free, pro, vip 중 하나의 plan이 필요합니다.');
+    throw new Error('결제 요청은 free, pro, vip, test_sub 중 하나의 plan이 필요합니다.');
   }
 
   if (input.plan === 'free') {
@@ -452,15 +452,18 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
     throw new Error(`게시 중인 결제 플랜을 찾을 수 없습니다: ${input.plan}`);
   }
 
+  // test_sub: 100원 구독 흐름 테스트 — 실제 구독 권한은 부여하지 않음
+  const isTestSub = plan.plan_code === 'test_sub';
+
   return {
     amount: plan.price_amount,
     currency: plan.currency,
-    grantsEntitlement: true,
-    orderName: `${plan.display_name} 구독`,
+    grantsEntitlement: !isTestSub,
+    orderName: isTestSub ? '구독 결제 테스트 100원' : `${plan.display_name} 구독`,
     plan: plan.plan_code as PlatformPlanCode,
-    productCode: `subscription_${plan.plan_code}`,
-    productType: 'subscription' as const,
-    purpose: 'subscription',
+    productCode: isTestSub ? 'subscription_test_100' : `subscription_${plan.plan_code}`,
+    productType: isTestSub ? ('test' as const) : ('subscription' as const),
+    purpose: isTestSub ? 'subscription_test' : 'subscription',
   };
 }
 
