@@ -450,12 +450,12 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
   // DB에는 실제 플랜(free/pro/vip)만 존재하므로 DB 조회를 거치면 "찾을 수 없습니다" 오류 발생
   if (input.plan === 'test_sub') {
     return {
-      amount: 100,
+      amount: 1000,
       currency: 'KRW',
       grantsEntitlement: false,
-      orderName: '구독 결제 테스트 100원',
+      orderName: '구독 결제 테스트 1,000원',
       plan: 'test_sub' as PlatformPlanCode,
-      productCode: 'subscription_test_100',
+      productCode: 'subscription_test_1000',
       productType: 'subscription' as const,
       purpose: 'subscription_test',
     };

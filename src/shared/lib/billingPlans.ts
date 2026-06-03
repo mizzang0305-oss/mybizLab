@@ -26,9 +26,9 @@ export const BILLING_PLAN_DETAILS = {
     planName: 'VIP',
   },
   test_sub: {
-    amount: 100,
+    amount: 1000,
     code: 'test_sub',
-    orderName: '구독 테스트 100원',
+    orderName: '구독 테스트 1,000원',
     planName: 'TEST',
   },
 } as const satisfies Record<
