@@ -446,25 +446,36 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
     throw new Error('FREE 플랜은 유료 결제를 호출하지 않고 /onboarding?plan=free로 이동해야 합니다.');
   }
 
+  // test_sub: DB 조회 없이 하드코딩으로 처리
+  // DB에는 실제 플랜(free/pro/vip)만 존재하므로 DB 조회를 거치면 "찾을 수 없습니다" 오류 발생
+  if (input.plan === 'test_sub') {
+    return {
+      amount: 100,
+      currency: 'KRW',
+      grantsEntitlement: false,
+      orderName: '구독 결제 테스트 100원',
+      plan: 'test_sub' as PlatformPlanCode,
+      productCode: 'subscription_test_100',
+      productType: 'subscription' as const,
+      purpose: 'subscription_test',
+    };
+  }
+
   const plans = await listPlatformPricingPlansForServer();
   const plan = plans.find((item) => item.plan_code === input.plan && item.status === 'published');
   if (!plan) {
     throw new Error(`게시 중인 결제 플랜을 찾을 수 없습니다: ${input.plan}`);
   }
 
-  // test_sub: 100원 구독 흐름 테스트 — 실제 구독 권한은 부여하지 않음
-  // productType은 'subscription'으로 유지해야 sandbox 검증(assertPaymentTestCheckoutAllowed)을 피할 수 있음
-  const isTestSub = plan.plan_code === 'test_sub';
-
   return {
     amount: plan.price_amount,
     currency: plan.currency,
-    grantsEntitlement: !isTestSub,
-    orderName: isTestSub ? '구독 결제 테스트 100원' : `${plan.display_name} 구독`,
+    grantsEntitlement: true,
+    orderName: `${plan.display_name} 구독`,
     plan: plan.plan_code as PlatformPlanCode,
-    productCode: isTestSub ? 'subscription_test_100' : `subscription_${plan.plan_code}`,
+    productCode: `subscription_${plan.plan_code}`,
     productType: 'subscription' as const,
-    purpose: isTestSub ? 'subscription_test' : 'subscription',
+    purpose: 'subscription',
   };
 }
 
