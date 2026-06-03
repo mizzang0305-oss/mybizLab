@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  type OAuthProvider as StoreOAuthProvider,
+  deleteStoreOAuthCredential,
+  getDefaultRedirectUri,
+  listStoreOAuthCredentials,
+  saveStoreOAuthCredential,
+} from '@/shared/lib/services/storeOAuthCredentialsService';
 import qrcode from 'qrcode-generator';
 import { Link } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -1240,6 +1247,240 @@ export function ContentStatusPage() {
   );
 }
 
+// ─── Per-store OAuth credentials input panel ─────────────────────────────────
+
+const CREDENTIAL_PROVIDERS: Array<{
+  key: StoreOAuthProvider;
+  label: string;
+  icon: string;
+  fields: Array<{ name: 'clientId' | 'clientSecret' | 'redirectUri'; label: string; placeholder: string; secret?: boolean }>;
+  guideUrl: string;
+}> = [
+  {
+    key: 'threads',
+    label: 'Threads (Meta)',
+    icon: '🧵',
+    guideUrl: 'https://developers.facebook.com/apps',
+    fields: [
+      { name: 'clientId', label: '앱 ID (App ID)', placeholder: 'Meta Threads 앱 ID' },
+      { name: 'clientSecret', label: '앱 시크릿 (App Secret)', placeholder: 'Meta 앱 시크릿', secret: true },
+      { name: 'redirectUri', label: 'Redirect URI', placeholder: 'https://mybiz.ai.kr/api/auth/threads/callback' },
+    ],
+  },
+  {
+    key: 'naver_blog',
+    label: 'Naver Blog',
+    icon: '🟢',
+    guideUrl: 'https://developers.naver.com/apps/#/register',
+    fields: [
+      { name: 'clientId', label: '클라이언트 ID', placeholder: 'Naver 앱 Client ID' },
+      { name: 'clientSecret', label: '클라이언트 시크릿', placeholder: 'Naver 앱 Client Secret', secret: true },
+      { name: 'redirectUri', label: 'Redirect URI', placeholder: 'https://mybiz.ai.kr/api/auth/naver/callback' },
+    ],
+  },
+  {
+    key: 'youtube',
+    label: 'YouTube (Google)',
+    icon: '▶️',
+    guideUrl: 'https://console.cloud.google.com/apis/library/youtube.googleapis.com',
+    fields: [
+      { name: 'clientId', label: '클라이언트 ID', placeholder: 'Google OAuth 클라이언트 ID' },
+      { name: 'clientSecret', label: '클라이언트 시크릿', placeholder: 'Google OAuth 클라이언트 시크릿', secret: true },
+      { name: 'redirectUri', label: 'Redirect URI', placeholder: 'https://mybiz.ai.kr/api/auth/youtube/callback' },
+    ],
+  },
+  {
+    key: 'kakao_share',
+    label: 'Kakao',
+    icon: '💛',
+    guideUrl: 'https://developers.kakao.com/console/app',
+    fields: [
+      { name: 'clientId', label: 'JavaScript 키', placeholder: 'Kakao 앱 JavaScript 키' },
+      { name: 'clientSecret', label: 'REST API 키 (선택)', placeholder: '선택 사항', secret: true },
+      { name: 'redirectUri', label: 'Redirect URI (선택)', placeholder: 'https://mybiz.ai.kr/api/auth/kakao/callback' },
+    ],
+  },
+];
+
+function StoreCredentialsPanel({ storeId }: { storeId: string }) {
+  const queryClient = useQueryClient();
+  const [activeProvider, setActiveProvider] = useState<StoreOAuthProvider | null>(null);
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [form, setForm] = useState<Record<string, { clientId: string; clientSecret: string; redirectUri: string }>>({});
+  const [saveMsg, setSaveMsg] = useState<Record<string, { text: string; ok: boolean }>>({});
+
+  const credentialsQuery = useQuery({
+    queryKey: ['store-oauth-credentials', storeId],
+    queryFn: () => listStoreOAuthCredentials(storeId),
+    enabled: Boolean(storeId),
+  });
+  const savedMap = useMemo(
+    () => new Map((credentialsQuery.data || []).map((c) => [c.provider, c])),
+    [credentialsQuery.data],
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: async (provider: StoreOAuthProvider) => {
+      const values = form[provider] || { clientId: '', clientSecret: '', redirectUri: '' };
+      return saveStoreOAuthCredential(storeId, {
+        provider,
+        clientId: values.clientId,
+        clientSecret: values.clientSecret,
+        redirectUri: values.redirectUri || getDefaultRedirectUri(provider),
+      });
+    },
+    onSuccess: (result, provider) => {
+      setSaveMsg((prev) => ({
+        ...prev,
+        [provider]: result.ok ? { text: '저장됐습니다', ok: true } : { text: result.error || '저장 실패', ok: false },
+      }));
+      setTimeout(() => setSaveMsg((prev) => { const next = { ...prev }; delete next[provider]; return next; }), 3000);
+      void queryClient.invalidateQueries({ queryKey: ['store-oauth-credentials', storeId] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (provider: StoreOAuthProvider) => deleteStoreOAuthCredential(storeId, provider),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['store-oauth-credentials', storeId] }),
+  });
+
+  function getFormValue(provider: StoreOAuthProvider, field: 'clientId' | 'clientSecret' | 'redirectUri') {
+    return form[provider]?.[field] ?? '';
+  }
+  function setFormValue(provider: StoreOAuthProvider, field: 'clientId' | 'clientSecret' | 'redirectUri', value: string) {
+    setForm((prev) => ({ ...prev, [provider]: { ...(prev[provider] || { clientId: '', clientSecret: '', redirectUri: '' }), [field]: value } }));
+  }
+
+  return (
+    <Panel
+      title="내 소셜 계정 API 키 설정"
+      subtitle="각 플랫폼에서 발급받은 API 키를 입력하면 내 계정으로 직접 연동됩니다. 입력한 키는 데이터베이스에 안전하게 저장됩니다."
+    >
+      {/* Provider tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-100 pb-4">
+        {CREDENTIAL_PROVIDERS.map((p) => {
+          const saved = savedMap.get(p.key);
+          return (
+            <button
+              key={p.key}
+              className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-all ${
+                activeProvider === p.key
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              onClick={() => setActiveProvider(activeProvider === p.key ? null : p.key)}
+              type="button"
+            >
+              <span>{p.icon}</span>
+              <span>{p.label}</span>
+              {saved?.hasCredentials && (
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" title="키 저장됨" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active provider form */}
+      {activeProvider && (() => {
+        const providerMeta = CREDENTIAL_PROVIDERS.find((p) => p.key === activeProvider)!;
+        const saved = savedMap.get(activeProvider);
+        const msg = saveMsg[activeProvider];
+        return (
+          <div className="mt-5 space-y-5">
+            {/* 가이드 링크 */}
+            <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold text-slate-600">
+                {providerMeta.icon} {providerMeta.label} 개발자 콘솔에서 앱을 만들고 아래 키를 복사해 입력하세요.
+              </p>
+              <a
+                className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100"
+                href={providerMeta.guideUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                🔗 개발자 콘솔
+              </a>
+            </div>
+
+            {/* Fields */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {providerMeta.fields.map((field) => (
+                <div key={field.name}>
+                  <label className="block text-xs font-black text-slate-700 mb-1.5">{field.label}</label>
+                  <div className="relative">
+                    <input
+                      className="input-base pr-10 font-mono text-xs"
+                      placeholder={field.placeholder}
+                      type={field.secret && !showSecrets[`${activeProvider}-${field.name}`] ? 'password' : 'text'}
+                      value={getFormValue(activeProvider, field.name)}
+                      onChange={(e) => setFormValue(activeProvider, field.name, e.target.value)}
+                    />
+                    {field.secret && (
+                      <button
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700"
+                        onClick={() => setShowSecrets((prev) => ({ ...prev, [`${activeProvider}-${field.name}`]: !prev[`${activeProvider}-${field.name}`] }))}
+                        type="button"
+                      >
+                        {showSecrets[`${activeProvider}-${field.name}`] ? '숨김' : '보기'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Redirect URI hint */}
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <p className="text-xs font-bold text-blue-800">개발자 콘솔의 "Redirect URI" 또는 "Callback URL" 항목에 아래 주소를 등록하세요:</p>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="flex-1 truncate text-xs font-mono text-blue-700">{getDefaultRedirectUri(activeProvider)}</code>
+                <button
+                  className="rounded-full bg-white px-2 py-1 text-xs font-bold text-blue-600 shadow-sm hover:bg-blue-100"
+                  onClick={() => void navigator.clipboard.writeText(getDefaultRedirectUri(activeProvider))}
+                  type="button"
+                >
+                  복사
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                className="btn-primary"
+                disabled={saveMutation.isPending || !getFormValue(activeProvider, 'clientId')}
+                onClick={() => saveMutation.mutate(activeProvider)}
+                type="button"
+              >
+                {saveMutation.isPending ? '저장 중...' : 'API 키 저장'}
+              </button>
+              {saved?.hasCredentials && (
+                <button
+                  className="btn-secondary text-rose-600"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => { if (window.confirm('저장된 API 키를 삭제하시겠습니까?')) void deleteMutation.mutate(activeProvider); }}
+                  type="button"
+                >
+                  키 삭제
+                </button>
+              )}
+              {msg && (
+                <p className={`text-sm font-bold ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {msg.ok ? '✓ ' : '✗ '}{msg.text}
+                </p>
+              )}
+              {saved?.hasCredentials && (
+                <p className="text-xs font-semibold text-emerald-600">✓ API 키가 저장되어 있습니다. 아래에서 계정을 연동하세요.</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+    </Panel>
+  );
+}
+
 // ─── OAuth setup guide data ───────────────────────────────────────────────────
 const OAUTH_SETUP_GUIDES = {
   threads: {
@@ -1758,6 +1999,8 @@ export function ContentSocialPage() {
         title="게시 초안/소셜"
         description="외부 채널 자동 게시 기능은 계정 연동과 심사 완료 후 사용할 수 있습니다."
       />
+
+      <StoreCredentialsPanel storeId={storeId} />
 
       <Panel title="플랫폼 정책 메모" subtitle="MyBiz는 고객 리뷰를 대신 작성하거나 외부 리뷰 플랫폼에 자동 등록하지 않습니다.">
         <div className="grid gap-3 md:grid-cols-2">

@@ -422,7 +422,34 @@ export async function handleExternalSocialOAuthStartRequest(
     return json({ ok: false, error: access.error }, access.status);
   }
 
-  const readiness = getExternalSocialProviderReadiness(provider, options.env);
+  // DB에 저장된 점주별 자격증명 우선 조회, 없으면 env 폴백
+  let resolvedEnv = options.env;
+  try {
+    const { getStoreOAuthCredential } = await import('../shared/lib/services/storeOAuthCredentialsService.js');
+    const stored = await getStoreOAuthCredential(storeId, provider as 'threads' | 'naver_blog' | 'youtube' | 'kakao_share');
+    if (stored?.clientId) {
+      // 점주 DB 자격증명으로 env 객체 오버라이드
+      resolvedEnv = {
+        ...options.env,
+        ...(provider === 'threads' && {
+          THREADS_CLIENT_ID: stored.clientId,
+          THREADS_CLIENT_SECRET: stored.clientSecret,
+          THREADS_REDIRECT_URI: stored.redirectUri || options.env?.THREADS_REDIRECT_URI,
+          THREADS_PUBLISH_ENABLED: 'true',
+        }),
+        ...(provider === 'naver_blog' && {
+          NAVER_CLIENT_ID: stored.clientId,
+          NAVER_CLIENT_SECRET: stored.clientSecret,
+          NAVER_REDIRECT_URI: stored.redirectUri || options.env?.NAVER_REDIRECT_URI,
+          NAVER_BLOG_WRITE_ENABLED: 'true',
+        }),
+      } as typeof options.env;
+    }
+  } catch {
+    // DB 조회 실패 시 env 폴백
+  }
+
+  const readiness = getExternalSocialProviderReadiness(provider, resolvedEnv);
   if (!readiness.oauthReady) {
     return json(
       {
@@ -443,8 +470,8 @@ export async function handleExternalSocialOAuthStartRequest(
     storeId,
   });
   const authorizeUrl = createAuthorizeUrl(provider, {
-    clientId: getClientId(provider, options.env),
-    redirectUri: getRedirectUri(provider, options.env),
+    clientId: getClientId(provider, resolvedEnv),
+    redirectUri: getRedirectUri(provider, resolvedEnv),
     state,
   });
 
