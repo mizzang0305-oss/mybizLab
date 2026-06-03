@@ -221,6 +221,43 @@ function downloadQrAsSvg(url: string) {
   URL.revokeObjectURL(anchor.href);
 }
 
+function downloadQrAsPng(url: string, size = 512) {
+  const svgEl = document.querySelector<SVGElement>(`[data-review-qr-url="${CSS.escape(url)}"]`);
+  if (!svgEl) return;
+
+  // Serialise SVG → Blob → ObjectURL → Image → Canvas → PNG
+  const svgData = new XMLSerializer().serializeToString(svgEl);
+  const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { URL.revokeObjectURL(svgUrl); return; }
+
+    // White background for QR readability
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(svgUrl);
+
+    canvas.toBlob((pngBlob) => {
+      if (!pngBlob) return;
+      const pngUrl = URL.createObjectURL(pngBlob);
+      const anchor = document.createElement('a');
+      anchor.href = pngUrl;
+      anchor.download = 'review-qr.png';
+      anchor.click();
+      URL.revokeObjectURL(pngUrl);
+    }, 'image/png');
+  };
+  img.onerror = () => URL.revokeObjectURL(svgUrl);
+  img.src = svgUrl;
+}
+
 export function ContentReviewRequestsPage() {
   const { currentStore } = useCurrentStore();
   const actorProfileId = useActorProfileId();
@@ -335,7 +372,10 @@ export function ContentReviewRequestsPage() {
                   리뷰 관리로 이동
                 </Link>
                 <button className="btn-secondary" onClick={() => downloadQrAsSvg(defaultReviewLink)} type="button">
-                  QR 이미지 다운로드 (SVG)
+                  QR 다운로드 (SVG)
+                </button>
+                <button className="btn-secondary" onClick={() => downloadQrAsPng(defaultReviewLink)} type="button">
+                  QR 다운로드 (PNG)
                 </button>
               </div>
               {copyMessage ? <p className="mt-3 text-sm font-semibold text-slate-600">{copyMessage}</p> : null}

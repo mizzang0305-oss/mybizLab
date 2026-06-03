@@ -1151,71 +1151,99 @@ const FEATURE_MOCKUP_SCENES = [
   ),
 ];
 
+const FEATURE_CARD_META: Array<{ icon: string; desc: string }> = [
+  { icon: '🏪', desc: '문의·예약·웨이팅·QR 주문 한 곳에서 접수' },
+  { icon: '🤖', desc: '고객 질문에 AI가 24시간 자동 응대' },
+  { icon: '📅', desc: '실시간 예약 현황과 웨이팅 대기 흐름' },
+  { icon: '📱', desc: '테이블 QR로 비대면 주문 즉시 접수' },
+  { icon: '👤', desc: '방문·선호·추천 액션이 자동으로 쌓임' },
+  { icon: '📊', desc: '예약·주문·문의를 한 화면에서 실시간 파악' },
+];
+
 function FeatureCard({ card, index }: { card: string; index: number }) {
-  const hue = 24 + index * 22;
-  const accent = `hsl(${hue}deg 85% 62%)`;
+  const ACCENTS = ['#ec5b13', '#3b82f6', '#a855f7', '#10b981', '#f59e0b', '#06b6d4'];
+  const accent = ACCENTS[index % ACCENTS.length];
+  const meta = FEATURE_CARD_META[index % FEATURE_CARD_META.length];
   const Scene = FEATURE_MOCKUP_SCENES[index % FEATURE_MOCKUP_SCENES.length];
 
   return (
     <motion.article
-      className="group relative overflow-hidden bg-[#03040a]"
-      style={{ cursor: 'default' }}
-      initial={{ opacity: 0, y: 24 }}
+      className="group relative flex flex-col overflow-hidden rounded-3xl"
+      style={{
+        background: 'linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        cursor: 'default',
+      }}
+      initial={{ opacity: 0, y: 32 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-5%' }}
-      transition={{ duration: 0.6, ease: EASE_CIRC, delay: index * 0.07 }}
+      transition={{ duration: 0.65, ease: EASE_CIRC, delay: index * 0.08 }}
+      whileHover={{ borderColor: `${accent}44`, transition: { duration: 0.3 } }}
     >
+      {/* Accent glow on hover */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{ background: `radial-gradient(ellipse 70% 50% at 50% 0%, ${accent}14, transparent 70%)` }}
+      />
+
       {/* Preview image area */}
       <div
-        className="relative h-44 overflow-hidden"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#060810' }}
+        className="relative h-48 overflow-hidden rounded-t-3xl"
+        style={{ background: '#06080f' }}
       >
-        {/* Scene content — scales slightly on hover */}
         <motion.div
           className="absolute inset-0"
-          initial={{ scale: 1.06 }}
+          initial={{ scale: 1.04 }}
           whileHover={{ scale: 1 }}
-          transition={{ duration: 0.55, ease: EASE_CIRC }}
+          transition={{ duration: 0.6, ease: EASE_CIRC }}
         >
           {Scene(accent)}
         </motion.div>
-        {/* Overlay gradient — lifts on hover */}
-        <motion.div
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'linear-gradient(to top, #03040a 20%, transparent)' }}
-          initial={{ opacity: 0.85 }}
-          whileHover={{ opacity: 0.3 }}
-          transition={{ duration: 0.45 }}
-        />
-        {/* Accent corner glow */}
+        {/* Bottom fade */}
         <div
-          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-          style={{ background: `radial-gradient(circle at 80% 20%, ${accent}16, transparent 60%)` }}
+          className="pointer-events-none absolute bottom-0 left-0 right-0 h-20"
+          style={{ background: 'linear-gradient(to top, #06080f, transparent)' }}
         />
+        {/* Feature number badge */}
+        <div
+          className="absolute left-4 top-4 flex h-7 w-7 items-center justify-center rounded-full font-mono text-[10px] font-black"
+          style={{ background: `${accent}22`, color: accent, border: `1px solid ${accent}44` }}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </div>
+        {/* Icon badge */}
+        <div
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-2xl text-sm"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}
+        >
+          {meta.icon}
+        </div>
       </div>
 
       {/* Text content */}
-      <div className="p-6 sm:p-7 transition-colors hover:bg-white/[0.02]">
-        <span
-          className="font-mono text-[10px] font-bold tracking-widest"
-          style={{ color: accent }}
-        >
-          {String(index + 1).padStart(2, '0')}
-        </span>
-        <h3 className="mt-3 break-keep text-lg font-black text-white/85 transition-colors group-hover:text-white">
+      <div className="flex flex-1 flex-col p-6">
+        <h3 className="break-keep text-base font-black text-white/90 transition-colors duration-300 group-hover:text-white">
           {card}
         </h3>
-        <p className="mt-2 text-sm leading-6 text-white/32 transition-colors group-hover:text-white/50">
-          고객 입력을 고객 기억과 운영 액션으로 연결합니다.
+        <p className="mt-2 flex-1 text-sm leading-6 text-white/38 transition-colors duration-300 group-hover:text-white/55">
+          {meta.desc}
         </p>
-        {/* Accent line draw */}
-        <motion.div
-          className="mt-4 h-[2px] rounded-full"
-          style={{ background: accent }}
-          initial={{ width: 0 }}
-          whileHover={{ width: '100%' }}
-          transition={{ duration: 0.45, ease: EASE_CIRC }}
-        />
+        {/* Bottom accent strip */}
+        <div className="mt-5 flex items-center justify-between">
+          <motion.div
+            className="h-[2px] rounded-full"
+            style={{ background: `linear-gradient(to right, ${accent}, transparent)` }}
+            initial={{ width: '1.5rem' }}
+            whileHover={{ width: '100%' }}
+            transition={{ duration: 0.5, ease: EASE_CIRC }}
+          />
+          <span
+            className="text-xs font-bold opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            style={{ color: accent }}
+          >
+            자세히 →
+          </span>
+        </div>
       </div>
     </motion.article>
   );
@@ -1525,15 +1553,50 @@ export function LandingPage() {
             </MagneticBtn>
           </FadeReveal>
 
+          {/* Social proof strip */}
+          <FadeReveal delay={0.9} className="mt-9">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 backdrop-blur-sm">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#10b981]" />
+                <span className="text-xs font-bold text-white/60">실시간 운영 중</span>
+              </div>
+              <div className="flex -space-x-2">
+                {['#ec5b13','#3b82f6','#a855f7','#10b981'].map((c) => (
+                  <div
+                    key={c}
+                    className="h-7 w-7 rounded-full border-2 border-[#03040a] flex items-center justify-center text-[10px]"
+                    style={{ background: `${c}33`, borderColor: '#03040a' }}
+                  >
+                    <span>👤</span>
+                  </div>
+                ))}
+              </div>
+              <span className="text-xs font-semibold text-white/35">매장 점주가 지금 사용 중</span>
+            </div>
+          </FadeReveal>
+
           {/* Service chips */}
-          <FadeReveal delay={0.95} className="mt-10 flex flex-wrap gap-2">
-            {flowSteps.slice(0, 6).map((step) => (
-              <span
-                className="rounded-full border border-white/8 bg-white/[0.04] px-4 py-2 text-xs font-semibold tracking-wide text-white/40"
+          <FadeReveal delay={1.05} className="mt-5 flex flex-wrap gap-2">
+            {flowSteps.slice(0, 6).map((step, i) => (
+              <motion.span
+                className="rounded-full border px-4 py-2 text-xs font-semibold tracking-wide text-white/45"
                 key={step}
+                style={{
+                  borderColor: 'rgba(255,255,255,0.09)',
+                  background: 'rgba(255,255,255,0.03)',
+                }}
+                whileHover={{
+                  borderColor: 'rgba(236,91,19,0.4)',
+                  color: 'rgba(255,255,255,0.8)',
+                  background: 'rgba(236,91,19,0.08)',
+                  transition: { duration: 0.2 },
+                }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.1 + i * 0.06, duration: 0.4, ease: EASE_EXPO }}
               >
                 {step}
-              </span>
+              </motion.span>
             ))}
           </FadeReveal>
         </motion.div>
@@ -1560,16 +1623,19 @@ export function LandingPage() {
           TICKER — horizontal marquee
       ════════════════════════════════════════════════════════════════ */}
       <div
-        className="overflow-hidden border-y border-white/[0.06] bg-[#03040a] py-4"
+        className="relative overflow-hidden border-y border-white/[0.06] bg-[#03040a] py-5"
         aria-hidden
       >
+        {/* Edge fade masks */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-[#03040a] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-[#03040a] to-transparent" />
         <p
-          className="font-display text-sm font-black uppercase tracking-[0.2em] text-white/18"
+          className="font-mono text-[11px] font-bold uppercase tracking-[0.28em] text-white/22"
           style={{ whiteSpace: 'nowrap' }}
         >
           <Marquee
-            text="문의 · 예약 · 웨이팅 · QR 주문 · 고객 기억 · 운영 대시보드 · AI 상담 · 반복 매출 · 재방문"
-            speed={30}
+            text="문의 ✦ 예약 ✦ 웨이팅 ✦ QR 주문 ✦ 고객 기억 ✦ 운영 대시보드 ✦ AI 상담 ✦ 반복 매출 ✦ 재방문"
+            speed={28}
           />
         </p>
       </div>
@@ -1598,7 +1664,7 @@ export function LandingPage() {
             </p>
           </FadeReveal>
 
-          <div className="relative grid divide-y divide-white/[0.06] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+          <div className="relative grid gap-px lg:grid-cols-3" style={{ background: 'rgba(255,255,255,0.04)' }}>
             {/* Animated beams connecting the three stat blocks */}
             {mounted && (
               <>
@@ -1621,25 +1687,40 @@ export function LandingPage() {
               </>
             )}
             {[
-              { value: 34, prefix: '+', suffix: '%', label: '재방문율', note: '고객 기억 활성화 후 평균', ref: statRef0 },
-              { value: 52, prefix: '–', suffix: '%', label: '운영 응대 시간', note: '문의·예약 자동화 도입 후', ref: statRef1 },
-              { value: 18, prefix: '+', suffix: '%', label: '객단가', note: '추천 메뉴 엔진 가동 매장', ref: statRef2 },
+              { value: 34, prefix: '+', suffix: '%', label: '재방문율', note: '고객 기억 활성화 후 평균', ref: statRef0, accent: '#ec5b13', glow: 'rgba(236,91,19,0.12)' },
+              { value: 52, prefix: '–', suffix: '%', label: '운영 응대 시간', note: '문의·예약 자동화 도입 후', ref: statRef1, accent: '#3b82f6', glow: 'rgba(59,130,246,0.10)' },
+              { value: 18, prefix: '+', suffix: '%', label: '객단가', note: '추천 메뉴 엔진 가동 매장', ref: statRef2, accent: '#a855f7', glow: 'rgba(168,85,247,0.10)' },
             ].map((stat, i) => (
-              <FadeReveal key={stat.label} delay={i * 0.12} className="px-0 py-10 lg:px-12 lg:py-0">
-                <div ref={stat.ref}>
-                  <p
-                    className="font-display font-black leading-none tracking-tight text-white"
-                    style={{ fontSize: 'clamp(4rem, 10vw, 9rem)', letterSpacing: '-0.06em' }}
-                  >
-                    <AnimatedStat value={stat.value} prefix={stat.prefix} suffix={stat.suffix} />
-                  </p>
-                  <p
-                    className="mt-4 font-semibold text-white/60"
-                    style={{ fontSize: 'clamp(1rem, 2vw, 1.4rem)' }}
-                  >
-                    {stat.label}
-                  </p>
-                  <p className="mt-2 text-sm text-white/28">{stat.note}</p>
+              <FadeReveal key={stat.label} delay={i * 0.14}>
+                <div
+                  ref={stat.ref}
+                  className="relative overflow-hidden bg-[#03040a] px-8 py-14 lg:px-12"
+                >
+                  {/* Per-stat ambient glow */}
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{ background: `radial-gradient(ellipse 80% 60% at 0% 0%, ${stat.glow}, transparent 70%)` }}
+                  />
+                  {/* Accent top border line */}
+                  <div
+                    className="absolute left-0 right-0 top-0 h-[2px]"
+                    style={{ background: `linear-gradient(to right, ${stat.accent}80, transparent)` }}
+                  />
+                  <div className="relative">
+                    <p
+                      className="font-display font-black leading-none tracking-tight"
+                      style={{ fontSize: 'clamp(4rem, 9vw, 8rem)', letterSpacing: '-0.06em', color: stat.accent }}
+                    >
+                      <AnimatedStat value={stat.value} prefix={stat.prefix} suffix={stat.suffix} />
+                    </p>
+                    <p
+                      className="mt-5 font-bold text-white/75"
+                      style={{ fontSize: 'clamp(1rem, 1.8vw, 1.25rem)' }}
+                    >
+                      {stat.label}
+                    </p>
+                    <p className="mt-2 text-sm text-white/32">{stat.note}</p>
+                  </div>
                 </div>
               </FadeReveal>
             ))}
@@ -1648,10 +1729,12 @@ export function LandingPage() {
       </section>
 
       {/* Second ticker — reversed direction */}
-      <div className="overflow-hidden border-y border-white/[0.06] bg-[#03040a] py-4" aria-hidden>
+      <div className="relative overflow-hidden border-y border-white/[0.06] bg-[#03040a] py-5" aria-hidden>
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-[#03040a] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-[#03040a] to-transparent" />
         <Marquee
-          text="매출 증가 · 고객 기억 · 재방문 설계 · 운영 자동화 · 예약 관리 · QR 주문 · 웨이팅 정리"
-          speed={36}
+          text="매출 증가 ✦ 고객 기억 ✦ 재방문 설계 ✦ 운영 자동화 ✦ 예약 관리 ✦ QR 주문 ✦ 웨이팅 정리 ✦ AI 응대"
+          speed={34}
           dir={1}
         />
       </div>
@@ -1660,13 +1743,17 @@ export function LandingPage() {
           03 · FEATURES — editorial grid
       ════════════════════════════════════════════════════════════════ */}
       <section
-        className="relative bg-[#03040a] px-6 py-24 sm:px-10 lg:px-16"
+        className="relative bg-[#03040a] px-6 py-28 sm:px-10 lg:px-16"
         id="features"
       >
+        {/* Subtle top separator */}
+        <div className="pointer-events-none absolute left-0 right-0 top-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(168,85,247,0.18) 40%, transparent)' }} />
+
         <div className="mx-auto max-w-[90rem]">
-          <div className="grid gap-16 lg:grid-cols-[1fr_2fr]">
+          <div className="grid gap-16 lg:grid-cols-[1fr_2.2fr]">
             {/* Left sticky label */}
-            <div>
+            <div className="lg:sticky lg:top-20 lg:self-start">
               <FadeReveal>
                 <p className="font-mono text-sm font-bold uppercase tracking-[0.35em] text-white/30">
                   핵심 기능 / Features
@@ -1675,25 +1762,31 @@ export function LandingPage() {
               <FadeReveal delay={0.1}>
                 <h2
                   className="mt-6 break-keep font-display font-black text-white"
-                  style={{ fontSize: 'clamp(2rem, 4vw, 3.5rem)', lineHeight: 1.1, letterSpacing: '-0.04em' }}
+                  style={{ fontSize: 'clamp(2rem, 3.8vw, 3.4rem)', lineHeight: 1.08, letterSpacing: '-0.04em' }}
                 >
                   {featureSection?.title || (
-                    <>작은 매장의<br /><span className="text-[#ec5b13]">반복 매출</span>을<br />만드는 기능</>
+                    <>작은 매장의<br /><span style={{ color: '#ec5b13' }}>반복 매출</span>을<br />만드는 기능</>
                   )}
                 </h2>
               </FadeReveal>
-              <FadeReveal delay={0.2} className="mt-8">
+              <FadeReveal delay={0.2} className="mt-5">
+                <p className="break-keep text-sm leading-7 text-white/40">
+                  고객 접점부터 운영, 마케팅까지<br />하나의 플랫폼으로 연결합니다.
+                </p>
+              </FadeReveal>
+              <FadeReveal delay={0.3} className="mt-8">
                 <Link
-                  className="inline-flex rounded-full border border-white/12 bg-white/[0.05] px-6 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                  className="group inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.05] px-7 py-3.5 text-sm font-bold text-white/70 transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
                   to="/features"
                 >
-                  모든 기능 보기 →
+                  모든 기능 보기
+                  <span className="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
                 </Link>
               </FadeReveal>
             </div>
 
             {/* Right: feature grid with preview images */}
-            <div className="grid grid-cols-2 gap-px bg-white/[0.06]">
+            <div className="grid grid-cols-2 gap-4">
               {featureCards.map((card, i) => (
                 <FeatureCard key={card} card={card} index={i} />
               ))}

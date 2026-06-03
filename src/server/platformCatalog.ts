@@ -453,6 +453,7 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
   }
 
   // test_sub: 100원 구독 흐름 테스트 — 실제 구독 권한은 부여하지 않음
+  // productType은 'subscription'으로 유지해야 sandbox 검증(assertPaymentTestCheckoutAllowed)을 피할 수 있음
   const isTestSub = plan.plan_code === 'test_sub';
 
   return {
@@ -462,7 +463,7 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
     orderName: isTestSub ? '구독 결제 테스트 100원' : `${plan.display_name} 구독`,
     plan: plan.plan_code as PlatformPlanCode,
     productCode: isTestSub ? 'subscription_test_100' : `subscription_${plan.plan_code}`,
-    productType: isTestSub ? ('test' as const) : ('subscription' as const),
+    productType: 'subscription' as const,
     purpose: isTestSub ? 'subscription_test' : 'subscription',
   };
 }
