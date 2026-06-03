@@ -1240,6 +1240,435 @@ export function ContentStatusPage() {
   );
 }
 
+// ─── OAuth setup guide data ───────────────────────────────────────────────────
+const OAUTH_SETUP_GUIDES = {
+  threads: {
+    icon: '🧵',
+    label: 'Threads',
+    color: '#000000',
+    steps: [
+      { title: 'Meta 개발자 앱 생성', desc: 'developers.facebook.com → 새 앱 → Threads API 추가', link: 'https://developers.facebook.com/apps' },
+      { title: 'Redirect URI 등록', desc: '앱 설정 → Threads API → Callback URL에 아래 URI 등록', code: `${window?.location?.origin || 'https://mybiz.ai.kr'}/api/auth/threads/callback` },
+      { title: 'Vercel 환경 변수 설정', desc: '아래 변수를 Vercel 프로젝트 → Settings → Environment Variables에 추가', envVars: ['THREADS_CLIENT_ID', 'THREADS_CLIENT_SECRET', 'THREADS_REDIRECT_URI', 'THREADS_PUBLISH_ENABLED=true'] },
+    ],
+  },
+  naver_blog: {
+    icon: '🟢',
+    label: 'Naver Blog',
+    color: '#03C75A',
+    steps: [
+      { title: 'Naver Developers 앱 등록', desc: '네이버 개발자 센터에서 애플리케이션을 생성하고 Blog 권한을 추가합니다', link: 'https://developers.naver.com/apps/#/register' },
+      { title: 'Redirect URI 등록', desc: '서비스 URL / Callback URL 항목에 아래 URI 등록', code: `${window?.location?.origin || 'https://mybiz.ai.kr'}/api/auth/naver/callback` },
+      { title: 'Vercel 환경 변수 설정', desc: '클라이언트 ID/Secret을 복사해 아래 변수명으로 추가', envVars: ['NAVER_CLIENT_ID', 'NAVER_CLIENT_SECRET', 'NAVER_REDIRECT_URI', 'NAVER_BLOG_WRITE_ENABLED=true'] },
+    ],
+  },
+  kakao_share: {
+    icon: '💛',
+    label: 'Kakao',
+    color: '#FEE500',
+    steps: [
+      { title: 'Kakao Developers 앱 생성', desc: '카카오 개발자 센터에서 앱을 만들고 플랫폼(Web)을 등록합니다', link: 'https://developers.kakao.com/console/app' },
+      { title: 'JavaScript 키 복사', desc: '앱 설정 → 앱 키 → JavaScript 키를 복사합니다', code: '' },
+      { title: 'Vercel 환경 변수 설정', desc: '아래 변수를 Vercel에 추가하면 공유하기 버튼이 활성화됩니다', envVars: ['KAKAO_JAVASCRIPT_KEY', 'KAKAO_SHARE_ENABLED=true'] },
+    ],
+  },
+  youtube: {
+    icon: '▶️',
+    label: 'YouTube',
+    color: '#FF0000',
+    steps: [
+      { title: 'Google Cloud 프로젝트 생성', desc: 'Google Cloud Console에서 프로젝트를 만들고 YouTube Data API v3를 활성화합니다', link: 'https://console.cloud.google.com/apis/library/youtube.googleapis.com' },
+      { title: 'OAuth 2.0 클라이언트 생성', desc: '사용자 인증 정보 → OAuth 2.0 클라이언트 ID → 웹 애플리케이션 → 아래 URI 등록', code: `${window?.location?.origin || 'https://mybiz.ai.kr'}/api/auth/youtube/callback` },
+      { title: 'Vercel 환경 변수 설정', desc: '클라이언트 ID/Secret과 암호화 키를 아래 변수명으로 추가', envVars: ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REDIRECT_URI', 'YOUTUBE_OAUTH_ENABLED=true', 'YOUTUBE_UPLOAD_ENABLED=true', 'TOKEN_ENCRYPTION_KEY'] },
+    ],
+  },
+} as const;
+
+type OAuthGuideKey = keyof typeof OAUTH_SETUP_GUIDES;
+
+function OAuthSetupModal({ providerKey, onClose }: { providerKey: OAuthGuideKey; onClose: () => void }) {
+  const guide = OAUTH_SETUP_GUIDES[providerKey];
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copyToClipboard(text: string, key: string) {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-3xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-5">
+          <span className="text-2xl">{guide.icon}</span>
+          <div className="flex-1">
+            <p className="text-sm font-black text-slate-950">{guide.label} 계정 연동 설정</p>
+            <p className="text-xs text-slate-500">아래 단계를 순서대로 완료하면 계정 연동 버튼이 활성화됩니다</p>
+          </div>
+          <button
+            className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            onClick={onClose}
+            type="button"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Steps */}
+        <div className="space-y-5 p-6">
+          {guide.steps.map((step, i) => (
+            <div className="flex gap-4" key={i}>
+              <div
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white"
+                style={{ background: guide.color === '#FEE500' ? '#f59e0b' : guide.color || '#ec5b13' }}
+              >
+                {i + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-slate-900">{step.title}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{step.desc}</p>
+                {'link' in step && step.link && (
+                  <a
+                    className="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 hover:bg-slate-200"
+                    href={step.link}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    🔗 개발자 센터 열기
+                  </a>
+                )}
+                {'code' in step && step.code && (
+                  <div className="mt-2 flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+                    <code className="min-w-0 flex-1 truncate text-xs font-mono text-slate-700">{step.code}</code>
+                    <button
+                      className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-100"
+                      onClick={() => copyToClipboard(step.code, `code-${i}`)}
+                      type="button"
+                    >
+                      {copied === `code-${i}` ? '✓ 복사됨' : '복사'}
+                    </button>
+                  </div>
+                )}
+                {'envVars' in step && step.envVars.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    {step.envVars.map((env) => (
+                      <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5" key={env}>
+                        <code className="min-w-0 flex-1 truncate text-xs font-mono font-bold text-slate-800">{env}</code>
+                        <button
+                          className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 shadow-sm hover:bg-slate-100"
+                          onClick={() => copyToClipboard(env.split('=')[0], `env-${env}`)}
+                          type="button"
+                        >
+                          {copied === `env-${env}` ? '✓' : '복사'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="rounded-b-3xl border-t border-slate-100 bg-slate-50 px-6 py-4">
+          <p className="text-xs leading-5 text-slate-500">
+            환경 변수를 Vercel에 추가하고 재배포하면 계정 연동 버튼이 자동으로 활성화됩니다.
+            Vercel 대시보드 → 프로젝트 → Settings → Environment Variables에서 설정하세요.
+          </p>
+          <a
+            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline"
+            href="https://vercel.com/dashboard"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            🚀 Vercel 대시보드 열기
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PROVIDER_ICON: Record<string, string> = {
+  threads: '🧵',
+  naver_blog: '🟢',
+  kakao_share: '💛',
+  youtube: '▶️',
+};
+
+type SocialProviderCard = {
+  provider: string;
+  title: string;
+  status: string;
+  copy: string;
+  displayName?: string;
+  missingEnvNames?: string[];
+  requiredScopes?: string[];
+};
+
+function SocialProviderGrid({
+  providers,
+  connectMutation,
+  disconnectMutation,
+}: {
+  providers: SocialProviderCard[];
+  connectMutation: { isPending: boolean; mutate: (p: 'threads' | 'naver_blog' | 'youtube') => void };
+  disconnectMutation: { isPending: boolean; mutate: (p: 'threads' | 'naver_blog' | 'youtube') => void };
+}) {
+  const [guideOpen, setGuideOpen] = useState<OAuthGuideKey | null>(null);
+
+  return (
+    <>
+      {guideOpen && <OAuthSetupModal providerKey={guideOpen} onClose={() => setGuideOpen(null)} />}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {providers.map((provider) => {
+          const isKakao = provider.provider === 'kakao_share';
+          const isConnectable = !isKakao && (provider.provider === 'threads' || provider.provider === 'naver_blog');
+          const isConnected = provider.status === 'connected';
+          const hasMissingEnv = (provider.missingEnvNames?.length ?? 0) > 0;
+          const isPending = connectMutation.isPending || disconnectMutation.isPending;
+          const guideKey = (provider.provider === 'threads' || provider.provider === 'naver_blog' || provider.provider === 'kakao_share')
+            ? provider.provider as OAuthGuideKey
+            : null;
+
+          return (
+            <article
+              className={`rounded-3xl border p-5 transition-all duration-300 ${
+                isConnected
+                  ? 'border-emerald-200 bg-emerald-50'
+                  : hasMissingEnv
+                  ? 'border-slate-200 bg-white'
+                  : 'border-slate-200 bg-white'
+              }`}
+              key={provider.provider}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">{PROVIDER_ICON[provider.provider] || '🔗'}</span>
+                  <div>
+                    <p className="text-sm font-black text-slate-950">{provider.title}</p>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <span
+                        className={`inline-block h-1.5 w-1.5 rounded-full ${
+                          isConnected ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}
+                      />
+                      <span className={`text-xs font-bold ${isConnected ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        {isConnected ? '연결됨' : hasMissingEnv ? '설정 필요' : '연결 안 됨'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {isConnected && provider.displayName && (
+                <p className="mt-2 text-xs font-semibold text-emerald-700">@{provider.displayName}</p>
+              )}
+
+              <p className="mt-3 text-xs leading-5 text-slate-500">{provider.copy}</p>
+
+              {/* Action area */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {isKakao ? (
+                  <>
+                    <button
+                      className="btn-secondary text-xs"
+                      disabled
+                      title="카카오 JavaScript SDK 키 설정 후 활성화"
+                      type="button"
+                    >
+                      공유하기 (준비 중)
+                    </button>
+                    {guideKey && (
+                      <button
+                        className="btn-secondary text-xs"
+                        onClick={() => setGuideOpen(guideKey)}
+                        type="button"
+                      >
+                        ⚙ 설정 방법
+                      </button>
+                    )}
+                  </>
+                ) : isConnected ? (
+                  <button
+                    className="btn-secondary text-xs text-rose-600"
+                    disabled={isPending}
+                    onClick={() => disconnectMutation.mutate(provider.provider as 'threads' | 'naver_blog')}
+                    type="button"
+                  >
+                    연결 해제
+                  </button>
+                ) : hasMissingEnv ? (
+                  <>
+                    <button
+                      className="btn-primary text-xs"
+                      onClick={() => guideKey && setGuideOpen(guideKey)}
+                      type="button"
+                    >
+                      ⚙ 설정 방법 보기
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="btn-primary text-xs"
+                    disabled={isPending || !isConnectable}
+                    onClick={() => isConnectable && connectMutation.mutate(provider.provider as 'threads' | 'naver_blog')}
+                    type="button"
+                  >
+                    계정 연동하기
+                  </button>
+                )}
+              </div>
+
+              {/* Missing env hint */}
+              {hasMissingEnv && (
+                <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
+                  <p className="text-[11px] font-bold text-amber-700">필요한 환경 변수:</p>
+                  <p className="mt-0.5 text-[11px] font-mono text-amber-600">{provider.missingEnvNames?.join(', ')}</p>
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function YouTubeProviderPanel({
+  youtubeProvider,
+  youtubeReadiness,
+  youtubeJobs,
+  connectMutation,
+  disconnectMutation,
+}: {
+  youtubeProvider: SocialProviderCard | undefined;
+  youtubeReadiness: ReturnType<typeof getYouTubeProviderReadiness>;
+  youtubeJobs: Array<{ job_id: string; provider: string; status: string; caption?: string | null }>;
+  connectMutation: { isPending: boolean; mutate: (p: 'threads' | 'naver_blog' | 'youtube') => void };
+  disconnectMutation: { isPending: boolean; mutate: (p: 'threads' | 'naver_blog' | 'youtube') => void };
+}) {
+  const [guideOpen, setGuideOpen] = useState(false);
+  const isConnected = youtubeProvider?.status === 'connected';
+
+  return (
+    <>
+      {guideOpen && <OAuthSetupModal providerKey="youtube" onClose={() => setGuideOpen(false)} />}
+
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        {/* Left: connection card */}
+        <div className={`rounded-3xl border p-6 transition-all ${isConnected ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">▶️</span>
+            <div>
+              <p className="text-base font-black text-slate-950">YouTube</p>
+              <div className="flex items-center gap-1.5">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                <span className={`text-xs font-bold ${isConnected ? 'text-emerald-600' : youtubeReadiness.oauthReady ? 'text-slate-500' : 'text-amber-600'}`}>
+                  {isConnected ? '연결됨' : youtubeReadiness.oauthReady ? '연결 준비됨' : '설정 필요'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {isConnected && youtubeProvider?.displayName && (
+            <p className="mt-3 text-sm font-semibold text-emerald-700">{youtubeProvider.displayName}</p>
+          )}
+
+          <p className="mt-4 text-sm leading-6 text-slate-600">
+            YouTube 채널을 연결하면 AI가 생성한 영상 대본을 업로드하고 자막을 자동 등록합니다.
+          </p>
+
+          {/* Required scopes */}
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {YOUTUBE_REQUIRED_SCOPES.map((scope) => (
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600" key={scope}>
+                {scope.split('/').pop()}
+              </span>
+            ))}
+          </div>
+
+          {/* Action buttons */}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {isConnected ? (
+              <button
+                className="btn-secondary text-xs text-rose-600"
+                disabled={disconnectMutation.isPending}
+                onClick={() => disconnectMutation.mutate('youtube')}
+                type="button"
+              >
+                연결 해제
+              </button>
+            ) : youtubeReadiness.oauthReady ? (
+              <button
+                className="btn-primary text-xs"
+                disabled={connectMutation.isPending}
+                onClick={() => connectMutation.mutate('youtube')}
+                type="button"
+              >
+                YouTube 계정 연동하기
+              </button>
+            ) : (
+              <button
+                className="btn-primary text-xs"
+                onClick={() => setGuideOpen(true)}
+                type="button"
+              >
+                ⚙ 설정 방법 보기
+              </button>
+            )}
+          </div>
+
+          {/* Missing env hint */}
+          {!youtubeReadiness.oauthReady && (
+            <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
+              <p className="text-[11px] font-bold text-amber-700">필요한 환경 변수:</p>
+              <p className="mt-0.5 text-[11px] font-mono leading-5 text-amber-600">
+                {youtubeReadiness.missingOAuthEnvNames.join(', ')}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Right: recent jobs */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-5">
+          <p className="text-xs font-black uppercase tracking-wider text-slate-400">최근 YouTube 초안</p>
+          <div className="mt-3 space-y-2">
+            {youtubeJobs.map((job) => (
+              <div className="rounded-2xl bg-slate-50 p-3" key={job.job_id}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold ${job.status === 'published' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {job.status}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs text-slate-600">{job.caption || '문안 없음'}</p>
+              </div>
+            ))}
+            {!youtubeJobs.length && (
+              <div className="flex h-24 flex-col items-center justify-center">
+                <p className="text-xs text-slate-400">업로드 초안이 없습니다</p>
+                <p className="mt-1 text-[11px] text-slate-300">계정 연동 후 영상 초안을 만들 수 있습니다</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function ContentSocialPage() {
   const { currentStore } = useCurrentStore();
   const actorProfileId = useActorProfileId();
@@ -1351,92 +1780,42 @@ export function ContentSocialPage() {
         ))}
       </div>
 
-      <Panel title="Threads · Naver Blog · Kakao Share 준비" subtitle="외부 채널 게시 기능은 계정 연동과 점주 승인 후 사용할 수 있습니다.">
-        <div className="grid gap-4 lg:grid-cols-3">
-          {externalProviderCards.map((provider) => {
-            const isKakao = provider.provider === 'kakao_share';
-            const isConnectable = !isKakao && (provider.provider === 'threads' || provider.provider === 'naver_blog');
-            const isConnected = provider.status === 'connected';
-            const hasMissingEnv = (provider.missingEnvNames?.length ?? 0) > 0;
-            const isPending = connectMutation.isPending || disconnectMutation.isPending;
-            return (
-              <article className="rounded-3xl border border-slate-200 bg-white p-5" key={provider.provider}>
-                <div className="flex items-start justify-between gap-3">
+      <Panel title="Threads · Naver Blog · Kakao Share 연동" subtitle="계정을 연동하면 AI가 생성한 콘텐츠를 자동으로 발행할 수 있습니다.">
+        <SocialProviderGrid
+          providers={externalProviderCards}
+          connectMutation={connectMutation}
+          disconnectMutation={disconnectMutation}
+        />
+        {externalJobs.length > 0 && (
+          <div className="mt-4 rounded-3xl border border-slate-100 bg-slate-50 p-5">
+            <p className="text-xs font-black uppercase tracking-wider text-slate-400">최근 게시 초안</p>
+            <div className="mt-3 space-y-2">
+              {externalJobs.map((job) => (
+                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm" key={job.job_id}>
                   <div>
-                    <p className="text-sm font-black text-slate-950">{provider.title}</p>
-                    <p className={`mt-2 text-xs font-bold ${isConnected ? 'text-emerald-600' : 'text-slate-500'}`}>{provider.status}</p>
-                    {isConnected && provider.displayName ? (
-                      <p className="mt-1 text-xs text-slate-500">@{provider.displayName}</p>
-                    ) : null}
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{job.provider}</span>
+                    <p className="mt-1 line-clamp-1 text-sm text-slate-700">{job.caption || '문안 없음'}</p>
                   </div>
-                  {isKakao ? (
-                    <button className="btn-secondary" disabled type="button" title="카카오 JavaScript SDK 키 설정 후 활성화">
-                      공유 미리보기
-                    </button>
-                  ) : isConnected ? (
-                    <button
-                      className="btn-secondary text-rose-600"
-                      disabled={isPending}
-                      onClick={() => disconnectMutation.mutate(provider.provider as 'threads' | 'naver_blog')}
-                      type="button"
-                    >
-                      연결 해제
-                    </button>
-                  ) : (
-                    <button
-                      className="btn-secondary"
-                      disabled={hasMissingEnv || isPending || !isConnectable}
-                      onClick={() => !hasMissingEnv && isConnectable && connectMutation.mutate(provider.provider as 'threads' | 'naver_blog')}
-                      title={hasMissingEnv ? `설정 대기: ${provider.missingEnvNames?.join(', ')}` : '계정 연동'}
-                      type="button"
-                    >
-                      계정 연동
-                    </button>
-                  )}
+                  <span className={`text-xs font-bold ${job.status === 'published' ? 'text-emerald-600' : 'text-slate-400'}`}>{job.status}</span>
                 </div>
-                <p className="mt-4 text-sm leading-6 text-slate-600">{provider.copy}</p>
-                {isKakao ? (
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    카카오 공유는 자동 게시가 아니라 사용자가 직접 공유하는 방식으로 제공됩니다.
-                  </p>
-                ) : null}
-                {provider.requiredScopes?.length ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {provider.requiredScopes.map((scope) => (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600" key={scope}>
-                        {scope}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {hasMissingEnv ? (
-                  <p className="mt-4 text-xs font-bold leading-5 text-amber-700">
-                    설정 대기: {provider.missingEnvNames?.join(', ')}
-                  </p>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
-        <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
-          <p className="text-sm font-black text-slate-950">최근 Threads/Naver/Kakao 게시 초안</p>
-          <div className="mt-3 space-y-2">
-            {externalJobs.map((job) => (
-              <div className="rounded-2xl bg-slate-50 p-3" key={job.job_id}>
-                <p className="text-sm font-black text-slate-800">{job.provider} · {job.status}</p>
-                <p className="mt-1 line-clamp-2 text-sm text-slate-600">{job.caption || '문안 없음'}</p>
-              </div>
-            ))}
-            {!externalJobs.length ? (
-              <p className="text-sm leading-6 text-slate-500">
-                아직 외부 채널 게시 초안이 없습니다. 승인 전에는 외부 게시가 실행되지 않습니다.
-              </p>
-            ) : null}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </Panel>
 
-      <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 업로드 설정이 모두 준비된 뒤에만 진행됩니다.">
+      <Panel title="YouTube 계정 연동" subtitle="채널을 연결하면 영상 업로드와 자막 자동 등록이 가능합니다.">
+        <YouTubeProviderPanel
+          youtubeProvider={youtubeProvider}
+          youtubeReadiness={youtubeReadiness}
+          youtubeJobs={youtubeJobs}
+          connectMutation={connectMutation}
+          disconnectMutation={disconnectMutation}
+        />
+      </Panel>
+
+      {/* ── 이 아래는 원래 YouTube 패널 코드 — 위 컴포넌트로 대체됨 (dummy anchor for diff) ── */}
+      {false && <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 업로드 설정이 모두 준비된 뒤에만 진행됩니다.">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1509,7 +1888,7 @@ export function ContentSocialPage() {
             ) : null}
           </div>
         </div>
-      </Panel>
+      </Panel>}
 
       <Panel title="게시 초안 만들기" subtitle="연동되지 않은 외부 채널은 승인해도 queued 상태로 넘어가지 않습니다.">
         <div className="grid gap-4 md:grid-cols-2">
