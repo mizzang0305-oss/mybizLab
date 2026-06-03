@@ -7,6 +7,7 @@ import {
   listStoreOAuthCredentials,
   saveStoreOAuthCredential,
 } from '@/shared/lib/services/storeOAuthCredentialsService';
+import { OAuthSetupGuideModal } from './OAuthSetupGuide';
 import qrcode from 'qrcode-generator';
 import { Link } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -1305,6 +1306,7 @@ const CREDENTIAL_PROVIDERS: Array<{
 function StoreCredentialsPanel({ storeId }: { storeId: string }) {
   const queryClient = useQueryClient();
   const [activeProvider, setActiveProvider] = useState<StoreOAuthProvider | null>(null);
+  const [guideProvider, setGuideProvider] = useState<StoreOAuthProvider | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [form, setForm] = useState<Record<string, { clientId: string; clientSecret: string; redirectUri: string }>>({});
   const [saveMsg, setSaveMsg] = useState<Record<string, { text: string; ok: boolean }>>({});
@@ -1352,6 +1354,10 @@ function StoreCredentialsPanel({ storeId }: { storeId: string }) {
   }
 
   return (
+    <>
+    {guideProvider && (
+      <OAuthSetupGuideModal providerKey={guideProvider} onClose={() => setGuideProvider(null)} />
+    )}
     <Panel
       title="내 소셜 계정 API 키 설정"
       subtitle="각 플랫폼에서 발급받은 API 키를 입력하면 내 계정으로 직접 연동됩니다. 입력한 키는 데이터베이스에 안전하게 저장됩니다."
@@ -1389,18 +1395,27 @@ function StoreCredentialsPanel({ storeId }: { storeId: string }) {
         return (
           <div className="mt-5 space-y-5">
             {/* 가이드 링크 */}
-            <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold text-slate-600">
-                {providerMeta.icon} {providerMeta.label} 개발자 콘솔에서 앱을 만들고 아래 키를 복사해 입력하세요.
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
+              <p className="text-xs font-semibold text-slate-700 mb-2">
+                {providerMeta.icon} API 키가 처음이신가요? 단계별 발급 방법을 안내해 드립니다.
               </p>
-              <a
-                className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100"
-                href={providerMeta.guideUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                🔗 개발자 콘솔
-              </a>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded-full bg-orange-500 px-4 py-2 text-xs font-black text-white hover:bg-orange-600 transition"
+                  onClick={() => setGuideProvider(activeProvider as StoreOAuthProvider)}
+                  type="button"
+                >
+                  📋 단계별 발급 방법 보기
+                </button>
+                <a
+                  className="rounded-full bg-white border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+                  href={providerMeta.guideUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  🔗 {providerMeta.label} 개발자 콘솔
+                </a>
+              </div>
             </div>
 
             {/* Fields */}
@@ -1478,11 +1493,12 @@ function StoreCredentialsPanel({ storeId }: { storeId: string }) {
         );
       })()}
     </Panel>
+    </>
   );
 }
 
-// ─── OAuth setup guide data ───────────────────────────────────────────────────
-const OAUTH_SETUP_GUIDES = {
+// ─── OAuth setup guide — replaced by OAuthSetupGuideModal (OAuthSetupGuide.tsx) ──
+const _DELETED_OAUTH_SETUP_GUIDES = {
   threads: {
     icon: '🧵',
     label: 'Threads',
@@ -1525,9 +1541,9 @@ const OAUTH_SETUP_GUIDES = {
   },
 } as const;
 
-type OAuthGuideKey = keyof typeof OAUTH_SETUP_GUIDES;
+type OAuthGuideKey = keyof typeof _DELETED_OAUTH_SETUP_GUIDES;
 
-function OAuthSetupModal({ providerKey, onClose }: { providerKey: OAuthGuideKey; onClose: () => void }) {
+function _DeletedOAuthSetupModal({ providerKey, onClose }: { providerKey: OAuthGuideKey; onClose: () => void }) {
   const guide = OAUTH_SETUP_GUIDES[providerKey];
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -1670,7 +1686,7 @@ function SocialProviderGrid({
 
   return (
     <>
-      {guideOpen && <OAuthSetupModal providerKey={guideOpen} onClose={() => setGuideOpen(null)} />}
+      {guideOpen && <OAuthSetupGuideModal providerKey={guideOpen} onClose={() => setGuideOpen(null)} />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {providers.map((provider) => {
@@ -1806,7 +1822,7 @@ function YouTubeProviderPanel({
 
   return (
     <>
-      {guideOpen && <OAuthSetupModal providerKey="youtube" onClose={() => setGuideOpen(false)} />}
+      {guideOpen && <OAuthSetupGuideModal providerKey="youtube" onClose={() => setGuideOpen(false)} />}
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         {/* Left: connection card */}
