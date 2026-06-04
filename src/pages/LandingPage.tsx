@@ -17,6 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { AIFlowHero } from './AIFlowHero';
 
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { queryKeys } from '@/shared/lib/queryKeys';
@@ -1323,7 +1324,6 @@ export function LandingPage() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
-  const vantaRef = useRef<any>(null);
   // refs for AnimatedBeam in stats section
   const statRef0 = useRef<HTMLDivElement>(null);
   const statRef1 = useRef<HTMLDivElement>(null);
@@ -1336,40 +1336,7 @@ export function LandingPage() {
 
   useEffect(() => setMounted(true), []);
 
-  // ── Vanta.js NET animated hero background ────────────────────────────────────
-  useEffect(() => {
-    if (typeof window === 'undefined' || !heroRef.current) return;
-    let effect: any;
-    (async () => {
-      try {
-        const [THREE, vantaMod] = await Promise.all([
-          import('three'),
-          // @ts-ignore
-          import('vanta/dist/vanta.net.min'),
-        ]);
-        if (!heroRef.current) return;
-        const NET = (vantaMod as any).default ?? vantaMod;
-        effect = NET({
-          el: heroRef.current,
-          THREE,
-          mouseControls: true,
-          touchControls: false,
-          gyroControls: false,
-          color: 0xec5b13,
-          backgroundColor: 0x03040a,
-          points: 8.0,
-          maxDistance: 22.0,
-          spacing: 20.0,
-          showDots: false,
-        });
-        vantaRef.current = effect;
-      } catch (_) { /* Vanta optional — fail silently */ }
-    })();
-    return () => {
-      vantaRef.current?.destroy();
-      vantaRef.current = null;
-    };
-  }, []);
+  // Vanta.js 제거 → AIFlowHero 컴포넌트로 교체 (WebGL 없음, vendor-3d 청크 제거)
 
   // ── GSAP ScrollTrigger + Lenis integration ───────────────────────────────────
   useEffect(() => {
@@ -1454,31 +1421,12 @@ export function LandingPage() {
           }}
         />
 
-        {/* Ambient orbs */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <motion.div
-            className="absolute -left-1/4 -top-1/4 h-[70vw] w-[70vw] rounded-full"
-            style={{
-              background: 'radial-gradient(circle, rgba(236,91,19,0.14) 0%, transparent 70%)',
-              filter: 'blur(60px)',
-            }}
-            animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
-            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute -bottom-1/4 right-0 h-[60vw] w-[60vw] rounded-full"
-            style={{
-              background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)',
-              filter: 'blur(80px)',
-            }}
-            animate={{ scale: [1, 1.12, 1], opacity: [0.5, 0.9, 0.5] }}
-            transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut', delay: 3 }}
-          />
-        </div>
+        {/* AI Flow Hero — 신경망 + 데이터 흐름 스토리 비주얼 (Vanta.js 대체) */}
+        {mounted && <AIFlowHero />}
 
-        {/* Content with scroll-driven parallax */}
+        {/* Content with scroll-driven parallax — 텍스트를 최대 55% 폭으로 제한해 오른쪽 신경망 공간 확보 */}
         <motion.div
-          className="relative mx-auto w-full max-w-[90rem]"
+          className="relative mx-auto w-full max-w-[90rem] lg:max-w-[55%] lg:ml-0"
           style={{ y: heroParallaxY, opacity: heroOpacity }}
         >
           {/* Eyebrow */}
