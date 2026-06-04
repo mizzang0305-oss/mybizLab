@@ -32,6 +32,7 @@ const dashboardNavigationLabelMap: Record<string, string> = {
   '/dashboard/content/review-requests': '리뷰 요청 링크',
   '/dashboard/content/blog': '블로그/소식',
   '/dashboard/content/media': '사진·영상',
+  '/dashboard/content/gallery': '이미지 갤러리',
   '/dashboard/content/social': '게시 초안/소셜',
   '/dashboard/content/status': '콘텐츠 상태판',
 };

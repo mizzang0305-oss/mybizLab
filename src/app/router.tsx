@@ -66,6 +66,7 @@ const BillingPage = lazyPage(() => import('@/modules/billing/page'), 'BillingPag
 const BrandPage = lazyPage(() => import('@/modules/brand/page'), 'BrandPage');
 const ContentBlogPage = lazyPage(() => import('@/modules/content/page'), 'ContentBlogPage');
 const ContentMediaPage = lazyPage(() => import('@/modules/content/page'), 'ContentMediaPage');
+const GalleryManagePage = lazyPage(() => import('@/modules/content/GalleryManagePage'), 'GalleryManagePage');
 const ContentReviewRequestsPage = lazyPage(() => import('@/modules/content/page'), 'ContentReviewRequestsPage');
 const ContentReviewsPage = lazyPage(() => import('@/modules/content/page'), 'ContentReviewsPage');
 const ContentSocialPage = lazyPage(() => import('@/modules/content/page'), 'ContentSocialPage');
@@ -410,6 +411,10 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'content/status',
             element: routeElement(ContentStatusPage),
+          },
+          {
+            path: 'content/gallery',
+            element: routeElement(GalleryManagePage),
           },
           {
             path: 'sales',

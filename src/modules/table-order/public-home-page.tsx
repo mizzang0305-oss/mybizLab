@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 import { useStorePublicContext } from '@/app/layouts/StorePublicLayout';
 import { StoreReviewSection } from '@/modules/content/review-section';
+import { getFrameClasses } from '@/modules/content/GalleryManagePage';
 import { formatCurrency } from '@/shared/lib/format';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
 import { getStoreBrandConfig } from '@/shared/lib/storeData';
 import { getBusinessTypeLabel } from '@/shared/lib/storeLabels';
+import { listPublicStoreGalleryImages } from '@/shared/lib/services/storeGalleryService';
 import { buildStoreUrl } from '@/shared/lib/storeSlug';
 
 // ─── Theme definitions (5 presets) ────────────────────────────────────────────
@@ -166,6 +169,15 @@ export function StoreHomePage() {
   const { publicBasePath, publicStore, tableNo } = useStorePublicContext();
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // 갤러리 이미지 (store_gallery_images 테이블)
+  const galleryQuery = useQuery({
+    queryKey: ['public-gallery', publicStore.store.id],
+    queryFn: () => listPublicStoreGalleryImages(publicStore.store.id),
+  });
+  const newGallery = (galleryQuery.data || []).filter((img) => img.display_type === 'gallery');
+  const boardImages = (galleryQuery.data || []).filter((img) => img.display_type === 'board');
+  const featureImages = (galleryQuery.data || []).filter((img) => img.display_type === 'feature');
 
   const themeKey = publicStore.store.theme_preset || 'light';
   const theme = heroThemeMap[themeKey] || heroThemeMap.light;
@@ -418,14 +430,72 @@ export function StoreHomePage() {
           </section>
         ) : null}
 
-        {/* ── Gallery ───────────────────────────────────────────────────────── */}
-        {galleryMedia.length ? (
+        {/* ── 대표 이미지 (feature) ─────────────────────────────────────────── */}
+        {featureImages.length > 0 && (
+          <section>
+            <div className="mb-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">대표 이미지</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {featureImages.map((img) => (
+                <button
+                  key={img.id}
+                  className="group relative overflow-hidden rounded-[28px] shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl text-left"
+                  onClick={() => setLightbox({ src: img.image_url, alt: img.title || '대표 이미지' })}
+                  type="button"
+                >
+                  <div className={getFrameClasses(img.frame_style)}>
+                    <img alt={img.title || ''} className="h-60 w-full object-cover" src={img.image_url} />
+                  </div>
+                  {img.title && (
+                    <div className="mt-2 px-1">
+                      <p className="font-bold text-slate-900">{img.title}</p>
+                      {img.caption && <p className="text-sm text-slate-500">{img.caption}</p>}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── 갤러리 (신규 + 기존) ──────────────────────────────────────────── */}
+        {(newGallery.length > 0 || galleryMedia.length > 0) && (
           <section>
             <div className="mb-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">갤러리</p>
               <h3 className="mt-1 text-xl font-black text-slate-900">매장 분위기</h3>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {/* 신규 (store_gallery_images) */}
+              {newGallery.map((img) => (
+                <button
+                  className="group overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-20px_rgba(0,0,0,0.22)]"
+                  key={img.id}
+                  onClick={() => setLightbox({ src: img.image_url, alt: img.title || '갤러리 이미지' })}
+                  type="button"
+                >
+                  <div className={`overflow-hidden ${img.frame_style !== 'none' ? 'm-2' : ''}`}>
+                    <div className={getFrameClasses(img.frame_style)}>
+                      <img
+                        alt={img.title || ''}
+                        className="h-52 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        src={img.image_url}
+                      />
+                      {img.frame_style === 'polaroid' && (
+                        <p className="py-2 text-center text-xs font-bold text-slate-600">{img.title || ' '}</p>
+                      )}
+                    </div>
+                  </div>
+                  {img.frame_style !== 'polaroid' && img.title && (
+                    <div className="p-4">
+                      <p className="font-semibold text-slate-900">{img.title}</p>
+                      {img.caption ? <p className="mt-1 text-sm text-slate-500">{img.caption}</p> : null}
+                    </div>
+                  )}
+                </button>
+              ))}
+              {/* 기존 (store_public_pages.media) */}
               {galleryMedia.map((media) => (
                 <button
                   className="group overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-20px_rgba(0,0,0,0.22)]"
@@ -434,25 +504,58 @@ export function StoreHomePage() {
                   type="button"
                 >
                   <div className="relative overflow-hidden">
-                    <img
-                      alt={media.title}
-                      className="h-52 w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      src={media.image_url}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                    <span className="absolute bottom-3 right-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-slate-700 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                      크게 보기
-                    </span>
+                    <img alt={media.title} className="h-52 w-full object-cover transition-transform duration-500 group-hover:scale-105" src={media.image_url} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                    <span className="absolute bottom-3 right-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-slate-700 opacity-0 transition-opacity group-hover:opacity-100">크게 보기</span>
                   </div>
                   <div className="p-4">
                     <p className="font-semibold text-slate-900">{media.title}</p>
-                    {media.caption ? <p className="mt-1 text-sm leading-5 text-slate-500">{media.caption}</p> : null}
+                    {media.caption ? <p className="mt-1 text-sm text-slate-500">{media.caption}</p> : null}
                   </div>
                 </button>
               ))}
             </div>
           </section>
-        ) : null}
+        )}
+
+        {/* ── 이미지 게시판 (board) ─────────────────────────────────────────── */}
+        {boardImages.length > 0 && (
+          <section>
+            <div className="mb-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">이미지 게시판</p>
+              <h3 className="mt-1 text-xl font-black text-slate-900">공지 · 메뉴 · 이벤트</h3>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {boardImages.map((img) => (
+                <button
+                  key={img.id}
+                  className="group relative overflow-hidden rounded-[20px] border border-slate-200 bg-white text-left shadow-sm hover:shadow-md transition-all"
+                  onClick={() => setLightbox({ src: img.image_url, alt: img.title || '게시판 이미지' })}
+                  type="button"
+                >
+                  <div className={`overflow-hidden ${img.frame_style !== 'none' ? 'm-2' : ''}`}>
+                    <div className={getFrameClasses(img.frame_style)}>
+                      <img
+                        alt={img.title || ''}
+                        className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        src={img.image_url}
+                      />
+                    </div>
+                  </div>
+                  {(img.title || img.caption) && (
+                    <div className="p-3">
+                      {img.title && <p className="font-bold text-sm text-slate-900">{img.title}</p>}
+                      {img.caption && <p className="mt-0.5 text-xs text-slate-500 line-clamp-2">{img.caption}</p>}
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="rounded-full bg-black/60 px-2 py-1 text-xs text-white">확대</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Reviews ───────────────────────────────────────────────────────── */}
         <StoreReviewSection />
