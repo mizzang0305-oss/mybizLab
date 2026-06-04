@@ -29,6 +29,7 @@ export type OnboardingActivationStatus = 'idle' | 'processing' | 'completed';
 export type DiagnosisAnalysisSource = 'gpt' | 'fallback';
 
 export interface DiagnosisInput {
+  address: string;           // 매장 주소 (상권 분석용) — 새 필드
   availableData: DiagnosisAvailableDataKey[];
   currentConcern: DiagnosisInputDocument['currentConcern'];
   desiredOutcome: DiagnosisInputDocument['desiredOutcome'];
@@ -113,6 +114,7 @@ export interface OnboardingFlowState {
 }
 
 const DEFAULT_DIAGNOSIS_INPUT: DiagnosisInput = {
+  address: '',
   availableData: ['no_feedback', 'manual_notes'],
   currentConcern: 'unknown_customer_reaction',
   desiredOutcome: 'customer_sentiment',
@@ -289,11 +291,16 @@ function buildAnalysisBasis(input: DiagnosisInput) {
   const selectedModeLabel =
     input.storeModeSelection === 'not_sure' ? '아직 모르겠음' : getRecommendedStoreModeLabel(input.storeModeSelection);
 
+  const addressLine = input.address?.trim()
+    ? `매장 주소는 "${input.address.trim()}"이며, 해당 상권의 유동 인구와 주변 업종 경쟁 환경을 고려해 전략을 수립합니다.`
+    : '';
+
   return [
+    addressLine,
     `입력된 업종은 ${getIndustryLabel(input.industryType)}입니다.`,
     `현재 선택한 운영 방식은 ${selectedModeLabel}이며, 가장 큰 고민은 ${getConcernLabel(input.currentConcern)}입니다.`,
     `보유 데이터는 ${availableDataLabels.join(', ')}이며, 목표는 ${getDesiredOutcomeLabel(input.desiredOutcome)}입니다.`,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 function buildLimitationsNote() {
@@ -536,6 +543,7 @@ function normalizeStoredDiagnosisInput(raw: unknown): DiagnosisInput {
   const legacy = raw as Partial<Record<string, unknown>>;
 
   return {
+    address: typeof legacy.address === 'string' ? legacy.address.trim() : '',
     availableData: [...DEFAULT_DIAGNOSIS_INPUT.availableData],
     currentConcern: mapLegacyConcern(typeof legacy.operatingConcerns === 'string' ? legacy.operatingConcerns : ''),
     desiredOutcome: mapLegacyOutcome(typeof legacy.customerType === 'string' ? legacy.customerType : ''),

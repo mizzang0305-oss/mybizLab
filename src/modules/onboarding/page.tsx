@@ -843,7 +843,8 @@ export function OnboardingPage() {
   const selectedConcernLabel = getConcernLabel(flow.diagnosisInput.currentConcern);
   const selectedDesiredOutcomeLabel = getDesiredOutcomeLabel(flow.diagnosisInput.desiredOutcome);
   const selectedAvailableDataLabels = getAvailableDataLabels(flow.diagnosisInput.availableData);
-  const diagnosisValid = Boolean(flow.diagnosisInput.region.trim()) && flow.diagnosisInput.availableData.length > 0;
+  // 간소화된 폼: 주소 + 업종만 필수 (고민은 기본값 있음)
+  const diagnosisValid = Boolean(flow.diagnosisInput.address.trim()) && Boolean(flow.diagnosisInput.industryType);
   const currentIndex = steps.findIndex((item) => item.key === flow.step);
   const currentRequestWizardIndex = requestWizardSteps.findIndex((item) => item.key === flow.requestWizardStep);
   const currentPlanTitle = planCards.find((plan) => plan.code === flow.selectedPlan)?.title || 'FREE';
@@ -1022,161 +1023,123 @@ export function OnboardingPage() {
           {flow.step === 'diagnosis' && !runDiagnosis.isPending ? (
             <Panel
               title="AI 매장 진단"
-              subtitle="업종, 운영 방식, 현재 고민, 보유 데이터, 원하는 결과 — 5가지를 선택하면 AI가 맞춤 운영 전략을 분석합니다."
+              subtitle="주소와 업종만 입력하면 AI가 상권 분석과 맞춤 운영 전략을 바로 알려드립니다."
             >
-              <div className="space-y-5">
-                <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
-                  <label>
-                    <span className="field-label">지역</span>
-                    <input
-                      className="input-base"
-                      onChange={(event) => updateDiagnosis('region', event.target.value)}
-                      placeholder="예: 서울 성수동"
-                      value={flow.diagnosisInput.region}
-                    />
-                    <p className="mt-2 text-sm leading-6 text-slate-500">지역 상권에 따라 AI 추천 전략이 달라집니다.</p>
-                  </label>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-500">선택 현황</p>
-                    <div className="mt-3 space-y-2.5 text-sm text-slate-700">
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">업종</span>
-                        <span className="font-medium">{selectedIndustryLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">운영</span>
-                        <span className="font-medium">{selectedStoreModeLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">고민</span>
-                        <span className="font-medium">{selectedConcernLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-[11px] font-semibold text-slate-400">목표</span>
-                        <span className="font-medium">{selectedDesiredOutcomeLabel}</span>
-                      </div>
+              <div className="space-y-6">
+
+                {/* ① 매장 주소 */}
+                <div>
+                  <label className="block">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-black text-slate-800">📍 매장 주소</span>
+                      <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">필수</span>
                     </div>
+                    <input
+                      className="input-base text-base"
+                      onChange={(event) => {
+                        const addr = event.target.value;
+                        updateDiagnosis('address', addr);
+                        // 주소 앞 2~3 단어를 region으로 자동 추출
+                        const regionGuess = addr.trim().split(/[\s,]+/).slice(0, 3).join(' ');
+                        if (regionGuess) updateDiagnosis('region', regionGuess);
+                      }}
+                      placeholder="예: 서울시 마포구 합정동 / 경기도 수원시 인계동"
+                      value={flow.diagnosisInput.address}
+                    />
+                    <p className="mt-1.5 text-xs text-slate-400">정확하지 않아도 됩니다. 동네 이름만 써도 괜찮아요.</p>
+                  </label>
+                </div>
+
+                {/* ② 업종 */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-black text-slate-800">🏪 업종</span>
+                    <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">필수</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {DIAGNOSIS_INDUSTRY_OPTIONS.map((option) => {
+                      const icons: Record<string, string> = {
+                        korean_buffet: '🍱', restaurant: '🍽️', pub: '🍺', cafe: '☕', service: '💼', other: '🏬',
+                      };
+                      const active = flow.diagnosisInput.industryType === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          className={`flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-bold transition-all ${
+                            active
+                              ? 'border-orange-400 bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-200'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/50'
+                          }`}
+                          onClick={() => updateDiagnosis('industryType', option.value)}
+                          type="button"
+                        >
+                          <span className="text-base">{icons[option.value] || '🏬'}</span>
+                          <span>{option.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 1</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">어떤 업종인가요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">업종을 선택하면 그에 맞는 운영 전략을 분석합니다.</p>
-                    </div>
-                    <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">필수</span>
+                {/* ③ 지금 가장 급한 고민 */}
+                <div>
+                  <div className="mb-3">
+                    <span className="text-sm font-black text-slate-800">🔥 지금 가장 급한 고민이 뭔가요?</span>
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                    {DIAGNOSIS_INDUSTRY_OPTIONS.map((option) => (
-                      <DiagnosisChoiceCard
-                        key={option.value}
-                        active={flow.diagnosisInput.industryType === option.value}
-                        caption="업종"
-                        description={option.description}
-                        onClick={() => updateDiagnosis('industryType', option.value)}
-                        title={option.label}
-                      />
-                    ))}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {[
+                      { value: 'unknown_customer_reaction', icon: '😶', label: '손님이 뭘 좋아하는지 모르겠어요', },
+                      { value: 'slow_inquiries', icon: '📱', label: '문의·예약 응대가 너무 느려요', },
+                      { value: 'busy_peak_ops', icon: '😰', label: '피크 타임 운영이 너무 힘들어요', },
+                      { value: 'brand_identity', icon: '📣', label: '온라인 홍보가 잘 안 돼요', },
+                    ].map((item) => {
+                      const active = flow.diagnosisInput.currentConcern === item.value;
+                      return (
+                        <button
+                          key={item.value}
+                          className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold text-left transition-all ${
+                            active
+                              ? 'border-orange-400 bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-200'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/50'
+                          }`}
+                          onClick={() => {
+                            updateDiagnosis('currentConcern', item.value as typeof flow.diagnosisInput.currentConcern);
+                            // 고민에서 목표 자동 매핑
+                            const outcomeMap: Record<string, typeof flow.diagnosisInput.desiredOutcome> = {
+                              unknown_customer_reaction: 'customer_sentiment',
+                              slow_inquiries: 'service_improvement',
+                              busy_peak_ops: 'operations_analysis',
+                              brand_identity: 'brand_growth',
+                            };
+                            updateDiagnosis('desiredOutcome', outcomeMap[item.value] || 'customer_sentiment');
+                          }}
+                          type="button"
+                        >
+                          <span className="shrink-0 text-xl">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
-                </section>
+                </div>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 2</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">현재 운영 방식은 어떻게 되나요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">주문 중심인지, 예약 중심인지, 아직 모르겠어도 괜찮습니다.</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                    {DIAGNOSIS_STORE_MODE_OPTIONS.map((option) => (
-                      <DiagnosisChoiceCard
-                        key={option.value}
-                        active={flow.diagnosisInput.storeModeSelection === option.value}
-                        caption="운영 방식"
-                        description={option.description}
-                        onClick={() => updateDiagnosis('storeModeSelection', option.value)}
-                        title={option.label}
-                      />
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 3</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">가장 급한 고민이 무엇인가요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">선택하신 고민을 기준으로 AI가 우선 개선 방향을 제안합니다.</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                    {DIAGNOSIS_CONCERN_OPTIONS.map((option) => (
-                      <DiagnosisChoiceCard
-                        key={option.value}
-                        active={flow.diagnosisInput.currentConcern === option.value}
-                        caption="현재 고민"
-                        description={option.description}
-                        onClick={() => updateDiagnosis('currentConcern', option.value)}
-                        title={option.label}
-                      />
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 4</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">현재 갖고 있는 데이터가 있나요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">복수 선택 가능합니다. 아직 없어도 괜찮아요.</p>
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">복수 선택</span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {DIAGNOSIS_AVAILABLE_DATA_OPTIONS.map((option) => (
-                      <DiagnosisToggleChip
-                        key={option.value}
-                        active={flow.diagnosisInput.availableData.includes(option.value)}
-                        label={option.label}
-                        onClick={() => toggleDiagnosisAvailableData(option.value)}
-                      />
-                    ))}
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-500">
-                    현재 선택: {selectedAvailableDataLabels.length ? selectedAvailableDataLabels.join(', ') : '선택된 데이터가 없습니다.'}
-                  </p>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500">Step 5</p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-900">어떤 결과를 원하시나요?</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">목표에 따라 AI가 추천하는 기능과 전략이 달라집니다.</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                    {DIAGNOSIS_DESIRED_OUTCOME_OPTIONS.map((option) => (
-                      <DiagnosisChoiceCard
-                        key={option.value}
-                        active={flow.diagnosisInput.desiredOutcome === option.value}
-                        caption="원하는 결과"
-                        description={option.description}
-                        onClick={() => updateDiagnosis('desiredOutcome', option.value)}
-                        title={option.label}
-                      />
-                    ))}
-                  </div>
-                </section>
               </div>
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <button className="btn-primary" disabled={!diagnosisValid} onClick={() => void submitDiagnosis()} type="button">
-                  AI 진단 결과 보기
+
+              {/* CTA */}
+              <div className="mt-8">
+                <button
+                  className="btn-primary w-full justify-center py-4 text-base"
+                  disabled={!diagnosisValid}
+                  onClick={() => void submitDiagnosis()}
+                  type="button"
+                >
+                  🔍 AI 상권 분석 + 운영 전략 보기
                 </button>
-                <p className="text-sm leading-6 text-slate-500">운영 점수, 핵심 병목, 즉시 실행 액션, 추천 플랜을 바로 확인할 수 있습니다.</p>
+                {!diagnosisValid && (
+                  <p className="mt-2 text-center text-xs text-slate-400">
+                    {!flow.diagnosisInput.address.trim() ? '주소를 입력해 주세요' : '업종을 선택해 주세요'}
+                  </p>
+                )}
               </div>
             </Panel>
           ) : null}
