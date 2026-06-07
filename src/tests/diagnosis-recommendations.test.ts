@@ -5,6 +5,7 @@ import { buildDiagnosisResult } from '@/shared/lib/onboardingFlow';
 describe('diagnosis recommendation logic', () => {
   it('recommends brand inquiry mode for brand-first stores', () => {
     const result = buildDiagnosisResult({
+      address: 'Seoul Gangnam',
       availableData: ['reservation_inquiry'],
       currentConcern: 'brand_identity',
       desiredOutcome: 'brand_growth',
@@ -21,6 +22,7 @@ describe('diagnosis recommendation logic', () => {
 
   it('keeps order-first mode for menu analysis with order data', () => {
     const result = buildDiagnosisResult({
+      address: 'Seoul Seongsu',
       availableData: ['order_data'],
       currentConcern: 'menu_response',
       desiredOutcome: 'menu_analysis',
@@ -36,6 +38,7 @@ describe('diagnosis recommendation logic', () => {
 
   it('recommends hybrid mode when survey and order signals should be combined', () => {
     const result = buildDiagnosisResult({
+      address: 'Seoul Sindae',
       availableData: ['order_data', 'manual_notes'],
       currentConcern: 'service_quality',
       desiredOutcome: 'service_improvement',

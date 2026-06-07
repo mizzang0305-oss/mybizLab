@@ -7,6 +7,7 @@ import { createStoreFromSetupRequest, saveSetupRequest } from '@/shared/lib/serv
 import type { SetupRequestInput } from '@/shared/types/models';
 
 const diagnosisInput: DiagnosisInput = {
+  address: 'Seoul Seongsu',
   availableData: ['manual_notes', 'no_feedback'],
   currentConcern: 'busy_peak_ops',
   desiredOutcome: 'operations_analysis',
