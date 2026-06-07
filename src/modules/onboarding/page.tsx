@@ -44,6 +44,7 @@ import {
   createRequestedSlug,
   persistOnboardingFlowState,
   readOnboardingFlowState,
+  safeTrim,
   type DiagnosisAnalysisSource,
   type OnboardingFlowState,
   type OnboardingStep,
@@ -377,7 +378,7 @@ export function OnboardingPage() {
     return ensureUniqueStoreSlug(base || 'mybiz-store', existingSlugs);
   }, [existingSlugs, flow.requestDraft.storeName]);
   const slugState = useMemo(() => {
-    const rawRequestedSlug = flow.requestDraft.requestedSlug.trim();
+    const rawRequestedSlug = safeTrim(flow.requestDraft.requestedSlug);
     const normalizedRequestedSlug = normalizeStoreSlug(rawRequestedSlug);
     const manualEntry = rawRequestedSlug.length > 0;
     const reserved = manualEntry ? isReservedSlug(normalizedRequestedSlug) : false;
@@ -523,11 +524,11 @@ export function OnboardingPage() {
         requestDraft: {
           ...current.requestDraft,
           businessType: getIndustryLabel(input.industryType),
-          address: current.requestDraft.address.trim() || recommendedDraft.address,
+          address: safeTrim(current.requestDraft.address) || recommendedDraft.address,
           dataMode: diagnosisResult.recommendedDataMode,
           description: recommendedDraft.description,
           mobileCtaLabel: recommendedDraft.mobileCtaLabel,
-          openingHours: current.requestDraft.openingHours.trim() || recommendedDraft.openingHours,
+          openingHours: safeTrim(current.requestDraft.openingHours) || recommendedDraft.openingHours,
           previewTarget: recommendedDraft.previewTarget,
           primaryCtaLabel: recommendedDraft.primaryCtaLabel,
           publicStatus: current.requestDraft.publicStatus,
@@ -780,9 +781,9 @@ export function OnboardingPage() {
       const { payment } = await launchPortOneCheckout(flow.selectedPlan, {
         billingProductCode: billingProductCode ?? undefined,
         customer: {
-          email: flow.requestDraft.email.trim(),
-          fullName: flow.requestDraft.ownerName.trim(),
-          phoneNumber: flow.requestDraft.phone.trim(),
+          email: safeTrim(flow.requestDraft.email),
+          fullName: safeTrim(flow.requestDraft.ownerName),
+          phoneNumber: safeTrim(flow.requestDraft.phone),
         },
         customData: {
           ...(billingProductCode ? { billingProductCode } : {}),
@@ -790,8 +791,8 @@ export function OnboardingPage() {
           slug: slugPreview,
         },
         orderName: billingProductCode
-          ? `${flow.requestDraft.storeName.trim()} 구독 결제 테스트 100원`
-          : `${flow.requestDraft.storeName.trim()} ${planCards.find((item) => item.code === flow.selectedPlan)?.title || '구독'} 결제`,
+          ? `${safeTrim(flow.requestDraft.storeName)} 구독 결제 테스트 100원`
+          : `${safeTrim(flow.requestDraft.storeName)} ${planCards.find((item) => item.code === flow.selectedPlan)?.title || '구독'} 결제`,
         redirectPath: '/onboarding?step=payment',
         source: 'onboarding-flow',
       });
@@ -844,7 +845,7 @@ export function OnboardingPage() {
   const selectedDesiredOutcomeLabel = getDesiredOutcomeLabel(flow.diagnosisInput.desiredOutcome);
   const selectedAvailableDataLabels = getAvailableDataLabels(flow.diagnosisInput.availableData);
   // 간소화된 폼: 주소 + 업종만 필수 (고민은 기본값 있음)
-  const diagnosisValid = Boolean(flow.diagnosisInput.address.trim()) && Boolean(flow.diagnosisInput.industryType);
+  const diagnosisValid = Boolean(safeTrim(flow.diagnosisInput.address)) && Boolean(flow.diagnosisInput.industryType);
   const currentIndex = steps.findIndex((item) => item.key === flow.step);
   const currentRequestWizardIndex = requestWizardSteps.findIndex((item) => item.key === flow.requestWizardStep);
   const currentPlanTitle = planCards.find((plan) => plan.code === flow.selectedPlan)?.title || 'FREE';
@@ -1137,7 +1138,7 @@ export function OnboardingPage() {
                 </button>
                 {!diagnosisValid && (
                   <p className="mt-2 text-center text-xs text-slate-400">
-                    {!flow.diagnosisInput.address.trim() ? '주소를 입력해 주세요' : '업종을 선택해 주세요'}
+                    {!safeTrim(flow.diagnosisInput.address) ? '주소를 입력해 주세요' : '업종을 선택해 주세요'}
                   </p>
                 )}
               </div>

@@ -98,6 +98,64 @@ describe('onboarding flow helpers', () => {
     expect(state.diagnosisInput.address).toBe('');
   });
 
+  it('sanitizes malformed legacy request drafts before rendering onboarding fields', () => {
+    const storedState = {
+      activationStatus: 'complete-ish',
+      paymentStatus: 'unknown',
+      requestDraft: {
+        address: 'Stored address',
+        brandName: null,
+        businessType: 'Cafe',
+        dataMode: 'unsupported',
+        description: null,
+        email: null,
+        mobileCtaLabel: null,
+        openingHours: null,
+        ownerName: null,
+        phone: null,
+        previewTarget: 'bad-target',
+        primaryCtaLabel: null,
+        publicStatus: 'archived',
+        region: 'Seoul',
+        requestedSlug: null,
+        selectedFeatures: ['ai_manager', null, 'unknown_feature'],
+        storeMode: 'not_sure',
+        storeName: null,
+        tagline: null,
+        themePreset: 'neon',
+      },
+      requestWizardStep: 'missing',
+      selectedPlan: 'enterprise',
+      step: 'checkout',
+    };
+    const storage = {
+      getItem: vi.fn(() => JSON.stringify(storedState)),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
+    };
+
+    vi.stubGlobal('window', { localStorage: storage });
+
+    const state = readOnboardingFlowState();
+
+    expect(state.step).toBe('diagnosis');
+    expect(state.requestWizardStep).toBe('basic');
+    expect(state.selectedPlan).toBe('free');
+    expect(state.paymentStatus).toBe('idle');
+    expect(state.activationStatus).toBe('idle');
+    expect(state.requestDraft.requestedSlug.trim()).toBe('');
+    expect(state.requestDraft.storeName.trim()).toBe('');
+    expect(state.requestDraft.ownerName.trim()).toBe('');
+    expect(state.requestDraft.phone.trim()).toBe('');
+    expect(state.requestDraft.email.trim()).toBe('');
+    expect(state.requestDraft.openingHours.trim()).toBeTruthy();
+    expect(state.requestDraft.selectedFeatures.length).toBeGreaterThanOrEqual(3);
+    expect(state.requestDraft.selectedFeatures.every((feature) => typeof feature === 'string')).toBe(true);
+    expect(state.requestDraft.selectedFeatures).not.toContain('unknown_feature');
+    expect(['survey', 'order', 'inquiry']).toContain(state.requestDraft.previewTarget);
+    expect(['light', 'warm', 'modern']).toContain(state.requestDraft.themePreset);
+  });
+
   it('stores the request and activates the store with paid billing state', async () => {
     const savedRequest = await saveSetupRequest(requestInput, { requestedPlan: 'pro' });
     const created = await createStoreFromSetupRequest(requestInput, {

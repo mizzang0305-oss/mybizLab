@@ -209,6 +209,10 @@ describe('app routing', () => {
     });
   });
 
+  it('wraps onboarding in the public route render error boundary', () => {
+    expect(unwrapRoutedComponent('/onboarding').mode).toBe('public');
+  });
+
   it('keeps the public store home route eager-loaded under both public store parents', () => {
     const publicStoreSlugRoute = appRoutes
       .flatMap((route) => route.children || [])

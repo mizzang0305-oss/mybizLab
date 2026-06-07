@@ -1,4 +1,4 @@
-import type { BillingPlanCode } from './billingPlans.js';
+import { isBillingPlanCode, type BillingPlanCode } from './billingPlans.js';
 import {
   getAvailableDataLabels,
   getConcernLabel,
@@ -27,6 +27,15 @@ export type OnboardingStep = 'diagnosis' | 'result' | 'request' | 'payment' | 'a
 export type OnboardingPaymentStatus = 'idle' | 'processing' | 'paid' | 'failed';
 export type OnboardingActivationStatus = 'idle' | 'processing' | 'completed';
 export type DiagnosisAnalysisSource = 'gpt' | 'fallback';
+
+const ONBOARDING_STEPS: OnboardingStep[] = ['diagnosis', 'result', 'request', 'payment', 'activation'];
+const PAYMENT_STATUSES: OnboardingPaymentStatus[] = ['idle', 'processing', 'paid', 'failed'];
+const ACTIVATION_STATUSES: OnboardingActivationStatus[] = ['idle', 'processing', 'completed'];
+const REQUEST_WIZARD_STEPS: StoreSetupWizardStep[] = ['basic', 'storeMode', 'dataMode', 'modules', 'public', 'summary'];
+const DATA_MODES: DiagnosisDataMode[] = ['order_only', 'survey_only', 'manual_only', 'order_survey', 'survey_manual', 'order_survey_manual'];
+const PREVIEW_TARGETS: StoreSetupPreviewTarget[] = ['survey', 'order', 'inquiry'];
+const RECOMMENDED_STORE_MODES: DiagnosisRecommendedStoreMode[] = ['order_first', 'survey_first', 'hybrid', 'brand_inquiry_first'];
+const THEMES: StoreSetupTheme[] = ['light', 'warm', 'modern'];
 
 export interface DiagnosisInput {
   address: string;           // 매장 주소 (상권 분석용) — 새 필드
@@ -149,8 +158,20 @@ function uniqueValues<T>(values: T[]) {
   return [...new Set(values)];
 }
 
+export function safeTrim(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function compactText(value: string) {
-  return value.trim().replace(/\s+/g, ' ');
+  return safeTrim(value).replace(/\s+/g, ' ');
+}
+
+function pickStoredValue<T extends string>(value: unknown, allowed: T[], fallback: T): T {
+  return typeof value === 'string' && allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function storedText(value: unknown, fallback = '') {
+  return safeTrim(value) || fallback;
 }
 
 function normalizeRequestedStoreSlug(input: string) {
@@ -562,6 +583,47 @@ function normalizeStoredDiagnosisResult(raw: unknown, input: DiagnosisInput): Di
   return normalizeDiagnosisResult(raw as DiagnosisModelDraft, input, source);
 }
 
+function normalizeStoredRequestDraft(
+  raw: unknown,
+  input: DiagnosisInput,
+  diagnosisResult: DiagnosisResult | null,
+): StoreRequestDraft {
+  const fallback = buildRequestDraftFromDiagnosis(input, diagnosisResult ?? undefined);
+
+  if (!raw || typeof raw !== 'object') {
+    return {
+      ...fallback,
+      selectedFeatures: [...fallback.selectedFeatures],
+    };
+  }
+
+  const draft = raw as Partial<Record<keyof StoreRequestDraft, unknown>>;
+  const previewTarget = pickStoredValue(draft.previewTarget, PREVIEW_TARGETS, fallback.previewTarget);
+
+  return {
+    address: storedText(draft.address, storedText(draft.region, input.region)),
+    brandName: storedText(draft.brandName),
+    dataMode: pickStoredValue(draft.dataMode, DATA_MODES, fallback.dataMode),
+    description: storedText(draft.description, fallback.description),
+    storeName: storedText(draft.storeName),
+    ownerName: storedText(draft.ownerName),
+    phone: storedText(draft.phone),
+    email: storedText(draft.email),
+    businessType: storedText(draft.businessType, getIndustryLabel(input.industryType)),
+    mobileCtaLabel: storedText(draft.mobileCtaLabel, deriveMobileCtaLabel(previewTarget)),
+    openingHours: storedText(draft.openingHours, fallback.openingHours),
+    previewTarget,
+    primaryCtaLabel: storedText(draft.primaryCtaLabel, derivePrimaryCtaLabel(previewTarget)),
+    publicStatus: draft.publicStatus === 'private' ? 'private' : 'public',
+    region: storedText(draft.region, input.region),
+    requestedSlug: storedText(draft.requestedSlug),
+    selectedFeatures: [...fillFeatureKeys(draft.selectedFeatures, fallback.selectedFeatures)],
+    storeMode: pickStoredValue(draft.storeMode, RECOMMENDED_STORE_MODES, fallback.storeMode),
+    tagline: storedText(draft.tagline, fallback.tagline),
+    themePreset: pickStoredValue(draft.themePreset, THEMES, fallback.themePreset),
+  };
+}
+
 export function createInitialOnboardingFlowState(): OnboardingFlowState {
   return {
     step: 'diagnosis',
@@ -643,22 +705,33 @@ export function readOnboardingFlowState() {
     }
 
     const initialState = createInitialOnboardingFlowState();
-    const parsed = JSON.parse(raw) as Partial<OnboardingFlowState> & { diagnosisInput?: unknown; diagnosisResult?: unknown };
-    const diagnosisInput = normalizeStoredDiagnosisInput(parsed.diagnosisInput);
-    const diagnosisResult = normalizeStoredDiagnosisResult(parsed.diagnosisResult, diagnosisInput);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return initialState;
+    }
+
+    const stored = parsed as Partial<Record<keyof OnboardingFlowState, unknown>> & {
+      diagnosisInput?: unknown;
+      diagnosisResult?: unknown;
+      requestDraft?: unknown;
+    };
+    const diagnosisInput = normalizeStoredDiagnosisInput(stored.diagnosisInput);
+    const diagnosisResult = normalizeStoredDiagnosisResult(stored.diagnosisResult, diagnosisInput);
 
     return {
       ...initialState,
-      ...parsed,
+      step: pickStoredValue(stored.step, ONBOARDING_STEPS, initialState.step),
       diagnosisInput,
       diagnosisResult,
-      requestDraft: {
-        ...initialState.requestDraft,
-        ...parsed.requestDraft,
-        address: parsed.requestDraft?.address?.trim() || parsed.requestDraft?.region?.trim() || diagnosisInput.region,
-        businessType: parsed.requestDraft?.businessType?.trim() || getIndustryLabel(diagnosisInput.industryType),
-        region: parsed.requestDraft?.region?.trim() || diagnosisInput.region,
-      },
+      requestDraft: normalizeStoredRequestDraft(stored.requestDraft, diagnosisInput, diagnosisResult),
+      requestWizardStep: pickStoredValue(stored.requestWizardStep, REQUEST_WIZARD_STEPS, initialState.requestWizardStep),
+      requestId: safeTrim(stored.requestId) || undefined,
+      selectedPlan: isBillingPlanCode(stored.selectedPlan) ? stored.selectedPlan : initialState.selectedPlan,
+      paymentStatus: pickStoredValue(stored.paymentStatus, PAYMENT_STATUSES, initialState.paymentStatus),
+      paymentId: safeTrim(stored.paymentId) || undefined,
+      paymentFallbackUsed: typeof stored.paymentFallbackUsed === 'boolean' ? stored.paymentFallbackUsed : undefined,
+      activationStatus: pickStoredValue(stored.activationStatus, ACTIVATION_STATUSES, initialState.activationStatus),
+      createdStoreId: safeTrim(stored.createdStoreId) || undefined,
     } satisfies OnboardingFlowState;
   } catch {
     return createInitialOnboardingFlowState();
