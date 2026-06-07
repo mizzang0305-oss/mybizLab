@@ -3,7 +3,7 @@ import { Navigate, RouterProvider, createBrowserRouter, type RouteObject } from 
 
 import { RequireAdminAuth } from '@/app/guards/RequireAdminAuth';
 import { RequirePlatformAdminAuth } from '@/app/guards/RequirePlatformAdminAuth';
-import { RouteErrorBoundary } from '@/app/RouteErrorBoundary';
+import { RouteErrorBoundary, RouteErrorElement } from '@/app/RouteErrorBoundary';
 import { DashboardLayout } from '@/app/layouts/DashboardLayout';
 import { PlatformAdminLayout } from '@/app/layouts/PlatformAdminLayout';
 import { PublicCompanionLayout } from '@/app/layouts/PublicCompanionLayout';
@@ -58,6 +58,8 @@ function routeElement(Component: ElementType, options?: { mode?: 'default' | 'pu
     </RouteErrorBoundary>
   );
 }
+
+const publicRouteErrorElement = typeof window === 'undefined' ? undefined : <RouteErrorElement mode="public" />;
 
 const AiManagerPage = lazyPage(() => import('@/modules/ai-manager/page'), 'AiManagerPage');
 const AiReportsPage = lazyPage(() => import('@/modules/ai-report/page'), 'AiReportsPage');
@@ -142,7 +144,8 @@ export const appRoutes: RouteObject[] = [
       },
       {
         path: '/onboarding',
-        element: <OnboardingPage />,
+        ...(publicRouteErrorElement ? { errorElement: publicRouteErrorElement } : {}),
+        element: routeElement(OnboardingPage, { mode: 'public' }),
       },
       {
         path: '/login',

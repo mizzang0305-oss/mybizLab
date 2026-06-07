@@ -20,6 +20,7 @@ const diagnosisAvailableDataValues = enumValues(DIAGNOSIS_AVAILABLE_DATA_OPTIONS
 const diagnosisDesiredOutcomeValues = enumValues(DIAGNOSIS_DESIRED_OUTCOME_OPTIONS);
 
 export const diagnosisInputSchema = z.object({
+  address: z.string().trim().max(200).optional().default(''),
   availableData: z.array(z.enum(diagnosisAvailableDataValues)).min(1, '보유 데이터는 최소 1개 이상 선택해야 합니다.'),
   currentConcern: z.enum(diagnosisConcernValues),
   desiredOutcome: z.enum(diagnosisDesiredOutcomeValues),

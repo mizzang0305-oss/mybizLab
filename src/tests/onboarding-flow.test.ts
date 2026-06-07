@@ -1,6 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { applyOnboardingSetupRequestSaved, buildDiagnosisResult, createInitialOnboardingFlowState } from '@/shared/lib/onboardingFlow';
+import {
+  applyOnboardingSetupRequestSaved,
+  buildDiagnosisResult,
+  createInitialOnboardingFlowState,
+  readOnboardingFlowState,
+} from '@/shared/lib/onboardingFlow';
 import { getDatabase, resetDatabase } from '@/shared/lib/mockDb';
 import { createStoreFromSetupRequest, saveSetupRequest } from '@/shared/lib/services/mvpService';
 import type { SetupRequestInput } from '@/shared/types/models';
@@ -22,8 +27,13 @@ describe('onboarding flow helpers', () => {
     resetDatabase();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('builds a diagnosis result with score, strategies, and a recommended plan', () => {
     const result = buildDiagnosisResult({
+      address: 'Seoul Seongsu',
       availableData: ['order_data', 'manual_notes'],
       currentConcern: 'service_quality',
       desiredOutcome: 'service_improvement',
@@ -62,6 +72,88 @@ describe('onboarding flow helpers', () => {
     expect(nextState.step).toBe('payment');
     expect(nextState.requestWizardStep).toBe('summary');
     expect(nextState.selectedPlan).toBe('pro');
+  });
+
+  it('hydrates legacy diagnosis state with a string address', () => {
+    const storedState = {
+      diagnosisInput: {
+        availableData: ['manual_notes', 'no_feedback'],
+        currentConcern: 'unknown_customer_reaction',
+        desiredOutcome: 'customer_sentiment',
+        industryType: 'cafe',
+        region: 'Seoul',
+        storeModeSelection: 'not_sure',
+      },
+    };
+    const storage = {
+      getItem: vi.fn(() => JSON.stringify(storedState)),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
+    };
+
+    vi.stubGlobal('window', { localStorage: storage });
+
+    const state = readOnboardingFlowState();
+
+    expect(state.diagnosisInput.address).toBe('');
+  });
+
+  it('sanitizes malformed legacy request drafts before rendering onboarding fields', () => {
+    const storedState = {
+      activationStatus: 'complete-ish',
+      paymentStatus: 'unknown',
+      requestDraft: {
+        address: 'Stored address',
+        brandName: null,
+        businessType: 'Cafe',
+        dataMode: 'unsupported',
+        description: null,
+        email: null,
+        mobileCtaLabel: null,
+        openingHours: null,
+        ownerName: null,
+        phone: null,
+        previewTarget: 'bad-target',
+        primaryCtaLabel: null,
+        publicStatus: 'archived',
+        region: 'Seoul',
+        requestedSlug: null,
+        selectedFeatures: ['ai_manager', null, 'unknown_feature'],
+        storeMode: 'not_sure',
+        storeName: null,
+        tagline: null,
+        themePreset: 'neon',
+      },
+      requestWizardStep: 'missing',
+      selectedPlan: 'enterprise',
+      step: 'checkout',
+    };
+    const storage = {
+      getItem: vi.fn(() => JSON.stringify(storedState)),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
+    };
+
+    vi.stubGlobal('window', { localStorage: storage });
+
+    const state = readOnboardingFlowState();
+
+    expect(state.step).toBe('diagnosis');
+    expect(state.requestWizardStep).toBe('basic');
+    expect(state.selectedPlan).toBe('free');
+    expect(state.paymentStatus).toBe('idle');
+    expect(state.activationStatus).toBe('idle');
+    expect(state.requestDraft.requestedSlug.trim()).toBe('');
+    expect(state.requestDraft.storeName.trim()).toBe('');
+    expect(state.requestDraft.ownerName.trim()).toBe('');
+    expect(state.requestDraft.phone.trim()).toBe('');
+    expect(state.requestDraft.email.trim()).toBe('');
+    expect(state.requestDraft.openingHours.trim()).toBeTruthy();
+    expect(state.requestDraft.selectedFeatures.length).toBeGreaterThanOrEqual(3);
+    expect(state.requestDraft.selectedFeatures.every((feature) => typeof feature === 'string')).toBe(true);
+    expect(state.requestDraft.selectedFeatures).not.toContain('unknown_feature');
+    expect(['survey', 'order', 'inquiry']).toContain(state.requestDraft.previewTarget);
+    expect(['light', 'warm', 'modern']).toContain(state.requestDraft.themePreset);
   });
 
   it('stores the request and activates the store with paid billing state', async () => {

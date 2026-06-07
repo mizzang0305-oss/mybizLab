@@ -4,6 +4,7 @@ import { requestStructuredDiagnosis } from '@/shared/lib/diagnosisClient';
 import type { DiagnosisInput } from '@/shared/lib/onboardingFlow';
 
 const requestInput: DiagnosisInput = {
+  address: 'Seoul Seongsu',
   availableData: ['order_data', 'manual_notes'],
   currentConcern: 'service_quality',
   desiredOutcome: 'service_improvement',

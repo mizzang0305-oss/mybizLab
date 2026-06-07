@@ -11,6 +11,7 @@ describe('diagnosis session persistence', () => {
 
   it('stores the latest diagnosis result in the local mock adapter', async () => {
     const diagnosisInput: DiagnosisInput = {
+      address: 'Seoul Mapo',
       availableData: ['manual_notes', 'no_feedback'],
       currentConcern: 'unknown_customer_reaction',
       desiredOutcome: 'customer_sentiment',
