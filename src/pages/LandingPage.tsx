@@ -1577,7 +1577,7 @@ export function LandingPage() {
         {/* Edge fade masks */}
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-[#03040a] to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-[#03040a] to-transparent" />
-        <p
+        <div
           className="font-mono text-[11px] font-bold uppercase tracking-[0.28em] text-white/22"
           style={{ whiteSpace: 'nowrap' }}
         >
@@ -1585,7 +1585,7 @@ export function LandingPage() {
             text="문의 ✦ 예약 ✦ 웨이팅 ✦ QR 주문 ✦ 고객 기억 ✦ 운영 대시보드 ✦ AI 상담 ✦ 반복 매출 ✦ 재방문"
             speed={28}
           />
-        </p>
+        </div>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════

@@ -1544,7 +1544,7 @@ const _DELETED_OAUTH_SETUP_GUIDES = {
 type OAuthGuideKey = keyof typeof _DELETED_OAUTH_SETUP_GUIDES;
 
 function _DeletedOAuthSetupModal({ providerKey, onClose }: { providerKey: OAuthGuideKey; onClose: () => void }) {
-  const guide = OAUTH_SETUP_GUIDES[providerKey];
+  const guide = _DELETED_OAUTH_SETUP_GUIDES[providerKey];
   const [copied, setCopied] = useState<string | null>(null);
 
   function copyToClipboard(text: string, key: string) {
@@ -2105,8 +2105,8 @@ export function ContentSocialPage() {
                 )}
               </div>
             </div>
-            {youtubeProvider?.status === 'connected' && youtubeProvider.displayName ? (
-              <p className="mt-2 text-xs font-bold text-emerald-600">연결됨: {youtubeProvider.displayName}</p>
+            {youtubeProvider?.status === 'connected' && youtubeProvider?.displayName ? (
+              <p className="mt-2 text-xs font-bold text-emerald-600">연결됨: {youtubeProvider?.displayName}</p>
             ) : null}
             <p className="mt-4 text-sm leading-6 text-slate-600">
               YouTube 영상 업로드와 자막 등록은 계정 연동과 업로드 설정 완료 후 사용할 수 있습니다.
