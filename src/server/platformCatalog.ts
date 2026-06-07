@@ -439,26 +439,11 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
   }
 
   if (!isPlatformPlanCode(input.plan)) {
-    throw new Error('결제 요청은 free, pro, vip, test_sub 중 하나의 plan이 필요합니다.');
+    throw new Error('결제 요청은 free, pro, vip 중 하나의 plan이 필요합니다.');
   }
 
   if (input.plan === 'free') {
     throw new Error('FREE 플랜은 유료 결제를 호출하지 않고 /onboarding?plan=free로 이동해야 합니다.');
-  }
-
-  // test_sub: DB 조회 없이 하드코딩으로 처리
-  // DB에는 실제 플랜(free/pro/vip)만 존재하므로 DB 조회를 거치면 "찾을 수 없습니다" 오류 발생
-  if (input.plan === 'test_sub') {
-    return {
-      amount: 1000,
-      currency: 'KRW',
-      grantsEntitlement: false,
-      orderName: '구독 결제 테스트 1,000원',
-      plan: 'test_sub' as PlatformPlanCode,
-      productCode: 'subscription_test_1000',
-      productType: 'subscription' as const,
-      purpose: 'subscription_test',
-    };
   }
 
   const plans = await listPlatformPricingPlansForServer();
