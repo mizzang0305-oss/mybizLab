@@ -1,12 +1,56 @@
-import { createElement } from 'react';
+import { createElement, type ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router-dom';
 
 import { appRoutes } from '@/app/router';
-import { DemoPreviewModal } from '@/pages/LandingPage';
-import { PlatformFeaturesPage } from '@/modules/platform-public/page';
+import { DemoDashboardPage } from '@/pages/DemoDashboardPage';
+import { DemoPreviewModal, LandingPage } from '@/pages/LandingPage';
+import { AdminLoginPage } from '@/pages/AdminLoginPage';
+import { PricingPage } from '@/pages/PricingPage';
+import { PrivacyPage } from '@/pages/PrivacyPage';
+import { RefundPage } from '@/pages/RefundPage';
+import { TermsPage } from '@/pages/TermsPage';
+import {
+  PlatformAboutPage,
+  PlatformCasesPage,
+  PlatformContactPage,
+  PlatformFaqPage,
+  PlatformFeaturesPage,
+  PlatformPublicUpdatesPage,
+  PlatformTrustPage,
+} from '@/modules/platform-public/page';
 import { PersistentDiagnosisWorldProvider } from '@/shared/components/PersistentDiagnosisWorldShell';
+
+const staticPublicRouteElements: Record<string, () => ReactElement> = {
+  '/': () => createElement(LandingPage),
+  '/about': () => createElement(PlatformAboutPage),
+  '/cases': () => createElement(PlatformCasesPage),
+  '/contact': () => createElement(PlatformContactPage),
+  '/demo/dashboard': () => createElement(DemoDashboardPage),
+  '/faq': () => createElement(PlatformFaqPage),
+  '/features': () => createElement(PlatformFeaturesPage),
+  '/login': () => createElement(AdminLoginPage),
+  '/notices': () => createElement(PlatformPublicUpdatesPage),
+  '/pricing': () => createElement(PricingPage),
+  '/privacy': () => createElement(PrivacyPage),
+  '/refund': () => createElement(RefundPage),
+  '/terms': () => createElement(TermsPage),
+  '/trust': () => createElement(PlatformTrustPage),
+  '/updates': () => createElement(PlatformPublicUpdatesPage),
+};
+
+function buildStaticMarketingRoutes(routes: RouteObject[]): RouteObject[] {
+  return routes.map((route) => {
+    const staticElement = route.path ? staticPublicRouteElements[route.path]?.() : undefined;
+
+    return {
+      ...route,
+      ...(staticElement ? { element: staticElement } : {}),
+      ...(route.children ? { children: buildStaticMarketingRoutes(route.children) } : {}),
+    } as RouteObject;
+  });
+}
 
 function renderRoute(pathname: string) {
   const queryClient = new QueryClient({
@@ -17,7 +61,7 @@ function renderRoute(pathname: string) {
     },
   });
 
-  const router = createMemoryRouter(appRoutes, {
+  const router = createMemoryRouter(buildStaticMarketingRoutes(appRoutes), {
     initialEntries: [pathname],
   });
 
@@ -72,9 +116,10 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('무료로 시작하기');
     expect(html).toContain('기능 살펴보기');
     expect(html).toContain('데모 보기');
-    expect(html).toContain('공개 스토어 / 고객 접점');
-    expect(html).toContain('점주 운영 대시보드');
-    expect(html).toContain('고객 기억 / 반복 매출 엔진');
+    expect(html).toContain('운영 흐름 / Services');
+    expect(html).toContain('운영 대시보드');
+    expect(html).toContain('고객 기억');
+    expect(html).toContain('반복 매출');
     expect(html).toContain('이용약관');
     expect(html).toContain('개인정보처리방침');
     expectNoMybiCompanion(html);

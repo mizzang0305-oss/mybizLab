@@ -1,4 +1,4 @@
-export const PLATFORM_PLAN_CODES = ['free', 'pro', 'vip', 'test_sub'] as const;
+export const PLATFORM_PLAN_CODES = ['free', 'pro', 'vip'] as const;
 export type PlatformPlanCode = (typeof PLATFORM_PLAN_CODES)[number];
 
 export const PAYMENT_TEST_PRODUCT_CODE = 'payment_test_100' as const;
@@ -473,23 +473,6 @@ export const FALLBACK_PRICING_PLANS: PlatformPricingPlan[] = [
     price_amount: 149000,
     short_description: '운영 자동화와 리포트를 깊게 보는 확장 플랜',
     sort_order: 30,
-    status: 'published',
-  },
-  {
-    badge_text: '테스트',
-    billing_cycle: 'month',
-    bullet_items: ['구독 결제 흐름 테스트', '1,000원 실결제', '운영 권한 변경 없음'],
-    cta_action: 'checkout',
-    cta_label: '1,000원 테스트 결제',
-    currency: 'KRW',
-    display_name: 'TEST',
-    footnote: '결제 테스트 전용 플랜입니다. 실제 구독 권한에는 영향을 주지 않습니다.',
-    is_recommended: false,
-    is_visible: true,
-    plan_code: 'test_sub',
-    price_amount: 1000,
-    short_description: '구독 결제 흐름을 검증하는 1,000원 테스트 플랜',
-    sort_order: 99,
     status: 'published',
   },
 ];
