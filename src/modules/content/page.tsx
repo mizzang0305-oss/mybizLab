@@ -1505,7 +1505,7 @@ const _DELETED_OAUTH_SETUP_GUIDES = {
     color: '#000000',
     steps: [
       { title: 'Meta 개발자 앱 생성', desc: 'developers.facebook.com → 새 앱 → Threads API 추가', link: 'https://developers.facebook.com/apps' },
-      { title: 'Redirect URI 등록', desc: '앱 설정 → Threads API → Callback URL에 아래 URI 등록', code: `${window?.location?.origin || 'https://mybiz.ai.kr'}/api/auth/threads/callback` },
+      { title: 'Redirect URI 등록', desc: '앱 설정 → Threads API → Callback URL에 아래 URI 등록', code: `${getDashboardBaseUrl()}/api/auth/threads/callback` },
       { title: 'Vercel 환경 변수 설정', desc: '아래 변수를 Vercel 프로젝트 → Settings → Environment Variables에 추가', envVars: ['THREADS_CLIENT_ID', 'THREADS_CLIENT_SECRET', 'THREADS_REDIRECT_URI', 'THREADS_PUBLISH_ENABLED=true'] },
     ],
   },
@@ -1515,7 +1515,7 @@ const _DELETED_OAUTH_SETUP_GUIDES = {
     color: '#03C75A',
     steps: [
       { title: 'Naver Developers 앱 등록', desc: '네이버 개발자 센터에서 애플리케이션을 생성하고 Blog 권한을 추가합니다', link: 'https://developers.naver.com/apps/#/register' },
-      { title: 'Redirect URI 등록', desc: '서비스 URL / Callback URL 항목에 아래 URI 등록', code: `${window?.location?.origin || 'https://mybiz.ai.kr'}/api/auth/naver/callback` },
+      { title: 'Redirect URI 등록', desc: '서비스 URL / Callback URL 항목에 아래 URI 등록', code: `${getDashboardBaseUrl()}/api/auth/naver/callback` },
       { title: 'Vercel 환경 변수 설정', desc: '클라이언트 ID/Secret을 복사해 아래 변수명으로 추가', envVars: ['NAVER_CLIENT_ID', 'NAVER_CLIENT_SECRET', 'NAVER_REDIRECT_URI', 'NAVER_BLOG_WRITE_ENABLED=true'] },
     ],
   },
@@ -1535,7 +1535,7 @@ const _DELETED_OAUTH_SETUP_GUIDES = {
     color: '#FF0000',
     steps: [
       { title: 'Google Cloud 프로젝트 생성', desc: 'Google Cloud Console에서 프로젝트를 만들고 YouTube Data API v3를 활성화합니다', link: 'https://console.cloud.google.com/apis/library/youtube.googleapis.com' },
-      { title: 'OAuth 2.0 클라이언트 생성', desc: '사용자 인증 정보 → OAuth 2.0 클라이언트 ID → 웹 애플리케이션 → 아래 URI 등록', code: `${window?.location?.origin || 'https://mybiz.ai.kr'}/api/auth/youtube/callback` },
+      { title: 'OAuth 2.0 클라이언트 생성', desc: '사용자 인증 정보 → OAuth 2.0 클라이언트 ID → 웹 애플리케이션 → 아래 URI 등록', code: `${getDashboardBaseUrl()}/api/auth/youtube/callback` },
       { title: 'Vercel 환경 변수 설정', desc: '클라이언트 ID/Secret과 암호화 키를 아래 변수명으로 추가', envVars: ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REDIRECT_URI', 'YOUTUBE_OAUTH_ENABLED=true', 'YOUTUBE_UPLOAD_ENABLED=true', 'TOKEN_ENCRYPTION_KEY'] },
     ],
   },
@@ -1834,7 +1834,7 @@ function YouTubeProviderPanel({
               <div className="flex items-center gap-1.5">
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
                 <span className={`text-xs font-bold ${isConnected ? 'text-emerald-600' : youtubeReadiness.oauthReady ? 'text-slate-500' : 'text-amber-600'}`}>
-                  {isConnected ? '연결됨' : youtubeReadiness.oauthReady ? '연결 준비됨' : '설정 필요'}
+                  {isConnected ? '연결됨' : youtubeReadiness.oauthReady ? '연결 준비됨' : '설정 대기'}
                 </span>
               </div>
             </div>
@@ -1851,7 +1851,7 @@ function YouTubeProviderPanel({
           {/* Required scopes */}
           <div className="mt-4 flex flex-wrap gap-1.5">
             {YOUTUBE_REQUIRED_SCOPES.map((scope) => (
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600" key={scope}>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600" key={scope} title={scope}>
                 {scope.split('/').pop()}
               </span>
             ))}
@@ -2063,7 +2063,7 @@ export function ContentSocialPage() {
         )}
       </Panel>
 
-      <Panel title="YouTube 계정 연동" subtitle="채널을 연결하면 영상 업로드와 자막 자동 등록이 가능합니다.">
+      <Panel title="YouTube 업로드 준비" subtitle="채널을 연결하면 영상 업로드와 자막 자동 등록이 가능합니다.">
         <YouTubeProviderPanel
           youtubeProvider={youtubeProvider}
           youtubeReadiness={youtubeReadiness}
