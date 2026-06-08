@@ -1,8 +1,8 @@
 # MyBiz launch readiness audit
 
-Date: 2026-06-07
+Date: 2026-06-08
 
-Branch audited: `codex/post-deploy-typecheck-blocker-audit`
+Branch audited: `codex/launch-gate-feature-flag-hardening`
 
 Production URL: `https://mybiz.ai.kr`
 
@@ -21,20 +21,19 @@ Existing local stash entries and untracked `.claude/worktrees/` plus `AGENTS.md`
 | PR | `#92` |
 | Title | `Stabilize content and marketing route blockers after CTA hotfix` |
 | Branch | `codex/post-deploy-typecheck-blocker-audit` |
-| Pre-audit remote head | `217831d10b518c499006baa523ded6c5aa4373f2` |
+| Reviewed PR head | `5d3f65e51bda58544f259e2ace57e16c09973200` |
+| Squash merge commit | `e2b6c0027f38845104ea0f63d45b747b0b3ea8fb` |
 | Draft | `false` |
-| Mergeable | `MERGEABLE` |
-| Pre-audit checks | Vercel `SUCCESS`, Vercel Preview Comments `SUCCESS` |
+| Merge | Completed before this branch |
+| Vercel production deploy | Auto deploy `SUCCESS` after merge |
+| Production smoke after PR #92 | PASS for landing, FREE CTA, onboarding, pricing, and mobile acquisition path |
 | Files | Repo files only. No Obsidian vault files in PR. |
-| Merge | Not performed. Explicit merge approval was not present in the current request. |
-| Production deploy | Not performed. |
-| Production smoke after PR #92 | not_tested because no merge/deploy happened. |
 
-PR #92 must be re-checked after this audit commit is pushed. Merge approval must be explicit because Vercel may auto-deploy from `main`.
+This branch did not merge or deploy anything. It starts from the post-PR #92 `origin/main` state and only adds local launch-gate hardening.
 
-## Audit-time safety patch
+## Prior PR #92 safety patch
 
-The full Vitest pass initially exposed one static-render blocker in `src/modules/content/page.tsx`: deleted OAuth guide metadata referenced `window` at module import time. The local audit patch replaced those references with the existing safe `getDashboardBaseUrl()` helper and restored the YouTube upload readiness copy/scope evidence expected by merchant UX route tests.
+PR #92 fixed a static-render blocker in `src/modules/content/page.tsx`: deleted OAuth guide metadata referenced `window` at module import time. That patch replaced those references with the existing safe `getDashboardBaseUrl()` helper and restored the YouTube upload readiness copy/scope evidence expected by merchant UX route tests.
 
 This patch did not change payment, webhook, auth, environment, DB, deploy, customer notification, or external API behavior.
 
@@ -87,14 +86,42 @@ Reason: the acquisition layer is close to launchable after PR #91 and PR #92, bu
 | Table order/kitchen | `/dashboard/table-order`, `/dashboard/kitchen` | `partial`, `needs_db`, `needs_payment_approval` | live compatibility and local fallback | order/payment events possible | Hide until table-order policy and payment behavior are approved. |
 | Billing/admin payment tests | `/admin/payment-tests`, `/admin/payment-events` | `needs_auth`, `needs_payment_approval` | admin-only payment test product/events | payment/read DB | Platform admin only. Do not expose public TEST/test_sub. |
 
+## Launch gate hardening update
+
+This branch adds a central launch gate map in `src/shared/lib/launchGates.ts`.
+
+Default launch ON gates:
+
+- `launchBetaEnabled`
+- `publicPricingEnabled`
+- `onboardingDiagnosisEnabled`
+- `ownerReviewedLeadCaptureEnabled`
+
+Default approval-gated gates:
+
+- `selfServePaidLaunchEnabled`
+- `billingCheckoutEnabled`
+- `billingWebhookEnabled`
+- `customerNotificationEnabled`
+- `eSignEnabled`
+- `posPaymentEnabled`
+- `oauthPublishEnabled`
+- `uploadMutationEnabled`
+- `externalAiEnabled`
+- `broadDbWriteEnabled`
+
+The public pricing page now treats PRO/VIP as pilot consultation paths. Paid checkout buttons are disabled by default, the 100 KRW payment test block is hidden unless the checkout gate is enabled, and `/api/billing/checkout` returns a sanitized `LAUNCH_GATE_DISABLED` response before loading checkout env or building a provider payment session.
+
+Webhook, auth, env, DB/RLS, customer notification, upload/delete, OAuth/SNS publishing, and external AI/STT behavior were not modified in this branch.
+
 ## Launch Readiness Scorecard
 
 | # | Area | Status | Evidence | Risk | Next action | Launch impact |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Landing / Pricing / CTA | ready | PR #91 smoke pass, PR #92 marketing route tests pass | paid buttons can trigger checkout | Keep FREE CTA ON; gate paid checkout | free acquisition |
-| 2 | Mobile UX | ready for acquisition | PR #91 mobile smoke pass | broader route coverage not complete | Re-run after merge/deploy | free acquisition |
+| 1 | Landing / Pricing / CTA | ready | PR #91 smoke pass, PR #92 marketing route tests pass, current local smoke pass | paid checkout now disabled by default | Keep FREE CTA ON; keep paid checkout gated | free acquisition |
+| 2 | Mobile UX | ready for acquisition | PR #91 mobile smoke pass, PR #92 production smoke pass, current local mobile smoke pass | broader route coverage not complete | Re-run before any production change | free acquisition |
 | 3 | Onboarding | partial | local onboarding tests pass; safe trim guards | live submit can write setup request | Treat as lead capture only | memory seed |
-| 4 | Error Boundary | ready | route boundary exists for onboarding and router | production smoke after PR #92 not run | Smoke after deploy | reliability |
+| 4 | Error Boundary | ready | route boundary exists for onboarding and router | broader route coverage not complete | Keep in smoke checklist | reliability |
 | 5 | FREE/PRO/VIP contract | ready | PR #92 removed public TEST/test_sub plan leakage | old data may contain test-only rows | Keep official plan filter | conversion clarity |
 | 6 | Public page | partial | public store routes exist | live visibility and ownership need DB/RLS validation | Pilot with selected stores | merchant proof |
 | 7 | Inquiry | partial | public inquiry route/service exists | FREE entitlement currently false; DB write on submit | Decide FREE limited inquiry policy | lead capture |
@@ -107,7 +134,7 @@ Reason: the acquisition layer is close to launchable after PR #91 and PR #92, bu
 | 14 | DB / RLS | blocked for broad launch | canonical Supabase path exists | production writes need RLS evidence | DB/RLS launch gate PR | data safety |
 | 15 | Admin console | partial | platform and merchant admin routes exist | powerful mutation surface | Keep internal/auth only | operations |
 | 16 | AI usage / cost safety | blocked | Gemini/OpenAI-capable paths exist | cost and external API exposure | Add server-side budget/kill switch | margin safety |
-| 17 | Production monitoring | partial | Vercel checks pass | no post-PR #92 prod smoke | Add launch monitoring checklist | reliability |
+| 17 | Production monitoring | partial | Vercel checks pass and post-PR #92 production smoke passed | no automated monitoring gate yet | Add launch monitoring checklist | reliability |
 | 18 | Legal/privacy copy | partial | terms/privacy/refund/contact routes exist | consent copy for customer inputs needs review | Add form-level consent | compliance |
 | 19 | SEO | partial | public routes and SEO tests exist | live sitemap/robots after deploy not verified | Smoke public metadata | acquisition |
 | 20 | Sales operation readiness | partial | demo dashboard and docs exist | no owner runbook for first 7 days | Use business-start checklist | pilot execution |
@@ -116,25 +143,25 @@ Reason: the acquisition layer is close to launchable after PR #91 and PR #92, bu
 
 | Command | Result |
 | --- | --- |
-| `git diff --check` | PASS; Windows line-ending warning only for `src/modules/content/page.tsx` |
+| `git diff --check` | PASS; Windows line-ending warnings only |
 | `npm run typecheck` | PASS |
 | `npm run build` | PASS; existing Vite chunk/static-dynamic import warnings only |
-| `npm test -- --run src/tests/marketing-pages.test.ts` | PASS, 1 file / 16 tests |
-| targeted Vitest for onboarding/router/diagnosis/platform/PortOne/content/customer/review | PASS, 12 files / 79 tests |
-| `npm test -- --run src/tests/merchant-ux-routes.test.ts` | PASS, 1 file / 6 tests |
-| `npm test -- --run` | PASS, 90 files / 387 tests |
-| Production smoke | not_tested; no merge/deploy happened |
+| `npm test -- --run src/tests/launch-gates.test.ts` | PASS, 1 file / 3 tests |
+| `npm test -- --run src/tests/api-billing-checkout.test.ts src/tests/launch-gates.test.ts src/tests/marketing-pages.test.ts` | PASS, 3 files / 42 tests |
+| `npm test -- --run src/tests/onboarding-flow.test.ts src/tests/router.test.ts src/tests/merchant-ux-routes.test.ts src/tests/portone-checkout.test.ts` | PASS, 4 files / 46 tests |
+| `npm test -- --run src/tests/api-billing-portone-routes.test.ts` | PASS, 1 file / 7 tests |
+| `npm test -- --run` | PASS, 91 files / 391 tests |
+| Local Playwright smoke | PASS for `/`, FREE CTA to `/onboarding?plan=free`, `/pricing`, and mobile `375x667`, `390x844`, `412x915` |
+| Production smoke | PASS after PR #92 merge/deploy; not rerun in this local branch |
 
 ## Launch blockers
 
-1. Explicit PR #92 merge approval is still required.
-2. Production smoke after PR #92 deploy is not_tested.
-3. Paid checkout and webhook behavior must remain approval-gated.
-4. Live DB writes need RLS and store membership evidence before broad launch.
-5. Customer message sending must remain disabled until consent, templates, and owner approval are defined.
-6. External AI calls need cost controls, provider gating, and no-secret logging checks.
-7. Upload/storage paths need policy and moderation review before public launch.
-8. FREE inquiry/waiting scope is a business decision: code currently gives FREE only `public_store_page`.
+1. Paid checkout and webhook behavior must remain approval-gated. The checkout API now has a default OFF launch gate, but payment approval is still required before enabling it.
+2. Live DB writes need RLS and store membership evidence before broad launch.
+3. Customer message sending must remain disabled until consent, templates, and owner approval are defined.
+4. External AI calls need cost controls, provider gating, and no-secret logging checks.
+5. Upload/storage paths need policy and moderation review before public launch.
+6. FREE inquiry/waiting scope is a business decision: code currently gives FREE only `public_store_page`.
 
 ## Business conclusion
 

@@ -1,35 +1,36 @@
 # MyBiz business start checklist
 
-Date: 2026-06-07
+Date: 2026-06-08
 
-This checklist is for starting MyBiz as a controlled public beta or merchant pilot. It assumes PR #92 is ready but not merged unless explicit approval is given.
+This checklist is for starting MyBiz as a controlled public beta or merchant pilot. PR #92 has been merged, and the next launch-hardening work should keep production deploy, merge, DB write, payment provider calls, webhook changes, auth/env changes, customer notifications, and external API mutations behind explicit approval.
 
-## Pre-merge gate for PR #92
+## Completed PR #92 merge gate
 
-Do not merge until all are true:
+PR #92 is already merged. Keep this as historical evidence for why the acquisition layer can be used for controlled beta:
 
 - PR #92 is `isDraft=false`.
-- PR #92 head matches the latest reviewed commit from `gh pr view 92`.
-- If PR #92 is newer than `217831d10b518c499006baa523ded6c5aa4373f2`, confirm the newer commit includes only approved launch-audit files and checks are successful.
-- PR #92 is `MERGEABLE`.
-- Vercel checks are successful.
+- PR #92 head matched the approved `5d3f65e51bda58544f259e2ace57e16c09973200`.
+- PR #92 squash merge commit is `e2b6c0027f38845104ea0f63d45b747b0b3ea8fb`.
+- Vercel auto production deploy completed with `SUCCESS`.
+- Post-merge production smoke passed for landing, pricing, FREE CTA, onboarding, and mobile acquisition path.
 - PR files do not include Obsidian vault files.
 - Stash entries remain preserved.
 - Untracked `.claude/worktrees/` and `AGENTS.md` remain untracked and untouched.
-- User gives explicit merge approval, preferably: `PR #92 merge approval`.
 
-## If merge is approved
+## Next merge/deploy gate
 
-1. Squash merge PR #92.
-2. Confirm `origin/main` head.
-3. Watch for Vercel auto production deploy.
-4. If auto deploy starts, observe status only.
-5. Do not run manual production deploy unless separately approved.
-6. If deploy fails, report status. Do not roll back unless approved.
+Use this for future launch-hardening PRs:
+
+1. Confirm target PR files do not include Obsidian vault files.
+2. Confirm no payment/webhook/auth/env/DB/customer notification/external mutation is included unless explicitly approved.
+3. Re-run typecheck, build, targeted tests, and public route smoke.
+4. Get explicit merge approval.
+5. Watch Vercel auto production deploy read-only if merge triggers it.
+6. Do not run manual production deploy, rollback, or hotfix without separate approval.
 
 ## Production smoke after deploy
 
-Run only after PR #92 is merged and production deploy is complete.
+Run after any future merge that triggers production deploy. For the current post-PR #92 baseline, this smoke has already passed.
 
 ### Desktop
 
@@ -127,6 +128,7 @@ After each pilot merchant:
 - Files: router, pricing, feature flags, public route guards, platform config.
 - Risk: can hide too much if defaults are wrong.
 - Verification: typecheck, build, marketing routes, pricing route, onboarding route, feature-flag tests.
+- Current branch adds `src/shared/lib/launchGates.ts`, disables PRO/VIP checkout by default, hides public payment test UI unless checkout is explicitly enabled, and blocks `/api/billing/checkout` before env/provider preparation.
 
 ### PR-2: lead capture / store creation request
 
@@ -160,7 +162,6 @@ After each pilot merchant:
 
 Choose the next approval explicitly:
 
-- `PR #92 merge approval`
 - production deploy approval
 - feature flag hardening PR approval
 - DB/RLS work approval

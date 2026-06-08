@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import checkoutHandler from '../../api/billing/checkout';
 import verifyHandler from '../../api/billing/verify';
+import {
+  clearLaunchGateOverridesForTest,
+  setLaunchGateOverridesForTest,
+} from '../../src/shared/lib/launchGates';
 
 describe('/api/billing checkout and verify handlers', () => {
   const originalApiSecret = process.env.PORTONE_API_SECRET;
@@ -28,9 +32,13 @@ describe('/api/billing checkout and verify handlers', () => {
     delete process.env.VITE_PORTONE_CHANNEL_KEY;
 
     process.env.VITE_APP_BASE_URL = 'https://example.com';
+    setLaunchGateOverridesForTest({
+      billingCheckoutEnabled: true,
+    });
   });
 
   afterEach(() => {
+    clearLaunchGateOverridesForTest();
     process.env.PORTONE_API_SECRET = originalApiSecret;
     process.env.PORTONE_V2_API_SECRET = originalLegacyApiSecret;
     process.env.PORTONE_STORE_ID = originalStoreId;

@@ -1,6 +1,6 @@
 # MyBiz production side effects audit
 
-Date: 2026-06-07
+Date: 2026-06-08
 
 This audit classifies side effects that can happen in production code paths. It does not include secret values, token values, cookies, sessions, raw customer data, browser storage values, or payment payloads.
 
@@ -62,6 +62,17 @@ Potential automatic side effects on page view are low for landing and marketing 
 - OAuth/social provider actions
 - AI/STT provider calls
 
+## Launch gate implementation status
+
+`src/shared/lib/launchGates.ts` centralizes the pilot beta defaults. The current code-level enforcement added in this branch is intentionally narrow:
+
+- Public pricing shows FREE/PRO/VIP and keeps FREE onboarding live.
+- PRO/VIP paid checkout buttons are disabled by default and tell merchants that payment is applied after pilot consultation.
+- Public payment test UI is hidden unless `billingCheckoutEnabled` is explicitly enabled in code.
+- `/api/billing/checkout` returns a sanitized `LAUNCH_GATE_DISABLED` response before checkout env loading or provider session preparation.
+
+No webhook, auth/session, env, DB/RLS, customer notification, upload/delete, OAuth/SNS publishing, external AI/STT, merge, deploy, or rollback behavior was changed.
+
 ## Must remain blocked before broad launch
 
 1. Payment provider calls unless payment approval is explicit.
@@ -84,11 +95,12 @@ Potential automatic side effects on page view are low for landing and marketing 
   "production_read_only_smoke": false,
   "db_write": false,
   "payment_provider_call": false,
-  "payment_behavior_change": false,
+  "payment_behavior_change": true,
   "webhook_change": false,
   "auth_or_env_change": false,
   "customer_notification": false,
   "external_api_mutation": false,
+  "launch_gate_added": true,
   "code_safety_patch": true,
   "docs_created_or_updated": true,
   "obsidian_updated": true,

@@ -8,6 +8,10 @@ import {
   type InvalidCheckoutSessionDetails,
   validateCheckoutSessionPayload,
 } from '../../src/server/billingCheckout';
+import {
+  clearLaunchGateOverridesForTest,
+  setLaunchGateOverridesForTest,
+} from '../../src/shared/lib/launchGates';
 
 function createValidCheckoutCustomer(
   overrides: Partial<CheckoutCustomerPayload> = {},
@@ -90,9 +94,13 @@ describe('/api/billing/checkout', () => {
     delete process.env.PORTONE_ENV;
     delete process.env.NEXT_PUBLIC_PORTONE_ENV;
     delete process.env.VITE_PORTONE_ENV;
+    setLaunchGateOverridesForTest({
+      billingCheckoutEnabled: true,
+    });
   });
 
   afterEach(() => {
+    clearLaunchGateOverridesForTest();
     process.env.APP_BASE_URL = originalAppBaseUrl;
     process.env.NEXT_PUBLIC_APP_BASE_URL = originalNextPublicAppBaseUrl;
     process.env.VITE_APP_BASE_URL = originalViteAppBaseUrl;
@@ -392,6 +400,31 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
     expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
+  });
+
+  it('blocks checkout by default when the launch gate is not explicitly enabled', async () => {
+    clearLaunchGateOverridesForTest();
+
+    const response = await billingHandler(
+      new Request('https://example.com/api/billing/checkout', {
+        body: JSON.stringify({ plan: 'pro' }),
+        method: 'POST',
+      }),
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(payload).toMatchObject({
+      code: 'LAUNCH_GATE_DISABLED',
+      details: {
+        gate: 'billingCheckoutEnabled',
+        status: 'approval_required',
+      },
+      ok: false,
+      stage: 'launch-gate',
+    });
+    expect(JSON.stringify(payload)).not.toMatch(/secret|token|cookie|session|sk_/i);
   });
 
   it('creates the 100 KRW payment test product without granting subscription entitlement', async () => {
