@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Icons } from '@/shared/components/Icons';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import type { BillingPlanCode } from '@/shared/lib/billingPlans';
+import { getLaunchGateStatus } from '@/shared/lib/launchGates';
 import { FALLBACK_PRICING_PLANS, PAYMENT_TEST_PRODUCT_CODE, formatKrw, formatProductKrw } from '@/shared/lib/platformAdminConfig';
 import {
   PortOneCheckoutError,
@@ -92,9 +93,20 @@ export function PricingPage() {
   const pricing = pricingQuery.data;
   const plans = pricing?.plans || FALLBACK_PRICING_PLANS;
   const testProducts = pricing?.testProducts || [];
+  const billingCheckoutGate = getLaunchGateStatus('billingCheckoutEnabled');
+  const canUsePaidCheckout = billingCheckoutGate.enabled;
+  const canRunPaymentTest = canUsePaidCheckout && testProducts.length > 0;
 
   async function handleCheckout(plan: BillingPlanCode) {
     if (plan === 'free') {
+      return;
+    }
+
+    if (!canUsePaidCheckout) {
+      setCheckoutMessage({
+        text: billingCheckoutGate.message,
+        tone: 'info',
+      });
       return;
     }
 
@@ -138,6 +150,14 @@ export function PricingPage() {
   }
 
   async function handlePaymentTest() {
+    if (!canUsePaidCheckout) {
+      setCheckoutMessage({
+        text: billingCheckoutGate.message,
+        tone: 'info',
+      });
+      return;
+    }
+
     const testProduct = testProducts.find((product) => product.product_code === PAYMENT_TEST_PRODUCT_CODE);
     if (!testProduct) return;
 
@@ -187,15 +207,15 @@ export function PricingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,91,19,0.48),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(255,237,213,0.18),_transparent_25%)]" />
         <div className="relative space-y-6">
           <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-orange-200">
-            Pricing
+            Pilot Beta Pricing
           </span>
           <div className="space-y-3">
             <h1 className="max-w-3xl text-balance font-display text-[2.35rem] font-black leading-[1.08] tracking-[-0.03em] sm:text-5xl">
               고객 기억이 쌓이는 속도에 맞춰 확장하세요
             </h1>
             <p className="max-w-3xl text-[15px] leading-7 text-slate-300 sm:text-lg sm:leading-8">
-              무료로 시작하고, 고객 기억이 쌓이면 PRO/VIP로 확장하세요. 결제 전 플랜과 제공 범위를 명확히 확인할 수 있고,
-              FREE는 유료 결제 없이 시작합니다.
+              파일럿 매장 모집 중입니다. FREE 진단으로 시작하고, PRO/VIP는 고객 기억과 매출 전환 데이터가 확인된 뒤 상담 후 적용됩니다.
+              결제는 상담 후 적용됩니다.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -238,7 +258,7 @@ export function PricingPage() {
         <article className="section-card p-6 sm:p-8">
           <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">운영 기준</span>
           <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600 sm:text-base">
-            <p>FREE는 결제 없이 시작할 수 있고, PRO/VIP는 선택한 플랜 기준으로 결제가 진행됩니다.</p>
+            <p>FREE는 결제 없이 시작할 수 있고, PRO/VIP 결제는 파일럿 상담 후 적용됩니다.</p>
             <p>추천 배지와 할인 표시는 이해를 돕는 안내이며, 실제 결제 금액은 서버의 상품 기준으로 확인됩니다.</p>
             <p>
               문의 메일{' '}
@@ -316,11 +336,11 @@ export function PricingPage() {
                   ) : (
                     <button
                       className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={activePlan !== null}
+                      disabled={activePlan !== null || !canUsePaidCheckout}
                       onClick={() => void handleCheckout(plan.plan_code)}
                       type="button"
                     >
-                      {isBusy ? '결제 준비 중' : plan.cta_label || `${plan.display_name} 시작`}
+                      {!canUsePaidCheckout ? '파일럿 상담 후 적용' : isBusy ? '결제 준비 중' : plan.cta_label || `${plan.display_name} 시작`}
                     </button>
                   )}
                 </div>
@@ -329,7 +349,7 @@ export function PricingPage() {
           })}
         </div>
 
-        {testProducts.length ? (
+        {canRunPaymentTest ? (
           <div className="mt-8 rounded-[28px] border border-amber-200 bg-amber-50 p-6">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Payment Test</p>
             <h2 className="mt-2 font-display text-2xl font-black text-slate-950">100원 테스트 결제</h2>

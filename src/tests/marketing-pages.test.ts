@@ -235,6 +235,9 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('FREE');
     expect(html).toContain('PRO');
     expect(html).toContain('VIP');
+    expect(html).toContain('파일럿 매장 모집 중');
+    expect(html).toContain('결제는 상담 후 적용됩니다');
+    expect(html).toContain('파일럿 상담 후 적용');
     expectNoMybiCompanion(html);
   });
 

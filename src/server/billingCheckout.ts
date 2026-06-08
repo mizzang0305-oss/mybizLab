@@ -3,6 +3,7 @@ import {
   type BillingPlanCode,
 } from '../shared/lib/billingPlans.js';
 import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData.js';
+import { getLaunchGateStatus } from '../shared/lib/launchGates.js';
 import { BUSINESS_INFO } from '../shared/lib/siteConfig.js';
 import { resolveServerCatalogItem } from './platformCatalog.js';
 
@@ -813,6 +814,24 @@ export function createCheckoutMethodNotAllowedResponse() {
 }
 
 export async function handleCheckoutRequest(request: CheckoutRequestLike) {
+  const checkoutGate = getLaunchGateStatus('billingCheckoutEnabled');
+
+  if (!checkoutGate.enabled) {
+    return responseJson(
+      {
+        code: 'LAUNCH_GATE_DISABLED',
+        details: {
+          gate: checkoutGate.key,
+          status: checkoutGate.status,
+        },
+        error: checkoutGate.message,
+        ok: false,
+        stage: 'launch-gate',
+      },
+      403,
+    );
+  }
+
   const env = requireCheckoutEnv();
   const body = await parseRequestBody(request);
 

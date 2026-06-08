@@ -1,6 +1,6 @@
 # MyBiz launch MVP scope
 
-Date: 2026-06-07
+Date: 2026-06-08
 
 This MVP scope defines what can be used to start real business activity while protecting payment, customer data, DB, auth, and external API boundaries.
 
@@ -31,6 +31,27 @@ These can be shown in production for a controlled beta:
 | Error boundary | Prevents raw application crash page | Keep route-level boundaries |
 | Mobile view | Required for owner and merchant preview | Re-smoke after production deploy |
 | Legal/contact pages | Baseline trust for acquisition | Review consent text for forms |
+
+## Current launch gate defaults
+
+`src/shared/lib/launchGates.ts` is the code-level source for pilot beta defaults.
+
+| Gate | Default | Launch meaning |
+| --- | --- | --- |
+| `launchBetaEnabled` | ON | Controlled public beta can be shown |
+| `publicPricingEnabled` | ON | FREE/PRO/VIP pricing can be shown |
+| `onboardingDiagnosisEnabled` | ON | Free diagnosis and onboarding route can be shown |
+| `ownerReviewedLeadCaptureEnabled` | ON | Leads are collected for owner review, not automated provisioning |
+| `selfServePaidLaunchEnabled` | OFF | No full self-serve paid launch |
+| `billingCheckoutEnabled` | OFF | No PRO/VIP payment session without approval |
+| `billingWebhookEnabled` | OFF | No webhook launch enablement in this branch |
+| `customerNotificationEnabled` | OFF | No automatic customer message sending |
+| `eSignEnabled` | OFF | No real e-sign workflow |
+| `posPaymentEnabled` | OFF | No POS/table-order live payment |
+| `oauthPublishEnabled` | OFF | No OAuth/SNS publishing mutation |
+| `uploadMutationEnabled` | OFF | No upload/delete launch enablement |
+| `externalAiEnabled` | OFF | No real AI/STT provider launch enablement |
+| `broadDbWriteEnabled` | OFF | No broad production DB write launch enablement |
 
 ## Launch Hidden / Disabled
 
@@ -118,11 +139,10 @@ The first launch should be:
 
 ## Minimum launch blockers before wider release
 
-1. PR #92 must be merged with explicit approval and production smoke must pass.
-2. Payment checkout and webhook behavior need an explicit approval PR.
-3. Store membership and RLS must be verified for live merchant data.
-4. FREE inquiry policy must be decided and implemented if business wants it.
-5. Form-level privacy/consent copy must be reviewed.
-6. AI/external provider cost controls must be implemented.
-7. Upload/storage policies must be approved.
-8. Customer notification automation must stay owner-approved.
+1. Payment checkout and webhook behavior need an explicit approval PR.
+2. Store membership and RLS must be verified for live merchant data.
+3. FREE inquiry policy must be decided and implemented if business wants it.
+4. Form-level privacy/consent copy must be reviewed.
+5. AI/external provider cost controls must be implemented.
+6. Upload/storage policies must be approved.
+7. Customer notification automation must stay owner-approved.
