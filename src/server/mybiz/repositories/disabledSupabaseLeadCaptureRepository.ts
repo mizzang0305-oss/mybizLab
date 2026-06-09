@@ -1,7 +1,5 @@
-import { isLaunchGateEnabled } from '../../../shared/lib/launchGates';
-
 import {
-  LIVE_LEAD_WRITE_DISABLED_RESULT,
+  resolveLeadCaptureWriteGate,
   type DisabledSupabaseLeadCaptureRepository,
 } from './leadCaptureRepository';
 
@@ -9,8 +7,12 @@ export function createDisabledSupabaseLeadCaptureRepository(): DisabledSupabaseL
   return {
     mode: 'supabase-disabled',
     async writeLead() {
-      void isLaunchGateEnabled('broadDbWriteEnabled');
-      return LIVE_LEAD_WRITE_DISABLED_RESULT;
+      return resolveLeadCaptureWriteGate() ?? {
+        approvalRequired: true,
+        code: 'LIVE_LEAD_WRITE_DISABLED',
+        gate: 'liveLeadWriteEnabled',
+        ok: false,
+      };
     },
   };
 }

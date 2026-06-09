@@ -53,6 +53,8 @@ These can be shown in production for a controlled beta:
 | `uploadMutationEnabled` | OFF | No upload/delete launch enablement |
 | `externalAiEnabled` | OFF | No real AI/STT provider launch enablement |
 | `broadDbWriteEnabled` | OFF | No broad production DB write launch enablement |
+| `leadCapturePersistenceEnabled` | OFF | No lead capture persistence until migration/RLS approval |
+| `liveLeadWriteEnabled` | OFF | No live lead insert until owner approval |
 
 ## Launch Hidden / Disabled
 
@@ -140,6 +142,7 @@ The first launch should be:
 - no automatic external publishing
 - no unreviewed production DB mutation beyond approved lead capture
 - no live lead write until migration/RLS/repository approval
+- current `lead_capture_requests` SQL/RLS and live repository code are draft-only approval prep
 - no raw secrets, browser storage, payment payloads, or customer PII in docs or logs
 
 ## Minimum launch blockers before wider release

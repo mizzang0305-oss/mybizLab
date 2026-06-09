@@ -50,6 +50,7 @@ describe('lead capture repository boundary', () => {
     await expect(repository.writeLead()).resolves.toEqual({
       approvalRequired: true,
       code: 'LIVE_LEAD_WRITE_DISABLED',
+      gate: 'broadDbWriteEnabled',
       ok: false,
     });
   });
