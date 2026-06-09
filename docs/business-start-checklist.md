@@ -1,6 +1,6 @@
 # MyBiz business start checklist
 
-Date: 2026-06-08
+Date: 2026-06-09
 
 This checklist is for starting MyBiz as a controlled public beta or merchant pilot. PR #92 has been merged, and the next launch-hardening work should keep production deploy, merge, DB write, payment provider calls, webhook changes, auth/env changes, customer notifications, and external API mutations behind explicit approval.
 
@@ -133,9 +133,10 @@ After each pilot merchant:
 ### PR-2: lead capture / store creation request
 
 - Purpose: make FREE onboarding a clean owner-reviewed lead intake path.
-- Files: onboarding, setup request API, consent copy, validation tests.
-- Risk: live DB write surface.
-- Verification: onboarding tests, API tests, no raw browser storage logs, RLS evidence.
+- Files: `/admin/leads`, lead capture domain, mock/disabled repository boundary, consent copy, validation tests.
+- Risk: live DB write surface if a future repository implementation bypasses launch gates.
+- Verification: lead domain tests, repository boundary tests, console render tests, route tests, no raw browser storage logs, RLS evidence before live writes.
+- Current MVP adds an internal owner-reviewed lead console with mock state transitions only. `customerNotificationEnabled`, `billingCheckoutEnabled`, and `broadDbWriteEnabled` remain OFF.
 
 ### PR-3: customer memory spine MVP
 

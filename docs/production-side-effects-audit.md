@@ -1,6 +1,6 @@
 # MyBiz production side effects audit
 
-Date: 2026-06-08
+Date: 2026-06-09
 
 This audit classifies side effects that can happen in production code paths. It does not include secret values, token values, cookies, sessions, raw customer data, browser storage values, or payment payloads.
 
@@ -38,6 +38,7 @@ This audit classifies side effects that can happen in production code paths. It 
 | Order payment checkout/verify | public API payment routes | `payment`, `db_write`, `external_api`, `approval_required` | order payment action | Hidden until approved |
 | Merchant dashboard writes | dashboard modules and services | `db_write`, `auth`, `needs_db` | merchant/admin save actions | Pilot/internal only |
 | Platform admin console | `/admin/*`, platform admin APIs | `db_write`, `auth`, `env_required` | platform admin actions | Platform owner only |
+| Owner-reviewed lead console | `/admin/leads`, lead capture mock/disabled repository | `mock_only`, `approval_required` for live write | platform owner reviews pilot leads | UI ON, live write disabled |
 | Admin login/session | admin auth/session services | `auth`, `local_only`, `env_required` | login/logout/session validation | Must stay auth-gated |
 | Customer CRM and timeline | customer/timeline services | `db_write`, `needs_db`, `approval_required` | customer updates/actions | Pilot only, masked display |
 | Customer timeline action buttons | customer timeline intelligence | `notification`, `approval_required` if enabled | currently disabled actions | Keep disabled |
@@ -70,6 +71,7 @@ Potential automatic side effects on page view are low for landing and marketing 
 - PRO/VIP paid checkout buttons are disabled by default and tell merchants that payment is applied after pilot consultation.
 - Public payment test UI is hidden unless `billingCheckoutEnabled` is explicitly enabled in code.
 - `/api/billing/checkout` returns a sanitized `LAUNCH_GATE_DISABLED` response before checkout env loading or provider session preparation.
+- `/admin/leads` renders the owner-reviewed lead workflow with masked mock data. Message, payment, and live DB actions remain disabled; the disabled lead repository returns `LIVE_LEAD_WRITE_DISABLED`.
 
 No webhook, auth/session, env, DB/RLS, customer notification, upload/delete, OAuth/SNS publishing, external AI/STT, merge, deploy, or rollback behavior was changed.
 
