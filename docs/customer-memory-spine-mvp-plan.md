@@ -1,6 +1,6 @@
 # MyBiz customer memory spine MVP plan
 
-Date: 2026-06-08
+Date: 2026-06-09
 
 MyBiz is a customer-memory revenue engine. This plan defines the minimum safe path from FREE acquisition to PRO/VIP conversion while keeping production customer data protected.
 
@@ -32,6 +32,7 @@ The customer memory spine is:
 | Landing and pricing | Merchant understands the offer | FREE acquisition | Public interest only | ON |
 | FREE onboarding diagnosis | Merchant starts without payment | Qualified lead | Business type, pain point, desired outcome, plan intent | ON |
 | Owner-reviewed lead capture | Merchant gets safe setup help | Trust and conversion | Sanitized setup request | ON, reviewed |
+| Lead capture console | Owner classifies pilot fit and next action | Pilot conversion | Masked contact, pain point, desired outcome, memory seed summary | Mock-only |
 | Pilot public page | Merchant can show a real page | PRO/VIP proof | Store profile and public page signals | Pilot only |
 | Inquiry/reservation/waiting | Merchant captures demand | PRO/VIP upgrade value | Customer contact and demand signal | Approval-gated |
 | Customer timeline intelligence | Merchant sees repeat-sale memory | PRO/VIP lock-in | Timeline and preferences | Approval-gated |
@@ -44,6 +45,7 @@ New boundary files under `src/server/mybiz/repositories/` are intentionally appr
 - mock writes are blocked unless `broadDbWriteEnabled` and `allowCustomerMemoryWrites` are both true.
 - Supabase customer memory writes are not implemented in this branch.
 - tests assert the Supabase boundary does not contain direct `.from(`, `.insert(`, `.upsert(`, `.update(`, `.delete(`, or `.rpc(` calls.
+- lead capture uses a separate mock/disabled repository boundary. The console can change local status only; the disabled Supabase lead adapter returns `LIVE_LEAD_WRITE_DISABLED` and contains no live write calls.
 
 This makes the next implementation PR explicit: wire real Supabase writes only after migration/RLS evidence and approval are available.
 
@@ -54,6 +56,7 @@ Ready for:
 - limited public beta messaging
 - FREE onboarding acquisition
 - owner-reviewed pilot setup planning
+- `/admin/leads` pilot lead review using masked mock data
 - mock/demo customer memory demonstration
 
 Not ready for:

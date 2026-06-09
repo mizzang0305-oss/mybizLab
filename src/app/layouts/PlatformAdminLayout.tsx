@@ -7,6 +7,7 @@ const navGroups = [
     label: '운영 현황',
     items: [
       { label: '개요', to: '/admin' },
+      { label: '파일럿 리드', to: '/admin/leads' },
       { label: '결제 이벤트', to: '/admin/payment-events' },
       { label: '감사 로그', to: '/admin/audit-logs' },
     ],
@@ -65,6 +66,7 @@ const pageTitles: Record<string, string> = {
   '/admin/faq': 'FAQ 관리',
   '/admin/footer': '푸터 관리',
   '/admin/homepage': '홈페이지 관리',
+  '/admin/leads': '파일럿 리드 관리',
   '/admin/media': '미디어 관리',
   '/admin/pages': '페이지 관리',
   '/admin/payment-events': '결제 이벤트',

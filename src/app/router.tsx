@@ -106,6 +106,7 @@ const PlatformAdminFaqPage = lazyPage(() => import('@/modules/platform-admin/pag
 const PlatformAdminFeatureFlagsPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformFeatureFlagsAdminPage');
 const PlatformAdminFooterPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformFooterAdminPage');
 const PlatformAdminHomepagePage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformHomepageAdminPage');
+const PlatformAdminLeadsPage = lazyPage(() => import('@/modules/lead-capture/page'), 'LeadCaptureConsolePage');
 const PlatformAdminMediaPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformMediaAdminPage');
 const PlatformAdminOverviewPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformAdminOverviewPage');
 const PlatformAdminPagesPage = lazyPage(() => import('@/modules/platform-admin/page'), 'PlatformPagesAdminPage');
@@ -227,6 +228,10 @@ export const appRoutes: RouteObject[] = [
           {
             index: true,
             element: routeElement(PlatformAdminOverviewPage),
+          },
+          {
+            path: 'leads',
+            element: routeElement(PlatformAdminLeadsPage),
           },
           {
             path: 'homepage',

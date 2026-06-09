@@ -115,6 +115,7 @@ describe('app routing', () => {
   it('resolves expanded platform admin CMS routes separately from merchant dashboard routes', () => {
     [
       '/admin/pages',
+      '/admin/leads',
       '/admin/sections',
       '/admin/trust',
       '/admin/faq',

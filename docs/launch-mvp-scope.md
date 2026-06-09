@@ -1,6 +1,6 @@
 # MyBiz launch MVP scope
 
-Date: 2026-06-08
+Date: 2026-06-09
 
 This MVP scope defines what can be used to start real business activity while protecting payment, customer data, DB, auth, and external API boundaries.
 
@@ -27,6 +27,7 @@ These can be shown in production for a controlled beta:
 | FREE CTA | Primary acquisition path | Paid checkout must not be the default path |
 | Onboarding diagnosis | Captures merchant problem, business type, desired outcome | No raw browser storage logging |
 | Store creation request / lead capture | Lets owner qualify merchants before live setup | Live submit must be consented and reviewed |
+| Owner-reviewed lead console | Lets owner classify pilot leads and next actions | Mock/repository boundary only; no live lead write |
 | Public value proposition | Communicates customer-memory revenue engine | Avoid promising automated features not live |
 | Error boundary | Prevents raw application crash page | Keep route-level boundaries |
 | Mobile view | Required for owner and merchant preview | Re-smoke after production deploy |
@@ -68,6 +69,7 @@ These must stay hidden, disabled, or approval-gated:
 | Upload/gallery management | Storage, moderation, and RLS risk | Storage policy and moderation checks |
 | Real AI paid API calls | Cost and data exposure risk | Budget cap, kill switch, server-side proxy |
 | DB mutations outside onboarding lead capture | RLS and data-boundary risk | DB/RLS launch gate |
+| Live lead capture write | Could create production merchant/customer records | Migration/RLS/live repository approval |
 
 ## Internal / Demo Only
 
@@ -108,6 +110,8 @@ The MVP should accumulate memory through safe, staged events:
    - preferred plan intent
    - owner contact for follow-up
 2. Owner reviews setup request before creating a live store.
+   - `/admin/leads` can classify leads as new, needs review, contacted, pilot candidate, setup in progress, converted, rejected, or archived.
+   - Status changes are mock-only until live lead repository approval.
 3. Pilot store gets a public page.
 4. PRO/VIP pilot enables inquiry, reservation, or waiting.
 5. Customer contact creates a normalized customer/memory event.
@@ -135,6 +139,7 @@ The first launch should be:
 - manual approval before customer notification
 - no automatic external publishing
 - no unreviewed production DB mutation beyond approved lead capture
+- no live lead write until migration/RLS/repository approval
 - no raw secrets, browser storage, payment payloads, or customer PII in docs or logs
 
 ## Minimum launch blockers before wider release
