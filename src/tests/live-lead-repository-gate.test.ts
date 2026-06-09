@@ -84,4 +84,12 @@ describe('live lead Supabase repository gate', () => {
     expect(source).toContain('.insert(');
     expect(source.indexOf('resolveLeadCaptureWriteGate')).toBeLessThan(source.indexOf('.insert('));
   });
+
+  it('keeps all default live write gates disabled until owner approval', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/shared/lib/launchGates.ts'), 'utf8');
+
+    expect(source).toMatch(/broadDbWriteEnabled:\s*false/);
+    expect(source).toMatch(/leadCapturePersistenceEnabled:\s*false/);
+    expect(source).toMatch(/liveLeadWriteEnabled:\s*false/);
+  });
 });
