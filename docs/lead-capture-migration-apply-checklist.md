@@ -13,6 +13,11 @@ All items must be confirmed before migration apply:
 - `lead_capture_requests` does not already exist, or an owner-approved collision plan exists.
 - Existing migration history has no prior `lead_capture_requests` apply.
 - Existing indexes do not collide with the draft index names.
+- FK target columns are verified against production schema evidence.
+- `public.stores.store_id` exists and is compatible with `lead_capture_requests.store_id`.
+- `public.profiles.id` exists and is compatible with `lead_capture_requests.owner_profile_id`.
+- `public.store_members.store_id` references the same store key used by `public.is_store_member(store_id)`.
+- `public.platform_admin_members.profile_id` is compatible with `auth.uid()` before using `pam.profile_id = auth.uid()` in RLS policies.
 - `public.set_updated_at()` exists and is compatible.
 - `public.platform_admin_members` exists and matches the platform admin policy.
 - `public.is_store_member(store_id)` exists and matches store membership access.
@@ -96,6 +101,8 @@ Stop if any item is true:
 - production target is ambiguous.
 - backup evidence is missing.
 - collision query shows an existing incompatible table or policy.
+- FK target column evidence is missing or conflicts with the draft.
+- `stores.id` is required by a draft query; production uses `stores.store_id` evidence instead.
 - migration apply would also enable live writes.
 - RLS policy grants anon select, update, delete, or arbitrary insert.
 - rollback plan is missing.

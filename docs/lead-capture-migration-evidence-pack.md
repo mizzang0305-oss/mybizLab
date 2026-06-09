@@ -130,17 +130,25 @@ Expected: no broad `anon` or `public` table grants. Any authenticated grants mus
 
 ```sql
 select
-  version,
-  name,
-  statements,
-  inserted_at
-from supabase_migrations.schema_migrations
-where name ilike '%lead_capture%'
-   or version = '20260609'
-order by inserted_at desc;
+  'migration_history_guarded' as evidence_key,
+  to_regclass('supabase_migrations.schema_migrations') is not null as migration_history_table_exists,
+  case
+    when to_regclass('supabase_migrations.schema_migrations') is null then null
+    else (
+      xpath(
+        '/row/matching_migration_count/text()',
+        query_to_xml(
+          'select count(*) as matching_migration_count from supabase_migrations.schema_migrations where name ilike ''%lead_capture%'' or version = ''20260609''',
+          false,
+          true,
+          ''
+        )
+      )
+    )[1]::text::bigint
+  end as matching_migration_count;
 ```
 
-Expected before apply: no applied `lead_capture_requests` migration. If present, stop and verify what already ran.
+Expected before apply: `matching_migration_count` is `0` if the migration history table exists. If the migration history table is unavailable in the SQL Editor, record that as evidence gap and use owner-approved Supabase project history evidence before apply.
 
 ### 8. Lead capture row count
 
@@ -198,12 +206,66 @@ where tc.constraint_type = 'FOREIGN KEY'
 order by tc.table_name, kcu.column_name;
 ```
 
-Expected: `lead_capture_requests.store_id` references `stores.id`, and `lead_capture_requests.owner_profile_id` references `profiles.id` after apply.
+Expected after the 2026-06-10 drift fix: `lead_capture_requests.store_id` references `stores.store_id`, and `lead_capture_requests.owner_profile_id` references `profiles.id` after apply.
+
+### 12. FK target column drift evidence
+
+Run this before applying the migration if a foreign-key error mentions a missing referenced column. This query returns schema only and does not inspect row data.
+
+```sql
+select
+  'fk_target_columns' as evidence_key,
+  table_name,
+  column_name,
+  data_type,
+  is_nullable,
+  column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in ('profiles', 'stores', 'store_members', 'platform_admin_members')
+order by table_name, ordinal_position;
+```
+
+Expected production evidence before apply:
+
+- `stores.store_id` exists and is compatible with `uuid`.
+- `profiles.id` exists and is compatible with `uuid`.
+- `store_members.store_id` points at `stores.store_id`.
+- `store_members.profile_id` points at `profiles.id`.
+- `platform_admin_members.profile_id` is compatible with `auth.uid()` if policies compare `pam.profile_id = auth.uid()`.
+
+### 13. PK/FK/unique constraint drift evidence
+
+```sql
+select
+  'key_constraints' as evidence_key,
+  tc.table_name,
+  tc.constraint_type,
+  kcu.column_name,
+  ccu.table_name as foreign_table_name,
+  ccu.column_name as foreign_column_name,
+  tc.constraint_name
+from information_schema.table_constraints tc
+left join information_schema.key_column_usage kcu
+  on tc.constraint_name = kcu.constraint_name
+ and tc.table_schema = kcu.table_schema
+left join information_schema.constraint_column_usage ccu
+  on ccu.constraint_name = tc.constraint_name
+ and ccu.table_schema = tc.table_schema
+where tc.table_schema = 'public'
+  and tc.table_name in ('profiles', 'stores', 'store_members', 'platform_admin_members')
+  and tc.constraint_type in ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE')
+order by tc.table_name, tc.constraint_type, kcu.column_name;
+```
+
+Expected: the referenced columns used by the draft exist as primary or unique keys, or the apply remains blocked until the FK strategy is revised.
 
 ## Draft collision assessment
 
 - Table creation uses `create table if not exists`, but an existing incompatible table is still a blocker.
 - Index names are explicit and must not already exist on a different definition.
+- Production evidence showed `store_members.store_id` references `stores.store_id`, so the lead-capture draft must not reference `stores.id`.
+- `profiles.id`, `platform_admin_members.profile_id`, and the `pam.profile_id = auth.uid()` policy predicate remain blockers until column/type evidence confirms they match.
 - The migration expects `public.set_updated_at()` to already exist.
 - The RLS draft depends on `public.platform_admin_members` and `public.is_store_member(store_id)`.
 - Public visitor insert is intentionally absent.
