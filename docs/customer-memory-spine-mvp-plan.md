@@ -46,6 +46,8 @@ New boundary files under `src/server/mybiz/repositories/` are intentionally appr
 - Supabase customer memory writes are not implemented in this branch.
 - tests assert the Supabase boundary does not contain direct `.from(`, `.insert(`, `.upsert(`, `.update(`, `.delete(`, or `.rpc(` calls.
 - lead capture uses a separate mock/disabled repository boundary. The console can change local status only; the disabled Supabase lead adapter returns `LIVE_LEAD_WRITE_DISABLED` and contains no live write calls.
+- the draft live lead repository writes only after `broadDbWriteEnabled`, `leadCapturePersistenceEnabled`, and `liveLeadWriteEnabled` are all approved. Current defaults keep it blocked before any Supabase insert.
+- `lead_capture_requests` is a migration/RLS draft for owner-reviewed lead persistence, not an applied production table.
 
 This makes the next implementation PR explicit: wire real Supabase writes only after migration/RLS evidence and approval are available.
 

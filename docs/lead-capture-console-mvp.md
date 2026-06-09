@@ -72,6 +72,7 @@ Files introduced for the boundary:
 - `src/server/mybiz/repositories/leadCaptureRepository.ts`
 - `src/server/mybiz/repositories/mockLeadCaptureRepository.ts`
 - `src/server/mybiz/repositories/disabledSupabaseLeadCaptureRepository.ts`
+- `src/server/mybiz/repositories/supabaseLeadCaptureRepository.ts`
 
 The mock repository supports read and status transition behavior for tests and demos. The disabled Supabase repository returns:
 
@@ -85,11 +86,15 @@ The mock repository supports read and status transition behavior for tests and d
 
 It must not call `.insert(`, `.upsert(`, `.update(`, or `.delete(`.
 
+The live Supabase repository is approval-prep only. It maps sanitized lead drafts to the draft `lead_capture_requests` table, but the code must check `broadDbWriteEnabled`, `leadCapturePersistenceEnabled`, and `liveLeadWriteEnabled` before any `.insert(` call. With the current defaults, live writes return `LIVE_LEAD_WRITE_DISABLED`.
+
 ## Launch gates
 
 - `ownerReviewedLeadCaptureEnabled` ON means the owner review flow can render.
 - It does not mean live DB writes are allowed.
 - `broadDbWriteEnabled` OFF blocks live lead writes.
+- `leadCapturePersistenceEnabled` OFF blocks the lead-specific persistence path.
+- `liveLeadWriteEnabled` OFF blocks the final live write execution.
 - `customerNotificationEnabled` OFF keeps customer messaging disabled.
 - `billingCheckoutEnabled` OFF keeps payment requests disabled.
 

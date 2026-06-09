@@ -38,7 +38,8 @@ This audit classifies side effects that can happen in production code paths. It 
 | Order payment checkout/verify | public API payment routes | `payment`, `db_write`, `external_api`, `approval_required` | order payment action | Hidden until approved |
 | Merchant dashboard writes | dashboard modules and services | `db_write`, `auth`, `needs_db` | merchant/admin save actions | Pilot/internal only |
 | Platform admin console | `/admin/*`, platform admin APIs | `db_write`, `auth`, `env_required` | platform admin actions | Platform owner only |
-| Owner-reviewed lead console | `/admin/leads`, lead capture mock/disabled repository | `mock_only`, `approval_required` for live write | platform owner reviews pilot leads | UI ON, live write disabled |
+| Owner-reviewed lead console | `/admin/leads`, lead capture mock/disabled/live-gated repository | `mock_only`, `approval_required` for live write | platform owner reviews pilot leads | UI ON, live write disabled |
+| Lead capture persistence draft | `lead_capture_requests`, Supabase lead repository | `db_write`, `approval_required` | future owner-reviewed lead persistence | Draft only; migration/RLS/live write approval required |
 | Admin login/session | admin auth/session services | `auth`, `local_only`, `env_required` | login/logout/session validation | Must stay auth-gated |
 | Customer CRM and timeline | customer/timeline services | `db_write`, `needs_db`, `approval_required` | customer updates/actions | Pilot only, masked display |
 | Customer timeline action buttons | customer timeline intelligence | `notification`, `approval_required` if enabled | currently disabled actions | Keep disabled |
@@ -72,6 +73,7 @@ Potential automatic side effects on page view are low for landing and marketing 
 - Public payment test UI is hidden unless `billingCheckoutEnabled` is explicitly enabled in code.
 - `/api/billing/checkout` returns a sanitized `LAUNCH_GATE_DISABLED` response before checkout env loading or provider session preparation.
 - `/admin/leads` renders the owner-reviewed lead workflow with masked mock data. Message, payment, and live DB actions remain disabled; the disabled lead repository returns `LIVE_LEAD_WRITE_DISABLED`.
+- The draft live lead repository requires `broadDbWriteEnabled`, `leadCapturePersistenceEnabled`, and `liveLeadWriteEnabled` before any Supabase insert can run.
 
 No webhook, auth/session, env, DB/RLS, customer notification, upload/delete, OAuth/SNS publishing, external AI/STT, merge, deploy, or rollback behavior was changed.
 
@@ -96,6 +98,9 @@ No webhook, auth/session, env, DB/RLS, customer notification, upload/delete, OAu
   "auto_vercel_deploy_detected": false,
   "production_read_only_smoke": false,
   "db_write": false,
+  "migration_apply": false,
+  "rls_policy_apply": false,
+  "live_lead_write": false,
   "payment_provider_call": false,
   "payment_behavior_change": true,
   "webhook_change": false,

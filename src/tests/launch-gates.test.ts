@@ -44,6 +44,8 @@ describe('launch gates', () => {
         'customerNotificationEnabled',
         'eSignEnabled',
         'externalAiEnabled',
+        'leadCapturePersistenceEnabled',
+        'liveLeadWriteEnabled',
         'oauthPublishEnabled',
         'posPaymentEnabled',
         'selfServePaidLaunchEnabled',

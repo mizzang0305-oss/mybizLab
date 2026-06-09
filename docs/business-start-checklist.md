@@ -98,6 +98,7 @@ These must stay hidden, disabled, or approval-gated:
 - Upload/delete media flows.
 - Real AI/STT provider calls.
 - Broad live DB write surfaces.
+- Live lead write until `leadCapturePersistenceEnabled` and `liveLeadWriteEnabled` are explicitly approved.
 
 ## First 7 days operating checklist
 
@@ -137,6 +138,7 @@ After each pilot merchant:
 - Risk: live DB write surface if a future repository implementation bypasses launch gates.
 - Verification: lead domain tests, repository boundary tests, console render tests, route tests, no raw browser storage logs, RLS evidence before live writes.
 - Current MVP adds an internal owner-reviewed lead console with mock state transitions only. `customerNotificationEnabled`, `billingCheckoutEnabled`, and `broadDbWriteEnabled` remain OFF.
+- Current approval-prep branch adds a `lead_capture_requests` migration/RLS draft and a live Supabase repository that remains blocked by `broadDbWriteEnabled`, `leadCapturePersistenceEnabled`, and `liveLeadWriteEnabled`.
 
 ### PR-3: customer memory spine MVP
 

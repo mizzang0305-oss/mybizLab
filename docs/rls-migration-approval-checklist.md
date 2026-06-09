@@ -47,6 +47,7 @@ Stop before applying if any item is true:
 - `reservations`
 - `waiting_entries`
 - `customer_timeline_events`
+- `lead_capture_requests`
 
 ## Minimum policy expectations
 
@@ -55,6 +56,7 @@ Stop before applying if any item is true:
 - Staff access must be intentionally scoped.
 - Public read is limited to public store page data.
 - Public insert is limited to owner-reviewed lead capture or approved public forms.
+- Lead capture requests must not expose anonymous select/update/delete and must not allow public writes to arbitrary `store_id`.
 - Customer timeline events are append-only from approved flows.
 - Customer memory writes require `store_id`, `customer_id`, consent/retention policy, and launch-gate approval.
 - Broad DB write must remain disabled unless the approval explicitly enables it.
@@ -66,6 +68,7 @@ git diff --check
 npm run typecheck
 npm run build
 npm test -- --run src/tests/launch-gates.test.ts
+npm test -- --run src/tests/lead-capture-migration-contract.test.ts src/tests/lead-capture-rls-policy-contract.test.ts src/tests/live-lead-repository-gate.test.ts
 npm test -- --run src/tests/store-membership-policy.test.ts src/tests/customer-memory-spine.test.ts src/tests/repository-boundary.test.ts
 npm test -- --run
 ```
@@ -77,6 +80,7 @@ npm test -- --run
   "migration_apply": false,
   "rls_policy_apply": false,
   "db_write": false,
+  "live_lead_write": false,
   "payment_provider_call": false,
   "webhook_change": false,
   "auth_or_env_change": false,
