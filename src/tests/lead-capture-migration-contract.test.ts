@@ -11,7 +11,7 @@ const migration = readFileSync(
 describe('lead capture migration contract', () => {
   it('defines the canonical lead_capture_requests table without destructive operations', () => {
     expect(migration).toMatch(/create table if not exists public\.lead_capture_requests/i);
-    expect(migration).toMatch(/store_id uuid null references public\.stores\(id\) on delete set null/i);
+    expect(migration).toMatch(/store_id uuid null references public\.stores\(store_id\) on delete set null/i);
     expect(migration).toMatch(/owner_profile_id uuid null references public\.profiles\(id\) on delete set null/i);
     expect(migration).toMatch(/contact_phone_encrypted text null/i);
     expect(migration).toMatch(/contact_phone_masked text null/i);
@@ -23,6 +23,11 @@ describe('lead capture migration contract', () => {
     expect(migration).not.toMatch(/\bdrop table\b/i);
     expect(migration).not.toMatch(/\btruncate\b/i);
     expect(migration).not.toMatch(/\bdelete from\b/i);
+  });
+
+  it('documents that FK target columns must be verified against production schema evidence', () => {
+    expect(migration).toContain('Reconfirm stores.store_id exists and is uuid before applying this draft');
+    expect(migration).not.toMatch(/references public\.stores\(id\)/i);
   });
 
   it('enables RLS and keeps public visitor writes out of the migration draft', () => {

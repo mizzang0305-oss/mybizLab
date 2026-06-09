@@ -20,11 +20,14 @@ describe('lead capture migration evidence pack', () => {
     expect(evidencePack).toContain('relrowsecurity');
     expect(evidencePack).toContain('pg_policies');
     expect(evidencePack).toContain('information_schema.role_table_grants');
-    expect(evidencePack).toContain('supabase_migrations.schema_migrations');
+    expect(evidencePack).toContain("to_regclass('supabase_migrations.schema_migrations')");
+    expect(evidencePack).toContain('matching_migration_count');
     expect(evidencePack).toContain('count(*) as lead_capture_requests_count');
     expect(evidencePack).toContain("table_name = 'store_members'");
     expect(evidencePack).toContain("table_name = 'store_subscriptions'");
     expect(evidencePack).toContain("tc.table_name in ('lead_capture_requests', 'store_members', 'stores', 'profiles')");
+    expect(evidencePack).toContain("table_name in ('profiles', 'stores', 'store_members', 'platform_admin_members')");
+    expect(evidencePack).toContain("constraint_type in ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE')");
   });
 
   it('keeps the evidence pack free of write or mutation commands', () => {
@@ -42,6 +45,7 @@ describe('lead capture migration evidence pack', () => {
     expect(applyChecklist).toContain('drop policy if exists');
     expect(applyChecklist).toContain('drop table if exists public.lead_capture_requests');
     expect(applyChecklist).toContain('If production lead data exists');
+    expect(applyChecklist).toContain('FK target columns are verified against production schema evidence');
   });
 
   it('documents live write enablement as separate from migration and RLS apply', () => {
@@ -54,6 +58,9 @@ describe('lead capture migration evidence pack', () => {
 
   it('keeps the SQL draft aligned with evidence expectations', () => {
     expect(migration).toMatch(/create table if not exists public\.lead_capture_requests/i);
+    expect(migration).toMatch(/references public\.stores\(store_id\)/i);
+    expect(migration).toContain('Reconfirm stores.store_id exists and is uuid before applying this draft');
+    expect(migration).not.toMatch(/references public\.stores\(id\)/i);
     expect(migration).toMatch(/create index if not exists lead_capture_requests_store_idx/i);
     expect(migration).toMatch(/create trigger trg_lead_capture_requests_set_updated_at/i);
     expect(migration).toMatch(/status text not null default 'new' check/i);

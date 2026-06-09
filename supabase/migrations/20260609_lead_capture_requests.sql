@@ -2,7 +2,9 @@
 
 create table if not exists public.lead_capture_requests (
   id uuid primary key default gen_random_uuid(),
-  store_id uuid null references public.stores(id) on delete set null,
+  -- Production evidence on 2026-06-10 showed store_members.store_id references stores.store_id.
+  -- Reconfirm stores.store_id exists and is uuid before applying this draft.
+  store_id uuid null references public.stores(store_id) on delete set null,
   owner_profile_id uuid null references public.profiles(id) on delete set null,
   source text not null check (source in ('onboarding', 'pricing', 'manual', 'referral')),
   status text not null default 'new' check (
