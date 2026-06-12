@@ -1066,7 +1066,7 @@ export function OnboardingPage() {
                       return (
                         <button
                           key={option.value}
-                          className={`flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-bold transition-all ${
+                          className={`flex min-w-0 items-center justify-center gap-1.5 rounded-2xl border px-2.5 py-3 text-xs font-bold leading-5 transition-all sm:gap-2.5 sm:px-4 sm:text-sm ${
                             active
                               ? 'border-orange-400 bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-200'
                               : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/50'
@@ -1074,8 +1074,8 @@ export function OnboardingPage() {
                           onClick={() => updateDiagnosis('industryType', option.value)}
                           type="button"
                         >
-                          <span className="text-base">{icons[option.value] || '🏬'}</span>
-                          <span>{option.label}</span>
+                          <span className="shrink-0 text-base">{icons[option.value] || '🏬'}</span>
+                          <span className="min-w-0 text-center [overflow-wrap:anywhere]">{option.label}</span>
                         </button>
                       );
                     })}
