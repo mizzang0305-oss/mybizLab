@@ -27,6 +27,8 @@ const resourceLinks = [
   { label: '문의하기', to: '/contact' },
 ] as const;
 
+const mobileNavigationLinks = [...primaryNavigationLinks, ...resourceLinks] as const;
+
 function getPopupDismissKey(popupKey: string, policy?: string | null) {
   if (policy === 'once_per_day') {
     return `mybiz:popup:${popupKey}:${new Date().toISOString().slice(0, 10)}`;
@@ -70,6 +72,7 @@ export function PublicLayout() {
   const shouldHidePublicChrome = isDiagnosisShell && !isLandingPage;
   const isPublicCinematicSurface = isDiagnosisShell;
   const isDarkSurface =
+    isLandingPage ||
     DARK_SURFACE_PATHS.some((p) => location.pathname === p || location.pathname.startsWith(p + '/'));
   const hasMybiCompanion =
     !location.pathname.startsWith('/login') &&
@@ -144,21 +147,21 @@ export function PublicLayout() {
                   : 'border-b border-slate-200/80 bg-[#f6f2ea]/90'
               }`}
             >
-              <div className="page-shell py-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <Link className="flex items-center gap-3" to="/">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-lg shadow-orange-500/20">
+              <div className="page-shell py-3 sm:py-4">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <Link className="flex min-w-0 items-center gap-3" to="/">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-lg shadow-orange-500/20">
                       <Icons.Store size={22} />
                     </div>
-                    <div>
-                      <p className={`font-display text-xl font-black ${isDarkSurface ? 'text-white' : 'text-slate-900'}`}>{SITE_NAME}</p>
-                      <p className={`text-xs ${isDarkSurface ? 'text-white/40' : 'text-slate-500'}`}>{SERVICE_TAGLINE}</p>
+                    <div className="min-w-0">
+                      <p className={`truncate font-display text-xl font-black ${isDarkSurface ? 'text-white' : 'text-slate-900'}`}>{SITE_NAME}</p>
+                      <p className={`hidden truncate text-xs xl:block ${isDarkSurface ? 'text-white/40' : 'text-slate-500'}`}>{SERVICE_TAGLINE}</p>
                     </div>
                   </Link>
 
-                  <div className="flex flex-col gap-3 lg:items-end">
+                  <div className="flex shrink-0 items-center gap-2 lg:gap-3">
                     <nav
-                      className={`flex flex-wrap items-center gap-2 text-sm font-semibold ${isDarkSurface ? 'text-white/55' : 'text-slate-600'}`}
+                      className={`hidden flex-wrap items-center gap-2 text-sm font-semibold lg:flex ${isDarkSurface ? 'text-white/55' : 'text-slate-600'}`}
                       data-homepage-nav={isLandingPage ? 'primary' : undefined}
                     >
                       {primaryNavigationLinks.map((item) => (
@@ -192,17 +195,50 @@ export function PublicLayout() {
                       </details>
                     </nav>
 
-                    <div className="flex flex-wrap items-center gap-3">
+                    <details className="group relative lg:hidden">
+                      <summary
+                        aria-label="Open navigation"
+                        className={`flex h-10 w-10 list-none items-center justify-center rounded-2xl border text-[0px] ${
+                          isDarkSurface
+                            ? 'border-white/15 bg-white/[0.06] text-white/75'
+                            : 'border-slate-200 bg-white text-slate-700'
+                        }`}
+                      >
+                        <Icons.Menu size={18} />
+                        메뉴
+                      </summary>
+                      <div
+                        className={`absolute right-0 z-50 mt-2 grid min-w-44 gap-1 rounded-2xl border p-2 shadow-xl ${
+                          isDarkSurface ? 'border-white/10 bg-[#0d1525]' : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        {mobileNavigationLinks.map((item) => (
+                          <Link
+                            key={item.to}
+                            className={`block rounded-xl px-3 py-2 text-sm font-bold ${
+                              isDarkSurface
+                                ? 'text-white/65 hover:bg-white/[0.07] hover:text-white'
+                                : 'text-slate-600 hover:bg-orange-50 hover:text-orange-700'
+                            }`}
+                            to={item.to}
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </details>
+
+                    <div className="flex shrink-0 items-center gap-2 lg:gap-3">
                       <Link
                         className={isDarkSurface
-                          ? 'inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/65 transition hover:border-white/25 hover:text-white'
-                          : 'btn-secondary'}
+                          ? 'hidden items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white/65 transition hover:border-white/25 hover:text-white sm:inline-flex'
+                          : 'hidden sm:inline-flex btn-secondary'}
                         to="/login?next=/dashboard"
                       >
                         로그인
                       </Link>
 
-                      <Link className="btn-primary" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
+                      <Link className="btn-primary !min-h-10 shrink-0 !rounded-2xl !px-3 !py-2 text-xs sm:!min-h-[2.75rem] sm:!px-4 sm:!py-2.5 sm:text-sm" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
                         무료로 시작하기
                       </Link>
                     </div>

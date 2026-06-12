@@ -127,16 +127,18 @@ function NeuralNetwork({ activeColor }: { activeColor: string }) {
           <motion.circle
             cx={node.x} cy={node.y} r={node.r * 2.2}
             fill={`${activeColor}12`}
-            animate={{ r: [node.r * 2, node.r * 3, node.r * 2], opacity: [0.5, 1, 0.5] }}
+            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+            animate={{ scale: [0.9, 1.35, 0.9], opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 2 + Math.random() * 3, repeat: Infinity, ease: 'easeInOut', delay: Math.random() * 2 }}
           />
           {/* Core */}
           <motion.circle
             cx={node.x} cy={node.y} r={node.r}
             fill={node.id === 'n6' ? activeColor : `${activeColor}88`}
+            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
             animate={{
               opacity: node.id === 'n6' ? [0.9, 1, 0.9] : [0.4, 0.9, 0.4],
-              r: node.id === 'n6' ? [node.r, node.r * 1.3, node.r] : [node.r * 0.9, node.r, node.r * 0.9],
+              scale: node.id === 'n6' ? [1, 1.3, 1] : [0.9, 1, 0.9],
             }}
             transition={{ duration: 1.5 + Math.random() * 2, repeat: Infinity, ease: 'easeInOut', delay: Math.random() * 1.5 }}
           />

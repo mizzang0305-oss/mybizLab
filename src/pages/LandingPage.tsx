@@ -802,6 +802,10 @@ function FeatureScrollStory() {
   const glowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia('(min-width: 1024px)').matches) {
+      return;
+    }
+
     gsap.registerPlugin(ScrollTrigger);
 
     // Set initial states
@@ -905,7 +909,7 @@ function FeatureScrollStory() {
       {/* GSAP-pinned viewport — GSAP handles pinning via pin:true (bypasses CSS sticky limitation) */}
       <div
         ref={stickyRef}
-        className="h-screen overflow-hidden"
+        className="overflow-hidden py-14 lg:h-screen lg:py-0"
       >
         {/* Ambient glow */}
         <div ref={glowRef} className="pointer-events-none absolute inset-0 transition-none" />
@@ -916,25 +920,25 @@ function FeatureScrollStory() {
           style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06) 40%, transparent)' }}
         />
 
-        <div className="relative flex h-full flex-col px-6 sm:px-10 lg:px-16">
+        <div className="relative flex min-h-0 flex-col px-6 sm:px-10 lg:h-full lg:px-16">
           {/* Section label */}
-          <div className="pt-16 lg:pt-20">
+          <div className="pt-0 lg:pt-20">
             <p className="font-mono text-sm font-bold uppercase tracking-[0.35em] text-white/25">
               운영 흐름 / Services
             </p>
           </div>
 
           {/* Main content grid */}
-          <div className="relative flex flex-1 items-center">
+          <div className="relative flex flex-none items-center lg:flex-1">
             <div className="mx-auto grid w-full max-w-[90rem] grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-16">
 
               {/* ── Left: text content ── */}
-              <div className="relative flex flex-col justify-center" style={{ minHeight: '22rem' }}>
+              <div className="relative mt-8 flex flex-col gap-10 lg:mt-0 lg:block" style={{ minHeight: '22rem' }}>
                 {STORY_FEATURES.map((f, i) => (
                   <div
                     key={f.num}
                     ref={(el) => { contentRefs.current[i] = el; }}
-                    className="absolute inset-0 flex flex-col justify-center"
+                    className="relative flex flex-col justify-center rounded-[28px] border border-white/[0.07] bg-white/[0.025] p-5 lg:absolute lg:inset-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0"
                   >
                     {/* Badge */}
                     <div className="mb-5 flex items-center gap-3">
@@ -1042,7 +1046,7 @@ function FeatureScrollStory() {
           </div>
 
           {/* ── Progress dots ── */}
-          <div className="pb-10 lg:pb-14">
+          <div className="hidden pb-10 lg:block lg:pb-14">
             <div className="mx-auto flex max-w-[90rem] items-center justify-between">
               {/* Dot rail */}
               <div className="flex items-center gap-3">
@@ -1405,7 +1409,7 @@ export function LandingPage() {
           01 · HERO
       ════════════════════════════════════════════════════════════════ */}
       <section
-        className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden bg-[#03040a] px-6 pb-20 pt-32 sm:px-10 lg:px-16"
+        className="relative flex min-h-[calc(100svh-4.5rem)] flex-col justify-start overflow-hidden bg-[#03040a] px-6 pb-20 pt-16 sm:min-h-[100svh] sm:justify-center sm:px-10 sm:pt-32 lg:px-16"
         data-cinematic-world="service-memory"
         data-service-orbit-world="hero"
         ref={heroRef}
@@ -1478,7 +1482,7 @@ export function LandingPage() {
               className="group relative overflow-hidden rounded-full bg-[#ec5b13] px-9 py-4 text-sm font-black text-white shadow-[0_0_48px_rgba(236,91,19,0.5)] transition-shadow hover:shadow-[0_0_80px_rgba(236,91,19,0.7)]"
             >
               <Link to={primaryCta}>{primaryCtaLabel}</Link>
-              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/18 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              <span aria-hidden className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/18 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
             </MagneticBtn>
 
             <MagneticBtn
@@ -1817,7 +1821,7 @@ export function LandingPage() {
               <Link to={finalCta?.cta_href || '/onboarding?plan=free'}>
                 {finalCta?.cta_label || '무료로 시작하기'}
               </Link>
-              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              <span aria-hidden className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
             </MagneticBtn>
 
             <MagneticBtn
