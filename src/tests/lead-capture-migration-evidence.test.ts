@@ -10,6 +10,7 @@ function readWorkspaceFile(path: string) {
 const evidencePack = readWorkspaceFile('docs/lead-capture-migration-evidence-pack.md');
 const applyChecklist = readWorkspaceFile('docs/lead-capture-migration-apply-checklist.md');
 const liveWriteChecklist = readWorkspaceFile('docs/live-lead-write-enable-checklist.md');
+const existingTableDecision = readWorkspaceFile('docs/lead-capture-existing-table-decision.md');
 const migration = readWorkspaceFile('supabase/migrations/20260609_lead_capture_requests.sql');
 
 describe('lead capture migration evidence pack', () => {
@@ -28,6 +29,9 @@ describe('lead capture migration evidence pack', () => {
     expect(evidencePack).toContain("tc.table_name in ('lead_capture_requests', 'store_members', 'stores', 'profiles')");
     expect(evidencePack).toContain("table_name in ('profiles', 'stores', 'store_members', 'platform_admin_members')");
     expect(evidencePack).toContain("constraint_type in ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE')");
+    expect(evidencePack).toContain('compatible_existing_table');
+    expect(evidencePack).toContain('idempotent_alter_required');
+    expect(evidencePack).toContain('blocked_existing_data_or_policy_risk');
   });
 
   it('keeps the evidence pack free of write or mutation commands', () => {
@@ -46,6 +50,8 @@ describe('lead capture migration evidence pack', () => {
     expect(applyChecklist).toContain('drop table if exists public.lead_capture_requests');
     expect(applyChecklist).toContain('If production lead data exists');
     expect(applyChecklist).toContain('FK target columns are verified against production schema evidence');
+    expect(applyChecklist).toContain('Existing table path is classified');
+    expect(applyChecklist).toContain('public.profiles.id = auth.uid()');
   });
 
   it('documents live write enablement as separate from migration and RLS apply', () => {
@@ -54,12 +60,16 @@ describe('lead capture migration evidence pack', () => {
     expect(liveWriteChecklist).toContain('leadCapturePersistenceEnabled');
     expect(liveWriteChecklist).toContain('liveLeadWriteEnabled');
     expect(liveWriteChecklist).toContain('"live_lead_write": false');
+    expect(liveWriteChecklist).toContain('blocked_existing_data_or_policy_risk');
   });
 
   it('keeps the SQL draft aligned with evidence expectations', () => {
     expect(migration).toMatch(/create table if not exists public\.lead_capture_requests/i);
+    expect(migration).toMatch(/alter table public\.lead_capture_requests[\s\S]*add column if not exists store_id uuid null references public\.stores\(store_id\)/i);
     expect(migration).toMatch(/references public\.stores\(store_id\)/i);
-    expect(migration).toContain('Reconfirm stores.store_id exists and is uuid before applying this draft');
+    expect(migration).toContain('Reconfirm stores.store_id is the primary key before applying this draft');
+    expect(migration).toContain('Do not apply until row_count, columns, indexes, RLS, policies, grants');
+    expect(migration).toContain('not valid');
     expect(migration).not.toMatch(/references public\.stores\(id\)/i);
     expect(migration).toMatch(/create index if not exists lead_capture_requests_store_idx/i);
     expect(migration).toMatch(/create trigger trg_lead_capture_requests_set_updated_at/i);
@@ -67,5 +77,14 @@ describe('lead capture migration evidence pack', () => {
     expect(migration).toMatch(/alter table public\.lead_capture_requests enable row level security/i);
     expect(migration).not.toMatch(/for delete/i);
     expect(migration).not.toMatch(/to anon/i);
+  });
+
+  it('records the existing-table migration decision without private row evidence', () => {
+    expect(existingTableDecision).toContain('`public.lead_capture_requests` already exists');
+    expect(existingTableDecision).toContain('Recommended path: `idempotent_alter_required`');
+    expect(existingTableDecision).toContain('migration apply: `BLOCKED`');
+    expect(existingTableDecision).toContain('does not prove `profiles.id` is always the same UUID as `auth.uid()`');
+    expect(existingTableDecision).not.toMatch(/select \*/i);
+    expect(existingTableDecision).not.toMatch(/customer phone|customer email/i);
   });
 });

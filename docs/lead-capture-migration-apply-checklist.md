@@ -1,6 +1,6 @@
 # Lead capture migration apply checklist
 
-Date: 2026-06-10
+Date: 2026-06-12
 
 This checklist defines the approval gate for applying the `lead_capture_requests` migration and RLS policies. It is not approval to run the migration. It is not approval to enable live writes.
 
@@ -10,14 +10,19 @@ All items must be confirmed before migration apply:
 
 - Production database target is confirmed by owner.
 - Fresh production backup or restore point is confirmed.
-- `lead_capture_requests` does not already exist, or an owner-approved collision plan exists.
+- `lead_capture_requests` does not already exist, or an owner-approved existing-table path exists.
+- Existing table path is classified as `compatible_existing_table`, `idempotent_alter_required`, or `blocked_existing_data_or_policy_risk`.
+- Apply is stopped if the classification is `blocked_existing_data_or_policy_risk`.
+- If `lead_capture_requests` row_count is greater than `0`, retention/backfill evidence is approved before any `not null`, constraint validation, rollback, or live-write step.
 - Existing migration history has no prior `lead_capture_requests` apply.
 - Existing indexes do not collide with the draft index names.
+- Existing `lead_capture_requests` columns, constraints, indexes, triggers, RLS, policies, grants, and row_count are captured as sanitized evidence.
 - FK target columns are verified against production schema evidence.
 - `public.stores.store_id` exists and is compatible with `lead_capture_requests.store_id`.
 - `public.profiles.id` exists and is compatible with `lead_capture_requests.owner_profile_id`.
 - `public.store_members.store_id` references the same store key used by `public.is_store_member(store_id)`.
 - `public.platform_admin_members.profile_id` is compatible with `auth.uid()` before using `pam.profile_id = auth.uid()` in RLS policies.
+- `public.profiles.id = auth.uid()` is confirmed, or the RLS draft is revised to use the approved auth-user mapping column.
 - `public.set_updated_at()` exists and is compatible.
 - `public.platform_admin_members` exists and matches the platform admin policy.
 - `public.is_store_member(store_id)` exists and matches store membership access.
@@ -101,8 +106,12 @@ Stop if any item is true:
 - production target is ambiguous.
 - backup evidence is missing.
 - collision query shows an existing incompatible table or policy.
+- existing `lead_capture_requests` evidence is incomplete.
+- existing table classification is `blocked_existing_data_or_policy_risk`.
+- row_count is greater than `0` and no owner-approved retention/backfill plan exists.
 - FK target column evidence is missing or conflicts with the draft.
 - `stores.id` is required by a draft query; production uses `stores.store_id` evidence instead.
+- `pam.profile_id = auth.uid()` is not proven safe by auth mapping evidence.
 - migration apply would also enable live writes.
 - RLS policy grants anon select, update, delete, or arbitrary insert.
 - rollback plan is missing.

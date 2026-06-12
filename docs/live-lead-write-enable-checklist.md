@@ -1,6 +1,6 @@
 # Live lead write enable checklist
 
-Date: 2026-06-10
+Date: 2026-06-12
 
 This checklist gates enabling live persistence for owner-reviewed lead capture. It is separate from migration apply and RLS policy apply. Do not enable live writes from this document.
 
@@ -10,6 +10,8 @@ Live lead writes can be enabled only after all items are true:
 
 - `lead_capture_requests` migration applied and verified.
 - RLS policies applied and verified.
+- Existing `lead_capture_requests` table path is resolved and no longer classified as `blocked_existing_data_or_policy_risk`.
+- `profiles.id = auth.uid()` is confirmed, or RLS policies are revised to use the approved auth-user mapping.
 - Policy evidence passes:
   - platform admin select/insert/update exists.
   - store member select/update exists.

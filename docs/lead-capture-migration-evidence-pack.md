@@ -1,6 +1,6 @@
 # Lead capture migration evidence pack
 
-Date: 2026-06-10
+Date: 2026-06-12
 
 This pack is for owner review before any production migration apply, RLS policy apply, or live lead write enablement. It is an evidence checklist and SQL query set only. Do not run any write, migration, deploy, payment, webhook, auth/env, customer notification, or external API mutation from this document.
 
@@ -35,7 +35,7 @@ where table_schema = 'public'
   and table_name = 'lead_capture_requests';
 ```
 
-Expected before apply: zero rows. If the table already exists, stop and compare the live schema before any migration apply.
+Expected before first apply: zero rows. Current production evidence shows the table already exists, so migration apply is blocked until the existing table is classified with `docs/lead-capture-existing-table-decision.md`.
 
 ### 2. Column collision check
 
@@ -51,7 +51,7 @@ where table_schema = 'public'
 order by ordinal_position;
 ```
 
-Expected before apply: zero rows. Existing rows mean the migration may collide with an earlier manual table.
+Expected before first apply: zero rows. If rows are returned, compare every column against the migration draft and classify as `compatible_existing_table`, `idempotent_alter_required`, or `blocked_existing_data_or_policy_risk`.
 
 ### 3. Index collision check
 
@@ -67,7 +67,7 @@ where schemaname = 'public'
 order by indexname;
 ```
 
-Expected before apply: zero rows. Existing indexes require manual comparison.
+Expected before first apply: zero rows. Existing indexes require manual comparison before apply.
 
 ### 4. RLS enabled status
 
@@ -83,7 +83,7 @@ where n.nspname = 'public'
   and c.relname = 'lead_capture_requests';
 ```
 
-Expected before apply: zero rows. Expected after apply: `rls_enabled = true`.
+Expected before first apply: zero rows. If the table already exists, `rls_enabled = true` is required before live write enablement, and `false` is a blocker if broad grants exist.
 
 ### 5. Policy list
 
@@ -206,7 +206,7 @@ where tc.constraint_type = 'FOREIGN KEY'
 order by tc.table_name, kcu.column_name;
 ```
 
-Expected after the 2026-06-10 drift fix: `lead_capture_requests.store_id` references `stores.store_id`, and `lead_capture_requests.owner_profile_id` references `profiles.id` after apply.
+Expected after the 2026-06-10 drift fix: `lead_capture_requests.store_id` references `stores.store_id`, and `lead_capture_requests.owner_profile_id` references `profiles.id` after apply. Current evidence shows those FK constraints already exist, but the full live column/index/RLS/policy/grant/row_count evidence is still required.
 
 ### 12. FK target column drift evidence
 
@@ -262,15 +262,26 @@ Expected: the referenced columns used by the draft exist as primary or unique ke
 
 ## Draft collision assessment
 
-- Table creation uses `create table if not exists`, but an existing incompatible table is still a blocker.
+- Table creation uses `create table if not exists`, and the draft now includes additive `alter table ... add column if not exists` statements for an existing-table path.
+- An existing incompatible table is still a blocker.
 - Index names are explicit and must not already exist on a different definition.
 - Production evidence showed `store_members.store_id` references `stores.store_id`, so the lead-capture draft must not reference `stores.id`.
-- `profiles.id`, `platform_admin_members.profile_id`, and the `pam.profile_id = auth.uid()` policy predicate remain blockers until column/type evidence confirms they match.
+- Evidence confirms `profiles.id` is a primary key and `platform_admin_members.profile_id` references `profiles.id`, but the `pam.profile_id = auth.uid()` policy predicate remains blocked until evidence proves `profiles.id` is the same identifier as `auth.uid()` or an approved auth-user mapping column is used.
 - The migration expects `public.set_updated_at()` to already exist.
 - The RLS draft depends on `public.platform_admin_members` and `public.is_store_member(store_id)`.
 - Public visitor insert is intentionally absent.
 - Anonymous select, update, and delete are intentionally absent.
 - Delete policy is intentionally absent; use `archived` status instead.
+
+## Existing table classification
+
+Use this classification before any migration apply:
+
+- `compatible_existing_table`: live table, columns, FK targets, indexes, RLS, policies, grants, and row_count are compatible with the draft and no public/anon broad access exists.
+- `idempotent_alter_required`: live table exists but only additive columns/indexes/constraints/policies are missing, and row_count/retention evidence shows the additive path is safe.
+- `blocked_existing_data_or_policy_risk`: live table has unknown columns, incompatible FK targets, public/anon broad grants, delete policies, RLS disabled with broad access, row_count risk, migration-history drift, or unresolved platform-admin auth mapping.
+
+Current classification from available evidence: `idempotent_alter_required` is likely, but apply remains `BLOCKED` until full live `lead_capture_requests` evidence and auth mapping evidence are collected.
 
 ## Repository gate evidence
 
