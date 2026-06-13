@@ -17,6 +17,9 @@ All items must be confirmed before migration apply:
 - Existing migration history has no prior `lead_capture_requests` apply.
 - Existing indexes do not collide with the draft index names.
 - Existing `lead_capture_requests` columns, constraints, indexes, triggers, RLS, policies, grants, and row_count are captured as sanitized evidence.
+- Existing required canonical column nullability is captured as sanitized evidence.
+- The existing-table path adds missing required columns, applies safe fallback backfill, and runs `ALTER COLUMN ... SET NOT NULL`.
+- `CHECK ... NOT VALID` is treated only as value-range validation and is not accepted as a `NOT NULL` substitute.
 - Broad role grants are absent or remediated by a separately approved grant plan. 2026-06-13 grant remediation evidence shows this blocker is resolved.
 - `anon` has no table privileges on `public.lead_capture_requests`.
 - `public` has no table privileges on `public.lead_capture_requests`.
@@ -73,6 +76,7 @@ Run read-only verification after apply:
 - anon policies absent
 - delete policy absent
 - row count captured as a number only
+- required canonical columns are `NOT NULL`: `source`, `status`, `store_name`, `business_type`, `main_concern`, `desired_outcome`, `data_readiness`, `consent_marketing`, `consent_contact`, `created_at`, `updated_at`
 - `leadCapturePersistenceEnabled` still OFF
 - `liveLeadWriteEnabled` still OFF
 - production smoke still passes:
@@ -113,6 +117,8 @@ Stop if any item is true:
 - collision query shows an existing incompatible table or policy.
 - existing `lead_capture_requests` evidence is incomplete.
 - existing table classification is `blocked_existing_data_or_policy_risk`.
+- required canonical columns would remain nullable after the existing-table path.
+- the migration relies on `CHECK ... NOT VALID` instead of `ALTER COLUMN ... SET NOT NULL` for required fields.
 - `anon` has any table grant on `public.lead_capture_requests`.
 - `public` has any table grant on `public.lead_capture_requests`.
 - `authenticated` has `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES` on `public.lead_capture_requests`.

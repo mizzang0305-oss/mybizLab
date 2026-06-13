@@ -34,6 +34,10 @@ describe('lead capture migration evidence pack', () => {
     expect(evidencePack).toContain('idempotent_alter_required');
     expect(evidencePack).toContain('blocked_existing_data_or_policy_risk');
     expect(evidencePack).toContain('the broad grant blocker is resolved');
+    expect(evidencePack).toContain('required_column_nullability');
+    expect(evidencePack).toContain("is_nullable = 'NO'");
+    expect(evidencePack).toContain('CHECK ... NOT VALID');
+    expect(evidencePack).toContain('ALTER COLUMN ... SET NOT NULL');
   });
 
   it('keeps the evidence pack free of write or mutation commands', () => {
@@ -59,6 +63,10 @@ describe('lead capture migration evidence pack', () => {
     expect(applyChecklist).toContain('2026-06-13 grant remediation evidence shows this blocker is resolved');
     expect(applyChecklist).toContain('post-remediation evidence shows `anon` or `public` grants returned');
     expect(applyChecklist).toContain('anything beyond `SELECT`, `INSERT`, and `UPDATE`');
+    expect(applyChecklist).toContain('Existing required canonical column nullability is captured');
+    expect(applyChecklist).toContain('safe fallback backfill');
+    expect(applyChecklist).toContain('CHECK ... NOT VALID');
+    expect(applyChecklist).toContain('required canonical columns are `NOT NULL`');
   });
 
   it('documents live write enablement as separate from migration and RLS apply', () => {
@@ -71,6 +79,8 @@ describe('lead capture migration evidence pack', () => {
     expect(liveWriteChecklist).toContain('Broad grant blocker is resolved');
     expect(liveWriteChecklist).toContain('`anon` and `public` have no returned grants');
     expect(liveWriteChecklist).toContain('`authenticated` has `SELECT`/`INSERT`/`UPDATE` only');
+    expect(liveWriteChecklist).toContain('Required canonical columns are verified as `NOT NULL`');
+    expect(liveWriteChecklist).toContain('CHECK ... NOT VALID');
   });
 
   it('keeps the SQL draft aligned with evidence expectations', () => {
@@ -84,6 +94,14 @@ describe('lead capture migration evidence pack', () => {
     expect(migration).toMatch(/create index if not exists lead_capture_requests_store_idx/i);
     expect(migration).toMatch(/create trigger trg_lead_capture_requests_set_updated_at/i);
     expect(migration).toMatch(/status text not null default 'new' check/i);
+    expect(migration).toMatch(/update public\.lead_capture_requests[\s\S]*store_name = coalesce\(store_name, 'pending_store'\)/i);
+    expect(migration).toMatch(/alter column source set not null/i);
+    expect(migration).toMatch(/alter column store_name set not null/i);
+    expect(migration).toMatch(/alter column business_type set not null/i);
+    expect(migration).toMatch(/alter column main_concern set not null/i);
+    expect(migration).toMatch(/alter column desired_outcome set not null/i);
+    expect(migration).toMatch(/alter column data_readiness set not null/i);
+    expect(migration).toContain('CHECK ... NOT VALID is only value-range protection');
     expect(migration).toMatch(/alter table public\.lead_capture_requests enable row level security/i);
     expect(migration).not.toMatch(/for delete/i);
     expect(migration).not.toMatch(/to anon/i);
@@ -99,6 +117,10 @@ describe('lead capture migration evidence pack', () => {
     expect(existingTableDecision).toContain('`public` has no returned table grants');
     expect(existingTableDecision).toContain('`authenticated` has `SELECT`, `INSERT`, and `UPDATE` only');
     expect(existingTableDecision).toContain('No row data was changed');
+    expect(existingTableDecision).toContain('P2 nullability blocker');
+    expect(existingTableDecision).toContain('PR #100 must remain Draft');
+    expect(existingTableDecision).toContain('ALTER COLUMN ... SET NOT NULL');
+    expect(existingTableDecision).toContain('CHECK ... NOT VALID');
     expect(existingTableDecision).not.toMatch(/select \*/i);
     expect(existingTableDecision).not.toMatch(/customer phone|customer email/i);
   });

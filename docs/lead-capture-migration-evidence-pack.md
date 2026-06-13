@@ -53,6 +53,40 @@ order by ordinal_position;
 
 Expected before first apply: zero rows. If rows are returned, compare every column against the migration draft and classify as `compatible_existing_table`, `idempotent_alter_required`, or `blocked_existing_data_or_policy_risk`.
 
+### 2b. Required column nullability check
+
+Run this before migration apply and after any approved migration apply. It returns schema only and does not inspect row data.
+
+```sql
+select
+  'required_column_nullability' as evidence_key,
+  column_name,
+  data_type,
+  is_nullable,
+  column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'lead_capture_requests'
+  and column_name in (
+    'source',
+    'status',
+    'store_name',
+    'business_type',
+    'main_concern',
+    'desired_outcome',
+    'data_readiness',
+    'consent_marketing',
+    'consent_contact',
+    'created_at',
+    'updated_at'
+  )
+order by column_name;
+```
+
+Expected after apply: every returned required canonical column has `is_nullable = 'NO'`. If any required column remains nullable, migration apply and live write enablement remain blocked.
+
+`CHECK ... NOT VALID` is not a nullability control. It can remain useful for value-range checks, but required fields must be enforced with `ALTER COLUMN ... SET NOT NULL`.
+
 ### 3. Index collision check
 
 ```sql
@@ -292,6 +326,7 @@ Expected: the referenced columns used by the draft exist as primary or unique ke
 - Anonymous select, update, and delete are intentionally absent.
 - Delete policy is intentionally absent; use `archived` status instead.
 - Broad role grants are intentionally not accepted. `anon` must not have table privileges, and `authenticated` must not retain `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES`.
+- Required canonical fields must not remain nullable on the existing-table path. The draft must use a safe fallback backfill followed by `ALTER COLUMN ... SET NOT NULL`; `CHECK ... NOT VALID` is not a substitute.
 
 ## Existing table classification
 
@@ -302,6 +337,8 @@ Use this classification before any migration apply:
 - `blocked_existing_data_or_policy_risk`: live table has unknown columns, incompatible FK targets, public/anon broad grants, authenticated destructive or administrative grants, delete policies, RLS disabled with broad access, row_count risk, migration-history drift, or unresolved platform-admin auth mapping.
 
 Current classification from available evidence: `compatible_existing_table` is a stronger candidate and `idempotent_alter_required` remains likely because row_count is `0`, RLS is enabled, delete policy is absent, FK targets are compatible, required indexes/functions exist, and the broad grant blocker is resolved. Final migration apply still requires owner-approved migration strategy, trigger state, migration-history evidence, and platform-admin auth mapping review.
+
+P2 nullability status: migration apply remains blocked until the updated draft and tests prove required canonical columns are not left nullable on the existing-table path.
 
 ## Repository gate evidence
 

@@ -8,6 +8,20 @@ const migration = readFileSync(
   'utf8',
 );
 
+const requiredExistingTableColumns = [
+  'source',
+  'status',
+  'store_name',
+  'business_type',
+  'main_concern',
+  'desired_outcome',
+  'data_readiness',
+  'consent_marketing',
+  'consent_contact',
+  'created_at',
+  'updated_at',
+];
+
 describe('lead capture migration contract', () => {
   it('defines the canonical lead_capture_requests table without destructive operations', () => {
     expect(migration).toMatch(/create table if not exists public\.lead_capture_requests/i);
@@ -49,5 +63,25 @@ describe('lead capture migration contract', () => {
     expect(migration).toContain('Do not apply until row_count, columns, indexes, RLS, policies, grants');
     expect(migration).not.toMatch(/db_permission_change/i);
     expect(migration).not.toMatch(/grant_or_revoke_executed/i);
+  });
+
+  it('does not leave required canonical columns nullable on the existing-table path', () => {
+    const existingTablePath = migration.slice(migration.indexOf('-- Existing-table path:'));
+
+    expect(existingTablePath).toMatch(/row_count = 0/i);
+    expect(existingTablePath).toMatch(/update public\.lead_capture_requests[\s\S]*source = coalesce\(source, 'onboarding'\)/i);
+    expect(existingTablePath).toMatch(/store_name = coalesce\(store_name, 'pending_store'\)/i);
+    expect(existingTablePath).toMatch(/business_type = coalesce\(business_type, 'unknown'\)/i);
+    expect(existingTablePath).toMatch(/data_readiness = coalesce\(data_readiness, 'low'\)/i);
+    expect(existingTablePath).toContain('CHECK ... NOT VALID is only value-range protection');
+    expect(existingTablePath).toContain('not a substitute for');
+
+    for (const column of requiredExistingTableColumns) {
+      expect(existingTablePath).toMatch(new RegExp(`alter column ${column} set not null`, 'i'));
+    }
+
+    expect(existingTablePath.toLowerCase().indexOf('update public.lead_capture_requests')).toBeLessThan(
+      existingTablePath.toLowerCase().indexOf('alter column source set not null'),
+    );
   });
 });

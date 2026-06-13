@@ -49,6 +49,10 @@ create table if not exists public.lead_capture_requests (
 -- If public.lead_capture_requests already exists, keep it and add only missing
 -- columns. Do not apply until row_count, columns, indexes, RLS, policies, grants,
 -- FK targets, and platform-admin auth mapping evidence are reviewed.
+-- Reconfirm row_count immediately before apply. Current read-only evidence showed
+-- row_count = 0, so required canonical columns can be tightened with additive
+-- backfill + SET NOT NULL. If row_count > 0, stop and get an owner-approved
+-- retention/backfill plan before applying this draft.
 alter table public.lead_capture_requests
   add column if not exists store_id uuid null references public.stores(store_id) on delete set null,
   add column if not exists owner_profile_id uuid null references public.profiles(id) on delete set null,
@@ -77,6 +81,35 @@ alter table public.lead_capture_requests
   add column if not exists created_at timestamptz,
   add column if not exists updated_at timestamptz;
 
+-- Required canonical columns must not remain nullable on the existing-table path.
+-- CHECK ... NOT VALID is only value-range protection; it is not a substitute for
+-- ALTER COLUMN ... SET NOT NULL.
+update public.lead_capture_requests
+set
+  source = coalesce(source, 'onboarding'),
+  status = coalesce(status, 'new'),
+  store_name = coalesce(store_name, 'pending_store'),
+  business_type = coalesce(business_type, 'unknown'),
+  main_concern = coalesce(main_concern, 'pending_review'),
+  desired_outcome = coalesce(desired_outcome, 'pending_review'),
+  data_readiness = coalesce(data_readiness, 'low'),
+  consent_marketing = coalesce(consent_marketing, false),
+  consent_contact = coalesce(consent_contact, false),
+  created_at = coalesce(created_at, timezone('utc', now())),
+  updated_at = coalesce(updated_at, timezone('utc', now()))
+where
+  source is null
+  or status is null
+  or store_name is null
+  or business_type is null
+  or main_concern is null
+  or desired_outcome is null
+  or data_readiness is null
+  or consent_marketing is null
+  or consent_contact is null
+  or created_at is null
+  or updated_at is null;
+
 alter table public.lead_capture_requests
   alter column id set default gen_random_uuid(),
   alter column status set default 'new',
@@ -85,8 +118,21 @@ alter table public.lead_capture_requests
   alter column created_at set default timezone('utc', now()),
   alter column updated_at set default timezone('utc', now());
 
--- Existing rows make NOT NULL or CHECK validation risky. If row_count > 0, stop
--- before applying and create an owner-approved backfill/validation plan.
+alter table public.lead_capture_requests
+  alter column source set not null,
+  alter column status set not null,
+  alter column store_name set not null,
+  alter column business_type set not null,
+  alter column main_concern set not null,
+  alter column desired_outcome set not null,
+  alter column data_readiness set not null,
+  alter column consent_marketing set not null,
+  alter column consent_contact set not null,
+  alter column created_at set not null,
+  alter column updated_at set not null;
+
+-- Existing rows make CHECK validation risky. If row_count > 0, stop before
+-- validating constraints and create an owner-approved backfill/validation plan.
 do $$
 begin
   if not exists (

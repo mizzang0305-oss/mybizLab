@@ -54,6 +54,22 @@ Grant blocker discovered and remediated:
 - No row data was changed. This was a DB permission change only.
 - See `docs/lead-capture-grant-remediation-plan.md` for the executed result and the remaining hard gates.
 
+## 2026-06-13 P2 nullability blocker
+
+Codex review identified a migration apply blocker in the existing-table path:
+
+- missing required canonical columns could be added as nullable columns.
+- `CHECK ... NOT VALID` only protects value ranges for new/updated rows and does not enforce `NOT NULL`.
+- if live writes were later approved while required fields remained nullable, incomplete leads could be persisted with null `source`, `store_name`, `business_type`, `main_concern`, `desired_outcome`, or `data_readiness`.
+
+Draft decision:
+
+- PR #100 must remain Draft until the nullability fix is reviewed.
+- the migration draft now uses an additive existing-table path: add missing columns, apply sanitized fallback backfill, then `ALTER COLUMN ... SET NOT NULL` for required canonical columns.
+- row_count must be reconfirmed immediately before apply. Current evidence says row_count is `0`, but stale evidence is not enough for production apply.
+- if row_count is greater than `0`, apply remains blocked until the owner approves a retention/backfill plan.
+- migration apply, RLS apply, and live lead write enablement still require separate approvals.
+
 ## Decision matrix
 
 ### compatible_existing_table
@@ -69,6 +85,7 @@ This path requires all of the following:
 - authenticated grants are restricted to `SELECT`, `INSERT`, and `UPDATE` under RLS-governed reviewed flows.
 - no delete policy exists.
 - row count is `0`, or an owner-approved backfill/retention plan exists.
+- required canonical columns are not left nullable by the existing-table path.
 - platform-admin auth mapping is confirmed.
 
 ### idempotent_alter_required
@@ -76,6 +93,8 @@ This path requires all of the following:
 Status: `likely`
 
 The table already exists, so a pure `create table if not exists` migration is not enough. The draft now keeps the table and adds missing columns with `alter table ... add column if not exists`, applies additive indexes, and keeps constraints as non-destructive checks for the existing-table path.
+
+Required canonical columns must be hardened with `ALTER COLUMN ... SET NOT NULL` after the safe backfill step. `CHECK ... NOT VALID` is not accepted as a nullability control.
 
 ### blocked_existing_data_or_policy_risk
 
@@ -85,6 +104,7 @@ The broad grant blocker is resolved by the approved remediation result. Migratio
 
 Remaining blockers and review items:
 
+- P2 nullability review for the existing-table path until the new migration draft is checked and CI passes.
 - live trigger state.
 - migration history source that is accessible for this project.
 - whether `profiles.id` is the same value as `auth.uid()`, or whether policies need an auth-user mapping column.
@@ -112,11 +132,12 @@ This is not fully approved yet. Evidence confirms `platform_admin_members.profil
 - RLS policy apply: `BLOCKED`
 - live lead write enable: `BLOCKED`
 - live customer memory write: `BLOCKED`
-- PR Ready transition: `POSSIBLE AFTER DOCS/TESTS/CI REVIEW`; keep Draft until owner explicitly approves Ready conversion.
+- PR Ready transition: `BLOCKED UNTIL P2 NULLABILITY FIX IS REVIEWED`; keep Draft until owner explicitly approves Ready conversion.
 
 ## Next evidence needed
 
 - PR #100 docs/tests/CI review after grant remediation result.
+- nullable required-column evidence for `lead_capture_requests` after the migration draft is updated and before apply.
 - `lead_capture_requests` trigger state.
 - `profiles` auth mapping evidence that proves whether `profiles.id = auth.uid()` is valid.
 - migration history evidence from a project-approved source.
