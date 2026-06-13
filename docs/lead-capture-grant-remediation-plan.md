@@ -2,7 +2,7 @@
 
 Date: 2026-06-13
 
-This document is a draft-only remediation plan for broad table grants on `public.lead_capture_requests`. It does not approve or execute `GRANT`, `REVOKE`, migration apply, RLS policy apply, live lead writes, customer memory writes, deploys, payment calls, webhook changes, auth/env changes, customer notifications, or external API mutations.
+This document records the approved grant remediation result for broad table grants on `public.lead_capture_requests`. It does not approve additional `GRANT`, `REVOKE`, migration apply, RLS policy apply, live lead writes, customer memory writes, deploys, payment calls, webhook changes, auth/env changes, customer notifications, or external API mutations.
 
 ## A. Current problem
 
@@ -22,22 +22,34 @@ RLS policies still restrict row-level behavior, but broad table privileges incre
 - `authenticated`: no `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES`.
 - service role/admin operations remain server-side only and are not enabled by this document.
 
-## C. Remediation SQL draft
+## C. Approved remediation SQL executed
 
-Do not run this SQL without separate owner approval and a fresh production target confirmation.
+The following remediation was separately approved and executed on 2026-06-13. Do not run it again without fresh owner approval and target confirmation.
+
+Before remediation:
+
+- `anon`: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, `REFERENCES`.
+- `authenticated`: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, `REFERENCES`.
+- `public`: no returned grants.
+
+After remediation:
+
+- `anon`: no returned grants.
+- `public`: no returned grants.
+- `authenticated`: `SELECT`, `INSERT`, `UPDATE` only.
+- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` removed.
+- row_count before and after: `0`.
+- RLS enabled: `true`.
+- delete policy count: `0`.
+- no row data changed.
+- DB permission change: `true`.
+- grant_or_revoke_executed: `true`.
 
 ```sql
--- DRAFT ONLY. DO NOT RUN WITHOUT APPROVAL.
-
 revoke all privileges on table public.lead_capture_requests from anon;
 revoke all privileges on table public.lead_capture_requests from public;
+revoke all privileges on table public.lead_capture_requests from authenticated;
 
-revoke delete, truncate, trigger, references
-on table public.lead_capture_requests
-from authenticated;
-
--- Keep only the minimum privileges needed for RLS-governed owner/admin flows.
--- This grant must be approved separately.
 grant select, insert, update
 on table public.lead_capture_requests
 to authenticated;
@@ -69,12 +81,12 @@ Run read-only evidence only after an approved remediation:
 - `liveLeadWriteEnabled` remains OFF.
 - production smoke passes.
 
-## F. Blocked until approval
+## F. Remaining approval gates
 
-Until this plan is approved and verified:
+The broad grant blocker is resolved, but these gates remain closed:
 
-- PR #100 remains Draft.
-- migration apply remains BLOCKED.
-- RLS policy apply remains BLOCKED.
-- live lead write enable remains BLOCKED.
-- live customer memory write remains BLOCKED.
+- PR #100 remains Draft until owner approves Ready conversion.
+- migration apply remains BLOCKED until owner approval and migration strategy review.
+- RLS policy apply remains BLOCKED until owner approval and auth-mapping review.
+- live lead write enable remains BLOCKED until separate owner approval.
+- live customer memory write remains BLOCKED until separate owner approval.

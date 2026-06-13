@@ -33,7 +33,7 @@ describe('lead capture migration evidence pack', () => {
     expect(evidencePack).toContain('compatible_existing_table');
     expect(evidencePack).toContain('idempotent_alter_required');
     expect(evidencePack).toContain('blocked_existing_data_or_policy_risk');
-    expect(evidencePack).toContain('authenticated destructive or administrative grants');
+    expect(evidencePack).toContain('the broad grant blocker is resolved');
   });
 
   it('keeps the evidence pack free of write or mutation commands', () => {
@@ -56,6 +56,9 @@ describe('lead capture migration evidence pack', () => {
     expect(applyChecklist).toContain('public.profiles.id = auth.uid()');
     expect(applyChecklist).toContain('grant remediation is required');
     expect(applyChecklist).toContain('authenticated` has `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES`');
+    expect(applyChecklist).toContain('2026-06-13 grant remediation evidence shows this blocker is resolved');
+    expect(applyChecklist).toContain('post-remediation evidence shows `anon` or `public` grants returned');
+    expect(applyChecklist).toContain('anything beyond `SELECT`, `INSERT`, and `UPDATE`');
   });
 
   it('documents live write enablement as separate from migration and RLS apply', () => {
@@ -66,6 +69,8 @@ describe('lead capture migration evidence pack', () => {
     expect(liveWriteChecklist).toContain('"live_lead_write": false');
     expect(liveWriteChecklist).toContain('blocked_existing_data_or_policy_risk');
     expect(liveWriteChecklist).toContain('Broad grant blocker is resolved');
+    expect(liveWriteChecklist).toContain('`anon` and `public` have no returned grants');
+    expect(liveWriteChecklist).toContain('`authenticated` has `SELECT`/`INSERT`/`UPDATE` only');
   });
 
   it('keeps the SQL draft aligned with evidence expectations', () => {
@@ -89,18 +94,26 @@ describe('lead capture migration evidence pack', () => {
     expect(existingTableDecision).toContain('Recommended path: `idempotent_alter_required`');
     expect(existingTableDecision).toContain('migration apply: `BLOCKED`');
     expect(existingTableDecision).toContain('does not prove `profiles.id` is always the same UUID as `auth.uid()`');
-    expect(existingTableDecision).toContain('broad `anon` grants are present');
-    expect(existingTableDecision).toContain('broad `authenticated` grants are present');
+    expect(existingTableDecision).toContain('Status: `resolved grant blocker; apply still gated`');
+    expect(existingTableDecision).toContain('`anon` has no returned table grants');
+    expect(existingTableDecision).toContain('`public` has no returned table grants');
+    expect(existingTableDecision).toContain('`authenticated` has `SELECT`, `INSERT`, and `UPDATE` only');
+    expect(existingTableDecision).toContain('No row data was changed');
     expect(existingTableDecision).not.toMatch(/select \*/i);
     expect(existingTableDecision).not.toMatch(/customer phone|customer email/i);
   });
 
-  it('documents the broad grant blocker and draft-only remediation plan', () => {
-    expect(grantRemediationPlan).toContain('DRAFT ONLY. DO NOT RUN WITHOUT APPROVAL');
+  it('documents the broad grant remediation result and remaining gates', () => {
+    expect(grantRemediationPlan).toContain('approved grant remediation result');
     expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from anon');
     expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from public');
-    expect(grantRemediationPlan).toContain('revoke delete, truncate, trigger, references');
+    expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from authenticated');
     expect(grantRemediationPlan).toContain('grant select, insert, update');
+    expect(grantRemediationPlan).toContain('`anon`: no returned grants');
+    expect(grantRemediationPlan).toContain('`public`: no returned grants');
+    expect(grantRemediationPlan).toContain('`authenticated`: `SELECT`, `INSERT`, `UPDATE` only');
+    expect(grantRemediationPlan).toContain('row_count before and after: `0`');
+    expect(grantRemediationPlan).toContain('DB permission change: `true`');
     expect(grantRemediationPlan).toContain('PR #100 remains Draft');
     expect(grantRemediationPlan).toContain('migration apply remains BLOCKED');
   });

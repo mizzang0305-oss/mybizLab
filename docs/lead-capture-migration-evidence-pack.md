@@ -1,6 +1,6 @@
 # Lead capture migration evidence pack
 
-Date: 2026-06-12
+Date: 2026-06-13
 
 This pack is for owner review before any production migration apply, RLS policy apply, or live lead write enablement. It is an evidence checklist and SQL query set only. Do not run any write, migration, deploy, payment, webhook, auth/env, customer notification, or external API mutation from this document.
 
@@ -126,12 +126,24 @@ order by grantee, privilege_type;
 
 Expected: no broad `anon` or `public` table grants. Any authenticated grants must still be constrained by RLS.
 
-Current 2026-06-13 read-only evidence is a hard blocker:
+2026-06-13 pre-remediation read-only evidence showed a hard blocker:
 
 - `anon` has broad grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
 - `authenticated` has broad grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
-- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` grants must not remain before migration apply, RLS apply, PR Ready transition, or live lead write enablement.
-- Remediation must be planned from `docs/lead-capture-grant-remediation-plan.md` and requires separate owner approval. Do not run `GRANT` or `REVOKE` from this evidence pack.
+
+2026-06-13 approved post-remediation evidence resolved the broad grant blocker:
+
+- `anon`: no returned grants.
+- `public`: no returned grants.
+- `authenticated`: `SELECT`, `INSERT`, and `UPDATE` only.
+- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` removed.
+- row_count before and after remediation stayed `0`.
+- RLS stayed enabled.
+- delete policy count stayed `0`.
+- no row data changed.
+- DB permission change: `true`.
+
+Do not run additional `GRANT` or `REVOKE` from this evidence pack.
 
 ### 7. Existing migration history
 
@@ -289,7 +301,7 @@ Use this classification before any migration apply:
 - `idempotent_alter_required`: live table exists but only additive columns/indexes/constraints/policies are missing, and row_count/retention evidence shows the additive path is safe.
 - `blocked_existing_data_or_policy_risk`: live table has unknown columns, incompatible FK targets, public/anon broad grants, authenticated destructive or administrative grants, delete policies, RLS disabled with broad access, row_count risk, migration-history drift, or unresolved platform-admin auth mapping.
 
-Current classification from available evidence: `idempotent_alter_required` is structurally likely because row_count is `0`, RLS is enabled, delete policy is absent, FK targets are compatible, and required indexes/functions exist. Final classification remains `blocked_existing_data_or_policy_risk` while broad `anon` and `authenticated` grants remain unresolved.
+Current classification from available evidence: `compatible_existing_table` is a stronger candidate and `idempotent_alter_required` remains likely because row_count is `0`, RLS is enabled, delete policy is absent, FK targets are compatible, required indexes/functions exist, and the broad grant blocker is resolved. Final migration apply still requires owner-approved migration strategy, trigger state, migration-history evidence, and platform-admin auth mapping review.
 
 ## Repository gate evidence
 

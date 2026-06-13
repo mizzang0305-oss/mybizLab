@@ -44,4 +44,10 @@ describe('lead capture migration contract', () => {
     expect(migration).not.toMatch(/\brevoke\s+all\s+privileges\b/i);
     expect(migration).not.toMatch(/\bgrant\s+select,\s*insert,\s*update\b/i);
   });
+
+  it('keeps migration apply separate from the executed grant remediation result', () => {
+    expect(migration).toContain('Do not apply until row_count, columns, indexes, RLS, policies, grants');
+    expect(migration).not.toMatch(/db_permission_change/i);
+    expect(migration).not.toMatch(/grant_or_revoke_executed/i);
+  });
 });

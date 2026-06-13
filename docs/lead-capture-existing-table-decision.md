@@ -1,6 +1,6 @@
 # Lead capture existing table decision
 
-Date: 2026-06-12
+Date: 2026-06-13
 
 This note classifies the current `public.lead_capture_requests` production evidence and the safe migration path. It is a planning document only. It does not approve production migration apply, RLS policy apply, live lead writes, customer memory writes, deploy, payment calls, webhook changes, auth/env changes, customer notification, or external API mutation.
 
@@ -40,26 +40,33 @@ Approved read-only Supabase metadata evidence added:
   - `public.is_store_member(target_store_id uuid)`
   - `public.set_updated_at()`
 
-Hard blocker discovered:
+Grant blocker discovered and remediated:
 
 - `anon` currently has broad table grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
 - `authenticated` currently has broad table grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
-- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` grants are a hard blocker before migration apply, RLS apply, PR Ready transition, or live lead write enablement.
-- See `docs/lead-capture-grant-remediation-plan.md` for a draft-only remediation plan. Do not run any `GRANT` or `REVOKE` SQL without separate owner approval.
+- A separately approved grant remediation was executed on 2026-06-13.
+- After remediation, `anon` has no returned table grants.
+- After remediation, `public` has no returned table grants.
+- After remediation, `authenticated` has `SELECT`, `INSERT`, and `UPDATE` only.
+- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` grants were removed.
+- Row count remained `0` before and after remediation.
+- RLS stayed enabled and the delete policy count remained `0`.
+- No row data was changed. This was a DB permission change only.
+- See `docs/lead-capture-grant-remediation-plan.md` for the executed result and the remaining hard gates.
 
 ## Decision matrix
 
 ### compatible_existing_table
 
-Status: `not confirmed`
+Status: `stronger candidate`
 
 This path requires all of the following:
 
 - live columns match the draft column names and compatible types.
 - existing indexes match the draft names and definitions, or are safely additive.
 - RLS is enabled or can be enabled without exposing public access.
-- no anon/public broad grants exist.
-- authenticated grants are restricted to the minimum RLS-governed privileges needed for reviewed flows.
+- no anon/public table grants exist.
+- authenticated grants are restricted to `SELECT`, `INSERT`, and `UPDATE` under RLS-governed reviewed flows.
 - no delete policy exists.
 - row count is `0`, or an owner-approved backfill/retention plan exists.
 - platform-admin auth mapping is confirmed.
@@ -72,16 +79,16 @@ The table already exists, so a pure `create table if not exists` migration is no
 
 ### blocked_existing_data_or_policy_risk
 
-Status: `active blocker`
+Status: `resolved grant blocker; apply still gated`
 
-Migration apply remains blocked because broad role grants are present. Additional evidence reduced some unknowns, but the grant posture must be remediated or explicitly accepted by an approved plan before apply.
+The broad grant blocker is resolved by the approved remediation result. Migration apply remains blocked by final migration strategy and policy/auth-mapping review, not by the previous broad grant posture.
 
-- broad `anon` grants are present.
-- broad `authenticated` grants are present.
-- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` privileges are present.
+Remaining blockers and review items:
+
 - live trigger state.
 - migration history source that is accessible for this project.
 - whether `profiles.id` is the same value as `auth.uid()`, or whether policies need an auth-user mapping column.
+- owner decision to apply the additive/idempotent migration path.
 
 ## Migration path
 
@@ -105,11 +112,11 @@ This is not fully approved yet. Evidence confirms `platform_admin_members.profil
 - RLS policy apply: `BLOCKED`
 - live lead write enable: `BLOCKED`
 - live customer memory write: `BLOCKED`
-- PR Ready transition: `BLOCKED` until the broad grant blocker is documented, remediated by an approved plan, or explicitly accepted by the owner.
+- PR Ready transition: `POSSIBLE AFTER DOCS/TESTS/CI REVIEW`; keep Draft until owner explicitly approves Ready conversion.
 
 ## Next evidence needed
 
-- grant remediation approval and post-remediation read-only grant evidence.
+- PR #100 docs/tests/CI review after grant remediation result.
 - `lead_capture_requests` trigger state.
 - `profiles` auth mapping evidence that proves whether `profiles.id = auth.uid()` is valid.
 - migration history evidence from a project-approved source.

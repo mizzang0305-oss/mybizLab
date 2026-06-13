@@ -1,6 +1,6 @@
 # Lead capture migration apply checklist
 
-Date: 2026-06-12
+Date: 2026-06-13
 
 This checklist defines the approval gate for applying the `lead_capture_requests` migration and RLS policies. It is not approval to run the migration. It is not approval to enable live writes.
 
@@ -17,7 +17,7 @@ All items must be confirmed before migration apply:
 - Existing migration history has no prior `lead_capture_requests` apply.
 - Existing indexes do not collide with the draft index names.
 - Existing `lead_capture_requests` columns, constraints, indexes, triggers, RLS, policies, grants, and row_count are captured as sanitized evidence.
-- Broad role grants are absent or remediated by a separately approved grant plan.
+- Broad role grants are absent or remediated by a separately approved grant plan. 2026-06-13 grant remediation evidence shows this blocker is resolved.
 - `anon` has no table privileges on `public.lead_capture_requests`.
 - `public` has no table privileges on `public.lead_capture_requests`.
 - `authenticated` does not have `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES` on `public.lead_capture_requests`.
@@ -117,6 +117,8 @@ Stop if any item is true:
 - `public` has any table grant on `public.lead_capture_requests`.
 - `authenticated` has `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES` on `public.lead_capture_requests`.
 - grant remediation is required but no owner-approved plan exists.
+- post-remediation evidence shows `anon` or `public` grants returned.
+- post-remediation evidence shows `authenticated` has anything beyond `SELECT`, `INSERT`, and `UPDATE`.
 - row_count is greater than `0` and no owner-approved retention/backfill plan exists.
 - FK target column evidence is missing or conflicts with the draft.
 - `stores.id` is required by a draft query; production uses `stores.store_id` evidence instead.
