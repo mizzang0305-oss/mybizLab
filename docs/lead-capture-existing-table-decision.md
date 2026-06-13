@@ -21,6 +21,32 @@ User-provided read-only evidence shows:
 
 No row samples, customer contact fields, browser storage, secrets, payment data, or raw private evidence were used.
 
+## 2026-06-13 read-only evidence update
+
+Approved read-only Supabase metadata evidence added:
+
+- `public.lead_capture_requests` exists.
+- Row count is `0`.
+- RLS is enabled.
+- Delete policy was not observed in the policy list.
+- FK targets are compatible with the corrected draft:
+  - `lead_capture_requests.store_id` references `public.stores(store_id)`.
+  - `lead_capture_requests.owner_profile_id` references `public.profiles(id)`.
+- Existing indexes are compatible candidates:
+  - `lead_capture_requests_store_idx`
+  - `lead_capture_requests_owner_profile_idx`
+  - `lead_capture_requests_status_idx`
+- Required functions exist:
+  - `public.is_store_member(target_store_id uuid)`
+  - `public.set_updated_at()`
+
+Hard blocker discovered:
+
+- `anon` currently has broad table grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
+- `authenticated` currently has broad table grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
+- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` grants are a hard blocker before migration apply, RLS apply, PR Ready transition, or live lead write enablement.
+- See `docs/lead-capture-grant-remediation-plan.md` for a draft-only remediation plan. Do not run any `GRANT` or `REVOKE` SQL without separate owner approval.
+
 ## Decision matrix
 
 ### compatible_existing_table
@@ -33,6 +59,7 @@ This path requires all of the following:
 - existing indexes match the draft names and definitions, or are safely additive.
 - RLS is enabled or can be enabled without exposing public access.
 - no anon/public broad grants exist.
+- authenticated grants are restricted to the minimum RLS-governed privileges needed for reviewed flows.
 - no delete policy exists.
 - row count is `0`, or an owner-approved backfill/retention plan exists.
 - platform-admin auth mapping is confirmed.
@@ -45,16 +72,13 @@ The table already exists, so a pure `create table if not exists` migration is no
 
 ### blocked_existing_data_or_policy_risk
 
-Status: `active blocker until additional evidence is collected`
+Status: `active blocker`
 
-Migration apply remains blocked until these items are known:
+Migration apply remains blocked because broad role grants are present. Additional evidence reduced some unknowns, but the grant posture must be remediated or explicitly accepted by an approved plan before apply.
 
-- `lead_capture_requests` row count.
-- live `lead_capture_requests` columns and types.
-- live indexes.
-- live RLS enabled state.
-- live policy names and commands.
-- live grants for `anon`, `authenticated`, and `public`.
+- broad `anon` grants are present.
+- broad `authenticated` grants are present.
+- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` privileges are present.
 - live trigger state.
 - migration history source that is accessible for this project.
 - whether `profiles.id` is the same value as `auth.uid()`, or whether policies need an auth-user mapping column.
@@ -81,10 +105,12 @@ This is not fully approved yet. Evidence confirms `platform_admin_members.profil
 - RLS policy apply: `BLOCKED`
 - live lead write enable: `BLOCKED`
 - live customer memory write: `BLOCKED`
+- PR Ready transition: `BLOCKED` until the broad grant blocker is documented, remediated by an approved plan, or explicitly accepted by the owner.
 
 ## Next evidence needed
 
-- `lead_capture_requests` columns, indexes, constraints, triggers, RLS, policies, grants, and row_count.
+- grant remediation approval and post-remediation read-only grant evidence.
+- `lead_capture_requests` trigger state.
 - `profiles` auth mapping evidence that proves whether `profiles.id = auth.uid()` is valid.
 - migration history evidence from a project-approved source.
-- owner decision on existing table retention if row_count is greater than `0`.
+- owner decision to keep row_count `0` table through additive/idempotent path.

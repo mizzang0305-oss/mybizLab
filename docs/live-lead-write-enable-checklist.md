@@ -11,6 +11,9 @@ Live lead writes can be enabled only after all items are true:
 - `lead_capture_requests` migration applied and verified.
 - RLS policies applied and verified.
 - Existing `lead_capture_requests` table path is resolved and no longer classified as `blocked_existing_data_or_policy_risk`.
+- Broad grant blocker is resolved with read-only post-remediation evidence.
+- `anon` and `public` have no table privileges on `public.lead_capture_requests`.
+- `authenticated` has no `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES` privileges on `public.lead_capture_requests`.
 - `profiles.id = auth.uid()` is confirmed, or RLS policies are revised to use the approved auth-user mapping.
 - Policy evidence passes:
   - platform admin select/insert/update exists.

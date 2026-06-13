@@ -39,4 +39,9 @@ describe('lead capture migration contract', () => {
     expect(migration).not.toMatch(/to anon[\s\S]{0,200}for update/i);
     expect(migration).not.toMatch(/to anon[\s\S]{0,200}for delete/i);
   });
+
+  it('does not execute grant remediation inside the migration draft', () => {
+    expect(migration).not.toMatch(/\brevoke\s+all\s+privileges\b/i);
+    expect(migration).not.toMatch(/\bgrant\s+select,\s*insert,\s*update\b/i);
+  });
 });

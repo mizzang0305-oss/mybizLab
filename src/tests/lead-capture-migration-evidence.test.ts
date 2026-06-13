@@ -11,6 +11,7 @@ const evidencePack = readWorkspaceFile('docs/lead-capture-migration-evidence-pac
 const applyChecklist = readWorkspaceFile('docs/lead-capture-migration-apply-checklist.md');
 const liveWriteChecklist = readWorkspaceFile('docs/live-lead-write-enable-checklist.md');
 const existingTableDecision = readWorkspaceFile('docs/lead-capture-existing-table-decision.md');
+const grantRemediationPlan = readWorkspaceFile('docs/lead-capture-grant-remediation-plan.md');
 const migration = readWorkspaceFile('supabase/migrations/20260609_lead_capture_requests.sql');
 
 describe('lead capture migration evidence pack', () => {
@@ -32,6 +33,7 @@ describe('lead capture migration evidence pack', () => {
     expect(evidencePack).toContain('compatible_existing_table');
     expect(evidencePack).toContain('idempotent_alter_required');
     expect(evidencePack).toContain('blocked_existing_data_or_policy_risk');
+    expect(evidencePack).toContain('authenticated destructive or administrative grants');
   });
 
   it('keeps the evidence pack free of write or mutation commands', () => {
@@ -52,6 +54,8 @@ describe('lead capture migration evidence pack', () => {
     expect(applyChecklist).toContain('FK target columns are verified against production schema evidence');
     expect(applyChecklist).toContain('Existing table path is classified');
     expect(applyChecklist).toContain('public.profiles.id = auth.uid()');
+    expect(applyChecklist).toContain('grant remediation is required');
+    expect(applyChecklist).toContain('authenticated` has `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES`');
   });
 
   it('documents live write enablement as separate from migration and RLS apply', () => {
@@ -61,6 +65,7 @@ describe('lead capture migration evidence pack', () => {
     expect(liveWriteChecklist).toContain('liveLeadWriteEnabled');
     expect(liveWriteChecklist).toContain('"live_lead_write": false');
     expect(liveWriteChecklist).toContain('blocked_existing_data_or_policy_risk');
+    expect(liveWriteChecklist).toContain('Broad grant blocker is resolved');
   });
 
   it('keeps the SQL draft aligned with evidence expectations', () => {
@@ -84,7 +89,19 @@ describe('lead capture migration evidence pack', () => {
     expect(existingTableDecision).toContain('Recommended path: `idempotent_alter_required`');
     expect(existingTableDecision).toContain('migration apply: `BLOCKED`');
     expect(existingTableDecision).toContain('does not prove `profiles.id` is always the same UUID as `auth.uid()`');
+    expect(existingTableDecision).toContain('broad `anon` grants are present');
+    expect(existingTableDecision).toContain('broad `authenticated` grants are present');
     expect(existingTableDecision).not.toMatch(/select \*/i);
     expect(existingTableDecision).not.toMatch(/customer phone|customer email/i);
+  });
+
+  it('documents the broad grant blocker and draft-only remediation plan', () => {
+    expect(grantRemediationPlan).toContain('DRAFT ONLY. DO NOT RUN WITHOUT APPROVAL');
+    expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from anon');
+    expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from public');
+    expect(grantRemediationPlan).toContain('revoke delete, truncate, trigger, references');
+    expect(grantRemediationPlan).toContain('grant select, insert, update');
+    expect(grantRemediationPlan).toContain('PR #100 remains Draft');
+    expect(grantRemediationPlan).toContain('migration apply remains BLOCKED');
   });
 });

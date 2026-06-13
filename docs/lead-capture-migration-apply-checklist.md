@@ -17,6 +17,11 @@ All items must be confirmed before migration apply:
 - Existing migration history has no prior `lead_capture_requests` apply.
 - Existing indexes do not collide with the draft index names.
 - Existing `lead_capture_requests` columns, constraints, indexes, triggers, RLS, policies, grants, and row_count are captured as sanitized evidence.
+- Broad role grants are absent or remediated by a separately approved grant plan.
+- `anon` has no table privileges on `public.lead_capture_requests`.
+- `public` has no table privileges on `public.lead_capture_requests`.
+- `authenticated` does not have `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES` on `public.lead_capture_requests`.
+- Any remaining `authenticated` `SELECT`, `INSERT`, or `UPDATE` grant is intentional, owner-approved, and constrained by RLS policies.
 - FK target columns are verified against production schema evidence.
 - `public.stores.store_id` exists and is compatible with `lead_capture_requests.store_id`.
 - `public.profiles.id` exists and is compatible with `lead_capture_requests.owner_profile_id`.
@@ -108,6 +113,10 @@ Stop if any item is true:
 - collision query shows an existing incompatible table or policy.
 - existing `lead_capture_requests` evidence is incomplete.
 - existing table classification is `blocked_existing_data_or_policy_risk`.
+- `anon` has any table grant on `public.lead_capture_requests`.
+- `public` has any table grant on `public.lead_capture_requests`.
+- `authenticated` has `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES` on `public.lead_capture_requests`.
+- grant remediation is required but no owner-approved plan exists.
 - row_count is greater than `0` and no owner-approved retention/backfill plan exists.
 - FK target column evidence is missing or conflicts with the draft.
 - `stores.id` is required by a draft query; production uses `stores.store_id` evidence instead.

@@ -126,6 +126,13 @@ order by grantee, privilege_type;
 
 Expected: no broad `anon` or `public` table grants. Any authenticated grants must still be constrained by RLS.
 
+Current 2026-06-13 read-only evidence is a hard blocker:
+
+- `anon` has broad grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
+- `authenticated` has broad grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
+- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` grants must not remain before migration apply, RLS apply, PR Ready transition, or live lead write enablement.
+- Remediation must be planned from `docs/lead-capture-grant-remediation-plan.md` and requires separate owner approval. Do not run `GRANT` or `REVOKE` from this evidence pack.
+
 ### 7. Existing migration history
 
 ```sql
@@ -272,6 +279,7 @@ Expected: the referenced columns used by the draft exist as primary or unique ke
 - Public visitor insert is intentionally absent.
 - Anonymous select, update, and delete are intentionally absent.
 - Delete policy is intentionally absent; use `archived` status instead.
+- Broad role grants are intentionally not accepted. `anon` must not have table privileges, and `authenticated` must not retain `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES`.
 
 ## Existing table classification
 
@@ -279,9 +287,9 @@ Use this classification before any migration apply:
 
 - `compatible_existing_table`: live table, columns, FK targets, indexes, RLS, policies, grants, and row_count are compatible with the draft and no public/anon broad access exists.
 - `idempotent_alter_required`: live table exists but only additive columns/indexes/constraints/policies are missing, and row_count/retention evidence shows the additive path is safe.
-- `blocked_existing_data_or_policy_risk`: live table has unknown columns, incompatible FK targets, public/anon broad grants, delete policies, RLS disabled with broad access, row_count risk, migration-history drift, or unresolved platform-admin auth mapping.
+- `blocked_existing_data_or_policy_risk`: live table has unknown columns, incompatible FK targets, public/anon broad grants, authenticated destructive or administrative grants, delete policies, RLS disabled with broad access, row_count risk, migration-history drift, or unresolved platform-admin auth mapping.
 
-Current classification from available evidence: `idempotent_alter_required` is likely, but apply remains `BLOCKED` until full live `lead_capture_requests` evidence and auth mapping evidence are collected.
+Current classification from available evidence: `idempotent_alter_required` is structurally likely because row_count is `0`, RLS is enabled, delete policy is absent, FK targets are compatible, and required indexes/functions exist. Final classification remains `blocked_existing_data_or_policy_risk` while broad `anon` and `authenticated` grants remain unresolved.
 
 ## Repository gate evidence
 
