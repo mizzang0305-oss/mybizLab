@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// Live-schema compatibility paths can exceed Vitest's 5s default on Windows.
+const LIVE_COMPAT_TEST_TIMEOUT_MS = 15_000;
+
 const orderState = {
   customerContacts: [] as Array<Record<string, unknown>>,
   customerTimelineEvents: [] as Array<Record<string, unknown>>,
@@ -333,7 +336,7 @@ describe('live runtime order compatibility', () => {
       payment_status: 'paid',
     });
     expect(orderState.paymentEvents.some((event) => (event.raw as Record<string, unknown>)?.payment_status === 'paid')).toBe(true);
-  });
+  }, LIVE_COMPAT_TEST_TIMEOUT_MS);
 
   it('keeps the newest compat customer link when payment_events arrive out of order', async () => {
     orderState.paymentEvents.splice(
