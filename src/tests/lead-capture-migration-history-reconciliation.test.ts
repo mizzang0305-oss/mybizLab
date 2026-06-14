@@ -8,7 +8,9 @@ function readWorkspaceFile(path: string) {
 }
 
 const plan = readWorkspaceFile('docs/lead-capture-migration-history-reconciliation-plan.md');
-const migration = readWorkspaceFile('supabase/migrations/20260609_lead_capture_requests.sql');
+const migration = readWorkspaceFile(
+  'supabase/migrations_archive/pre_baseline_20260614/20260609_lead_capture_requests.sql',
+);
 const launchGates = readWorkspaceFile('src/shared/lib/launchGates.ts');
 
 describe('lead capture migration history reconciliation plan', () => {

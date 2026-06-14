@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 describe('order_items canonical SQL and runbook', () => {
   it('adds an additive store-scoped order_items canonical migration', () => {
-    const migration = readFileSync('supabase/migrations/20260511_order_items_canonical.sql', 'utf8');
+    const migration = readFileSync(
+      'supabase/migrations_archive/pre_baseline_20260614/20260511_order_items_canonical.sql',
+      'utf8',
+    );
 
     expect(migration).toContain('create table if not exists public.order_items');
     expect(migration).toContain('order_id_text text');

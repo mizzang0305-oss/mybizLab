@@ -1,0 +1,23 @@
+-- MyBiz production baseline adoption marker.
+-- This migration is intentionally comment-only and must remain a no-op.
+--
+-- Production schema already exists for the currently deployed MyBiz app.
+-- Legacy remote Supabase migration history was empty while the repository had
+-- 15 local-only legacy migration files.
+-- Those legacy migrations were archived under:
+--   supabase/migrations_archive/pre_baseline_20260614/
+--
+-- Archived migrations must not be replayed on production.
+-- This marker requires separate metadata adoption or repair approval before any
+-- remote Supabase migration-history row is changed.
+-- Future migrations should start after this production baseline marker.
+--
+-- Forbidden from this marker PR:
+-- - npx supabase migration repair
+-- - npx supabase db push
+-- - npx supabase migration up
+-- - SQL migration body replay
+-- - RLS policy apply
+-- - GRANT/REVOKE
+-- - live lead write enablement
+-- - live customer memory write enablement
