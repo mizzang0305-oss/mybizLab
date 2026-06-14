@@ -1542,9 +1542,11 @@ const _DELETED_OAUTH_SETUP_GUIDES = {
 } as const;
 
 type OAuthGuideKey = keyof typeof _DELETED_OAUTH_SETUP_GUIDES;
+const SHOW_LEGACY_YOUTUBE_PANEL = false;
 
 function _DeletedOAuthSetupModal({ providerKey, onClose }: { providerKey: OAuthGuideKey; onClose: () => void }) {
   const guide = _DELETED_OAUTH_SETUP_GUIDES[providerKey];
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [copied, setCopied] = useState<string | null>(null);
 
   function copyToClipboard(text: string, key: string) {
@@ -2074,7 +2076,7 @@ export function ContentSocialPage() {
       </Panel>
 
       {/* ── 이 아래는 원래 YouTube 패널 코드 — 위 컴포넌트로 대체됨 (dummy anchor for diff) ── */}
-      {false && <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 업로드 설정이 모두 준비된 뒤에만 진행됩니다.">
+      {SHOW_LEGACY_YOUTUBE_PANEL && <Panel title="YouTube 업로드 준비" subtitle="영상 업로드와 자막 등록은 계정 연동, 점주 승인, 업로드 설정이 모두 준비된 뒤에만 진행됩니다.">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

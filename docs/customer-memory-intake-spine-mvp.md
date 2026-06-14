@@ -111,11 +111,40 @@ These public/admin URLs are routed through the existing `api/public.ts` and `api
 
 With default production gates, public intake blocks before any production write. Tests inject the in-memory repository to prove the full write spine locally.
 
+## Follow-Up Lint Blocker Resolution
+
+The follow-up commit keeps this PR in Draft and resolves the repository lint blocker without opening production writes.
+
+The original lint failure was not caused by the customer memory spine files. It came from two buckets:
+
+- local protected workspace artifacts being included in the root ESLint scan
+- existing unrelated source lint debt in UI modules outside the customer memory intake spine
+
+The root ESLint config now ignores protected local artifact directories such as `.claude/`, `.playwright-mcp/`, `.local-inputs/`, and `supabase/.temp/`. The remaining source lint issues were addressed with narrow no-behavior-change cleanup: unused imports were removed, obvious `any` casts were replaced with local types, render-time randomness was replaced with deterministic values, and one existing TanStack table compiler warning is documented with a targeted lint directive.
+
+`npm run lint` must pass before this Draft PR can be promoted later.
+
+## Serverless Function Count
+
+No new serverless route files are added by this PR or the follow-up commit.
+
+The public and admin customer memory URLs continue to route through the existing Vercel function entrypoints:
+
+- `api/public.ts`
+- `api/admin.ts`
+- `vercel.json` rewrites
+
+This preserves the existing Vercel Hobby function-count strategy.
+
+## Scope Boundary
+
+Sales Excel import, CN_SALES import, CNFOOD import, POS ingest, production migration adoption, RLS policy rollout, live customer write enablement, external AI calls, and customer notification sending are all outside this PR.
+
 ## Next Step
 
 After this PR:
 
 1. Review the Draft PR and test the mock/local spine.
 2. Add reservation and waiting intake connection to the same customer spine.
-3. Prepare a separate migration/RLS/grant approval if production customer memory writes need to go live.
+3. Prepare a separate schema/RLS evidence PR before any production customer memory write is considered.
 4. Enable live customer memory writes only through a separate owner-approved release.

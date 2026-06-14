@@ -57,6 +57,15 @@ const EDGES = [
 // 노드 맵
 const nodeMap = new Map(NODES.map((n) => [n.id, n]));
 
+function stableUnit(seed: string) {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) % 10_000;
+  }
+
+  return hash / 10_000;
+}
+
 function getEdge(from: string, to: string) {
   const a = nodeMap.get(from)!;
   const b = nodeMap.get(to)!;
@@ -81,7 +90,7 @@ function FlowParticle({ edge, delay, color }: { edge: [string,string]; delay: nu
         duration: 1.4,
         delay,
         repeat: Infinity,
-        repeatDelay: 3 + Math.random() * 4,
+        repeatDelay: 3 + stableUnit(edge.join('-')) * 4,
         ease: 'easeInOut',
       }}
     />
@@ -106,7 +115,12 @@ function NeuralNetwork({ activeColor }: { activeColor: string }) {
           strokeWidth={0.6}
           fill="none"
           animate={{ stroke: [`${activeColor}18`, `${activeColor}40`, `${activeColor}18`] }}
-          transition={{ duration: 3 + Math.random() * 4, repeat: Infinity, ease: 'easeInOut', delay: Math.random() * 3 }}
+          transition={{
+            delay: stableUnit(`${from}-${to}-delay`) * 3,
+            duration: 3 + stableUnit(`${from}-${to}-duration`) * 4,
+            ease: 'easeInOut',
+            repeat: Infinity,
+          }}
         />
       ))}
 
@@ -129,7 +143,12 @@ function NeuralNetwork({ activeColor }: { activeColor: string }) {
             fill={`${activeColor}12`}
             style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
             animate={{ scale: [0.9, 1.35, 0.9], opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2 + Math.random() * 3, repeat: Infinity, ease: 'easeInOut', delay: Math.random() * 2 }}
+            transition={{
+              delay: stableUnit(`${node.id}-glow-delay`) * 2,
+              duration: 2 + stableUnit(`${node.id}-glow-duration`) * 3,
+              ease: 'easeInOut',
+              repeat: Infinity,
+            }}
           />
           {/* Core */}
           <motion.circle
@@ -140,7 +159,12 @@ function NeuralNetwork({ activeColor }: { activeColor: string }) {
               opacity: node.id === 'n6' ? [0.9, 1, 0.9] : [0.4, 0.9, 0.4],
               scale: node.id === 'n6' ? [1, 1.3, 1] : [0.9, 1, 0.9],
             }}
-            transition={{ duration: 1.5 + Math.random() * 2, repeat: Infinity, ease: 'easeInOut', delay: Math.random() * 1.5 }}
+            transition={{
+              delay: stableUnit(`${node.id}-core-delay`) * 1.5,
+              duration: 1.5 + stableUnit(`${node.id}-core-duration`) * 2,
+              ease: 'easeInOut',
+              repeat: Infinity,
+            }}
           />
         </g>
       ))}

@@ -320,4 +320,23 @@ describe('customer memory intake spine', () => {
     expect(existsSync(resolve(process.cwd(), 'api/admin/inquiries.ts'))).toBe(false);
     expect(existsSync(resolve(process.cwd(), 'api/public/stores/[storeSlug]/inquiries.ts'))).toBe(false);
   });
+
+  it('documents the lint follow-up, serverless strategy, and production scope boundary', () => {
+    const docs = readFileSync(resolve(process.cwd(), 'docs/customer-memory-intake-spine-mvp.md'), 'utf8');
+    const eslintConfig = readFileSync(resolve(process.cwd(), 'eslint.config.mjs'), 'utf8');
+
+    expect(docs).toContain('Follow-Up Lint Blocker Resolution');
+    expect(docs).toContain('npm run lint');
+    expect(docs).toContain('No new serverless route files are added');
+    expect(docs).toContain('api/public.ts');
+    expect(docs).toContain('api/admin.ts');
+    expect(docs).toContain('schema/RLS evidence PR');
+    expect(docs).toContain('Sales Excel import');
+    expect(docs).toContain('external AI calls');
+    expect(docs).toContain('customer notification sending');
+    expect(eslintConfig).toContain("'.claude/**'");
+    expect(eslintConfig).toContain("'.playwright-mcp/**'");
+    expect(eslintConfig).toContain("'.local-inputs/**'");
+    expect(eslintConfig).toContain("'supabase/.temp/**'");
+  });
 });
