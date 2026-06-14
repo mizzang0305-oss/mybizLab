@@ -28,6 +28,7 @@ describe('launch gates', () => {
     expect(getPilotBetaLaunchGateSummary().enabled).toEqual(
       expect.arrayContaining([
         'launchBetaEnabled',
+        'customerMemorySpineEnabled',
         'publicPricingEnabled',
         'onboardingDiagnosisEnabled',
         'ownerReviewedLeadCaptureEnabled',
@@ -46,6 +47,7 @@ describe('launch gates', () => {
         'externalAiEnabled',
         'leadCapturePersistenceEnabled',
         'liveLeadWriteEnabled',
+        'liveCustomerMemoryWriteEnabled',
         'oauthPublishEnabled',
         'posPaymentEnabled',
         'selfServePaidLaunchEnabled',
