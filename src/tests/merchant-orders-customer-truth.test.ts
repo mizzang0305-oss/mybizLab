@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 
+// Live-schema compatibility paths can exceed Vitest's 5s default on Windows.
+const LIVE_COMPAT_TEST_TIMEOUT_MS = 15_000;
+
 const liveState = {
   customerContacts: [
     {
@@ -227,7 +230,7 @@ describe('merchant orders customer truth', () => {
     });
     expect(orders[0]?.items[0]?.menu_name).toBe('브런치 세트 x1');
     expect(getCustomerDisplayLabel({ customer: orders[0]?.customer, customerId: orders[0]?.customer_id })).toBe('QA 주문 고객');
-  });
+  }, LIVE_COMPAT_TEST_TIMEOUT_MS);
 
   it('does not attach a customer when timeline metadata points at another order', async () => {
     liveState.customerTimelineEvents[0] = {

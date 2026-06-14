@@ -1,9 +1,11 @@
 -- Draft only. Do not apply to production until the RLS migration approval checklist is signed off.
+-- This draft is intentionally additive/idempotent because production evidence showed
+-- public.lead_capture_requests already exists. Do not drop or recreate the table.
 
 create table if not exists public.lead_capture_requests (
   id uuid primary key default gen_random_uuid(),
-  -- Production evidence on 2026-06-10 showed store_members.store_id references stores.store_id.
-  -- Reconfirm stores.store_id exists and is uuid before applying this draft.
+  -- Production evidence showed store_members.store_id references stores.store_id.
+  -- Reconfirm stores.store_id is the primary key before applying this draft.
   store_id uuid null references public.stores(store_id) on delete set null,
   owner_profile_id uuid null references public.profiles(id) on delete set null,
   source text not null check (source in ('onboarding', 'pricing', 'manual', 'referral')),
@@ -42,6 +44,152 @@ create table if not exists public.lead_capture_requests (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+-- Existing-table path:
+-- If public.lead_capture_requests already exists, keep it and add only missing
+-- columns. Do not apply until row_count, columns, indexes, RLS, policies, grants,
+-- FK targets, and platform-admin auth mapping evidence are reviewed.
+-- Reconfirm row_count immediately before apply. Current read-only evidence showed
+-- row_count = 0, so required canonical columns can be tightened with additive
+-- backfill + SET NOT NULL. If row_count > 0, stop and get an owner-approved
+-- retention/backfill plan before applying this draft.
+alter table public.lead_capture_requests
+  add column if not exists store_id uuid null references public.stores(store_id) on delete set null,
+  add column if not exists owner_profile_id uuid null references public.profiles(id) on delete set null,
+  add column if not exists source text,
+  add column if not exists status text,
+  add column if not exists store_name text,
+  add column if not exists business_type text,
+  add column if not exists address_summary text null,
+  add column if not exists contact_name text null,
+  add column if not exists contact_phone_encrypted text null,
+  add column if not exists contact_phone_masked text null,
+  add column if not exists contact_email_encrypted text null,
+  add column if not exists contact_email_masked text null,
+  add column if not exists main_concern text,
+  add column if not exists desired_outcome text,
+  add column if not exists current_customer_management text null,
+  add column if not exists current_reservation_flow text null,
+  add column if not exists current_inquiry_flow text null,
+  add column if not exists data_readiness text,
+  add column if not exists pilot_fit_score integer null,
+  add column if not exists next_action text null,
+  add column if not exists owner_note text null,
+  add column if not exists memory_seed_summary text null,
+  add column if not exists consent_marketing boolean,
+  add column if not exists consent_contact boolean,
+  add column if not exists created_at timestamptz,
+  add column if not exists updated_at timestamptz;
+
+-- Required canonical columns must not remain nullable on the existing-table path.
+-- CHECK ... NOT VALID is only value-range protection; it is not a substitute for
+-- ALTER COLUMN ... SET NOT NULL.
+update public.lead_capture_requests
+set
+  source = coalesce(source, 'onboarding'),
+  status = coalesce(status, 'new'),
+  store_name = coalesce(store_name, 'pending_store'),
+  business_type = coalesce(business_type, 'unknown'),
+  main_concern = coalesce(main_concern, 'pending_review'),
+  desired_outcome = coalesce(desired_outcome, 'pending_review'),
+  data_readiness = coalesce(data_readiness, 'low'),
+  consent_marketing = coalesce(consent_marketing, false),
+  consent_contact = coalesce(consent_contact, false),
+  created_at = coalesce(created_at, timezone('utc', now())),
+  updated_at = coalesce(updated_at, timezone('utc', now()))
+where
+  source is null
+  or status is null
+  or store_name is null
+  or business_type is null
+  or main_concern is null
+  or desired_outcome is null
+  or data_readiness is null
+  or consent_marketing is null
+  or consent_contact is null
+  or created_at is null
+  or updated_at is null;
+
+alter table public.lead_capture_requests
+  alter column id set default gen_random_uuid(),
+  alter column status set default 'new',
+  alter column consent_marketing set default false,
+  alter column consent_contact set default false,
+  alter column created_at set default timezone('utc', now()),
+  alter column updated_at set default timezone('utc', now());
+
+alter table public.lead_capture_requests
+  alter column source set not null,
+  alter column status set not null,
+  alter column store_name set not null,
+  alter column business_type set not null,
+  alter column main_concern set not null,
+  alter column desired_outcome set not null,
+  alter column data_readiness set not null,
+  alter column consent_marketing set not null,
+  alter column consent_contact set not null,
+  alter column created_at set not null,
+  alter column updated_at set not null;
+
+-- Existing rows make CHECK validation risky. If row_count > 0, stop before
+-- validating constraints and create an owner-approved backfill/validation plan.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'lead_capture_requests_source_check'
+      and conrelid = 'public.lead_capture_requests'::regclass
+  ) then
+    alter table public.lead_capture_requests
+      add constraint lead_capture_requests_source_check
+      check (source in ('onboarding', 'pricing', 'manual', 'referral')) not valid;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'lead_capture_requests_status_check'
+      and conrelid = 'public.lead_capture_requests'::regclass
+  ) then
+    alter table public.lead_capture_requests
+      add constraint lead_capture_requests_status_check
+      check (
+        status in (
+          'new',
+          'needs_review',
+          'contacted',
+          'pilot_candidate',
+          'setup_in_progress',
+          'converted',
+          'rejected',
+          'archived'
+        )
+      ) not valid;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'lead_capture_requests_data_readiness_check'
+      and conrelid = 'public.lead_capture_requests'::regclass
+  ) then
+    alter table public.lead_capture_requests
+      add constraint lead_capture_requests_data_readiness_check
+      check (data_readiness in ('low', 'medium', 'high')) not valid;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'lead_capture_requests_pilot_fit_score_check'
+      and conrelid = 'public.lead_capture_requests'::regclass
+  ) then
+    alter table public.lead_capture_requests
+      add constraint lead_capture_requests_pilot_fit_score_check
+      check (pilot_fit_score between 0 and 100) not valid;
+  end if;
+end $$;
 
 create index if not exists lead_capture_requests_store_idx
 on public.lead_capture_requests (store_id, created_at desc);

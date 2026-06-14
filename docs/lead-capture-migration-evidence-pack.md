@@ -1,6 +1,6 @@
 # Lead capture migration evidence pack
 
-Date: 2026-06-10
+Date: 2026-06-13
 
 This pack is for owner review before any production migration apply, RLS policy apply, or live lead write enablement. It is an evidence checklist and SQL query set only. Do not run any write, migration, deploy, payment, webhook, auth/env, customer notification, or external API mutation from this document.
 
@@ -35,7 +35,7 @@ where table_schema = 'public'
   and table_name = 'lead_capture_requests';
 ```
 
-Expected before apply: zero rows. If the table already exists, stop and compare the live schema before any migration apply.
+Expected before first apply: zero rows. Current production evidence shows the table already exists, so migration apply is blocked until the existing table is classified with `docs/lead-capture-existing-table-decision.md`.
 
 ### 2. Column collision check
 
@@ -51,7 +51,41 @@ where table_schema = 'public'
 order by ordinal_position;
 ```
 
-Expected before apply: zero rows. Existing rows mean the migration may collide with an earlier manual table.
+Expected before first apply: zero rows. If rows are returned, compare every column against the migration draft and classify as `compatible_existing_table`, `idempotent_alter_required`, or `blocked_existing_data_or_policy_risk`.
+
+### 2b. Required column nullability check
+
+Run this before migration apply and after any approved migration apply. It returns schema only and does not inspect row data.
+
+```sql
+select
+  'required_column_nullability' as evidence_key,
+  column_name,
+  data_type,
+  is_nullable,
+  column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'lead_capture_requests'
+  and column_name in (
+    'source',
+    'status',
+    'store_name',
+    'business_type',
+    'main_concern',
+    'desired_outcome',
+    'data_readiness',
+    'consent_marketing',
+    'consent_contact',
+    'created_at',
+    'updated_at'
+  )
+order by column_name;
+```
+
+Expected after apply: every returned required canonical column has `is_nullable = 'NO'`. If any required column remains nullable, migration apply and live write enablement remain blocked.
+
+`CHECK ... NOT VALID` is not a nullability control. It can remain useful for value-range checks, but required fields must be enforced with `ALTER COLUMN ... SET NOT NULL`.
 
 ### 3. Index collision check
 
@@ -67,7 +101,7 @@ where schemaname = 'public'
 order by indexname;
 ```
 
-Expected before apply: zero rows. Existing indexes require manual comparison.
+Expected before first apply: zero rows. Existing indexes require manual comparison before apply.
 
 ### 4. RLS enabled status
 
@@ -83,7 +117,7 @@ where n.nspname = 'public'
   and c.relname = 'lead_capture_requests';
 ```
 
-Expected before apply: zero rows. Expected after apply: `rls_enabled = true`.
+Expected before first apply: zero rows. If the table already exists, `rls_enabled = true` is required before live write enablement, and `false` is a blocker if broad grants exist.
 
 ### 5. Policy list
 
@@ -125,6 +159,25 @@ order by grantee, privilege_type;
 ```
 
 Expected: no broad `anon` or `public` table grants. Any authenticated grants must still be constrained by RLS.
+
+2026-06-13 pre-remediation read-only evidence showed a hard blocker:
+
+- `anon` has broad grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
+- `authenticated` has broad grants including `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES`.
+
+2026-06-13 approved post-remediation evidence resolved the broad grant blocker:
+
+- `anon`: no returned grants.
+- `public`: no returned grants.
+- `authenticated`: `SELECT`, `INSERT`, and `UPDATE` only.
+- `DELETE`, `TRUNCATE`, `TRIGGER`, and `REFERENCES` removed.
+- row_count before and after remediation stayed `0`.
+- RLS stayed enabled.
+- delete policy count stayed `0`.
+- no row data changed.
+- DB permission change: `true`.
+
+Do not run additional `GRANT` or `REVOKE` from this evidence pack.
 
 ### 7. Existing migration history
 
@@ -206,7 +259,7 @@ where tc.constraint_type = 'FOREIGN KEY'
 order by tc.table_name, kcu.column_name;
 ```
 
-Expected after the 2026-06-10 drift fix: `lead_capture_requests.store_id` references `stores.store_id`, and `lead_capture_requests.owner_profile_id` references `profiles.id` after apply.
+Expected after the 2026-06-10 drift fix: `lead_capture_requests.store_id` references `stores.store_id`, and `lead_capture_requests.owner_profile_id` references `profiles.id` after apply. Current evidence shows those FK constraints already exist, but the full live column/index/RLS/policy/grant/row_count evidence is still required.
 
 ### 12. FK target column drift evidence
 
@@ -262,15 +315,30 @@ Expected: the referenced columns used by the draft exist as primary or unique ke
 
 ## Draft collision assessment
 
-- Table creation uses `create table if not exists`, but an existing incompatible table is still a blocker.
+- Table creation uses `create table if not exists`, and the draft now includes additive `alter table ... add column if not exists` statements for an existing-table path.
+- An existing incompatible table is still a blocker.
 - Index names are explicit and must not already exist on a different definition.
 - Production evidence showed `store_members.store_id` references `stores.store_id`, so the lead-capture draft must not reference `stores.id`.
-- `profiles.id`, `platform_admin_members.profile_id`, and the `pam.profile_id = auth.uid()` policy predicate remain blockers until column/type evidence confirms they match.
+- Evidence confirms `profiles.id` is a primary key and `platform_admin_members.profile_id` references `profiles.id`, but the `pam.profile_id = auth.uid()` policy predicate remains blocked until evidence proves `profiles.id` is the same identifier as `auth.uid()` or an approved auth-user mapping column is used.
 - The migration expects `public.set_updated_at()` to already exist.
 - The RLS draft depends on `public.platform_admin_members` and `public.is_store_member(store_id)`.
 - Public visitor insert is intentionally absent.
 - Anonymous select, update, and delete are intentionally absent.
 - Delete policy is intentionally absent; use `archived` status instead.
+- Broad role grants are intentionally not accepted. `anon` must not have table privileges, and `authenticated` must not retain `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES`.
+- Required canonical fields must not remain nullable on the existing-table path. The draft must use a safe fallback backfill followed by `ALTER COLUMN ... SET NOT NULL`; `CHECK ... NOT VALID` is not a substitute.
+
+## Existing table classification
+
+Use this classification before any migration apply:
+
+- `compatible_existing_table`: live table, columns, FK targets, indexes, RLS, policies, grants, and row_count are compatible with the draft and no public/anon broad access exists.
+- `idempotent_alter_required`: live table exists but only additive columns/indexes/constraints/policies are missing, and row_count/retention evidence shows the additive path is safe.
+- `blocked_existing_data_or_policy_risk`: live table has unknown columns, incompatible FK targets, public/anon broad grants, authenticated destructive or administrative grants, delete policies, RLS disabled with broad access, row_count risk, migration-history drift, or unresolved platform-admin auth mapping.
+
+Current classification from available evidence: `compatible_existing_table` is a stronger candidate and `idempotent_alter_required` remains likely because row_count is `0`, RLS is enabled, delete policy is absent, FK targets are compatible, required indexes/functions exist, and the broad grant blocker is resolved. Final migration apply still requires owner-approved migration strategy, trigger state, migration-history evidence, and platform-admin auth mapping review.
+
+P2 nullability status: migration apply remains blocked until the updated draft and tests prove required canonical columns are not left nullable on the existing-table path.
 
 ## Repository gate evidence
 

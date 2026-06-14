@@ -10,6 +10,8 @@ function readWorkspaceFile(path: string) {
 const evidencePack = readWorkspaceFile('docs/lead-capture-migration-evidence-pack.md');
 const applyChecklist = readWorkspaceFile('docs/lead-capture-migration-apply-checklist.md');
 const liveWriteChecklist = readWorkspaceFile('docs/live-lead-write-enable-checklist.md');
+const existingTableDecision = readWorkspaceFile('docs/lead-capture-existing-table-decision.md');
+const grantRemediationPlan = readWorkspaceFile('docs/lead-capture-grant-remediation-plan.md');
 const migration = readWorkspaceFile('supabase/migrations/20260609_lead_capture_requests.sql');
 
 describe('lead capture migration evidence pack', () => {
@@ -28,6 +30,14 @@ describe('lead capture migration evidence pack', () => {
     expect(evidencePack).toContain("tc.table_name in ('lead_capture_requests', 'store_members', 'stores', 'profiles')");
     expect(evidencePack).toContain("table_name in ('profiles', 'stores', 'store_members', 'platform_admin_members')");
     expect(evidencePack).toContain("constraint_type in ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE')");
+    expect(evidencePack).toContain('compatible_existing_table');
+    expect(evidencePack).toContain('idempotent_alter_required');
+    expect(evidencePack).toContain('blocked_existing_data_or_policy_risk');
+    expect(evidencePack).toContain('the broad grant blocker is resolved');
+    expect(evidencePack).toContain('required_column_nullability');
+    expect(evidencePack).toContain("is_nullable = 'NO'");
+    expect(evidencePack).toContain('CHECK ... NOT VALID');
+    expect(evidencePack).toContain('ALTER COLUMN ... SET NOT NULL');
   });
 
   it('keeps the evidence pack free of write or mutation commands', () => {
@@ -46,6 +56,17 @@ describe('lead capture migration evidence pack', () => {
     expect(applyChecklist).toContain('drop table if exists public.lead_capture_requests');
     expect(applyChecklist).toContain('If production lead data exists');
     expect(applyChecklist).toContain('FK target columns are verified against production schema evidence');
+    expect(applyChecklist).toContain('Existing table path is classified');
+    expect(applyChecklist).toContain('public.profiles.id = auth.uid()');
+    expect(applyChecklist).toContain('grant remediation is required');
+    expect(applyChecklist).toContain('authenticated` has `DELETE`, `TRUNCATE`, `TRIGGER`, or `REFERENCES`');
+    expect(applyChecklist).toContain('2026-06-13 grant remediation evidence shows this blocker is resolved');
+    expect(applyChecklist).toContain('post-remediation evidence shows `anon` or `public` grants returned');
+    expect(applyChecklist).toContain('anything beyond `SELECT`, `INSERT`, and `UPDATE`');
+    expect(applyChecklist).toContain('Existing required canonical column nullability is captured');
+    expect(applyChecklist).toContain('safe fallback backfill');
+    expect(applyChecklist).toContain('CHECK ... NOT VALID');
+    expect(applyChecklist).toContain('required canonical columns are `NOT NULL`');
   });
 
   it('documents live write enablement as separate from migration and RLS apply', () => {
@@ -54,18 +75,68 @@ describe('lead capture migration evidence pack', () => {
     expect(liveWriteChecklist).toContain('leadCapturePersistenceEnabled');
     expect(liveWriteChecklist).toContain('liveLeadWriteEnabled');
     expect(liveWriteChecklist).toContain('"live_lead_write": false');
+    expect(liveWriteChecklist).toContain('blocked_existing_data_or_policy_risk');
+    expect(liveWriteChecklist).toContain('Broad grant blocker is resolved');
+    expect(liveWriteChecklist).toContain('`anon` and `public` have no returned grants');
+    expect(liveWriteChecklist).toContain('`authenticated` has `SELECT`/`INSERT`/`UPDATE` only');
+    expect(liveWriteChecklist).toContain('Required canonical columns are verified as `NOT NULL`');
+    expect(liveWriteChecklist).toContain('CHECK ... NOT VALID');
   });
 
   it('keeps the SQL draft aligned with evidence expectations', () => {
     expect(migration).toMatch(/create table if not exists public\.lead_capture_requests/i);
+    expect(migration).toMatch(/alter table public\.lead_capture_requests[\s\S]*add column if not exists store_id uuid null references public\.stores\(store_id\)/i);
     expect(migration).toMatch(/references public\.stores\(store_id\)/i);
-    expect(migration).toContain('Reconfirm stores.store_id exists and is uuid before applying this draft');
+    expect(migration).toContain('Reconfirm stores.store_id is the primary key before applying this draft');
+    expect(migration).toContain('Do not apply until row_count, columns, indexes, RLS, policies, grants');
+    expect(migration).toContain('not valid');
     expect(migration).not.toMatch(/references public\.stores\(id\)/i);
     expect(migration).toMatch(/create index if not exists lead_capture_requests_store_idx/i);
     expect(migration).toMatch(/create trigger trg_lead_capture_requests_set_updated_at/i);
     expect(migration).toMatch(/status text not null default 'new' check/i);
+    expect(migration).toMatch(/update public\.lead_capture_requests[\s\S]*store_name = coalesce\(store_name, 'pending_store'\)/i);
+    expect(migration).toMatch(/alter column source set not null/i);
+    expect(migration).toMatch(/alter column store_name set not null/i);
+    expect(migration).toMatch(/alter column business_type set not null/i);
+    expect(migration).toMatch(/alter column main_concern set not null/i);
+    expect(migration).toMatch(/alter column desired_outcome set not null/i);
+    expect(migration).toMatch(/alter column data_readiness set not null/i);
+    expect(migration).toContain('CHECK ... NOT VALID is only value-range protection');
     expect(migration).toMatch(/alter table public\.lead_capture_requests enable row level security/i);
     expect(migration).not.toMatch(/for delete/i);
     expect(migration).not.toMatch(/to anon/i);
+  });
+
+  it('records the existing-table migration decision without private row evidence', () => {
+    expect(existingTableDecision).toContain('`public.lead_capture_requests` already exists');
+    expect(existingTableDecision).toContain('Recommended path: `idempotent_alter_required`');
+    expect(existingTableDecision).toContain('migration apply: `BLOCKED`');
+    expect(existingTableDecision).toContain('does not prove `profiles.id` is always the same UUID as `auth.uid()`');
+    expect(existingTableDecision).toContain('Status: `resolved grant blocker; apply still gated`');
+    expect(existingTableDecision).toContain('`anon` has no returned table grants');
+    expect(existingTableDecision).toContain('`public` has no returned table grants');
+    expect(existingTableDecision).toContain('`authenticated` has `SELECT`, `INSERT`, and `UPDATE` only');
+    expect(existingTableDecision).toContain('No row data was changed');
+    expect(existingTableDecision).toContain('P2 nullability blocker');
+    expect(existingTableDecision).toContain('PR #100 must remain Draft');
+    expect(existingTableDecision).toContain('ALTER COLUMN ... SET NOT NULL');
+    expect(existingTableDecision).toContain('CHECK ... NOT VALID');
+    expect(existingTableDecision).not.toMatch(/select \*/i);
+    expect(existingTableDecision).not.toMatch(/customer phone|customer email/i);
+  });
+
+  it('documents the broad grant remediation result and remaining gates', () => {
+    expect(grantRemediationPlan).toContain('approved grant remediation result');
+    expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from anon');
+    expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from public');
+    expect(grantRemediationPlan).toContain('revoke all privileges on table public.lead_capture_requests from authenticated');
+    expect(grantRemediationPlan).toContain('grant select, insert, update');
+    expect(grantRemediationPlan).toContain('`anon`: no returned grants');
+    expect(grantRemediationPlan).toContain('`public`: no returned grants');
+    expect(grantRemediationPlan).toContain('`authenticated`: `SELECT`, `INSERT`, `UPDATE` only');
+    expect(grantRemediationPlan).toContain('row_count before and after: `0`');
+    expect(grantRemediationPlan).toContain('DB permission change: `true`');
+    expect(grantRemediationPlan).toContain('PR #100 remains Draft');
+    expect(grantRemediationPlan).toContain('migration apply remains BLOCKED');
   });
 });

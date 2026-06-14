@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// Live-schema compatibility paths can exceed Vitest's 5s default on Windows.
+const LIVE_COMPAT_TEST_TIMEOUT_MS = 15_000;
+
 const liveState = {
   conversationMessages: [] as Array<Record<string, unknown>>,
   conversationSessions: [] as Array<Record<string, unknown>>,
@@ -408,7 +411,7 @@ describe('table-order live compatibility', () => {
     });
     expect(board[0]?.tableOrders[0]?.items[0]?.menu_name).toBe('브런치 세트');
     expect(board[0]?.recentTimeline[0]?.summary).toContain('주문 고객 정보');
-  });
+  }, LIVE_COMPAT_TEST_TIMEOUT_MS);
 
   it('loads live legacy menu categories without requesting a missing sort_order column', async () => {
     const { service, wasMenuCategorySortOrderRequested } = await loadService();
