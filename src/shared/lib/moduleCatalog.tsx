@@ -157,6 +157,7 @@ export const adminNavigation: AdminNavigationItem[] = [
   { label: '주문 관리', route: '/dashboard/orders', icon: Icons.Delivery },
   { label: '웨이팅 관리', route: '/dashboard/waiting', icon: Icons.Waiting },
   { label: '매출 분석', route: '/dashboard/sales', icon: Icons.Chart },
+  { label: 'Excel 매출 동기화', route: '/dashboard/sales-import', icon: Icons.Chart },
   { label: 'AI 운영 리포트', route: '/dashboard/ai-reports', icon: Icons.AI },
   { label: '테이블 주문', route: '/dashboard/table-order', icon: Icons.Table },
   { label: '브랜드 설정', route: '/dashboard/brand', icon: Icons.Brand },
