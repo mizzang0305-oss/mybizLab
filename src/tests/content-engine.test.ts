@@ -440,7 +440,13 @@ describe('store content engine service', () => {
 
   it('keeps optional content links compatible with legacy live schema key names', () => {
     const migrationSql = readFileSync(
-      join(process.cwd(), 'supabase', 'migrations', '20260509_store_content_engine_mvp.sql'),
+      join(
+        process.cwd(),
+        'supabase',
+        'migrations_archive',
+        'pre_baseline_20260614',
+        '20260509_store_content_engine_mvp.sql',
+      ),
       'utf8',
     );
 
@@ -456,7 +462,13 @@ describe('store content engine service', () => {
 
   it('adds a non-destructive review request link table migration', () => {
     const migrationSql = readFileSync(
-      join(process.cwd(), 'supabase', 'migrations', '20260510_review_request_links.sql'),
+      join(
+        process.cwd(),
+        'supabase',
+        'migrations_archive',
+        'pre_baseline_20260614',
+        '20260510_review_request_links.sql',
+      ),
       'utf8',
     );
 
@@ -468,7 +480,13 @@ describe('store content engine service', () => {
 
   it('adds non-destructive public review safety hardening migration', () => {
     const migrationSql = readFileSync(
-      join(process.cwd(), 'supabase', 'migrations', '20260511_review_public_safety_hardening.sql'),
+      join(
+        process.cwd(),
+        'supabase',
+        'migrations_archive',
+        'pre_baseline_20260614',
+        '20260511_review_public_safety_hardening.sql',
+      ),
       'utf8',
     );
 

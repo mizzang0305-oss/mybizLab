@@ -4,7 +4,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(
-  resolve(process.cwd(), 'supabase/migrations/20260609_lead_capture_requests.sql'),
+  resolve(
+    process.cwd(),
+    'supabase/migrations_archive/pre_baseline_20260614/20260609_lead_capture_requests.sql',
+  ),
   'utf8',
 );
 

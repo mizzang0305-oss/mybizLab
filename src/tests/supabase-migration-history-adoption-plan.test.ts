@@ -10,7 +10,7 @@ function readWorkspaceFile(path: string) {
 }
 
 const plan = readWorkspaceFile('docs/supabase-migration-history-full-adoption-plan.md');
-const migrations = readdirSync(workspacePath('supabase/migrations'))
+const migrations = readdirSync(workspacePath('supabase/migrations_archive/pre_baseline_20260614'))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
@@ -23,7 +23,7 @@ const allowedClassifications = [
 ] as const;
 
 describe('Supabase migration history full adoption plan', () => {
-  it('covers every local migration file in the inventory', () => {
+  it('covers every archived legacy migration file in the inventory', () => {
     expect(migrations).toHaveLength(15);
     expect(plan).toContain('Inventory count: `15` local migration files.');
 
