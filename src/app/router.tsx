@@ -83,6 +83,7 @@ const PrivacyPage = lazyPage(() => import('@/pages/PrivacyPage'), 'PrivacyPage')
 const RefundPage = lazyPage(() => import('@/pages/RefundPage'), 'RefundPage');
 const ReservationsPage = lazyPage(() => import('@/modules/reservations/page'), 'ReservationsPage');
 const SalesPage = lazyPage(() => import('@/modules/sales/page'), 'SalesPage');
+const SalesImportPage = lazyPage(() => import('@/modules/admin/sales-import/page'), 'SalesImportPage');
 const SchedulesPage = lazyPage(() => import('@/modules/schedules/page'), 'SchedulesPage');
 const StoreDetailPage = lazyPage(() => import('@/modules/stores/detail-page'), 'StoreDetailPage');
 const StoreRequestDetailPage = lazyPage(
@@ -427,6 +428,10 @@ export const appRoutes: RouteObject[] = [
           {
             path: 'sales',
             element: routeElement(SalesPage),
+          },
+          {
+            path: 'sales-import',
+            element: routeElement(SalesImportPage),
           },
           {
             path: 'orders',

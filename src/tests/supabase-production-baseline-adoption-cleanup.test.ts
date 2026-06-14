@@ -41,8 +41,11 @@ const manifest = readWorkspaceFile('supabase/migrations_archive/pre_baseline_202
 const gitignore = readWorkspaceFile('.gitignore');
 
 describe('Supabase production baseline adoption cleanup', () => {
-  it('leaves only the no-op baseline marker in active migrations', () => {
-    expect(activeMigrations).toEqual(['20260614_production_baseline_adoption.sql']);
+  it('keeps legacy migrations archived while allowing reviewed post-baseline active migrations', () => {
+    expect(activeMigrations).toEqual([
+      '20260614132205_sales_excel_import_sync.sql',
+      '20260614_production_baseline_adoption.sql',
+    ]);
 
     const activeVersionPrefixes = activeMigrations.map((name) => name.split('_')[0]);
     expect(new Set(activeVersionPrefixes).size).toBe(activeVersionPrefixes.length);

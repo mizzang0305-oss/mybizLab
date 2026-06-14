@@ -13,6 +13,8 @@ export type LaunchGateKey =
   | 'uploadMutationEnabled'
   | 'externalAiEnabled'
   | 'broadDbWriteEnabled'
+  | 'salesExcelImportEnabled'
+  | 'salesExcelImportApplyEnabled'
   | 'leadCapturePersistenceEnabled'
   | 'liveLeadWriteEnabled';
 
@@ -40,6 +42,8 @@ export const LAUNCH_GATES = {
   uploadMutationEnabled: false,
   externalAiEnabled: false,
   broadDbWriteEnabled: false,
+  salesExcelImportEnabled: true,
+  salesExcelImportApplyEnabled: false,
   leadCapturePersistenceEnabled: false,
   liveLeadWriteEnabled: false,
 } as const satisfies Record<LaunchGateKey, boolean>;
@@ -59,6 +63,8 @@ export const LAUNCH_GATE_MESSAGES = {
   uploadMutationEnabled: '업로드/삭제 변경은 별도 승인 전까지 비활성 상태입니다.',
   externalAiEnabled: '실제 AI/STT 외부 호출은 비용/개인정보 가드 전까지 비활성 상태입니다.',
   broadDbWriteEnabled: '광범위한 production DB write는 RLS/store membership 검증 전까지 비활성 상태입니다.',
+  salesExcelImportEnabled: 'Sales Excel preview is enabled for authenticated store operators as a read-only workflow.',
+  salesExcelImportApplyEnabled: 'Sales Excel apply remains disabled until owner approval enables the reviewed write path.',
   leadCapturePersistenceEnabled: 'Live lead capture persistence remains approval-gated until migration and RLS are approved.',
   liveLeadWriteEnabled: 'Live lead writes remain disabled until owner approval enables the reviewed Supabase path.',
 } as const satisfies Record<LaunchGateKey, string>;
