@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -288,5 +288,36 @@ describe('customer memory intake spine', () => {
     expect(activeMigrations).toEqual(['20260614_production_baseline_adoption.sql']);
     expect(docs).toContain('No migration is applied by this PR');
     expect(docs).toContain('GRANT/REVOKE execution is out of scope');
+  });
+
+  it('routes Vercel customer memory APIs through existing function entrypoints', () => {
+    const vercelConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')) as {
+      routes: Array<{ dest?: string; src?: string }>;
+    };
+
+    expect(vercelConfig.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dest: '/api/public?resource=customer-memory-inquiry&storeSlug=$1',
+          src: '/api/public/stores/([^/]+)/inquiries',
+        }),
+        expect.objectContaining({
+          dest: '/api/admin?resource=customers',
+          src: '/api/admin/customers',
+        }),
+        expect.objectContaining({
+          dest: '/api/admin?resource=customer-detail&customerId=$1',
+          src: '/api/admin/customers/([^/]+)',
+        }),
+        expect.objectContaining({
+          dest: '/api/admin?resource=inquiries',
+          src: '/api/admin/inquiries',
+        }),
+      ]),
+    );
+    expect(existsSync(resolve(process.cwd(), 'api/admin/customers.ts'))).toBe(false);
+    expect(existsSync(resolve(process.cwd(), 'api/admin/customers/[customerId].ts'))).toBe(false);
+    expect(existsSync(resolve(process.cwd(), 'api/admin/inquiries.ts'))).toBe(false);
+    expect(existsSync(resolve(process.cwd(), 'api/public/stores/[storeSlug]/inquiries.ts'))).toBe(false);
   });
 });

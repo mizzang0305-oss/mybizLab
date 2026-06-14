@@ -107,6 +107,8 @@ Public intake API:
 
 - `POST /api/public/stores/:storeSlug/inquiries`
 
+These public/admin URLs are routed through the existing `api/public.ts` and `api/admin.ts` Vercel function entrypoints via `vercel.json` rewrites. They intentionally do not add separate file-route serverless functions, so the PR does not increase the Vercel Hobby function count.
+
 With default production gates, public intake blocks before any production write. Tests inject the in-memory repository to prove the full write spine locally.
 
 ## Next Step
