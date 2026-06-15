@@ -35,6 +35,10 @@ import {
   buildMockPublicPageEvents,
   buildPublicPageEventReadModel,
 } from './publicPageEventReadModelService.js';
+import {
+  buildFeedbackRecordReadModel,
+  buildMockFeedbackRecords,
+} from './feedbackRecordReadModelService.js';
 import { listStoreCustomers, upsertCustomerMemory } from './customerMemoryService.js';
 import {
   getPublicInquirySummary,
@@ -3487,6 +3491,24 @@ export async function listPublicPageEventReadModelForStore(storeId: string) {
   return buildPublicPageEventReadModel({
     events: buildMockPublicPageEvents({ storeId }),
     storeId,
+  });
+}
+
+export async function listFeedbackRecordsForStore(storeId: string) {
+  const [customers, inquiries, timelineEvents, surveys] = await Promise.all([
+    listStoreCustomers(storeId),
+    listStoreInquiries(storeId),
+    listCustomerTimelineEvents(storeId),
+    listSurveys(storeId),
+  ]);
+
+  return buildFeedbackRecordReadModel({
+    customers,
+    inquiries,
+    mockRecords: buildMockFeedbackRecords({ storeId }),
+    storeId,
+    surveyResponses: surveys.flatMap((survey) => survey.responses),
+    timelineEvents,
   });
 }
 

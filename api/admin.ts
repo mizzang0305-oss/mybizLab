@@ -7,6 +7,7 @@ import {
 } from '../src/server/mybiz/services/customerMemoryApi.js';
 import { handleAdminAiTracesRequest } from '../src/server/mybiz/services/aiTraceApi.js';
 import { handleAdminCustomerMemoryInboxRequest } from '../src/server/mybiz/services/customerMemoryInboxApi.js';
+import { handleAdminFeedbackRecordsRequest } from '../src/server/mybiz/services/feedbackRecordService.js';
 import { handleAdminPublicPageEventsRequest } from '../src/server/mybiz/services/publicPageEventService.js';
 import { handleAdminStoreDailySummaryJobsRequest } from '../src/server/mybiz/services/storeDailySummaryJobService.js';
 import { sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
@@ -41,6 +42,9 @@ async function routeAdminRequest(request: PlatformAdminRequestLike & CustomerMem
     case 'public-page-events':
     case 'public-page-funnel':
       return handleAdminPublicPageEventsRequest(request);
+    case 'feedback-records':
+    case 'feedback-summary':
+      return handleAdminFeedbackRecordsRequest(request);
     case 'background-jobs':
     case 'daily-store-summary':
       return handleAdminStoreDailySummaryJobsRequest(request);
