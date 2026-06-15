@@ -264,6 +264,7 @@ describe('Trigger.dev-style daily store summary job interface', () => {
     expect(vercelConfig).toContain('/api/admin?resource=background-jobs');
     expect(readdirSync(resolve(process.cwd(), 'supabase/migrations'))).toEqual([
       '20260614_production_baseline_adoption.sql',
+      '20260615075421_customer_memory_schema_alignment.sql',
     ]);
   });
 });

@@ -201,6 +201,7 @@ describe('Umami/PostHog-style public page event tracking contract', () => {
     expect(launchGates).toMatch(/livePublicPageEventWriteEnabled:\s*false/);
     expect(readdirSync(resolve(process.cwd(), 'supabase/migrations'))).toEqual([
       '20260614_production_baseline_adoption.sql',
+      '20260615075421_customer_memory_schema_alignment.sql',
     ]);
   });
 });

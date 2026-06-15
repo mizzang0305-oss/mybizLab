@@ -355,6 +355,7 @@ describe('Formbricks-style feedback record read-model', () => {
     expect(vercelConfig).toContain('/api/admin?resource=feedback-records');
     expect(readdirSync(resolve(process.cwd(), 'supabase/migrations'))).toEqual([
       '20260614_production_baseline_adoption.sql',
+      '20260615075421_customer_memory_schema_alignment.sql',
     ]);
   });
 });
