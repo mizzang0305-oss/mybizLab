@@ -35,6 +35,7 @@ import {
   listCustomerPreferences,
   listCustomerTimelineEvents,
   listCustomers,
+  listInquiryInbox,
   listInquiries,
   listOrders,
   listReservations,
@@ -195,6 +196,7 @@ export function CustomersPage() {
   const [inquiryTagsText, setInquiryTagsText] = useState('');
   const [inquiryMemo, setInquiryMemo] = useState('');
   const [inquiryStatus, setInquiryStatus] = useState<(typeof inquiryStatusValues)[number]>('new');
+  const [inboxStatusFilter, setInboxStatusFilter] = useState<'all' | (typeof inquiryStatusValues)[number]>('all');
   const [inquiryMessage, setInquiryMessage] = useState<string | null>(null);
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState('');
 
@@ -215,6 +217,16 @@ export function CustomersPage() {
   const inquiriesQuery = useQuery({
     queryKey: queryKeys.inquiries(currentStore?.id || ''),
     queryFn: () => listInquiries(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const inquiryInboxQuery = useQuery({
+    queryKey: queryKeys.inquiryInbox(currentStore?.id || '', inboxStatusFilter),
+    queryFn: () =>
+      listInquiryInbox(
+        currentStore!.id,
+        inboxStatusFilter === 'all' ? undefined : inboxStatusFilter,
+      ),
     enabled: Boolean(currentStore),
   });
 
@@ -300,6 +312,7 @@ export function CustomersPage() {
   const customers = customersQuery.data || [];
   const orders = ordersQuery.data || [];
   const inquiries = inquiriesQuery.data || [];
+  const inquiryInbox = inquiryInboxQuery.data;
   const conversationSessions = conversationSessionsQuery.data || [];
   const customerPreferences = customerPreferencesQuery.data || [];
   const reservations = reservationsQuery.data || [];
@@ -437,6 +450,102 @@ export function CustomersPage() {
         <MetricCard accent="orange" label="미처리 문의" value={openInquiryCount} />
         <MetricCard accent="slate" label="전체 문의" value={inquiries.length} />
       </div>
+
+      <Panel title="문의 Inbox" subtitle="공개 문의를 고객 기억, 연락 채널, 최근 타임라인과 함께 읽기 전용으로 확인합니다.">
+        <div className="flex flex-wrap gap-2">
+          <button
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              inboxStatusFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
+            }`}
+            onClick={() => setInboxStatusFilter('all')}
+            type="button"
+          >
+            전체
+          </button>
+          {inquiryStatusOptions.map((option) => (
+            <button
+              className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+                inboxStatusFilter === option.value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+              key={option.value}
+              onClick={() => setInboxStatusFilter(option.value)}
+              type="button"
+            >
+              {getInquiryStatusLabel(option.value)}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-4">
+          <div>
+            <p className="text-xs font-bold text-slate-500">Inbox</p>
+            <p className="mt-1 text-2xl font-black text-slate-900">{inquiryInbox?.counts.total || 0}</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500">후속 필요</p>
+            <p className="mt-1 text-2xl font-black text-orange-600">{inquiryInbox?.counts.needsFollowUp || 0}</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500">고객 연결</p>
+            <p className="mt-1 text-2xl font-black text-emerald-600">{inquiryInbox?.counts.linked || 0}</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500">미연결</p>
+            <p className="mt-1 text-2xl font-black text-slate-500">{inquiryInbox?.counts.unlinked || 0}</p>
+          </div>
+        </div>
+
+        {inquiryInboxQuery.isLoading ? (
+          <div className="mt-5 border-t border-slate-100 pt-5 text-sm font-semibold text-slate-500">
+            문의 Inbox를 불러오는 중입니다.
+          </div>
+        ) : inquiryInbox?.items.length ? (
+          <div className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
+            {inquiryInbox.items.slice(0, 8).map((item) => (
+              <div className="grid gap-4 py-4 lg:grid-cols-[1fr_0.7fr_0.8fr_auto]" key={item.id}>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge label={getInquiryStatusLabel(item.status)} status={item.status} />
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                      {item.category}
+                    </span>
+                    {item.needsFollowUp ? (
+                      <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
+                        후속 필요
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 font-black text-slate-900">{item.subject}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">{item.summary}</p>
+                  <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.createdAt)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-500">고객</p>
+                  <p className="mt-1 font-bold text-slate-900">{item.maskedCustomerDisplayName}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.customerLinked ? '고객 기억 연결됨' : '고객 기억 미연결'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-500">연락 / 최근 타임라인</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-700">{item.maskedContactChannel}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{item.latestTimelineEventSummary}</p>
+                </div>
+                <div className="flex items-start lg:justify-end">
+                  <button className="btn-secondary" disabled type="button">
+                    상태 변경은 다음 PR
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="읽기 전용 문의 Inbox가 비어 있습니다"
+            description="공개 문의가 들어오면 고객 기억 연결, masked 연락 채널, 최근 타임라인 요약이 이 영역에 표시됩니다."
+          />
+        )}
+      </Panel>
 
       {/* TanStack Table: sortable & filterable customer list */}
       <Panel title="고객 목록" subtitle="이름·방문 횟수로 정렬하고 이름·연락처로 빠르게 검색합니다.">

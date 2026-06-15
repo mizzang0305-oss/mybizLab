@@ -37,6 +37,7 @@ import {
   submitCanonicalPublicInquiry,
   updateStoreInquiry,
 } from './inquiryService.js';
+import { listInquiryInboxReadModel } from './inquiryInboxReadModelService.js';
 import {
   buildDefaultStorePublicPage,
   getCanonicalStorePublicPage,
@@ -3436,6 +3437,14 @@ export async function listConversationMessages(sessionId: string) {
 
 export async function listCustomerTimelineEvents(storeId: string, customerId?: string) {
   return getCanonicalMyBizRepository().listCustomerTimelineEvents(storeId, customerId);
+}
+
+export async function listInquiryInbox(storeId: string, status?: Inquiry['status']) {
+  return listInquiryInboxReadModel({
+    repository: getCanonicalMyBizRepository(),
+    status,
+    storeId,
+  });
 }
 
 export async function listCustomerPreferences(storeId: string, customerId?: string) {
