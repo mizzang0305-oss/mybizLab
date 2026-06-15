@@ -18,6 +18,7 @@ export const queryKeys = {
   aiTraces: (storeId: string) => ['ai-traces', storeId] as const,
   backgroundJobs: (storeId: string) => ['background-jobs', storeId] as const,
   publicPageEvents: (storeId: string) => ['public-page-events', storeId] as const,
+  feedbackRecords: (storeId: string) => ['feedback-records', storeId] as const,
   customers: (storeId: string) => ['customers', storeId] as const,
   customerPreferences: (storeId: string) => ['customers', storeId, 'preferences'] as const,
   inquiries: (storeId: string) => ['inquiries', storeId] as const,

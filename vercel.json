@@ -142,6 +142,18 @@
       "dest": "/api/admin?resource=public-page-funnel"
     },
     {
+      "src": "/api/admin/feedback-records/([^/]+)",
+      "dest": "/api/admin?resource=feedback-records&feedbackId=$1"
+    },
+    {
+      "src": "/api/admin/feedback-records",
+      "dest": "/api/admin?resource=feedback-records"
+    },
+    {
+      "src": "/api/admin/feedback-summary",
+      "dest": "/api/admin?resource=feedback-summary"
+    },
+    {
       "src": "/api/admin/customers/([^/]+)",
       "dest": "/api/admin?resource=customer-detail&customerId=$1"
     },

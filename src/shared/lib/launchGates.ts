@@ -15,6 +15,8 @@ export type LaunchGateKey =
   | 'broadDbWriteEnabled'
   | 'publicPageEventTrackingEnabled'
   | 'livePublicPageEventWriteEnabled'
+  | 'feedbackRecordReadModelEnabled'
+  | 'liveFeedbackRecordWriteEnabled'
   | 'aiTraceEnabled'
   | 'liveAiTraceWriteEnabled'
   | 'storeDailySummaryJobEnabled'
@@ -50,6 +52,8 @@ export const LAUNCH_GATES = {
   broadDbWriteEnabled: false,
   publicPageEventTrackingEnabled: true,
   livePublicPageEventWriteEnabled: false,
+  feedbackRecordReadModelEnabled: true,
+  liveFeedbackRecordWriteEnabled: false,
   aiTraceEnabled: true,
   liveAiTraceWriteEnabled: false,
   storeDailySummaryJobEnabled: true,
@@ -77,6 +81,8 @@ export const LAUNCH_GATE_MESSAGES = {
   broadDbWriteEnabled: '광범위한 production DB write는 RLS/store membership 검증 전까지 비활성 상태입니다.',
   publicPageEventTrackingEnabled: 'Public page event tracking contract is enabled for local/mock and read-only funnel planning flows.',
   livePublicPageEventWriteEnabled: 'Live public page event persistence remains disabled until schema, RLS, privacy, and canary approvals are complete.',
+  feedbackRecordReadModelEnabled: 'Feedback record read-model is enabled for local/mock and read-only customer reaction planning flows.',
+  liveFeedbackRecordWriteEnabled: 'Live feedback record persistence remains disabled until schema, RLS, privacy, and canary approvals are complete.',
   aiTraceEnabled: 'AI trace prompt/eval interface is enabled for local/mock and read-only quality review flows.',
   liveAiTraceWriteEnabled: 'Live AI trace persistence remains disabled until provider, schema, and privacy approvals are complete.',
   storeDailySummaryJobEnabled: 'Daily store summary job interface is enabled for local/mock and read-only automation planning flows.',
