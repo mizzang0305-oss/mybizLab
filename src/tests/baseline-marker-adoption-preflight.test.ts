@@ -10,12 +10,16 @@ function readWorkspaceFile(path: string) {
 }
 
 const doc = readWorkspaceFile('docs/baseline-marker-adoption-preflight.md');
+const baselineMarker = readWorkspaceFile('supabase/migrations/20260614_production_baseline_adoption.sql');
+const schemaAlignmentDraft = readWorkspaceFile(
+  'supabase/migrations/20260615075421_customer_memory_schema_alignment.sql',
+);
 const activeMigrations = readdirSync(workspacePath('supabase/migrations'))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
 describe('baseline marker adoption preflight', () => {
-  it('records the current active migration set and blocks marker-only adoption while a draft migration is active', () => {
+  it('records the current active migration set as the expected post-PR109 state', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
@@ -24,7 +28,8 @@ describe('baseline marker adoption preflight', () => {
     expect(doc).toContain('Active migration count: `2`');
     expect(doc).toContain('`20260614_production_baseline_adoption.sql`');
     expect(doc).toContain('`20260615075421_customer_memory_schema_alignment.sql`');
-    expect(doc).toContain('Adoption readiness: `BLOCKED_ACTIVE_MIGRATION_MISMATCH`');
+    expect(doc).toContain('Adoption readiness: `BASELINE_MARKER_REPAIR_READY_WITH_PENDING_SCHEMA_ALIGNMENT`');
+    expect(doc).toContain('the observed two local-only migrations match the expected post-PR #109 state');
   });
 
   it('documents remote migration history evidence without requiring production row samples', () => {
@@ -35,13 +40,32 @@ describe('baseline marker adoption preflight', () => {
     expect(doc).toContain('No `SELECT *`, row samples, customer rows, lead rows, or raw PII were collected.');
   });
 
-  it('keeps repair as a proposal only and does not include an executable version-specific command', () => {
-    expect(doc).toContain('# PROPOSAL TEMPLATE ONLY. DO NOT RUN FROM THIS PR.');
-    expect(doc).toContain('npx supabase migration repair <VERSION> --status applied --linked');
+  it('keeps baseline marker repair as proposal only and excludes schema alignment repair', () => {
+    expect(doc).toContain('# PROPOSAL ONLY. DO NOT RUN FROM THIS PR.');
+    expect(doc).toContain('npx supabase migration repair 20260614 --status applied --linked');
     expect(doc).toContain('Repair executed: `false`');
+    expect(doc).toContain('does not include `20260615075421`');
 
-    expect(doc).not.toMatch(/npx supabase migration repair 20260614 --status applied --linked/);
-    expect(doc).not.toMatch(/npx supabase migration repair --status applied 20260614 --linked/);
+    expect(doc).not.toMatch(/npx supabase migration repair 20260615075421 --status applied --linked/);
+    expect(doc).not.toMatch(/npx supabase migration repair --status applied 20260615075421 --linked/);
+  });
+
+  it('proves the baseline marker is comment-only and the schema alignment migration remains pending', () => {
+    const executableBaselineSql = baselineMarker
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('--'));
+
+    expect(executableBaselineSql).toEqual([]);
+    expect(doc).toContain('`20260614_production_baseline_adoption.sql` remains comment-only/no-op');
+    expect(doc).toContain('DDL: none');
+    expect(doc).toContain('DML: none');
+    expect(doc).toContain('GRANT/REVOKE: none');
+
+    expect(schemaAlignmentDraft).toContain('DRAFT ONLY');
+    expect(schemaAlignmentDraft).toContain('has NOT been applied to production');
+    expect(schemaAlignmentDraft).toContain('Do not run `npx supabase db push`');
+    expect(doc).toContain('must remain local-only pending until a separate schema apply approval exists');
   });
 
   it('keeps apply, db push, SQL replay, RLS/grant execution, and live writes forbidden', () => {
