@@ -34,6 +34,14 @@
       "dest": "/api/public?resource=inquiry"
     },
     {
+      "src": "/api/public/public-page-events/preview",
+      "dest": "/api/public?resource=public-page-events/preview"
+    },
+    {
+      "src": "/api/public/public-page-events/mock",
+      "dest": "/api/public?resource=public-page-events/mock"
+    },
+    {
       "src": "/api/public/stores/([^/]+)/inquiries",
       "dest": "/api/public?resource=customer-memory-inquiry&storeSlug=$1"
     },
@@ -124,6 +132,14 @@
     {
       "src": "/api/admin/daily-store-summary",
       "dest": "/api/admin?resource=daily-store-summary"
+    },
+    {
+      "src": "/api/admin/public-page-events",
+      "dest": "/api/admin?resource=public-page-events"
+    },
+    {
+      "src": "/api/admin/public-page-funnel",
+      "dest": "/api/admin?resource=public-page-funnel"
     },
     {
       "src": "/api/admin/customers/([^/]+)",

@@ -31,6 +31,10 @@ import {
 } from './consultationService.js';
 import { buildAiTraceRecords } from './aiTraceReadModelService.js';
 import { buildStoreDailySummaryJobReadModel } from './storeDailySummaryJobReadModelService.js';
+import {
+  buildMockPublicPageEvents,
+  buildPublicPageEventReadModel,
+} from './publicPageEventReadModelService.js';
 import { listStoreCustomers, upsertCustomerMemory } from './customerMemoryService.js';
 import {
   getPublicInquirySummary,
@@ -3476,6 +3480,13 @@ export async function listDailyStoreSummaryJobsForStore(storeId: string) {
     inquiries,
     storeId,
     timelineEvents,
+  });
+}
+
+export async function listPublicPageEventReadModelForStore(storeId: string) {
+  return buildPublicPageEventReadModel({
+    events: buildMockPublicPageEvents({ storeId }),
+    storeId,
   });
 }
 
