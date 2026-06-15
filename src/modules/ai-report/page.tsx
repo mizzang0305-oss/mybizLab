@@ -9,7 +9,13 @@ import { useCurrentStore } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { formatCurrency } from '@/shared/lib/format';
 import { queryKeys } from '@/shared/lib/queryKeys';
-import { generateAiReport, getAiReportDashboard, listAiReports, type AiReportRange } from '@/shared/lib/services/mvpService';
+import {
+  generateAiReport,
+  getAiReportDashboard,
+  listAiReports,
+  listAiTraceRecordsForStore,
+  type AiReportRange,
+} from '@/shared/lib/services/mvpService';
 
 const rangeTabs: Array<{ value: AiReportRange; label: string }> = [
   { value: 'daily', label: '오늘' },
@@ -110,6 +116,12 @@ export function AiReportsPage() {
     enabled: Boolean(currentStore),
   });
 
+  const aiTracesQuery = useQuery({
+    queryKey: queryKeys.aiTraces(currentStore?.id || ''),
+    queryFn: () => listAiTraceRecordsForStore(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
   const generateMutation = useMutation({
     mutationFn: (reportType: 'daily' | 'weekly') => generateAiReport(currentStore!.id, reportType),
     onSuccess: async () => {
@@ -122,6 +134,7 @@ export function AiReportsPage() {
 
   const dashboard = dashboardQuery.data;
   const reports = reportsQuery.data || [];
+  const aiTraces = aiTracesQuery.data;
   const displayPeriodLabel = buildDisplayPeriodLabel(range, customStart, customEnd);
 
   const sentimentMax = dashboard?.sentimentBreakdown.length
@@ -373,6 +386,83 @@ export function AiReportsPage() {
               </div>
             </div>
           ))}
+        </div>
+      </Panel>
+
+      <Panel
+        title="AI Trace / Prompt / Eval"
+        subtitle="문의 요약, 고객 타임라인 요약, 일일 리포트가 어떤 prompt version과 mock 평가로 만들어질지 read-only로 확인합니다."
+      >
+        <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Launch gates</p>
+            <div className="mt-4 grid gap-3 text-sm">
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
+                <span className="font-semibold text-slate-700">aiTraceEnabled</span>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                  {aiTraces?.gates.aiTraceEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
+                <span className="font-semibold text-slate-700">broadDbWriteEnabled</span>
+                <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
+                  {aiTraces?.gates.broadDbWriteEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
+                <span className="font-semibold text-slate-700">liveAiTraceWriteEnabled</span>
+                <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
+                  {aiTraces?.gates.liveAiTraceWriteEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              현재 패널은 mock/local trace preview만 보여줍니다. 실제 LLM provider 연결, trace 저장, 승인 처리는 별도 승인 전까지 비활성화됩니다.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {(aiTraces?.items || []).slice(0, 5).map((trace) => (
+              <div className="rounded-3xl border border-slate-200 p-4" key={trace.traceId}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{trace.sourceType}</p>
+                    <p className="mt-1 text-xs text-slate-500">{trace.traceId}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs font-bold">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{trace.promptVersion}</span>
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{trace.evalStatus}</span>
+                    <span className="rounded-full bg-orange-50 px-3 py-1 text-orange-700">
+                      score {trace.qualityScore ?? 'pending'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">redacted input</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{trace.inputSummaryRedacted}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">mock output</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{trace.outputSummary}</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button className="btn-secondary opacity-60" disabled type="button">
+                    review disabled
+                  </button>
+                  <button className="btn-secondary opacity-60" disabled type="button">
+                    approve disabled
+                  </button>
+                </div>
+              </div>
+            ))}
+            {!aiTraces?.items.length ? (
+              <div className="rounded-3xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                아직 표시할 AI trace preview가 없습니다.
+              </div>
+            ) : null}
+          </div>
         </div>
       </Panel>
 

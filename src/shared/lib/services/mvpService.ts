@@ -29,6 +29,7 @@ import {
   getPublicConsultationSnapshot,
   submitPublicConsultationMessage,
 } from './consultationService.js';
+import { buildAiTraceRecords } from './aiTraceReadModelService.js';
 import { listStoreCustomers, upsertCustomerMemory } from './customerMemoryService.js';
 import {
   getPublicInquirySummary,
@@ -3444,6 +3445,21 @@ export async function listInquiryInbox(storeId: string, status?: Inquiry['status
     repository: getCanonicalMyBizRepository(),
     status,
     storeId,
+  });
+}
+
+export async function listAiTraceRecordsForStore(storeId: string) {
+  const [customers, inquiries, timelineEvents] = await Promise.all([
+    listStoreCustomers(storeId),
+    listStoreInquiries(storeId),
+    listCustomerTimelineEvents(storeId),
+  ]);
+
+  return buildAiTraceRecords({
+    customers,
+    inquiries,
+    storeId,
+    timelineEvents,
   });
 }
 
