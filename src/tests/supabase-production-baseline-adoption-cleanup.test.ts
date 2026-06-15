@@ -36,13 +36,19 @@ const archivedMigrations = readdirSync(archivePath)
   .filter((name) => name.endsWith('.sql'))
   .sort();
 const marker = readWorkspaceFile('supabase/migrations/20260614_production_baseline_adoption.sql');
+const alignmentDraft = readWorkspaceFile(
+  'supabase/migrations/20260615075421_customer_memory_schema_alignment.sql',
+);
 const cleanupDoc = readWorkspaceFile('docs/supabase-production-baseline-adoption-cleanup.md');
 const manifest = readWorkspaceFile('supabase/migrations_archive/pre_baseline_20260614/MANIFEST.md');
 const gitignore = readWorkspaceFile('.gitignore');
 
 describe('Supabase production baseline adoption cleanup', () => {
-  it('leaves only the no-op baseline marker in active migrations', () => {
-    expect(activeMigrations).toEqual(['20260614_production_baseline_adoption.sql']);
+  it('keeps only the baseline marker and approved customer-memory alignment draft active', () => {
+    expect(activeMigrations).toEqual([
+      '20260614_production_baseline_adoption.sql',
+      '20260615075421_customer_memory_schema_alignment.sql',
+    ]);
 
     const activeVersionPrefixes = activeMigrations.map((name) => name.split('_')[0]);
     expect(new Set(activeVersionPrefixes).size).toBe(activeVersionPrefixes.length);
@@ -50,6 +56,28 @@ describe('Supabase production baseline adoption cleanup', () => {
     for (const migration of legacyMigrations) {
       expect(activeMigrations).not.toContain(migration);
     }
+  });
+
+  it('keeps the customer-memory alignment migration clearly draft-only and non-destructive', () => {
+    expect(alignmentDraft).toContain('DRAFT ONLY');
+    expect(alignmentDraft).toContain('Do not run `npx supabase db push`');
+    expect(alignmentDraft).toContain('Do not run `npx supabase migration up`');
+    expect(alignmentDraft).toContain('requires separate production approval');
+
+    const executableSql = alignmentDraft
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => !line.startsWith('--'))
+      .join('\n');
+
+    expect(executableSql).not.toMatch(/\bdrop\s+/i);
+    expect(executableSql).not.toMatch(/\btruncate\s+/i);
+    expect(executableSql).not.toMatch(/\bdelete\s+from\b/i);
+    expect(executableSql).not.toMatch(/\bgrant\s+/i);
+    expect(executableSql).not.toMatch(/\brevoke\s+/i);
+    expect(executableSql).not.toMatch(/\bcreate\s+policy\b/i);
+    expect(executableSql).not.toMatch(/\balter\s+table\b[^;]+enable\s+row\s+level\s+security/i);
   });
 
   it('keeps the baseline marker comment-only and no-op', () => {

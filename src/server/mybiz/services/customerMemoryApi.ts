@@ -5,9 +5,12 @@ import { createSupabaseRepository } from '../../../shared/lib/repositories/supab
 import { getRequestMethod } from '../../nodeResponse';
 import { getSupabaseAdminClient } from '../../supabaseAdmin';
 import {
-  createProductionCustomerMemoryIntakeRepository,
   type CustomerMemoryIntakeRepository,
 } from '../repositories/customerRepository';
+import {
+  createProductionCustomerMemorySchemaAdapter,
+  type CustomerMemorySupabaseClientLike,
+} from '../repositories/customerMemoryProductionAdapter';
 import {
   buildAdminCustomerMemoryReadModel,
   submitCustomerMemoryInquiryIntake,
@@ -124,10 +127,8 @@ function isWriteGateError(error: unknown) {
   );
 }
 
-function createRepositoryFromClient(adminClient: SupabaseClient) {
-  return createProductionCustomerMemoryIntakeRepository(
-    createSupabaseRepository(adminClient) as unknown as CustomerMemoryIntakeRepository,
-  );
+function createRepositoryFromClient(adminClient: SupabaseClient): CustomerMemoryIntakeRepository {
+  return createProductionCustomerMemorySchemaAdapter(adminClient as unknown as CustomerMemorySupabaseClientLike);
 }
 
 async function defaultResolveAdminAccess(
@@ -160,13 +161,10 @@ async function defaultResolveAdminAccess(
     return json({ ok: false, error: 'The authenticated merchant does not have access to this store.' }, 403);
   }
 
-  const canonicalRepository = createSupabaseRepository(adminClient);
   return {
     adminClient,
     profileId: authData.user.id,
-    repository: createProductionCustomerMemoryIntakeRepository(
-      canonicalRepository as unknown as CustomerMemoryIntakeRepository,
-    ),
+    repository: createRepositoryFromClient(adminClient),
     storeId,
   };
 }
@@ -196,9 +194,7 @@ async function defaultResolvePublicRepository(
   }
 
   return {
-    repository: createProductionCustomerMemoryIntakeRepository(
-      repository as unknown as CustomerMemoryIntakeRepository,
-    ),
+    repository: createRepositoryFromClient(adminClient),
     storeId: store.id,
   };
 }
