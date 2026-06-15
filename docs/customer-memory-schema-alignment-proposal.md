@@ -2,11 +2,11 @@
 
 ## Intent
 
-This proposal turns the PR #108 production evidence into an approval-gated design for PRO/VIP customer memory persistence.
+This proposal turns the PR #108 production evidence into an approval-gated design and adapter-first implementation for PRO/VIP customer memory persistence.
 
-It is plan-only. It does not approve or execute production DB writes, Supabase `db push`, migration repair, migration apply, SQL replay, RLS policy apply, GRANT/REVOKE, live customer memory write enablement, live lead write enablement, env/auth/payment/webhook changes, customer or lead production row creation, raw PII output, sales Excel import work, PR #106 merge, manual deploy, or stash cleanup.
+It is approval-gated implementation work. It does not approve or execute production DB writes, Supabase `db push`, migration repair, migration apply, SQL replay, RLS policy apply, GRANT/REVOKE, live customer memory write enablement, live lead write enablement, env/auth/payment/webhook changes, customer or lead production row creation, raw PII output, sales Excel import work, PR #106 merge, manual deploy, or stash cleanup.
 
-Current recommendation: `SCHEMA_ALIGNMENT_RECOMMENDED_BEFORE_LIVE_WRITE`. An adapter-first path can reduce implementation risk and preserve compatibility, but it should not enable live production customer-memory writes until the schema, dedupe, RLS, grant, and launch-gate checks below are separately approved.
+Current recommendation: `SCHEMA_ALIGNMENT_RECOMMENDED_BEFORE_LIVE_WRITE`. The follow-up implementation adds an adapter-first compatibility layer and a draft migration file, but it does not enable live production customer-memory writes. Live writes remain blocked until the schema, dedupe, RLS, grant, baseline adoption, and canary launch gates below are separately approved.
 
 ## 1. Current Production Evidence Summary
 
@@ -173,6 +173,17 @@ References used for design only:
 
 Adapter-first means production writes continue to use the existing schema shape, while TypeScript repository code maps PR #107 app fields onto production columns.
 
+Follow-up implementation status:
+
+- `src/server/mybiz/repositories/customerMemoryProductionAdapter.ts` implements a customer-memory-specific production schema adapter.
+- Public inquiry and admin customer-memory APIs now resolve the production customer-memory path through this adapter.
+- `customer_contacts.store_id` is not assumed to exist in production reads. Contacts are isolated by first resolving allowed customer IDs from `customers.store_id`, then reading contacts through `customer_id`.
+- Customer writes map to the existing production-safe customer shape: `customer_id`, `store_id`, `customer_key`, first/last seen timestamps, quiet-mode fields, marketing consent, and tags.
+- Contact writes map app `type/value` to production `contact_type/raw_value`.
+- Inquiry writes map app `category/message/source` to production `intent/summary/channel` while preserving `store_id`, `customer_id`, and `status`.
+- Timeline writes map app `metadata/source/summary/occurred_at` to production `payload/created_at`, with defensive payload sanitization for raw phone, email, and name-like keys.
+- The adapter requires `broadDbWriteEnabled=true`, `customerMemorySpineEnabled=true`, and `liveCustomerMemoryWriteEnabled=true` before any write method can run.
+
 Benefits:
 
 - smaller DB migration surface
@@ -187,11 +198,13 @@ Limits:
 - can still race under concurrent public inquiry submissions unless a DB unique index exists
 - keeps timeline and inquiry semantics split between app fields and payload mapping
 
-Decision: adapter-first is acceptable for local/staging compatibility and non-writing repository hardening. It is not sufficient by itself to launch live PRO/VIP persistence unless an equivalent DB-level dedupe and store isolation design is approved.
+Decision: adapter-first is now implemented for compatibility and non-writing repository hardening. It is not sufficient by itself to launch live PRO/VIP persistence unless the DB-level dedupe and store isolation design is approved and applied.
 
 ## 10. Schema-Alignment Migration Proposal
 
-No migration file is added by this PR. The following SQL is draft design only and must not be executed from this document.
+A draft migration file was added at `supabase/migrations/20260615075421_customer_memory_schema_alignment.sql`. It was created locally for review only and was not applied, pushed to Supabase, repaired into history, or run with `migration up`.
+
+The following SQL shape is draft design only and must not be executed from this document.
 
 Migration approval prerequisites:
 
@@ -263,7 +276,7 @@ create unique index if not exists customer_contacts_store_email_unique
   where contact_type = 'email' and normalized_value is not null and normalized_value <> '';
 ```
 
-Notes for the actual migration PR:
+Notes before this draft is promoted to an executable migration:
 
 - verify whether production's customer primary key column is `customer_id` or another canonical ID before writing executable SQL
 - split concurrent index creation if required by the migration runner
@@ -320,6 +333,15 @@ Live customer-memory persistence remains blocked until all criteria pass:
 
 Final launch decision remains `LIVE_CUSTOMER_MEMORY_WRITE_BLOCKED` for this PR.
 
+Additional live-write unlock conditions:
+
+- production baseline marker adoption or migration-history metadata approval
+- approved schema alignment migration apply
+- RLS predicate proof for store-member scoped reads/writes
+- least-privilege grant review and any required GRANT/REVOKE approval
+- customer-memory canary approval with production read-only smoke and rollback plan
+- `liveCustomerMemoryWriteEnabled` remains `false` until the canary approval explicitly changes it
+
 ## Blocker Mapping
 
 | Blocker | Proposed resolution | Still blocked after this PR |
@@ -333,6 +355,7 @@ Final launch decision remains `LIVE_CUSTOMER_MEMORY_WRITE_BLOCKED` for this PR.
 
 ```json
 {
+  "docs_only": false,
   "production_db_write": false,
   "migration_apply": false,
   "db_push": false,
@@ -345,7 +368,11 @@ Final launch decision remains `LIVE_CUSTOMER_MEMORY_WRITE_BLOCKED` for this PR.
   "customer_or_lead_data_created": false,
   "raw_pii_output": false,
   "sales_excel_import_touched": false,
-  "migration_file_added": false,
-  "approval_gated_plan_only": true
+  "production_adapter_aligned": true,
+  "draft_migration_created": true,
+  "migration_file_added": true,
+  "store_isolation_tested": true,
+  "dedupe_strategy_tested": true,
+  "approval_gated_followup_only": true
 }
 ```

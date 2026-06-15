@@ -281,13 +281,26 @@ describe('customer memory intake spine', () => {
     expect(payload.error).toBe('CUSTOMER_MEMORY_SPINE_DISABLED');
   });
 
-  it('does not add active migration or grant/revoke SQL for this code-only spine', () => {
+  it('keeps the intake spine non-applying while allowing only the PR 109 draft alignment migration', () => {
     const activeMigrations = readdirSync(resolve(process.cwd(), 'supabase/migrations'));
     const docs = readFileSync(resolve(process.cwd(), 'docs/customer-memory-intake-spine-mvp.md'), 'utf8');
+    const draftMigrations = activeMigrations.filter((name) => name.endsWith('_customer_memory_schema_alignment.sql'));
+    const draftSql = readFileSync(resolve(process.cwd(), 'supabase/migrations', draftMigrations[0] || ''), 'utf8');
+    const executableDraftSql = draftSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n');
 
-    expect(activeMigrations).toEqual(['20260614_production_baseline_adoption.sql']);
+    expect(activeMigrations).toEqual([
+      '20260614_production_baseline_adoption.sql',
+      expect.stringMatching(/^\d{14}_customer_memory_schema_alignment\.sql$/),
+    ]);
+    expect(draftMigrations).toHaveLength(1);
     expect(docs).toContain('No migration is applied by this PR');
     expect(docs).toContain('GRANT/REVOKE execution is out of scope');
+    expect(draftSql).toContain('DRAFT ONLY');
+    expect(executableDraftSql).not.toMatch(/\bgrant\b/i);
+    expect(executableDraftSql).not.toMatch(/\brevoke\b/i);
   });
 
   it('routes Vercel customer memory APIs through existing function entrypoints', () => {

@@ -79,17 +79,19 @@ describe('customer memory schema alignment proposal', () => {
     });
   });
 
-  it('documents a draft migration proposal without adding an executable migration file', () => {
+  it('documents and tracks an approval-gated draft migration file', () => {
     const doc = readProposal();
     const activeMigrations = readdirSync(ACTIVE_MIGRATIONS_DIR);
+    const draftMigrations = activeMigrations.filter((name) => name.endsWith('_customer_memory_schema_alignment.sql'));
 
     expect(doc).toContain('DRAFT SQL ONLY - DO NOT EXECUTE FROM THIS DOCUMENT');
     expect(doc).toContain('add column if not exists store_id');
     expect(doc).toContain('customer_contacts_store_phone_unique');
     expect(doc).toContain('customer_contacts_store_email_unique');
-    expect(doc).toContain('No migration file is added by this PR');
-    expect(activeMigrations).toEqual(['20260614_production_baseline_adoption.sql']);
-    expect(existsSync(resolve(ACTIVE_MIGRATIONS_DIR, '20260615_customer_memory_schema_alignment.sql'))).toBe(false);
+    expect(doc).toContain('draft migration file was added');
+    expect(activeMigrations).toContain('20260614_production_baseline_adoption.sql');
+    expect(draftMigrations).toHaveLength(1);
+    expect(existsSync(resolve(ACTIVE_MIGRATIONS_DIR, draftMigrations[0] || ''))).toBe(true);
   });
 
   it('keeps production write, migration, RLS/grant, and live-write actions forbidden', () => {
@@ -131,8 +133,8 @@ describe('customer memory schema alignment proposal', () => {
       customer_or_lead_data_created: false,
       raw_pii_output: false,
       sales_excel_import_touched: false,
-      migration_file_added: false,
-      approval_gated_plan_only: true,
+      migration_file_added: true,
+      approval_gated_followup_only: true,
     });
   });
 
@@ -140,7 +142,7 @@ describe('customer memory schema alignment proposal', () => {
     const doc = readProposal();
 
     expect(doc).toContain('SCHEMA_ALIGNMENT_RECOMMENDED_BEFORE_LIVE_WRITE');
-    expect(doc).toContain('adapter-first is acceptable for local/staging compatibility');
+    expect(doc).toContain('adapter-first is now implemented for compatibility');
     expect(doc).toContain('not sufficient by itself to launch live PRO/VIP persistence');
   });
 });
