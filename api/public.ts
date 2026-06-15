@@ -23,6 +23,7 @@ import {
   handlePublicCustomerMemoryInquiryRequest,
   type CustomerMemoryRequestLike,
 } from '../src/server/mybiz/services/customerMemoryApi.js';
+import { handlePublicPageEventPreviewRequest } from '../src/server/mybiz/services/publicPageEventService.js';
 import { handlePlatformPublicRequest } from '../src/server/platformAdminApi.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../src/server/supabaseAdmin.js';
@@ -119,6 +120,11 @@ async function routePublicRequest(request: PublicRequestLike) {
       return method === 'POST'
         ? handlePublicCustomerMemoryInquiryRequest(request as CustomerMemoryRequestLike)
         : methodNotAllowed('POST');
+    case 'public-page-events/preview':
+    case 'public-page-events/mock':
+      return method === 'GET'
+        ? handlePublicPageEventPreviewRequest(request as CustomerMemoryRequestLike)
+        : methodNotAllowed('GET');
     case 'consultation':
       return method === 'POST' ? handlePublicConsultationRequest(request) : methodNotAllowed('POST');
     case 'order':

@@ -13,6 +13,8 @@ export type LaunchGateKey =
   | 'uploadMutationEnabled'
   | 'externalAiEnabled'
   | 'broadDbWriteEnabled'
+  | 'publicPageEventTrackingEnabled'
+  | 'livePublicPageEventWriteEnabled'
   | 'aiTraceEnabled'
   | 'liveAiTraceWriteEnabled'
   | 'storeDailySummaryJobEnabled'
@@ -46,6 +48,8 @@ export const LAUNCH_GATES = {
   uploadMutationEnabled: false,
   externalAiEnabled: false,
   broadDbWriteEnabled: false,
+  publicPageEventTrackingEnabled: true,
+  livePublicPageEventWriteEnabled: false,
   aiTraceEnabled: true,
   liveAiTraceWriteEnabled: false,
   storeDailySummaryJobEnabled: true,
@@ -71,6 +75,8 @@ export const LAUNCH_GATE_MESSAGES = {
   uploadMutationEnabled: '업로드/삭제 변경은 별도 승인 전까지 비활성 상태입니다.',
   externalAiEnabled: '실제 AI/STT 외부 호출은 비용/개인정보 가드 전까지 비활성 상태입니다.',
   broadDbWriteEnabled: '광범위한 production DB write는 RLS/store membership 검증 전까지 비활성 상태입니다.',
+  publicPageEventTrackingEnabled: 'Public page event tracking contract is enabled for local/mock and read-only funnel planning flows.',
+  livePublicPageEventWriteEnabled: 'Live public page event persistence remains disabled until schema, RLS, privacy, and canary approvals are complete.',
   aiTraceEnabled: 'AI trace prompt/eval interface is enabled for local/mock and read-only quality review flows.',
   liveAiTraceWriteEnabled: 'Live AI trace persistence remains disabled until provider, schema, and privacy approvals are complete.',
   storeDailySummaryJobEnabled: 'Daily store summary job interface is enabled for local/mock and read-only automation planning flows.',

@@ -11,6 +11,7 @@ import { queryKeys } from '@/shared/lib/queryKeys';
 import { getStoreBrandConfig, getStorePriorityWeights } from '@/shared/lib/storeData';
 import {
   getStoreSettings,
+  listPublicPageEventReadModelForStore,
   updateStorePrioritySettings,
   updateStoreSettings,
   type UpdateStoreSettingsInput,
@@ -130,6 +131,12 @@ export function BrandPage() {
   const settingsQuery = useQuery({
     queryKey: queryKeys.brand(currentStore?.id || ''),
     queryFn: () => getStoreSettings(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
+  const publicPageEventsQuery = useQuery({
+    queryKey: queryKeys.publicPageEvents(currentStore?.id || ''),
+    queryFn: () => listPublicPageEventReadModelForStore(currentStore!.id),
     enabled: Boolean(currentStore),
   });
 
@@ -294,6 +301,7 @@ export function BrandPage() {
   const canSave = missingRequiredFields.length === 0 && slugState.available;
   const publicStorePath = buildStorePath(slugState.preview || currentStore.slug);
   const analyticsProfile = settingsQuery.data?.analyticsProfile;
+  const publicPageEvents = publicPageEventsQuery.data;
 
   return (
     <div className="space-y-8">
@@ -653,6 +661,44 @@ export function BrandPage() {
                   <input className="input-base" onChange={(event) => setForm((current) => ({ ...current, noticeContent: event.target.value }))} value={form.noticeContent} />
                 </label>
               </div>
+            </div>
+          </Panel>
+
+          <Panel title="공개페이지 전환 분석" subtitle="Umami/PostHog-style contract summary shown as mock/read-only funnel metrics.">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">mock/read-only</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Store-scoped public page events are simulated locally. Live analytics writes remain approval-gated.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {publicPageEvents?.gates.reason || 'BROAD_DB_WRITE_DISABLED'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  ['Page views', publicPageEvents?.summary.pageViewCount ?? 0],
+                  ['CTA clicks', publicPageEvents?.summary.ctaClickCount ?? 0],
+                  ['Inquiry CVR', `${publicPageEvents?.summary.inquiryConversionRate ?? 0}%`],
+                ].map(([label, value]) => (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4" key={label}>
+                    <p className="text-xs font-semibold text-slate-500">{label}</p>
+                    <p className="mt-2 text-xl font-black text-slate-950">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-2 text-xs text-slate-500">
+                <p>safe metadata only: buttonId, campaign, ctaLabel, elementRole, source, variant</p>
+                <p>blocked: raw IP, user-agent, fingerprint, customer PII, external analytics SDK</p>
+              </div>
+
+              <button className="btn-secondary w-full cursor-not-allowed opacity-60" disabled type="button">
+                tracking activation disabled
+              </button>
             </div>
           </Panel>
         </div>
