@@ -30,6 +30,7 @@ import {
   submitPublicConsultationMessage,
 } from './consultationService.js';
 import { buildAiTraceRecords } from './aiTraceReadModelService.js';
+import { buildStoreDailySummaryJobReadModel } from './storeDailySummaryJobReadModelService.js';
 import { listStoreCustomers, upsertCustomerMemory } from './customerMemoryService.js';
 import {
   getPublicInquirySummary,
@@ -3456,6 +3457,21 @@ export async function listAiTraceRecordsForStore(storeId: string) {
   ]);
 
   return buildAiTraceRecords({
+    customers,
+    inquiries,
+    storeId,
+    timelineEvents,
+  });
+}
+
+export async function listDailyStoreSummaryJobsForStore(storeId: string) {
+  const [customers, inquiries, timelineEvents] = await Promise.all([
+    listStoreCustomers(storeId),
+    listStoreInquiries(storeId),
+    listCustomerTimelineEvents(storeId),
+  ]);
+
+  return buildStoreDailySummaryJobReadModel({
     customers,
     inquiries,
     storeId,

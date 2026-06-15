@@ -14,6 +14,7 @@ import {
   getAiReportDashboard,
   listAiReports,
   listAiTraceRecordsForStore,
+  listDailyStoreSummaryJobsForStore,
   type AiReportRange,
 } from '@/shared/lib/services/mvpService';
 
@@ -122,6 +123,12 @@ export function AiReportsPage() {
     enabled: Boolean(currentStore),
   });
 
+  const dailyJobsQuery = useQuery({
+    queryKey: queryKeys.backgroundJobs(currentStore?.id || ''),
+    queryFn: () => listDailyStoreSummaryJobsForStore(currentStore!.id),
+    enabled: Boolean(currentStore),
+  });
+
   const generateMutation = useMutation({
     mutationFn: (reportType: 'daily' | 'weekly') => generateAiReport(currentStore!.id, reportType),
     onSuccess: async () => {
@@ -135,6 +142,7 @@ export function AiReportsPage() {
   const dashboard = dashboardQuery.data;
   const reports = reportsQuery.data || [];
   const aiTraces = aiTracesQuery.data;
+  const dailyJobs = dailyJobsQuery.data;
   const displayPeriodLabel = buildDisplayPeriodLabel(range, customStart, customEnd);
 
   const sentimentMax = dashboard?.sentimentBreakdown.length
@@ -480,6 +488,78 @@ export function AiReportsPage() {
               <p className="mt-3 text-sm leading-7 text-slate-600">{report.summary}</p>
             </div>
           ))}
+        </div>
+      </Panel>
+
+      <Panel
+        title="Daily Store Summary Job"
+        subtitle="Trigger.dev-style durable job structure for today's customer, inquiry, and follow-up summary. This is a mock/read-only interface."
+      >
+        <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Execution gates</p>
+            <div className="mt-4 grid gap-3 text-sm">
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
+                <span className="font-semibold text-slate-700">storeDailySummaryJobEnabled</span>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                  {dailyJobs?.execution.storeDailySummaryJobEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
+                <span className="font-semibold text-slate-700">broadDbWriteEnabled</span>
+                <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
+                  {dailyJobs?.execution.broadDbWriteEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
+                <span className="font-semibold text-slate-700">liveBackgroundJobExecutionEnabled</span>
+                <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
+                  {dailyJobs?.execution.liveBackgroundJobExecutionEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+            </div>
+            <button className="btn-secondary mt-4 w-full opacity-60" disabled type="button">
+              Run job disabled
+            </button>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              No queue, worker, retry mutation, notification, or production persistence is executed from this panel.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">inquiries</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{dailyJobs?.safeMetrics.inquiryCount ?? 0}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">new customers</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">{dailyJobs?.safeMetrics.newCustomerCount ?? 0}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">follow-ups</p>
+                <p className="mt-2 text-2xl font-black text-slate-950">
+                  {dailyJobs?.safeMetrics.followUpCandidateCount ?? 0}
+                </p>
+              </div>
+            </div>
+
+            {(dailyJobs?.items || []).map((job) => (
+              <div className="rounded-3xl border border-slate-200 p-4" key={job.jobRunId}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{job.jobType}</p>
+                    <p className="mt-1 text-xs text-slate-500">{job.jobRunId}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs font-bold">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{job.status}</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">retry {job.retryCount}</span>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-700">{job.resultSummary}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </Panel>
     </div>
