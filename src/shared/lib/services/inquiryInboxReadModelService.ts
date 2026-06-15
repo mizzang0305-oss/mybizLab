@@ -155,7 +155,7 @@ export function buildInquiryInboxReadModel(input: InquiryInboxReadModelInput): I
 
   const items = storeInquiries.map((inquiry) => {
     const linkedCustomer = inquiry.customer_id ? customersById.get(inquiry.customer_id) : undefined;
-    const linkedCustomerId = linkedCustomer ? getCustomerId(linkedCustomer) : inquiry.customer_id || null;
+    const linkedCustomerId = linkedCustomer ? getCustomerId(linkedCustomer) : null;
     const customerContacts = linkedCustomerId
       ? storeContacts.filter((contact) => contact.customer_id === linkedCustomerId)
       : [];

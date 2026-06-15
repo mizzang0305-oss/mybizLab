@@ -165,6 +165,31 @@ describe('customer memory inquiry inbox read model', () => {
     expect(JSON.stringify(model)).not.toContain('Unlinked Lead');
   });
 
+  it('does not expose a cross-store customer id when an inquiry link cannot be resolved in the store', () => {
+    const model = buildInquiryInboxReadModel({
+      contacts: [contact({ id: 'contact_b', store_id: STORE_B, customer_id: 'customer_b' })],
+      customers: [customer({ id: 'customer_b', customer_id: 'customer_b', store_id: STORE_B })],
+      inquiries: [
+        inquiry({
+          customer_id: 'customer_b',
+          id: 'inquiry_cross_store_link',
+          store_id: STORE_A,
+        }),
+      ],
+      storeId: STORE_A,
+      timelineEvents: [timelineEvent({ customer_id: 'customer_b', store_id: STORE_B })],
+    });
+    const serialized = JSON.stringify(model);
+
+    expect(model.items[0]).toMatchObject({
+      customerLinked: false,
+      linkedCustomerId: null,
+      latestTimelineEventSummary: 'No linked customer timeline yet.',
+    });
+    expect(serialized).not.toContain('customer_b');
+    expect(serialized).not.toContain(STORE_B);
+  });
+
   it('lists inbox rows through repository read methods without write side effects', async () => {
     const repository = {
       appendTimelineEvent: vi.fn(),
