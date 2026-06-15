@@ -15,7 +15,7 @@ import {
   updateStoreSettings,
   type UpdateStoreSettingsInput,
 } from '@/shared/lib/services/mvpService';
-import { buildStorePath, buildStoreUrl, ensureUniqueStoreSlug, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
+import { buildStorePath, ensureUniqueStoreSlug, isReservedSlug, normalizeStoreSlug } from '@/shared/lib/storeSlug';
 import type { StorePriorityWeights } from '@/shared/types/models';
 
 const THEME_OPTIONS: Array<{

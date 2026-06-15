@@ -37,12 +37,18 @@ const RETENTION_DATA = [
 ];
 
 // ─── Custom chart tooltip ────────────────────────────────────────────────────
-function DarkTooltip({ active, payload, label }: any) {
+type ChartTooltipPayload = {
+  color?: string;
+  dataKey?: string | number;
+  value?: string | number;
+};
+
+function DarkTooltip({ active, payload, label }: { active?: boolean; label?: string | number; payload?: ChartTooltipPayload[] }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-2xl border border-white/10 bg-[#0d1525] px-4 py-3 text-xs shadow-2xl">
       <p className="mb-2 font-bold text-white/60">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <p key={p.dataKey} className="font-bold" style={{ color: p.color }}>
           {p.dataKey}: {p.value}
         </p>
@@ -150,6 +156,7 @@ function AIInsightBanner() {
 }
 
 // ─── Metric card ─────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function MetricCard({
   label, value, unit, note, accent, trend, delay,
 }: {

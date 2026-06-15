@@ -18,7 +18,7 @@ const vitestGlobals = {
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'output/**'],
+    ignores: ['.claude/**', '.local-inputs/**', '.playwright-mcp/**', 'dist/**', 'node_modules/**', 'output/**', 'supabase/.temp/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

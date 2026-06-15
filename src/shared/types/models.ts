@@ -70,9 +70,13 @@ export type ConversationMessageSender = 'customer' | 'assistant' | 'staff' | 'sy
 export type VisitorSessionChannel = 'home' | 'menu' | 'order' | 'survey' | 'inquiry' | 'reservation' | 'waiting';
 export type CustomerTimelineEventType =
   | 'customer_created'
+  | 'customer_updated'
+  | 'contact_added'
   | 'contact_captured'
   | 'preference_updated'
   | 'note_added'
+  | 'inquiry_created'
+  | 'inquiry_linked_to_customer'
   | 'inquiry_captured'
   | 'reservation_captured'
   | 'waitlist_captured'

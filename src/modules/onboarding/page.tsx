@@ -19,9 +19,6 @@ import { BILLING_PLAN_DETAILS, SUBSCRIPTION_TEST_PRODUCT, type BillingCheckoutPr
 import { CONSULTATION_STORY_STEPS } from '@/shared/lib/cinematicScenes';
 import { requestStructuredDiagnosis } from '@/shared/lib/diagnosisClient';
 import {
-  DIAGNOSIS_AVAILABLE_DATA_OPTIONS,
-  DIAGNOSIS_CONCERN_OPTIONS,
-  DIAGNOSIS_DESIRED_OUTCOME_OPTIONS,
   DIAGNOSIS_INDUSTRY_OPTIONS,
   DIAGNOSIS_STORE_MODE_OPTIONS,
   getAvailableDataLabels,
@@ -30,7 +27,6 @@ import {
   getIndustryLabel,
   getRecommendedDataModeLabel,
   getRecommendedStoreModeLabel,
-  type DiagnosisAvailableDataKey,
 } from '@/shared/lib/diagnosisBlueprint';
 import { persistDiagnosisSession } from '@/shared/lib/diagnosisSessions';
 import { getDiagnosisCorridorStep } from '@/shared/lib/diagnosisCorridor';
@@ -256,34 +252,6 @@ function DiagnosisChoiceCard({
       <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${active ? 'text-orange-500' : 'text-slate-400'}`}>{caption}</p>
       <p className={`mt-2.5 text-[15px] font-semibold leading-snug ${active ? 'text-[#ec5b13]' : 'text-slate-900'}`}>{title}</p>
       <p className="mt-1.5 text-[13px] leading-5 text-slate-500">{description}</p>
-    </button>
-  );
-}
-
-function DiagnosisToggleChip({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={[
-        'inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-150',
-        active
-          ? 'border-slate-900 bg-slate-900 text-white shadow-[0_4px_12px_-4px_rgba(0,0,0,0.3)]'
-          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50',
-      ].join(' ')}
-      onClick={onClick}
-      type="button"
-    >
-      {active && (
-        <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      )}
-      {label}
     </button>
   );
 }
@@ -635,23 +603,6 @@ export function OnboardingPage() {
     value: OnboardingFlowState['diagnosisInput'][K],
   ) {
     setFlow((current) => ({ ...current, diagnosisInput: { ...current.diagnosisInput, [field]: value } }));
-  }
-
-  function toggleDiagnosisAvailableData(value: DiagnosisAvailableDataKey) {
-    setFlow((current) => {
-      const hasValue = current.diagnosisInput.availableData.includes(value);
-      const nextAvailableData = hasValue
-        ? current.diagnosisInput.availableData.filter((item) => item !== value)
-        : [...current.diagnosisInput.availableData, value];
-
-      return {
-        ...current,
-        diagnosisInput: {
-          ...current.diagnosisInput,
-          availableData: nextAvailableData,
-        },
-      };
-    });
   }
 
   function updateRequest<K extends keyof OnboardingFlowState['requestDraft']>(field: K, value: OnboardingFlowState['requestDraft'][K]) {

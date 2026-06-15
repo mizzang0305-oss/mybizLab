@@ -5,11 +5,16 @@
  */
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
-import { FALLBACK_PUBLIC_PAGES, FALLBACK_FAQ_ITEMS, FALLBACK_TRUST_SIGNALS } from '@/shared/lib/platformAdminConfig';
+import {
+  FALLBACK_PUBLIC_PAGES,
+  FALLBACK_TRUST_SIGNALS,
+  type PlatformAnnouncement,
+  type PlatformBoardPost,
+} from '@/shared/lib/platformAdminConfig';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import {
   getPublicPlatformAnnouncements,
@@ -296,14 +301,14 @@ export function PlatformPublicUpdatesPage() {
                           accent={CATEGORY_ACCENT[notice.category || '서비스'] || '#ec5b13'}
                         />
                         {notice.is_pinned && <CategoryBadge label="고정" accent="#ec5b13" />}
-                        {(notice as any).published_at && (
-                          <span className="text-[9px] text-white/25">{formatDate((notice as any).published_at)}</span>
+                        {(notice as PlatformAnnouncement & { published_at?: string | null }).published_at && (
+                          <span className="text-[9px] text-white/25">{formatDate((notice as PlatformAnnouncement & { published_at?: string | null }).published_at)}</span>
                         )}
                       </div>
                       <h3 className="mt-3 break-keep text-base font-black text-white/90 transition-colors group-hover:text-white">
                         {notice.title}
                       </h3>
-                      <p className="mt-2 break-keep text-sm leading-6 text-white/42">{notice.summary || (notice as any).body}</p>
+                      <p className="mt-2 break-keep text-sm leading-6 text-white/42">{notice.summary || (notice as { body?: string | null }).body}</p>
                       {notice.link_href && (
                         <Link
                           className="mt-4 inline-flex items-center gap-1.5 text-sm font-black transition-colors"
@@ -429,12 +434,12 @@ export function PlatformPublicBoardPostPage() {
 
       <section className="px-6 pb-32 sm:px-10">
         <div className="mx-auto max-w-3xl">
-          {(post as any).cover_image_url && (
-            <img alt={post.title} className="mb-8 rounded-3xl border border-white/[0.07] w-full object-cover" src={(post as any).cover_image_url} />
+          {(post as PlatformBoardPost).cover_image_url && (
+            <img alt={post.title} className="mb-8 rounded-3xl border border-white/[0.07] w-full object-cover" src={(post as PlatformBoardPost).cover_image_url || undefined} />
           )}
           <div className="rounded-3xl border border-white/[0.07] bg-[#060810] p-8">
             <div className="whitespace-pre-wrap break-keep text-sm leading-8 text-white/65">
-              {(post as any).body || post.excerpt}
+              {(post as { body?: string | null }).body || post.excerpt}
             </div>
           </div>
           <div className="mt-8">

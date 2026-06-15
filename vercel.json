@@ -34,6 +34,10 @@
       "dest": "/api/public?resource=inquiry"
     },
     {
+      "src": "/api/public/stores/([^/]+)/inquiries",
+      "dest": "/api/public?resource=customer-memory-inquiry&storeSlug=$1"
+    },
+    {
       "src": "/api/public/consultation",
       "dest": "/api/public?resource=consultation"
     },
@@ -92,6 +96,18 @@
     {
       "src": "/api/dashboard/content/media/([^/]+)/transcribe",
       "dest": "/api/merchant?resource=media-transcribe&assetId=$1"
+    },
+    {
+      "src": "/api/admin/customers/([^/]+)",
+      "dest": "/api/admin?resource=customer-detail&customerId=$1"
+    },
+    {
+      "src": "/api/admin/customers",
+      "dest": "/api/admin?resource=customers"
+    },
+    {
+      "src": "/api/admin/inquiries",
+      "dest": "/api/admin?resource=inquiries"
     },
     {
       "src": "/api/admin/platform/(.*)",

@@ -3,7 +3,7 @@
  * Full-screen dark aesthetic, magnetic cursor, word-by-word clip reveals,
  * horizontal marquee, giant stat numbers, deeply connected sections.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   motion,
@@ -627,6 +627,7 @@ const SERVICE_MOCKUP_MAP: Record<string, (accent: string) => React.ReactElement>
   ai: (a) => <AIPreview accent={a} />,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ServiceRow({
   num, title, body, accent, link, linkLabel, mockupKey, index,
 }: {
@@ -896,8 +897,6 @@ function FeatureScrollStory() {
 
     return () => ctx.revert();
   }, []);
-
-  const feature = STORY_FEATURES[activeIdx];
 
   return (
     <section
@@ -1271,7 +1270,7 @@ function AnimatedBeam({
   color?: string;
 }) {
   const [d, setD] = useState('');
-  const idRef = useRef(`beam-${Math.random().toString(36).slice(2, 7)}`);
+  const reactId = useId();
 
   useEffect(() => {
     function recalc() {
@@ -1297,7 +1296,7 @@ function AnimatedBeam({
   }, [fromRef, toRef, containerRef, curvature]);
 
   if (!d) return null;
-  const gradId = idRef.current;
+  const gradId = `beam-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   return (
     <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden>
       <defs>
@@ -1346,7 +1345,7 @@ export function LandingPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     gsap.registerPlugin(ScrollTrigger);
-    const lenis = (window as any).__lenis;
+    const lenis = window.__lenis;
     if (lenis) {
       lenis.on('scroll', ScrollTrigger.update);
       gsap.ticker.lagSmoothing(0);
@@ -1371,15 +1370,11 @@ export function LandingPage() {
   const fallbackFlow = ['공개 스토어', '문의', '예약', '웨이팅', 'QR 주문', '고객 기억', '운영 액션'];
   const fallbackFeatureCards = ['공개 스토어', 'AI 상담', '예약·웨이팅', 'QR 주문', '고객 프로필', '운영 대시보드'];
 
-  const flowSteps = useMemo(() => {
-    const v = flowSection?.payload.steps;
-    return Array.isArray(v) ? v.map(String).filter(Boolean) : fallbackFlow;
-  }, [flowSection]);
+  const flowPayloadSteps = flowSection?.payload.steps;
+  const flowSteps = Array.isArray(flowPayloadSteps) ? flowPayloadSteps.map(String).filter(Boolean) : fallbackFlow;
 
-  const featureCards = useMemo(() => {
-    const v = featureSection?.payload.cards;
-    return Array.isArray(v) ? v.map(String).filter(Boolean) : fallbackFeatureCards;
-  }, [featureSection]);
+  const featurePayloadCards = featureSection?.payload.cards;
+  const featureCards = Array.isArray(featurePayloadCards) ? featurePayloadCards.map(String).filter(Boolean) : fallbackFeatureCards;
 
   usePageMeta(
     settings?.seo_title || 'MyBiz | 고객 기억 기반 매출 AI SaaS',

@@ -19,6 +19,10 @@ import {
   handleSitemapRequest,
   handleStoreSitemapRequest,
 } from '../src/server/seoRoutes.js';
+import {
+  handlePublicCustomerMemoryInquiryRequest,
+  type CustomerMemoryRequestLike,
+} from '../src/server/mybiz/services/customerMemoryApi.js';
 import { handlePlatformPublicRequest } from '../src/server/platformAdminApi.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../src/server/supabaseAdmin.js';
@@ -111,6 +115,10 @@ async function routePublicRequest(request: PublicRequestLike) {
       return method === 'POST' ? handlePublicVisitorSessionRequest(request) : methodNotAllowed('POST');
     case 'inquiry':
       return method === 'POST' ? handlePublicInquiryRequest(request) : methodNotAllowed('POST');
+    case 'customer-memory-inquiry':
+      return method === 'POST'
+        ? handlePublicCustomerMemoryInquiryRequest(request as CustomerMemoryRequestLike)
+        : methodNotAllowed('POST');
     case 'consultation':
       return method === 'POST' ? handlePublicConsultationRequest(request) : methodNotAllowed('POST');
     case 'order':

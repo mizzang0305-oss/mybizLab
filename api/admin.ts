@@ -1,12 +1,42 @@
 import { handlePlatformAdminRequest, type PlatformAdminRequestLike } from '../src/server/platformAdminApi.js';
+import {
+  handleAdminCustomerDetailRequest,
+  handleAdminCustomersRequest,
+  handleAdminInquiriesRequest,
+  type CustomerMemoryRequestLike,
+} from '../src/server/mybiz/services/customerMemoryApi.js';
 import { sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 
 export const config = {
   runtime: 'nodejs',
 };
 
+function getResource(request: PlatformAdminRequestLike) {
+  const rawUrl = typeof request.url === 'string' && request.url.trim() ? request.url : '/';
+
+  try {
+    const url = new URL(rawUrl, 'https://mybiz.ai.kr');
+    return url.searchParams.get('resource')?.trim() || '';
+  } catch {
+    return '';
+  }
+}
+
+async function routeAdminRequest(request: PlatformAdminRequestLike & CustomerMemoryRequestLike) {
+  switch (getResource(request)) {
+    case 'customers':
+      return handleAdminCustomersRequest(request);
+    case 'customer-detail':
+      return handleAdminCustomerDetailRequest(request);
+    case 'inquiries':
+      return handleAdminInquiriesRequest(request);
+    default:
+      return handlePlatformAdminRequest(request);
+  }
+}
+
 export default async function handler(request: PlatformAdminRequestLike, response?: NodeResponseLike) {
-  const result = await handlePlatformAdminRequest(request);
+  const result = await routeAdminRequest(request as PlatformAdminRequestLike & CustomerMemoryRequestLike);
   await sendNodeResponse(result, response);
   return result;
 }
