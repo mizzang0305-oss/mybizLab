@@ -114,6 +114,18 @@
       "dest": "/api/admin?resource=ai-traces"
     },
     {
+      "src": "/api/admin/background-jobs/([^/]+)",
+      "dest": "/api/admin?resource=background-jobs&jobRunId=$1"
+    },
+    {
+      "src": "/api/admin/background-jobs",
+      "dest": "/api/admin?resource=background-jobs"
+    },
+    {
+      "src": "/api/admin/daily-store-summary",
+      "dest": "/api/admin?resource=daily-store-summary"
+    },
+    {
       "src": "/api/admin/customers/([^/]+)",
       "dest": "/api/admin?resource=customer-detail&customerId=$1"
     },
