@@ -18,6 +18,7 @@ export const queryKeys = {
   customers: (storeId: string) => ['customers', storeId] as const,
   customerPreferences: (storeId: string) => ['customers', storeId, 'preferences'] as const,
   inquiries: (storeId: string) => ['inquiries', storeId] as const,
+  inquiryInbox: (storeId: string, status?: string) => ['inquiries', storeId, 'inbox', status || 'all'] as const,
   reservations: (storeId: string) => ['reservations', storeId] as const,
   schedules: (storeId: string) => ['schedules', storeId] as const,
   surveys: (storeId: string) => ['surveys', storeId] as const,

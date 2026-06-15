@@ -98,6 +98,14 @@
       "dest": "/api/merchant?resource=media-transcribe&assetId=$1"
     },
     {
+      "src": "/api/admin/customer-memory/inbox/([^/]+)",
+      "dest": "/api/admin?resource=customer-memory-inbox&inquiryId=$1"
+    },
+    {
+      "src": "/api/admin/customer-memory/inbox",
+      "dest": "/api/admin?resource=customer-memory-inbox"
+    },
+    {
       "src": "/api/admin/customers/([^/]+)",
       "dest": "/api/admin?resource=customer-detail&customerId=$1"
     },

@@ -5,6 +5,7 @@ import {
   handleAdminInquiriesRequest,
   type CustomerMemoryRequestLike,
 } from '../src/server/mybiz/services/customerMemoryApi.js';
+import { handleAdminCustomerMemoryInboxRequest } from '../src/server/mybiz/services/customerMemoryInboxApi.js';
 import { sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 
 export const config = {
@@ -30,6 +31,8 @@ async function routeAdminRequest(request: PlatformAdminRequestLike & CustomerMem
       return handleAdminCustomerDetailRequest(request);
     case 'inquiries':
       return handleAdminInquiriesRequest(request);
+    case 'customer-memory-inbox':
+      return handleAdminCustomerMemoryInboxRequest(request);
     default:
       return handlePlatformAdminRequest(request);
   }
