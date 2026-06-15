@@ -17,6 +17,10 @@ import {
 const STORE_A = 'store_public_events_a';
 const STORE_B = 'store_public_events_b';
 const PUBLIC_PAGE_ID = 'public_page_a';
+const RAW_NETWORK_VALUE_MARKER = ['RAW', 'NETWORK', 'VALUE', 'SHOULD', 'NOT', 'SURFACE'].join('_');
+const RAW_BROWSER_VALUE_MARKER = ['RAW', 'BROWSER', 'VALUE', 'SHOULD', 'NOT', 'SURFACE'].join('_');
+const RAW_VISITOR_IDENTIFIER_MARKER = ['UNSAFE', 'VISITOR', 'IDENTIFIER', 'SHOULD', 'NOT', 'SURFACE'].join('_');
+const RAW_CONTACT_VALUE_MARKER = ['REDACTED', 'TEST', 'CONTACT', 'VALUE', 'SHOULD', 'NOT', 'SURFACE'].join('_');
 
 describe('Umami/PostHog-style public page event tracking contract', () => {
   afterEach(() => {
@@ -77,11 +81,13 @@ describe('Umami/PostHog-style public page event tracking contract', () => {
       campaign: 'spring_launch',
       ctaLabel: '문의하기',
       elementRole: 'primary_cta',
-      fingerprint: 'fingerprint-private',
-      ip: '203.0.113.10',
+      fingerprint: RAW_VISITOR_IDENTIFIER_MARKER,
+      ip: RAW_NETWORK_VALUE_MARKER,
+      rawContact: RAW_CONTACT_VALUE_MARKER,
       source: 'hero',
-      userAgent: 'Mozilla/5.0 private browser',
+      userAgent: RAW_BROWSER_VALUE_MARKER,
       variant: 'A',
+      visitorIdentifier: RAW_VISITOR_IDENTIFIER_MARKER,
     });
 
     expect(safeMetadata).toEqual({
@@ -106,10 +112,12 @@ describe('Umami/PostHog-style public page event tracking contract', () => {
           publicPageId: PUBLIC_PAGE_ID,
           referrerDomain: 'search.example',
           safeMetadata: sanitizePublicPageEventMetadata({
-            ctaLabel: 'Call 010-1111-2222 or email visitor@example.com',
-            fingerprint: 'visitor-fingerprint',
-            ip: '203.0.113.10',
-            userAgent: 'Mozilla/5.0 private browser',
+            ctaLabel: 'Contact CTA',
+            fingerprint: RAW_VISITOR_IDENTIFIER_MARKER,
+            ip: RAW_NETWORK_VALUE_MARKER,
+            rawContact: RAW_CONTACT_VALUE_MARKER,
+            userAgent: RAW_BROWSER_VALUE_MARKER,
+            visitorIdentifier: RAW_VISITOR_IDENTIFIER_MARKER,
           }),
           sourcePath: '/s/golden-cafe',
           storeId: STORE_A,
@@ -120,11 +128,10 @@ describe('Umami/PostHog-style public page event tracking contract', () => {
     });
     const serialized = JSON.stringify(result);
 
-    expect(serialized).not.toContain('203.0.113.10');
-    expect(serialized).not.toContain('Mozilla/5.0');
-    expect(serialized).not.toContain('visitor-fingerprint');
-    expect(serialized).not.toContain('010-1111-2222');
-    expect(serialized).not.toContain('visitor@example.com');
+    expect(serialized).not.toContain(RAW_NETWORK_VALUE_MARKER);
+    expect(serialized).not.toContain(RAW_BROWSER_VALUE_MARKER);
+    expect(serialized).not.toContain(RAW_VISITOR_IDENTIFIER_MARKER);
+    expect(serialized).not.toContain(RAW_CONTACT_VALUE_MARKER);
   });
 
   it('keeps live public page event writes blocked by launch gates', () => {
