@@ -282,7 +282,7 @@ describe('customer memory intake spine', () => {
   });
 
   it('keeps the intake spine non-applying while allowing only the PR 109 draft alignment migration', () => {
-    const activeMigrations = readdirSync(resolve(process.cwd(), 'supabase/migrations'));
+    const activeMigrations = readdirSync(resolve(process.cwd(), 'supabase/migrations')).sort();
     const docs = readFileSync(resolve(process.cwd(), 'docs/customer-memory-intake-spine-mvp.md'), 'utf8');
     const draftMigrations = activeMigrations.filter((name) => name.endsWith('_customer_memory_schema_alignment.sql'));
     const draftSql = readFileSync(resolve(process.cwd(), 'supabase/migrations', draftMigrations[0] || ''), 'utf8');
@@ -294,6 +294,7 @@ describe('customer memory intake spine', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
       expect.stringMatching(/^\d{14}_customer_memory_schema_alignment\.sql$/),
+      '20260616070824_customer_memory_rls_grant_hardening.sql',
     ]);
     expect(draftMigrations).toHaveLength(1);
     expect(docs).toContain('No migration is applied by this PR');

@@ -18,10 +18,11 @@ const activeMigrations = readdirSync(workspacePath('supabase/migrations'))
   .sort();
 
 describe('customer-memory schema alignment pre-apply evidence', () => {
-  it('documents the pending schema alignment migration without adding another migration', () => {
+  it('documents the pending schema alignment migration while later hardening drafts are active', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
+      '20260616070824_customer_memory_rls_grant_hardening.sql',
     ]);
     expect(existsSync(workspacePath('supabase/migrations/20260615075421_customer_memory_schema_alignment.sql'))).toBe(
       true,

@@ -20,6 +20,7 @@ describe('customer memory controlled schema apply plan', () => {
     expect(readdirSync(workspacePath('supabase/migrations')).filter((name) => name.endsWith('.sql')).sort()).toEqual([
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
+      '20260616070824_customer_memory_rls_grant_hardening.sql',
     ]);
 
     expect(doc).toContain('Plan status: `APPLY_NOT_APPROVED`');

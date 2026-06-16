@@ -199,9 +199,10 @@ describe('Umami/PostHog-style public page event tracking contract', () => {
     expect(brandPage).toContain('tracking activation disabled');
     expect(launchGates).toMatch(/publicPageEventTrackingEnabled:\s*true/);
     expect(launchGates).toMatch(/livePublicPageEventWriteEnabled:\s*false/);
-    expect(readdirSync(resolve(process.cwd(), 'supabase/migrations'))).toEqual([
+    expect(readdirSync(resolve(process.cwd(), 'supabase/migrations')).sort()).toEqual([
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
+      '20260616070824_customer_memory_rls_grant_hardening.sql',
     ]);
   });
 });

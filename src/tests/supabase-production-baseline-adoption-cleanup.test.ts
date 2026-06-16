@@ -39,15 +39,19 @@ const marker = readWorkspaceFile('supabase/migrations/20260614_production_baseli
 const alignmentDraft = readWorkspaceFile(
   'supabase/migrations/20260615075421_customer_memory_schema_alignment.sql',
 );
+const hardeningDraft = readWorkspaceFile(
+  'supabase/migrations/20260616070824_customer_memory_rls_grant_hardening.sql',
+);
 const cleanupDoc = readWorkspaceFile('docs/supabase-production-baseline-adoption-cleanup.md');
 const manifest = readWorkspaceFile('supabase/migrations_archive/pre_baseline_20260614/MANIFEST.md');
 const gitignore = readWorkspaceFile('.gitignore');
 
 describe('Supabase production baseline adoption cleanup', () => {
-  it('keeps only the baseline marker and approved customer-memory alignment draft active', () => {
+  it('keeps only the baseline marker and approved customer-memory draft migrations active', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
+      '20260616070824_customer_memory_rls_grant_hardening.sql',
     ]);
 
     const activeVersionPrefixes = activeMigrations.map((name) => name.split('_')[0]);
@@ -78,6 +82,14 @@ describe('Supabase production baseline adoption cleanup', () => {
     expect(executableSql).not.toMatch(/\brevoke\s+/i);
     expect(executableSql).not.toMatch(/\bcreate\s+policy\b/i);
     expect(executableSql).not.toMatch(/\balter\s+table\b[^;]+enable\s+row\s+level\s+security/i);
+  });
+
+  it('keeps the customer-memory RLS/grant hardening migration clearly draft-only', () => {
+    expect(hardeningDraft).toContain('DRAFT ONLY');
+    expect(hardeningDraft).toContain('has NOT been applied to production');
+    expect(hardeningDraft).toContain('Do not run this file without a separate owner approval');
+    expect(hardeningDraft).toContain('revoke all privileges on table public.customers');
+    expect(hardeningDraft).toContain('grant select, insert, update on table public.customers');
   });
 
   it('keeps the baseline marker comment-only and no-op', () => {
