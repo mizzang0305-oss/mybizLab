@@ -32,12 +32,13 @@ describe('customer-memory RLS/grant hardening evidence', () => {
     }
   });
 
-  it('records migration history as repaired and does not add another migration file', () => {
+  it('records repaired migration history while the follow-up hardening draft is active', () => {
     expect(doc).toContain('`20260614_production_baseline_adoption.sql`: remote applied');
     expect(doc).toContain('`20260615075421_customer_memory_schema_alignment.sql`: remote applied');
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
+      '20260616070824_customer_memory_rls_grant_hardening.sql',
     ]);
   });
 

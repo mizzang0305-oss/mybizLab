@@ -19,10 +19,11 @@ const activeMigrations = readdirSync(workspacePath('supabase/migrations'))
   .sort();
 
 describe('baseline marker adoption preflight', () => {
-  it('records the current active migration set as the expected post-PR109 state', () => {
+  it('keeps the baseline/schema migrations present while later hardening drafts are active', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
+      '20260616070824_customer_memory_rls_grant_hardening.sql',
     ]);
 
     expect(doc).toContain('Active migration count: `2`');
