@@ -243,13 +243,13 @@ export function mapProductionCustomerRow(row: Record<string, unknown>): Customer
   return normalizeCustomerRecord({
     created_at: text(row.created_at || row.first_seen_at) || nowIso(),
     customer_id: text(row.customer_id || row.id),
-    email: text(row.email) || undefined,
+    email: text(row.email || row.normalized_email) || undefined,
     id: text(row.customer_id || row.id),
     is_regular: bool(row.is_regular, int(row.visit_count) >= 3),
     last_visit_at: text(row.last_visit_at || row.last_seen_at) || undefined,
     marketing_opt_in: bool(row.marketing_opt_in, bool(row.marketing_consent)),
     name: text(row.name) || 'Customer',
-    phone: text(row.phone || row.phone_snapshot),
+    phone: text(row.phone || row.phone_snapshot || row.normalized_phone),
     store_id: text(row.store_id),
     updated_at: text(row.updated_at || row.last_seen_at) || undefined,
     visit_count: int(row.visit_count),
@@ -431,7 +431,7 @@ export function createProductionCustomerMemorySchemaAdapter(
 ): CustomerMemoryIntakeRepository {
   async function customerIdSetForStore(storeId: string) {
     const customerRows = await rows(
-      client.from('customers').select('customer_id,id,store_id').eq('store_id', storeId),
+      client.from('customers').select('customer_id,store_id').eq('store_id', storeId),
       'Failed to load customer ids for customer memory store isolation',
     );
 
@@ -472,7 +472,7 @@ export function createProductionCustomerMemorySchemaAdapter(
       const contactRows = await rows(
         client
           .from('customer_contacts')
-          .select('id,customer_id,contact_type,type,raw_value,value,normalized_value,is_primary,is_verified,created_at,updated_at')
+          .select('id,store_id,customer_id,contact_type,raw_value,normalized_value,is_primary,is_verified,created_at')
           .in('customer_id', scopedCustomerIds),
         'Failed to load customer contacts for customer memory adapter',
       );
@@ -500,7 +500,7 @@ export function createProductionCustomerMemorySchemaAdapter(
         client
           .from('customers')
           .select(
-            'customer_id,id,store_id,customer_key,name,phone,email,phone_snapshot,visit_count,last_visit_at,is_regular,marketing_opt_in,marketing_consent,first_seen_at,last_seen_at,created_at,updated_at',
+            'customer_id,store_id,customer_key,name,normalized_phone,normalized_email,visit_count,is_regular,marketing_consent,first_seen_at,last_seen_at,updated_at',
           )
           .eq('store_id', storeId),
         'Failed to load customers for customer memory adapter',
@@ -512,7 +512,7 @@ export function createProductionCustomerMemorySchemaAdapter(
       let query = client
         .from('inquiries')
         .select(
-          'id,store_id,customer_id,conversation_session_id,visitor_session_id,customer_name,contact_name,phone,contact_phone,email,contact_email,category,intent,status,message,summary,subject,tags,memo,marketing_opt_in,requested_visit_date,source,channel,created_at,updated_at',
+          'id,store_id,customer_id,conversation_session_id,visitor_session_id,contact_name,contact_phone,contact_email,category,intent,status,message,summary,subject,tags,memo,marketing_opt_in,requested_visit_date,source,channel,created_at,updated_at',
         )
         .eq('store_id', storeId);
       if (customerId) {
