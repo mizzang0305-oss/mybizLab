@@ -8,10 +8,24 @@ import { createServer } from 'vite';
 export const APPROVED_TARGET = Object.freeze({
   approval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CANARY',
   marker: 'MYBIZ_CANARY_CUSTOMER_MEMORY_20260618',
+  retryApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CANARY_RETRY_WITH_FIXED_ADAPTER',
   slug: 'mybizlab-test',
 });
 
 export const SERVER_ADAPTER_PATH = 'src/server/mybiz/repositories/customerMemoryProductionAdapter.ts';
+
+export const APPROVAL_GATES = Object.freeze({
+  initialCanary: Object.freeze({
+    allowPartialCustomerBaseline: false,
+    approval: APPROVED_TARGET.approval,
+    mode: 'initial_canary',
+  }),
+  retryWithFixedAdapter: Object.freeze({
+    allowPartialCustomerBaseline: true,
+    approval: APPROVED_TARGET.retryApproval,
+    mode: 'retry_with_fixed_adapter',
+  }),
+});
 
 function canaryUuid(suffix) {
   return `f0000000-0000-4000-8000-${String(suffix).padStart(12, '0')}`;
@@ -56,12 +70,21 @@ export function readTargetConfig(env = process.env) {
   return { marker, slug };
 }
 
-export function assertExecuteApproval(env = process.env) {
+function resolveApprovalGate(approval) {
+  return Object.values(APPROVAL_GATES).find((gate) => gate.approval === approval) || null;
+}
+
+export function readExecuteGate(env = process.env) {
   if (!isExecuteRequested(env)) {
-    return false;
+    return {
+      allowPartialCustomerBaseline: false,
+      execute: false,
+      mode: 'dry_run',
+    };
   }
 
-  if (readEnvValue(env, 'MYBIZ_CANARY_APPROVAL') !== APPROVED_TARGET.approval) {
+  const gate = resolveApprovalGate(readEnvValue(env, 'MYBIZ_CANARY_APPROVAL'));
+  if (!gate) {
     throw new Error('MYBIZ_CANARY_APPROVAL_REQUIRED');
   }
 
@@ -70,7 +93,15 @@ export function assertExecuteApproval(env = process.env) {
     throw new Error('MYBIZ_CANARY_TARGET_MISMATCH');
   }
 
-  return true;
+  return {
+    allowPartialCustomerBaseline: gate.allowPartialCustomerBaseline,
+    execute: true,
+    mode: gate.mode,
+  };
+}
+
+export function assertExecuteApproval(env = process.env) {
+  return readExecuteGate(env).execute;
 }
 
 export function maskIdentifier(value) {
@@ -300,6 +331,29 @@ function assertZeroPreCounts(counts) {
   }
 }
 
+function assertRetryPreCounts(counts) {
+  const customers = counts.customers || 0;
+  if (customers < 0 || customers > TARGET_ROW_CAPS.customers) {
+    throw new Error('CANARY_RETRY_CUSTOMERS_PRECOUNT_EXCEEDED');
+  }
+
+  const nonZero = ['customer_contacts', 'inquiries', 'customer_timeline_events'].filter(
+    (table) => (counts[table] || 0) !== 0,
+  );
+  if (nonZero.length) {
+    throw new Error(`CANARY_RETRY_PREEXISTING_ROWS: ${nonZero.join(',')}`);
+  }
+}
+
+function assertExecutePreCounts(counts, gate) {
+  if (gate.allowPartialCustomerBaseline) {
+    assertRetryPreCounts(counts);
+    return;
+  }
+
+  assertZeroPreCounts(counts);
+}
+
 function assertRowCaps(before, after) {
   Object.entries(TARGET_ROW_CAPS).forEach(([table, cap]) => {
     const delta = (after[table] || 0) - (before[table] || 0);
@@ -364,7 +418,8 @@ function redactedSummary(input) {
 
 export async function runSyntheticCanaryHarness(options = {}) {
   const env = options.env || process.env;
-  const execute = assertExecuteApproval(env);
+  const gate = readExecuteGate(env);
+  const execute = gate.execute;
   const target = readTargetConfig(env);
   const client = options.client || createSupabaseClientFromEnv(env);
   const store = await resolveExactStore(client, target.slug);
@@ -378,6 +433,7 @@ export async function runSyntheticCanaryHarness(options = {}) {
     adapter_path: SERVER_ADAPTER_PATH,
     approved_marker: target.marker,
     approved_slug: target.slug,
+    approval_mode: gate.mode,
     dry_run: !execute,
     execute_requested: execute,
     payload: 'synthetic_only_redacted',
@@ -396,7 +452,7 @@ export async function runSyntheticCanaryHarness(options = {}) {
     };
   }
 
-  assertZeroPreCounts(preTargetCounts);
+  assertExecutePreCounts(preTargetCounts, gate);
   await executeViaServerAdapter(client, payload);
 
   const postTargetCounts = await readMarkerScopedTargetCounts(client, store.store_id);
