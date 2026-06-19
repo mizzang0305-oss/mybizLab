@@ -79,7 +79,7 @@ Non-target guard pre-counts:
 
 ## Harness Blocker
 
-The merged harness is safe, but not yet contact-only:
+At the time this result was recorded, the merged harness was safe, but not yet contact-only:
 
 - `APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT` exists only as `SYNTHETIC_CONTACT_POLICY.nextApproval`
 - `APPROVAL_GATES` does not include a contact-only gate for that approval string

@@ -54,7 +54,9 @@ describe('customer-memory retry approval gate alignment', () => {
       '`MYBIZ_CANARY_EXECUTE=true` alone is not enough to execute.',
     ].forEach((expected) => expect(doc + script).toContain(expected));
     expect(script).toContain("readEnvValue(env, 'MYBIZ_CANARY_EXECUTE') === 'true'");
-    expect(script).toContain("resolveApprovalGate(readEnvValue(env, 'MYBIZ_CANARY_APPROVAL'))");
+    expect(script).toContain("const approval = readEnvValue(env, 'MYBIZ_CANARY_APPROVAL')");
+    expect(script).toContain('const gate = resolveApprovalGate(approval)');
+    expect(script).toContain('if (!gate) {');
   });
 
   it('allows only the retry mode to accept the retained partial customer baseline', () => {

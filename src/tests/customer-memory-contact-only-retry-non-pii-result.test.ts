@@ -61,7 +61,7 @@ describe('customer-memory non-PII contact-only retry result', () => {
     expect(harness).toContain('SYNTHETIC_CONTACT_POLICY');
   });
 
-  it('documents that the merged harness lacks a contact-only execute mode', () => {
+  it('documents the historical contact-only execute mode blocker', () => {
     [
       'exists only as `SYNTHETIC_CONTACT_POLICY.nextApproval`',
       '`APPROVAL_GATES` does not include a contact-only gate',
@@ -70,9 +70,6 @@ describe('customer-memory non-PII contact-only retry result', () => {
       'there is no approved path that calls only `saveCustomerContact`',
       'CONTACT_ONLY_HARNESS_FIX_REQUIRED',
     ].forEach((expected) => expect(doc).toContain(expected));
-
-    expect(harness).not.toContain('contactOnly');
-    expect(harness).not.toContain('contact_only_mode');
   });
 
   it('keeps SELECT star, cleanup, second retry, public API writes, and external effects forbidden', () => {

@@ -7,6 +7,7 @@ import { createServer } from 'vite';
 
 export const APPROVED_TARGET = Object.freeze({
   approval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CANARY',
+  contactRetryApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT',
   marker: 'MYBIZ_CANARY_CUSTOMER_MEMORY_20260618',
   retryApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CANARY_RETRY_WITH_FIXED_ADAPTER',
   slug: 'mybizlab-test',
@@ -18,7 +19,7 @@ export const SYNTHETIC_CONTACT_POLICY = Object.freeze({
   contactType: 'other',
   rawValue: APPROVED_TARGET.marker,
   normalizedValue: APPROVED_TARGET.marker,
-  nextApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT',
+  nextApproval: APPROVED_TARGET.contactRetryApproval,
 });
 
 export const APPROVAL_GATES = Object.freeze({
@@ -30,7 +31,14 @@ export const APPROVAL_GATES = Object.freeze({
   retryWithFixedAdapter: Object.freeze({
     allowPartialCustomerBaseline: true,
     approval: APPROVED_TARGET.retryApproval,
+    contactOnly: false,
     mode: 'retry_with_fixed_adapter',
+  }),
+  contactOnlyNonPiiRetry: Object.freeze({
+    allowPartialCustomerBaseline: true,
+    approval: APPROVED_TARGET.contactRetryApproval,
+    contactOnly: true,
+    mode: 'contact_only_non_pii',
   }),
 });
 
@@ -82,15 +90,18 @@ function resolveApprovalGate(approval) {
 }
 
 export function readExecuteGate(env = process.env) {
+  const approval = readEnvValue(env, 'MYBIZ_CANARY_APPROVAL');
+  const gate = resolveApprovalGate(approval);
+
   if (!isExecuteRequested(env)) {
     return {
-      allowPartialCustomerBaseline: false,
+      allowPartialCustomerBaseline: Boolean(gate?.allowPartialCustomerBaseline),
+      contactOnly: Boolean(gate?.contactOnly),
       execute: false,
-      mode: 'dry_run',
+      mode: gate?.contactOnly ? 'contact_only_non_pii_dry_run' : 'dry_run',
     };
   }
 
-  const gate = resolveApprovalGate(readEnvValue(env, 'MYBIZ_CANARY_APPROVAL'));
   if (!gate) {
     throw new Error('MYBIZ_CANARY_APPROVAL_REQUIRED');
   }
@@ -102,6 +113,7 @@ export function readExecuteGate(env = process.env) {
 
   return {
     allowPartialCustomerBaseline: gate.allowPartialCustomerBaseline,
+    contactOnly: Boolean(gate.contactOnly),
     execute: true,
     mode: gate.mode,
   };
@@ -368,7 +380,30 @@ function assertRetryPreCounts(counts) {
   }
 }
 
+function assertContactOnlyPreCounts(counts) {
+  if ((counts.customers || 0) !== 1) {
+    throw new Error('CONTACT_ONLY_CUSTOMER_BASELINE_REQUIRED');
+  }
+
+  if ((counts.customer_contacts || 0) !== 0) {
+    throw new Error('CONTACT_ONLY_CONTACT_PRECOUNT_REQUIRED');
+  }
+
+  if ((counts.inquiries || 0) !== 1) {
+    throw new Error('CONTACT_ONLY_INQUIRY_BASELINE_REQUIRED');
+  }
+
+  if ((counts.customer_timeline_events || 0) !== 1) {
+    throw new Error('CONTACT_ONLY_TIMELINE_BASELINE_REQUIRED');
+  }
+}
+
 function assertExecutePreCounts(counts, gate) {
+  if (gate.contactOnly) {
+    assertContactOnlyPreCounts(counts);
+    return;
+  }
+
   if (gate.allowPartialCustomerBaseline) {
     assertRetryPreCounts(counts);
     return;
@@ -382,6 +417,22 @@ function assertRowCaps(before, after) {
     const delta = (after[table] || 0) - (before[table] || 0);
     if (delta < 0 || delta > cap) {
       throw new Error(`TARGET_ROW_CAP_EXCEEDED: ${table}`);
+    }
+  });
+}
+
+function assertContactOnlyRowEffects(before, after) {
+  const expectedDeltas = {
+    customer_contacts: { max: TARGET_ROW_CAPS.customer_contacts, min: 0 },
+    customer_timeline_events: { max: 0, min: 0 },
+    customers: { max: 0, min: 0 },
+    inquiries: { max: 0, min: 0 },
+  };
+
+  Object.entries(expectedDeltas).forEach(([table, bounds]) => {
+    const delta = (after[table] || 0) - (before[table] || 0);
+    if (delta < bounds.min || delta > bounds.max) {
+      throw new Error(`CONTACT_ONLY_ROW_EFFECT_EXCEEDED: ${table}`);
     }
   });
 }
@@ -409,13 +460,18 @@ async function loadServerAdapter() {
   }
 }
 
-async function executeViaServerAdapter(client, payload) {
+async function executeViaServerAdapter(client, payload, options = {}) {
   const createProductionCustomerMemorySchemaAdapter = await loadServerAdapter();
   const repository = createProductionCustomerMemorySchemaAdapter(client, {
     broadDbWriteEnabled: true,
     customerMemorySpineEnabled: true,
     liveCustomerMemoryWriteEnabled: true,
   });
+
+  if (options.contactOnly) {
+    await repository.saveCustomerContact(payload.contact);
+    return;
+  }
 
   await repository.saveCustomer(payload.customer);
   await repository.saveCustomerContact(payload.contact);
@@ -457,6 +513,7 @@ export async function runSyntheticCanaryHarness(options = {}) {
     approved_marker: target.marker,
     approved_slug: target.slug,
     approval_mode: gate.mode,
+    contact_only_mode: Boolean(gate.contactOnly),
     dry_run: !execute,
     execute_requested: execute,
     payload: 'synthetic_only_redacted',
@@ -476,12 +533,15 @@ export async function runSyntheticCanaryHarness(options = {}) {
   }
 
   assertExecutePreCounts(preTargetCounts, gate);
-  await executeViaServerAdapter(client, payload);
+  await executeViaServerAdapter(client, payload, { contactOnly: gate.contactOnly });
 
   const postTargetCounts = await readMarkerScopedTargetCounts(client, store.store_id);
   const postNonTargetCounts = await readNonTargetCounts(client, store.store_id, target.slug);
 
   assertRowCaps(preTargetCounts, postTargetCounts);
+  if (gate.contactOnly) {
+    assertContactOnlyRowEffects(preTargetCounts, postTargetCounts);
+  }
   assertNonTargetUnchanged(preNonTargetCounts, postNonTargetCounts);
 
   return {
