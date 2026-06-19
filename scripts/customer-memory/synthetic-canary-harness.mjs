@@ -15,6 +15,15 @@ export const APPROVED_TARGET = Object.freeze({
 
 export const SERVER_ADAPTER_PATH = 'src/server/mybiz/repositories/customerMemoryProductionAdapter.ts';
 
+export const SERVER_ADAPTER_LOADER_POLICY = Object.freeze({
+  appType: 'custom',
+  configFile: false,
+  envFile: false,
+  optimizeDepsEntries: 0,
+  optimizeDepsInclude: 0,
+  optimizeDepsNoDiscovery: true,
+});
+
 export const SYNTHETIC_CONTACT_POLICY = Object.freeze({
   contactType: 'other',
   rawValue: APPROVED_TARGET.marker,
@@ -445,12 +454,28 @@ function assertNonTargetUnchanged(before, after) {
   });
 }
 
-async function loadServerAdapter() {
-  const vite = await createServer({
+function createServerAdapterLoaderConfig() {
+  return {
     appType: 'custom',
+    clearScreen: false,
+    configFile: false,
+    envFile: false,
     logLevel: 'error',
-    server: { middlewareMode: true },
-  });
+    optimizeDeps: {
+      entries: [],
+      include: [],
+      noDiscovery: true,
+    },
+    root: process.cwd(),
+    server: {
+      hmr: false,
+      middlewareMode: true,
+    },
+  };
+}
+
+export async function loadServerAdapter() {
+  const vite = await createServer(createServerAdapterLoaderConfig());
 
   try {
     const module = await vite.ssrLoadModule(`/${SERVER_ADAPTER_PATH}`);
