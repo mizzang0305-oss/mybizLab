@@ -14,6 +14,13 @@ export const APPROVED_TARGET = Object.freeze({
 
 export const SERVER_ADAPTER_PATH = 'src/server/mybiz/repositories/customerMemoryProductionAdapter.ts';
 
+export const SYNTHETIC_CONTACT_POLICY = Object.freeze({
+  contactType: 'other',
+  rawValue: APPROVED_TARGET.marker,
+  normalizedValue: APPROVED_TARGET.marker,
+  nextApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT',
+});
+
 export const APPROVAL_GATES = Object.freeze({
   initialCanary: Object.freeze({
     allowPartialCustomerBaseline: false,
@@ -250,11 +257,11 @@ export function buildSyntheticPayload(storeId, marker = APPROVED_TARGET.marker, 
       id: CANARY_IDS.contactId,
       is_primary: true,
       is_verified: false,
-      normalized_value: syntheticEmail,
+      normalized_value: SYNTHETIC_CONTACT_POLICY.normalizedValue,
       store_id: storeId,
-      type: 'email',
+      type: SYNTHETIC_CONTACT_POLICY.contactType,
       updated_at: timestamp,
-      value: syntheticEmail,
+      value: SYNTHETIC_CONTACT_POLICY.rawValue,
     },
     customer: {
       created_at: timestamp,
@@ -321,6 +328,22 @@ export function assertPayloadCaps(payload) {
 
   if (!String(payload.customer.email || '').endsWith('@example.invalid')) {
     throw new Error('SYNTHETIC_CUSTOMER_EMAIL_REQUIRED');
+  }
+
+  if (
+    payload.contact.type !== SYNTHETIC_CONTACT_POLICY.contactType ||
+    payload.contact.normalized_value !== SYNTHETIC_CONTACT_POLICY.normalizedValue ||
+    payload.contact.value !== SYNTHETIC_CONTACT_POLICY.rawValue
+  ) {
+    throw new Error('NON_PII_SYNTHETIC_CONTACT_POLICY_REQUIRED');
+  }
+
+  if (payload.contact.type === 'phone' || payload.contact.type === 'email') {
+    throw new Error('SYNTHETIC_CONTACT_REAL_CHANNEL_FORBIDDEN');
+  }
+
+  if (String(payload.contact.value || '').includes('@') || /\b\d{2,4}[-\s]?\d{3,4}[-\s]?\d{4}\b/.test(String(payload.contact.value || ''))) {
+    throw new Error('SYNTHETIC_CONTACT_VALUE_MUST_BE_MARKER_ONLY');
   }
 }
 

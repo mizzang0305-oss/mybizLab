@@ -366,6 +366,7 @@ function toContactPayload(contact: CustomerContact) {
       is_verified: contact.is_verified,
       normalized_value: contact.normalized_value,
       raw_value: contact.value,
+      store_id: contact.store_id,
     },
   };
 }
