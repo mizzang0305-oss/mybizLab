@@ -33,16 +33,17 @@ describe('customer-memory contact-only retry after dependency fix result', () =>
     ].forEach((expected) => expect(doc).toContain(expected));
   });
 
-  it('confirms the merged harness does not support the after-dependency-fix contact-only approval phrase', () => {
+  it('records the historical gate mismatch while the current harness now carries the alignment phrase', () => {
     expect(harness).toContain(
       "contactRetryApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT'",
     );
-    expect(harness).not.toContain(
-      "contactRetryApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT_AFTER_DEPENDENCY_FIX'",
+    expect(harness).toContain(
+      'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT_AFTER_DEPENDENCY_FIX',
     );
+    expect(doc).toContain('The safe next step is a separate no-write alignment PR');
   });
 
-  it('probes only the approval gate and blocks before any DB-facing execution path', () => {
+  it('probes only the approval gate and confirms the current alignment without DB-facing execution', () => {
     const probe = spawnSync(
       process.execPath,
       [
@@ -51,8 +52,14 @@ describe('customer-memory contact-only retry after dependency fix result', () =>
         [
           "import { readExecuteGate } from './scripts/customer-memory/synthetic-canary-harness.mjs';",
           'try {',
-          'readExecuteGate(process.env);',
-          "console.log(JSON.stringify({ status: 'GATE_PASS' }));",
+          'const gate = readExecuteGate(process.env);',
+          'console.log(JSON.stringify({',
+          "status: 'GATE_PASS_AFTER_ALIGNMENT',",
+          'gate,',
+          'execute_attempt_count: 0,',
+          'production_db_write: false,',
+          'public_api_write_call: false,',
+          '}));',
           '} catch (error) {',
           'console.log(JSON.stringify({',
           "status: 'BLOCKED_CONTACT_ONLY_RETRY_APPROVAL_GATE_NOT_ALIGNED',",
@@ -82,11 +89,16 @@ describe('customer-memory contact-only retry after dependency fix result', () =>
     expect(probe.status).toBe(0);
     expect(probe.stderr).toBe('');
     expect(JSON.parse(probe.stdout)).toEqual({
-      status: 'BLOCKED_CONTACT_ONLY_RETRY_APPROVAL_GATE_NOT_ALIGNED',
-      gate_error: 'MYBIZ_CANARY_APPROVAL_REQUIRED',
       execute_attempt_count: 0,
+      gate: {
+        allowPartialCustomerBaseline: true,
+        contactOnly: true,
+        execute: true,
+        mode: 'contact_only_non_pii_after_dependency_fix',
+      },
       production_db_write: false,
       public_api_write_call: false,
+      status: 'GATE_PASS_AFTER_ALIGNMENT',
     });
   });
 

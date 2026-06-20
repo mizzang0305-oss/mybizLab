@@ -7,6 +7,8 @@ import { createServer } from 'vite';
 
 export const APPROVED_TARGET = Object.freeze({
   approval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CANARY',
+  contactAfterDependencyFixApproval:
+    'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT_AFTER_DEPENDENCY_FIX',
   contactRetryApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CONTACT_RETRY_WITH_NON_PII_CONTACT',
   marker: 'MYBIZ_CANARY_CUSTOMER_MEMORY_20260618',
   retryApproval: 'APPROVE_SYNTHETIC_CUSTOMER_MEMORY_CANARY_RETRY_WITH_FIXED_ADAPTER',
@@ -48,6 +50,12 @@ export const APPROVAL_GATES = Object.freeze({
     approval: APPROVED_TARGET.contactRetryApproval,
     contactOnly: true,
     mode: 'contact_only_non_pii',
+  }),
+  contactOnlyNonPiiRetryAfterDependencyFix: Object.freeze({
+    allowPartialCustomerBaseline: true,
+    approval: APPROVED_TARGET.contactAfterDependencyFixApproval,
+    contactOnly: true,
+    mode: 'contact_only_non_pii_after_dependency_fix',
   }),
 });
 
