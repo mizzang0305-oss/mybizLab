@@ -14,7 +14,9 @@ This docs/tests-only PR creates the PRO/VIP customer-memory dry-run and real-dat
 | PR #144 | `MERGED` | PRO/VIP customer-memory rollout readiness review merged |
 | PR #145 | `MERGED` | PRO/VIP customer-memory pilot plan approval packet merged |
 | PR #146 | `MERGED` | PRO/VIP customer-memory pilot execution plan merged |
-| main HEAD after PR #146 | `c52656f` | post-merge baseline used for this branch |
+| main HEAD after PR #146 | `c52656f4aa1dd7327b9579e4e7c9e3bef022d250` | post-merge baseline used for this branch |
+| PR #146 production auto deploy | `BLOCKED` | Vercel rate limit blocked deploy confirmation for the PR #146 merge commit |
+| PR #146 production smoke interpretation | `CURRENT_PRODUCTION_ONLY` | current production GET smoke passed but does not prove the PR #146 merge commit is deployed |
 | owner approval phrase | `PROVIDED` | `MYBIZ_PRO_VIP_CUSTOMER_MEMORY_PILOT_EXECUTION_PLAN_APPROVED` |
 | this PR scope | `DRY_RUN_AND_REAL_DATA_TEST_PLAN_ONLY` | creates documentation and tests only |
 | live customer-memory gate | `NOT_ENABLED` | remains separately gated |
@@ -25,6 +27,29 @@ This docs/tests-only PR creates the PRO/VIP customer-memory dry-run and real-dat
 | automation/reporting exposure | `NOT_ENABLED` | remains separately gated |
 | PR #106 | `NOT_MERGED_BY_THIS_PR` | not touched |
 | PR #125 | `NOT_MERGED_BY_THIS_PR` | not touched |
+
+## A1. PR #146 Deployment Blocker Context
+
+PR #146 was merged.
+
+Main HEAD after PR #146:
+
+```text
+c52656f4aa1dd7327b9579e4e7c9e3bef022d250
+```
+
+Deployment blocker facts:
+
+- Vercel production auto deploy for `c52656f4aa1dd7327b9579e4e7c9e3bef022d250` was `BLOCKED`.
+- GitHub/Vercel status reported: `Deployment rate limited ??retry in 24 hours`.
+- no manual deploy was run.
+- no Vercel deploy retry was run.
+- current production GET smoke passed, but it is current-production smoke only.
+- current production GET smoke does not prove `c52656f4aa1dd7327b9579e4e7c9e3bef022d250` is deployed.
+- production auto deploy success must not be claimed for `c52656f4aa1dd7327b9579e4e7c9e3bef022d250` until Vercel is rechecked and confirmed `READY`.
+- any production-dependent dry-run or real-data write must wait until deploy status is confirmed `READY` or use a clearly classified staging/dev environment.
+- do not manually deploy.
+- do not retry Vercel deploy.
 
 ## B. Approval Basis
 
@@ -39,6 +64,7 @@ This phrase authorizes creation of the dry-run and real-data-test plan PR only.
 It does not authorize:
 
 - production DB write.
+- real-data write.
 - live customer-memory gate enablement.
 - dry-run execution.
 - real-data execute.
@@ -92,6 +118,7 @@ Future dry-run mode:
 
 - mode: read-only or simulation-only.
 - no production write.
+- no real-data write.
 - no customer row creation.
 - no customer_contact row creation.
 - no inquiry row creation.
@@ -229,6 +256,7 @@ Before future dry-run execution:
 
 - the next dry-run approval phrase is provided.
 - no production write is required.
+- no real-data write is required.
 - env readiness output is `CONFIGURED` or `MISSING` only.
 - selected store proof is count-only or boolean-only.
 - route and adapter checks are read-only/simulation-only.
@@ -335,7 +363,7 @@ Rollback plan:
 Exact owner approval phrase required after this plan PR is merged:
 
 ```text
-MYBIZ_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_APPROVED
+MYBIZ_PRO_VIP_CUSTOMER_MEMORY_DRY_RUN_REAL_DATA_TEST_PLAN_APPROVED
 ```
 
 The next dry-run approval phrase authorizes read-only/simulation dry-run execution only.
@@ -343,6 +371,7 @@ The next dry-run approval phrase authorizes read-only/simulation dry-run executi
 It does not authorize:
 
 - production DB write.
+- real-data write.
 - live customer-memory gate enablement.
 - real-data execute.
 - cleanup.
@@ -370,7 +399,7 @@ OWNER_APPROVAL_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_AND_REAL_DATA_TEST_PLAN
 After this PR is merged:
 
 ```text
-WAIT_FOR_OWNER_APPROVAL_PHRASE_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_EXECUTION
+WAIT_FOR_OWNER_APPROVAL_PHRASE_FOR_PRO_VIP_CUSTOMER_MEMORY_DRY_RUN_EXECUTION_PR
 ```
 
 ## P. Explicit Non-Actions
@@ -378,6 +407,7 @@ WAIT_FOR_OWNER_APPROVAL_PHRASE_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_EXECUTI
 This PR confirms:
 
 - no production DB write.
+- no real-data write.
 - no live customer-memory gate enablement.
 - no dry-run execution.
 - no real-data execute.
@@ -411,32 +441,37 @@ This PR confirms:
   "db_push": false,
   "docs_only": true,
   "draft_pr_only": true,
-  "dry_run_and_real_data_test_plan_created": true,
+  "dry_run_real_data_test_plan_created": true,
   "dry_run_executed": false,
   "env_auth_payment_webhook_changed": false,
   "external_notification_sent": false,
   "full_uuid_output": false,
   "manual_deploy": false,
   "migration_apply": false,
-  "next_required_step": "OWNER_APPROVAL_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_AND_REAL_DATA_TEST_PLAN_REVIEW",
-  "owner_approval_phrase_consumed_for_dry_run_and_real_data_test_plan_pr": true,
+  "next_required_step": "WAIT_FOR_OWNER_APPROVAL_PHRASE_FOR_PRO_VIP_CUSTOMER_MEMORY_DRY_RUN_EXECUTION_PR",
+  "owner_approval_phrase_consumed_for_dry_run_real_data_test_plan_pr": true,
   "owner_approval_phrase_required": "MYBIZ_PRO_VIP_CUSTOMER_MEMORY_PILOT_EXECUTION_PLAN_APPROVED",
   "pilot_rollout_executed": false,
   "pr_106_merged": false,
   "pr_125_merged": false,
+  "production_auto_deploy_success_for_c52656f": false,
   "production_db_write": false,
+  "production_deploy_blocker_documented": true,
+  "production_read_only_smoke_current_only": true,
   "raw_pii_output": false,
   "raw_row_sample_output": false,
   "ready_transition": false,
+  "real_data_write": false,
   "real_data_execute": false,
   "required_later_real_data_execute_approval_phrase": "MYBIZ_PRO_VIP_CUSTOMER_MEMORY_SMALL_REAL_DATA_TEST_EXECUTE_APPROVED",
-  "required_next_owner_approval_phrase": "MYBIZ_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_APPROVED",
+  "required_next_owner_approval_phrase": "MYBIZ_PRO_VIP_CUSTOMER_MEMORY_DRY_RUN_REAL_DATA_TEST_PLAN_APPROVED",
   "retry_execute": false,
   "rls_or_grant_executed": false,
   "sales_excel_import_touched": false,
   "small_real_data_test_plan_documented": true,
   "sql_replay": false,
   "squash_merge": false,
-  "tests_only": true
+  "tests_only": true,
+  "vercel_retry": false
 }
 ```

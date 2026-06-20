@@ -9,8 +9,19 @@ const doc = readFileSync(absoluteDocPath, 'utf8');
 
 const decision = 'OWNER_APPROVAL_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_AND_REAL_DATA_TEST_PLAN_DRAFT';
 const consumedApprovalPhrase = 'MYBIZ_PRO_VIP_CUSTOMER_MEMORY_PILOT_EXECUTION_PLAN_APPROVED';
-const nextDryRunApprovalPhrase = 'MYBIZ_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_APPROVED';
+const nextDryRunApprovalPhrase = 'MYBIZ_PRO_VIP_CUSTOMER_MEMORY_DRY_RUN_REAL_DATA_TEST_PLAN_APPROVED';
+const incorrectNextDryRunApprovalPhrase = [
+  'MYBIZ_PRO_VIP_CUSTOMER_MEMORY',
+  'PILOT_DRY_RUN_APPROVED',
+].join('_');
+const nextRequiredStep = 'WAIT_FOR_OWNER_APPROVAL_PHRASE_FOR_PRO_VIP_CUSTOMER_MEMORY_DRY_RUN_EXECUTION_PR';
+const incorrectNextRequiredStep = [
+  'WAIT_FOR_OWNER_APPROVAL_PHRASE_FOR_PRO_VIP_CUSTOMER_MEMORY',
+  'PILOT_DRY_RUN_EXECUTION',
+].join('_');
 const laterRealDataExecutePhrase = 'MYBIZ_PRO_VIP_CUSTOMER_MEMORY_SMALL_REAL_DATA_TEST_EXECUTE_APPROVED';
+const pr146MainHead = 'c52656f4aa1dd7327b9579e4e7c9e3bef022d250';
+const deploymentBlocker = 'Deployment rate limited ??retry in 24 hours';
 
 function extractSideEffects() {
   const match = doc.match(/## Q\. side_effects JSON\s*```json\s*([\s\S]*?)\s*```/);
@@ -47,6 +58,29 @@ describe('PRO/VIP customer-memory dry-run and real-data-test plan packet', () =>
       '- external notification.',
       '- bulk customer import.',
     ].forEach((expected) => expect(doc).toContain(expected));
+
+    expect(doc).not.toContain(incorrectNextDryRunApprovalPhrase);
+    expect(doc).toContain(nextRequiredStep);
+    expect(doc).not.toContain(incorrectNextRequiredStep);
+  });
+
+  it('documents the PR #146 production deploy blocker without claiming deploy success', () => {
+    [
+      '| PR #146 | `MERGED` | PRO/VIP customer-memory pilot execution plan merged |',
+      pr146MainHead,
+      `Vercel production auto deploy for \`${pr146MainHead}\` was \`BLOCKED\`.`,
+      deploymentBlocker,
+      '- no manual deploy was run.',
+      '- no Vercel deploy retry was run.',
+      '- current production GET smoke passed, but it is current-production smoke only.',
+      `- current production GET smoke does not prove \`${pr146MainHead}\` is deployed.`,
+      `- production auto deploy success must not be claimed for \`${pr146MainHead}\` until Vercel is rechecked and confirmed \`READY\`.`,
+      '- any production-dependent dry-run or real-data write must wait until deploy status is confirmed `READY` or use a clearly classified staging/dev environment.',
+      '- do not manually deploy.',
+      '- do not retry Vercel deploy.',
+    ].forEach((expected) => expect(doc).toContain(expected));
+
+    expect(doc).not.toContain(`production auto deploy success for \`${pr146MainHead}\``);
   });
 
   it('states this PR does not execute any dry-run, write, gate, cleanup, billing, or notification path', () => {
@@ -155,7 +189,7 @@ describe('PRO/VIP customer-memory dry-run and real-data-test plan packet', () =>
       '## P. Explicit Non-Actions',
       '## Q. side_effects JSON',
       'OWNER_APPROVAL_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_AND_REAL_DATA_TEST_PLAN_REVIEW',
-      'WAIT_FOR_OWNER_APPROVAL_PHRASE_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_EXECUTION',
+      nextRequiredStep,
     ].forEach((expected) => expect(doc).toContain(expected));
   });
 
@@ -174,23 +208,27 @@ describe('PRO/VIP customer-memory dry-run and real-data-test plan packet', () =>
       db_push: false,
       docs_only: true,
       draft_pr_only: true,
-      dry_run_and_real_data_test_plan_created: true,
+      dry_run_real_data_test_plan_created: true,
       dry_run_executed: false,
       env_auth_payment_webhook_changed: false,
       external_notification_sent: false,
       full_uuid_output: false,
       manual_deploy: false,
       migration_apply: false,
-      next_required_step: 'OWNER_APPROVAL_FOR_PRO_VIP_CUSTOMER_MEMORY_PILOT_DRY_RUN_AND_REAL_DATA_TEST_PLAN_REVIEW',
-      owner_approval_phrase_consumed_for_dry_run_and_real_data_test_plan_pr: true,
+      next_required_step: nextRequiredStep,
+      owner_approval_phrase_consumed_for_dry_run_real_data_test_plan_pr: true,
       owner_approval_phrase_required: consumedApprovalPhrase,
       pilot_rollout_executed: false,
       pr_106_merged: false,
       pr_125_merged: false,
+      production_auto_deploy_success_for_c52656f: false,
       production_db_write: false,
+      production_deploy_blocker_documented: true,
+      production_read_only_smoke_current_only: true,
       raw_pii_output: false,
       raw_row_sample_output: false,
       ready_transition: false,
+      real_data_write: false,
       real_data_execute: false,
       required_later_real_data_execute_approval_phrase: laterRealDataExecutePhrase,
       required_next_owner_approval_phrase: nextDryRunApprovalPhrase,
@@ -201,6 +239,7 @@ describe('PRO/VIP customer-memory dry-run and real-data-test plan packet', () =>
       sql_replay: false,
       squash_merge: false,
       tests_only: true,
+      vercel_retry: false,
     });
   });
 });
