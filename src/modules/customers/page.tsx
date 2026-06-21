@@ -21,6 +21,7 @@ import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from '@/shared/lib/inquirySchema';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { buildCustomerTimelineIntelligenceDashboard, getCustomerIntelligenceCard } from '@/shared/lib/services/customerTimelineIntelligenceService';
+import { buildVipCustomerReadonlyView } from '@/shared/lib/services/vipCustomerReadonlyViewService';
 import {
   getInquiryStatusLabel,
   getOrderChannelLabel,
@@ -72,6 +73,14 @@ const conversationChannelLabelMap: Record<string, string> = {
   ai_chat: 'AI 상담',
   dashboard_manual: '수기 상담',
   public_inquiry: '공개 문의',
+};
+
+const vipReasonLabelMap: Record<string, string> = {
+  explicit_vip_field: '명시 VIP 필드',
+  lifetime_value_threshold: '누적 주문금액',
+  order_count_threshold: '주문 횟수',
+  segment_or_tag: '세그먼트/태그',
+  visit_count_threshold: '방문 횟수',
 };
 
 // ─── TanStack Table: sortable customer list ───────────────────────────────────
@@ -394,6 +403,14 @@ export function CustomersPage() {
     timelineEvents: customerTimeline,
     waitingEntries,
   });
+  const vipReadonlyView = buildVipCustomerReadonlyView({
+    customers,
+    orders,
+    preferences: customerPreferences,
+    storeId: currentStore?.id || '',
+    storeSubscriptionPlan: currentStore?.subscription_plan,
+    timelineEvents: customerTimeline,
+  });
   const selectedCustomerInsight = getCustomerIntelligenceCard(intelligenceDashboard, selectedCustomer?.id);
   const selectedIntelligenceTimeline = selectedCustomerInsight?.timeline || [];
 
@@ -450,6 +467,92 @@ export function CustomersPage() {
         <MetricCard accent="orange" label="미처리 문의" value={openInquiryCount} />
         <MetricCard accent="slate" label="전체 문의" value={inquiries.length} />
       </div>
+
+      <Panel
+        title="VIP Customer Memory"
+        subtitle="방문, 주문, 문의, 예약, 선호 신호로만 계산한 read-only VIP 고객 후보를 마스킹된 정보와 집계 요약으로 확인합니다."
+      >
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+          {vipReadonlyView.readOnlyNotice}
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs font-bold text-slate-500">검토 고객</p>
+            <p className="mt-1 text-2xl font-black text-slate-900">{vipReadonlyView.summary.totalCustomersReviewed}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs font-bold text-slate-500">VIP 후보</p>
+            <p className="mt-1 text-2xl font-black text-orange-600">{vipReadonlyView.summary.vipCustomerCount}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs font-bold text-slate-500">구독 플랜 연동</p>
+            <p className="mt-1 text-sm font-bold text-slate-700">
+              고객 VIP 판단에는 사용하지 않음
+            </p>
+          </div>
+        </div>
+
+        {customersQuery.isLoading || ordersQuery.isLoading || customerPreferencesQuery.isLoading ? (
+          <div className="mt-5 rounded-[24px] border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-500">
+            VIP 고객 메모리 요약을 불러오는 중입니다.
+          </div>
+        ) : vipReadonlyView.vipCustomers.length ? (
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            {vipReadonlyView.vipCustomers.slice(0, 6).map((vipCustomer) => (
+              <div className="rounded-[28px] border border-slate-200 bg-white p-5" key={vipCustomer.customerId}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-600">VIP 후보</p>
+                    <p className="mt-2 text-xl font-black text-slate-900">{vipCustomer.maskedDisplayName}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">{vipCustomer.maskedContact}</p>
+                  </div>
+                  <StatusBadge label="read-only" status="ready" />
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-bold text-slate-500">방문</p>
+                    <p className="mt-1 font-black text-slate-900">{vipCustomer.totalVisitCount}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-bold text-slate-500">주문</p>
+                    <p className="mt-1 font-black text-slate-900">{vipCustomer.orderCount}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-bold text-slate-500">누적</p>
+                    <p className="mt-1 font-black text-slate-900">{formatCurrency(vipCustomer.totalOrderAmount)}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {vipCustomer.vipReasons.map((reason) => (
+                    <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700" key={reason}>
+                      {vipReasonLabelMap[reason] || reason}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                  <p>
+                    <span className="font-bold text-slate-800">최근 이벤트:</span> {vipCustomer.recentEventSummary}
+                  </p>
+                  <p>
+                    <span className="font-bold text-slate-800">선호/메모 요약:</span> {vipCustomer.preferenceSummary}
+                  </p>
+                  <p>
+                    <span className="font-bold text-slate-800">다음 액션:</span> {vipCustomer.expectedNextAction}
+                  </p>
+                  {vipCustomer.lastActivityAt ? (
+                    <p className="text-xs text-slate-400">최근 활동 {formatDateTime(vipCustomer.lastActivityAt)}</p>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title={vipReadonlyView.emptyState.title}
+            description={vipReadonlyView.emptyState.description}
+          />
+        )}
+      </Panel>
 
       <Panel title="문의 Inbox" subtitle="공개 문의를 고객 기억, 연락 채널, 최근 타임라인과 함께 읽기 전용으로 확인합니다.">
         <div className="flex flex-wrap gap-2">
