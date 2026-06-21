@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import {
   buildVipCustomerReadonlyView,
+  buildVipCustomerReadonlyReportSample,
+  VIP_CUSTOMER_CRITERIA_DOCUMENTATION,
   maskVipCustomerContact,
   maskVipCustomerName,
 } from '@/shared/lib/services/vipCustomerReadonlyViewService';
@@ -134,5 +136,109 @@ describe('VIP customer readonly view service', () => {
     expect(pageSource).toContain('VIP Customer Memory');
     expect(pageSource).toContain('read-only');
     expect(pageSource).not.toMatch(/vipCustomerMutation|setVip|updateVip|deleteVip|mergeVip|createVip/i);
+  });
+
+  it('builds masked read-only report sample sections without using subscription VIP as a customer signal', () => {
+    const report = buildVipCustomerReadonlyReportSample({
+      customers: [
+        customer({
+          email: 'revisit@example.test',
+          id: 'vip-revisit',
+          last_visit_at: '2026-06-18T00:00:00.000Z',
+          name: 'Revisit Guest',
+          phone: '0000000002',
+          visit_count: 8,
+        }),
+        customer({
+          email: 'upsell@example.test',
+          id: 'vip-upsell',
+          last_visit_at: '2026-06-12T00:00:00.000Z',
+          name: 'Upsell Guest',
+          phone: '0000000003',
+          visit_count: 2,
+        }),
+        customer({
+          email: 'dormant@example.test',
+          id: 'vip-dormant',
+          last_visit_at: '2026-04-01T00:00:00.000Z',
+          name: 'Dormant Guest',
+          phone: '0000000004',
+          visit_count: 7,
+        }),
+        customer({
+          id: 'subscription-only',
+          last_visit_at: '2026-06-20T00:00:00.000Z',
+          name: 'Subscription Only',
+          phone: '0000000005',
+          visit_count: 1,
+        }),
+        customer({
+          id: 'other-store-vip',
+          name: 'Other Store Guest',
+          phone: '0000000006',
+          store_id: 'store-b',
+          visit_count: 10,
+        }),
+      ],
+      orders: [
+        order({ customer_id: 'vip-revisit', id: 'revisit-order', total_amount: 320000 }),
+        order({ customer_id: 'vip-upsell', id: 'upsell-order-1', total_amount: 180000 }),
+        order({ customer_id: 'vip-upsell', id: 'upsell-order-2', total_amount: 180000 }),
+        order({
+          customer_id: 'vip-dormant',
+          id: 'dormant-order',
+          placed_at: '2026-03-15T00:00:00.000Z',
+          total_amount: 360000,
+        }),
+        order({ customer_id: 'other-store-vip', id: 'other-store-order', store_id: 'store-b', total_amount: 500000 }),
+      ],
+      referenceDate: '2026-06-21T00:00:00.000Z',
+      storeId: 'store-a',
+      storeSubscriptionPlan: 'vip',
+    });
+
+    expect(report.summary.subscriptionPlanIsCustomerVipSource).toBe(false);
+    expect(report.sections.map((section) => section.title)).toEqual([
+      '이번 주 다시 부를 고객 후보',
+      '객단가 상승 가능 고객 후보',
+      '휴면 위험 VIP 고객 후보',
+    ]);
+    expect(report.sections.flatMap((section) => section.candidates).map((candidate) => candidate.customerId)).not.toContain(
+      'subscription-only',
+    );
+    expect(report.sections.flatMap((section) => section.candidates).map((candidate) => candidate.customerId)).not.toContain(
+      'other-store-vip',
+    );
+    expect(report.allowedActions).toEqual([]);
+    expect(report.readOnlyNotice).toContain('확인 전용');
+    expect(JSON.stringify(report)).not.toMatch(/Revisit Guest|0000000002|revisit@example\.test/);
+    expect(JSON.stringify(report)).not.toMatch(/send|update|delete|merge|execute/i);
+  });
+
+  it('keeps VIP criteria documentation free of real PII and write-capable campaign language', () => {
+    const docs = [
+      readFileSync(join(process.cwd(), 'docs/vip-customer-readonly-view.md'), 'utf8'),
+      readFileSync(join(process.cwd(), 'docs/vip-customer-criteria.md'), 'utf8'),
+      readFileSync(join(process.cwd(), 'docs/vip-customer-report-sample.md'), 'utf8'),
+      JSON.stringify(VIP_CUSTOMER_CRITERIA_DOCUMENTATION),
+    ].join('\n');
+
+    expect(docs).toContain('customer VIP');
+    expect(docs).toContain('subscription VIP');
+    expect(docs).toContain('store_id');
+    expect(docs).toContain('확인 전용 리포트');
+    const forbiddenPhrases = [
+      ['자동 발송', ' 완료'],
+      ['고객 등급', ' 자동 변경'],
+      ['실제 고객', ' 연락처'],
+      ['운영 DB', ' 반영'],
+      ['캠페인', ' 실행'],
+    ].map(([left, right]) => `${left}${right}`);
+
+    for (const phrase of forbiddenPhrases) {
+      expect(docs).not.toContain(phrase);
+    }
+    expect(docs).not.toMatch(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    expect(docs).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });
