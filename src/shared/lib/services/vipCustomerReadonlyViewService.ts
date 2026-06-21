@@ -86,6 +86,50 @@ export interface VipCustomerReadonlyReportSample {
   };
 }
 
+export type VipCampaignPreparationBlockedAction =
+  | 'execute_campaign'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'update_customer';
+
+export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
+
+export interface VipCampaignPreparationPreviewCandidate {
+  customerId: string;
+  maskedContact: string;
+  maskedDisplayName: string;
+  recommendedReason: string;
+}
+
+export interface VipCampaignPreparationPreviewSection {
+  approvalRequired: true;
+  blockedActions: VipCampaignPreparationBlockedAction[];
+  candidateCount: number;
+  cautionText: string;
+  deliveryEnabled: false;
+  maskedCandidates: VipCampaignPreparationPreviewCandidate[];
+  previewOnly: true;
+  purpose: string;
+  readOnlyBadge: 'read-only';
+  section: VipCampaignPreparationSectionId;
+  suggestedMessageDraft: string;
+  title: string;
+}
+
+export interface VipCampaignPreparationPreview {
+  approvalRequired: true;
+  blockedActions: VipCampaignPreparationBlockedAction[];
+  deliveryEnabled: false;
+  previewOnly: true;
+  readOnlyNotice: string;
+  sections: VipCampaignPreparationPreviewSection[];
+  summary: VipCustomerReadonlyReportSample['summary'] & {
+    deliveryApprovalGateRequired: true;
+    previewMode: 'campaign_preparation_only';
+  };
+}
+
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
   customerVipDefinition:
     'customer VIP means a store-scoped customer candidate derived from customer memory signals.',
@@ -104,6 +148,13 @@ const VIP_ORDER_THRESHOLD = 5;
 const VIP_LIFETIME_VALUE_THRESHOLD = 300000;
 const REVISIT_WINDOW_DAYS = 14;
 const DORMANCY_RISK_DAYS = 45;
+const VIP_CAMPAIGN_BLOCKED_ACTIONS: VipCampaignPreparationBlockedAction[] = [
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'update_customer',
+  'execute_campaign',
+];
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
@@ -260,6 +311,15 @@ function toReportCandidate(card: VipCustomerReadonlyCard): VipCustomerReadonlyRe
   };
 }
 
+function toPreviewCandidate(candidate: VipCustomerReadonlyReportCandidate): VipCampaignPreparationPreviewCandidate {
+  return {
+    customerId: candidate.customerId,
+    maskedContact: candidate.maskedContact,
+    maskedDisplayName: candidate.maskedDisplayName,
+    recommendedReason: candidate.reasonSummary,
+  };
+}
+
 function resolveStoreSubscriptionPlan(
   plan?: SubscriptionPlan,
   subscriptions?: StoreSubscription[],
@@ -412,6 +472,82 @@ export function buildVipCustomerReadonlyReportSample(input: {
       ...view.summary,
       campaignGateRequired: true,
       reportMode: 'sample_read_only',
+    },
+  };
+}
+
+export function buildVipCampaignPreparationPreview(input: {
+  customers: Customer[];
+  orders?: Order[];
+  preferences?: CustomerPreference[];
+  referenceDate?: string;
+  storeId: string;
+  storeSubscriptionPlan?: SubscriptionPlan;
+  storeSubscriptions?: StoreSubscription[];
+  timelineEvents?: CustomerTimelineEvent[];
+}): VipCampaignPreparationPreview {
+  const report = buildVipCustomerReadonlyReportSample(input);
+  const [returnThisWeek, raiseAverageOrderValue, dormancyRisk] = report.sections;
+  const sections: VipCampaignPreparationPreviewSection[] = [
+    {
+      approvalRequired: true,
+      blockedActions: VIP_CAMPAIGN_BLOCKED_ACTIONS,
+      candidateCount: returnThisWeek?.candidates.length || 0,
+      cautionText:
+        '확인 전용입니다. 이 화면에서는 문자/카카오/이메일 발송이 실행되지 않으며 고객 등급과 메모는 변경되지 않습니다.',
+      deliveryEnabled: false,
+      maskedCandidates: (returnThisWeek?.candidates || []).map(toPreviewCandidate),
+      previewOnly: true,
+      purpose: '최근 활동이 있는 VIP 고객 후보를 이번 주 재방문 검토 대상으로 정리합니다.',
+      readOnlyBadge: 'read-only',
+      section: 'return_this_week',
+      suggestedMessageDraft: '최근 방문해 주셔서 감사합니다. 이번 주에 다시 들르시면 선호하시는 메뉴를 먼저 준비해 두겠습니다.',
+      title: '이번 주 다시 부를 고객',
+    },
+    {
+      approvalRequired: true,
+      blockedActions: VIP_CAMPAIGN_BLOCKED_ACTIONS,
+      candidateCount: raiseAverageOrderValue?.candidates.length || 0,
+      cautionText:
+        '확인 전용입니다. 프리미엄 제안 문구는 초안이며 발송 기능은 별도 승인 후 확장합니다.',
+      deliveryEnabled: false,
+      maskedCandidates: (raiseAverageOrderValue?.candidates || []).map(toPreviewCandidate),
+      previewOnly: true,
+      purpose: '주문 금액이 높은 VIP 고객 후보에게 객단가 상승 가능 제안을 검토합니다.',
+      readOnlyBadge: 'read-only',
+      section: 'raise_average_order_value',
+      suggestedMessageDraft: '고객님 취향에 맞춘 프리미엄 구성 추천이 준비되어 있습니다. 다음 방문 때 안내드리겠습니다.',
+      title: '객단가 상승 가능 고객',
+    },
+    {
+      approvalRequired: true,
+      blockedActions: VIP_CAMPAIGN_BLOCKED_ACTIONS,
+      candidateCount: dormancyRisk?.candidates.length || 0,
+      cautionText:
+        '확인 전용입니다. 휴면 위험 검토만 제공하며 고객 정보, 등급, 메모, 운영 데이터는 변경하지 않습니다.',
+      deliveryEnabled: false,
+      maskedCandidates: (dormancyRisk?.candidates || []).map(toPreviewCandidate),
+      previewOnly: true,
+      purpose: '과거 VIP 신호가 강하지만 최근 활동이 줄어든 고객 후보를 재방문 검토 대상으로 정리합니다.',
+      readOnlyBadge: 'read-only',
+      section: 'dormancy_risk',
+      suggestedMessageDraft: '오랜만에 다시 모시고 싶습니다. 선호하셨던 구성 기준으로 방문 준비를 해두겠습니다.',
+      title: '휴면 위험 VIP 고객',
+    },
+  ];
+
+  return {
+    approvalRequired: true,
+    blockedActions: VIP_CAMPAIGN_BLOCKED_ACTIONS,
+    deliveryEnabled: false,
+    previewOnly: true,
+    readOnlyNotice:
+      '캠페인 준비 미리보기는 read-only / preview-only 화면입니다. 발송 기능은 별도 승인 후 확장합니다.',
+    sections,
+    summary: {
+      ...report.summary,
+      deliveryApprovalGateRequired: true,
+      previewMode: 'campaign_preparation_only',
     },
   };
 }
