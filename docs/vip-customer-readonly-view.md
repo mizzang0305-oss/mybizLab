@@ -25,6 +25,16 @@ Customer VIP candidates are derived only from customer-level signals:
 - order count threshold
 - lifetime order value threshold
 
+See `docs/vip-customer-criteria.md` for the criteria plan and `docs/vip-customer-report-sample.md` for read-only report sample sections.
+
+Owner-facing labels should use:
+
+- VIP 고객 후보
+- 이번 주 다시 부를 고객
+- 객단가 상승 가능 고객
+- 휴면 위험 고객
+- 확인 전용 리포트
+
 ## Privacy And Masking
 
 The view masks customer identity and contact details before rendering:
