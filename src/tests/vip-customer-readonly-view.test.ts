@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   buildVipCampaignPreparationPreview,
+  buildVipDeliveryApprovalGatePlan,
   buildVipCustomerReadonlyView,
   buildVipCustomerReadonlyReportSample,
   VIP_CUSTOMER_CRITERIA_DOCUMENTATION,
@@ -221,6 +222,7 @@ describe('VIP customer readonly view service', () => {
       readFileSync(join(process.cwd(), 'docs/vip-customer-readonly-view.md'), 'utf8'),
       readFileSync(join(process.cwd(), 'docs/vip-customer-criteria.md'), 'utf8'),
       readFileSync(join(process.cwd(), 'docs/vip-customer-report-sample.md'), 'utf8'),
+      readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-approval-gate.md'), 'utf8'),
       JSON.stringify(VIP_CUSTOMER_CRITERIA_DOCUMENTATION),
     ].join('\n');
 
@@ -342,17 +344,54 @@ describe('VIP customer readonly view service', () => {
 
   it('documents and wires VIP campaign preparation as a read-only preview without send or execution buttons', () => {
     const campaignDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-campaign-prep-preview.md'), 'utf8');
+    const deliveryGateDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-approval-gate.md'), 'utf8');
     const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
 
     expect(campaignDoc).toContain('delivery approval gate');
+    expect(campaignDoc).toContain('docs/vip-customer-delivery-approval-gate.md');
+    expect(deliveryGateDoc).toContain('owner approval');
+    expect(deliveryGateDoc).toContain('marketing consent');
     expect(campaignDoc).toContain('read-only');
     expect(campaignDoc).toContain('preview-only');
     expect(campaignDoc).toContain('store_id');
     expect(pageSource).toContain('buildVipCampaignPreparationPreview');
+    expect(pageSource).toContain('buildVipDeliveryApprovalGatePlan');
     expect(pageSource).toContain('캠페인 준비 미리보기');
     expect(pageSource).toContain('발송 전 승인 필요');
-    expect(pageSource).toContain('문자/카카오/이메일 발송이 실행되지 않습니다');
+    expect(pageSource).toContain('SMS/Kakao/Email delivery is not executed here');
+    expect(pageSource).toContain('별도 승인 게이트 필요');
+    expect(pageSource).toContain('SMS/Kakao/Email 연동은 future approval scope');
     for (const blockedUiText of ['발송하기', '캠페인 실행', '자동 발송', '고객 등급 변경', '운영 DB 반영 완료']) {
+      expect(pageSource).not.toContain(blockedUiText);
+    }
+  });
+
+  it('builds a pure delivery approval gate plan without enabling delivery or using subscription VIP as a signal', () => {
+    const plan = buildVipDeliveryApprovalGatePlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
+
+    expect(plan.deliveryExecutionEnabled).toBe(false);
+    expect(plan.requiresOwnerApproval).toBe(true);
+    expect(plan.requiresMarketingConsent).toBe(true);
+    expect(plan.requiresMaskedPreviewReview).toBe(true);
+    expect(plan.requiresFinalRecipientCountReview).toBe(true);
+    expect(plan.storeTenancyRequired).toBe(true);
+    expect(plan.deliveryIntegrationScope).toEqual({
+      email: 'future_approval_only',
+      kakao: 'future_approval_only',
+      sms: 'future_approval_only',
+    });
+    expect(plan.blockedActions).toEqual([
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'schedule_send',
+      'execute_campaign',
+    ]);
+    expect(JSON.stringify(plan)).not.toMatch(/phone|emailAddress|customerName|subscriptionPlanIsCustomerVipSource/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|deliveryProvider|fetch\(|axios/i);
+    for (const blockedUiText of ['발송하기', '예약 발송', '캠페인 실행', '카카오 발송', '문자 발송', '이메일 발송', '고객에게 전송 완료']) {
       expect(pageSource).not.toContain(blockedUiText);
     }
   });

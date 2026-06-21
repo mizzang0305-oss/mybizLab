@@ -93,6 +93,13 @@ export type VipCampaignPreparationBlockedAction =
   | 'send_sms'
   | 'update_customer';
 
+export type VipDeliveryApprovalBlockedAction =
+  | 'execute_campaign'
+  | 'schedule_send'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -130,6 +137,30 @@ export interface VipCampaignPreparationPreview {
   };
 }
 
+export interface VipDeliveryApprovalGatePlan {
+  approvalLogRequired: true;
+  billingCostApprovalRequired: true;
+  blockedActions: VipDeliveryApprovalBlockedAction[];
+  cancellationPolicyRequired: true;
+  deliveryExecutionEnabled: false;
+  deliveryIntegrationScope: {
+    email: 'future_approval_only';
+    kakao: 'future_approval_only';
+    sms: 'future_approval_only';
+  };
+  duplicateDeliveryPreventionRequired: true;
+  ownerReviewRequiredBeforeIntegration: true;
+  permissionReviewRequired: true;
+  readOnlyPreviewRequired: true;
+  recipientAccessPolicy: 'masked_preview_then_final_count_review';
+  requiresFinalRecipientCountReview: true;
+  requiresMarketingConsent: true;
+  requiresMaskedPreviewReview: true;
+  requiresOwnerApproval: true;
+  rollbackPolicyRequired: true;
+  storeTenancyRequired: true;
+}
+
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
   customerVipDefinition:
     'customer VIP means a store-scoped customer candidate derived from customer memory signals.',
@@ -153,6 +184,13 @@ const VIP_CAMPAIGN_BLOCKED_ACTIONS: VipCampaignPreparationBlockedAction[] = [
   'send_kakao',
   'send_email',
   'update_customer',
+  'execute_campaign',
+];
+const VIP_DELIVERY_APPROVAL_BLOCKED_ACTIONS: VipDeliveryApprovalBlockedAction[] = [
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'schedule_send',
   'execute_campaign',
 ];
 
@@ -549,5 +587,31 @@ export function buildVipCampaignPreparationPreview(input: {
       deliveryApprovalGateRequired: true,
       previewMode: 'campaign_preparation_only',
     },
+  };
+}
+
+export function buildVipDeliveryApprovalGatePlan(): VipDeliveryApprovalGatePlan {
+  return {
+    approvalLogRequired: true,
+    billingCostApprovalRequired: true,
+    blockedActions: VIP_DELIVERY_APPROVAL_BLOCKED_ACTIONS,
+    cancellationPolicyRequired: true,
+    deliveryExecutionEnabled: false,
+    deliveryIntegrationScope: {
+      email: 'future_approval_only',
+      kakao: 'future_approval_only',
+      sms: 'future_approval_only',
+    },
+    duplicateDeliveryPreventionRequired: true,
+    ownerReviewRequiredBeforeIntegration: true,
+    permissionReviewRequired: true,
+    readOnlyPreviewRequired: true,
+    recipientAccessPolicy: 'masked_preview_then_final_count_review',
+    requiresFinalRecipientCountReview: true,
+    requiresMarketingConsent: true,
+    requiresMaskedPreviewReview: true,
+    requiresOwnerApproval: true,
+    rollbackPolicyRequired: true,
+    storeTenancyRequired: true,
   };
 }
