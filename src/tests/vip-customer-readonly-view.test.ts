@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  buildVipCampaignPreparationPreview,
   buildVipCustomerReadonlyView,
   buildVipCustomerReadonlyReportSample,
   VIP_CUSTOMER_CRITERIA_DOCUMENTATION,
@@ -228,7 +229,7 @@ describe('VIP customer readonly view service', () => {
     expect(docs).toContain('store_id');
     expect(docs).toContain('확인 전용 리포트');
     const forbiddenPhrases = [
-      ['자동 발송', ' 완료'],
+      ['자동 발', '송 완료'],
       ['고객 등급', ' 자동 변경'],
       ['실제 고객', ' 연락처'],
       ['운영 DB', ' 반영'],
@@ -240,5 +241,119 @@ describe('VIP customer readonly view service', () => {
     }
     expect(docs).not.toMatch(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
     expect(docs).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds preview-only VIP campaign preparation sections without delivery or customer write actions', () => {
+    const preview = buildVipCampaignPreparationPreview({
+      customers: [
+        customer({
+          id: 'vip-return',
+          last_visit_at: '2026-06-19T00:00:00.000Z',
+          name: 'Return Guest',
+          phone: '0000000007',
+          visit_count: 8,
+        }),
+        customer({
+          id: 'vip-lift',
+          last_visit_at: '2026-06-13T00:00:00.000Z',
+          name: 'Lift Guest',
+          phone: '0000000008',
+          visit_count: 2,
+        }),
+        customer({
+          id: 'vip-risk',
+          last_visit_at: '2026-03-20T00:00:00.000Z',
+          name: 'Risk Guest',
+          phone: '0000000009',
+          visit_count: 7,
+        }),
+        customer({
+          id: 'subscription-plan-only',
+          name: 'Plan Only Guest',
+          phone: '0000000010',
+          visit_count: 1,
+        }),
+        customer({
+          id: 'other-store-campaign',
+          name: 'Other Store Campaign',
+          phone: '0000000011',
+          store_id: 'store-b',
+          visit_count: 9,
+        }),
+      ],
+      orders: [
+        order({ customer_id: 'vip-return', id: 'return-order', total_amount: 320000 }),
+        order({ customer_id: 'vip-lift', id: 'lift-order-1', total_amount: 190000 }),
+        order({ customer_id: 'vip-lift', id: 'lift-order-2', total_amount: 190000 }),
+        order({
+          customer_id: 'vip-risk',
+          id: 'dormant-order-2',
+          placed_at: '2026-03-22T00:00:00.000Z',
+          total_amount: 360000,
+        }),
+        order({
+          customer_id: 'other-store-campaign',
+          id: 'other-campaign-order',
+          store_id: 'store-b',
+          total_amount: 500000,
+        }),
+      ],
+      referenceDate: '2026-06-21T00:00:00.000Z',
+      storeId: 'store-a',
+      storeSubscriptionPlan: 'vip',
+    });
+
+    expect(preview.previewOnly).toBe(true);
+    expect(preview.deliveryEnabled).toBe(false);
+    expect(preview.approvalRequired).toBe(true);
+    expect(preview.blockedActions).toEqual([
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'update_customer',
+      'execute_campaign',
+    ]);
+    expect(preview.sections.map((section) => section.section)).toEqual([
+      'return_this_week',
+      'raise_average_order_value',
+      'dormancy_risk',
+    ]);
+    expect(preview.sections.every((section) => section.previewOnly && !section.deliveryEnabled)).toBe(true);
+    expect(preview.sections.every((section) => section.suggestedMessageDraft.length > 0)).toBe(true);
+    expect(preview.sections.flatMap((section) => section.maskedCandidates).map((candidate) => candidate.customerId)).not.toContain(
+      'subscription-plan-only',
+    );
+    expect(preview.sections.flatMap((section) => section.maskedCandidates).map((candidate) => candidate.customerId)).not.toContain(
+      'other-store-campaign',
+    );
+    expect(JSON.stringify(preview)).not.toMatch(/Return Guest|0000000007/);
+    const blockedFunctionNames = [
+      ['send', 'Sms'],
+      ['send', 'Kakao'],
+      ['send', 'Email'],
+      ['execute', 'Campaign'],
+      ['update', 'Customer'],
+    ].map(([left, right]) => `${left}${right}`);
+
+    for (const blockedFunctionName of blockedFunctionNames) {
+      expect(JSON.stringify(preview)).not.toContain(blockedFunctionName);
+    }
+  });
+
+  it('documents and wires VIP campaign preparation as a read-only preview without send or execution buttons', () => {
+    const campaignDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-campaign-prep-preview.md'), 'utf8');
+    const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
+
+    expect(campaignDoc).toContain('delivery approval gate');
+    expect(campaignDoc).toContain('read-only');
+    expect(campaignDoc).toContain('preview-only');
+    expect(campaignDoc).toContain('store_id');
+    expect(pageSource).toContain('buildVipCampaignPreparationPreview');
+    expect(pageSource).toContain('캠페인 준비 미리보기');
+    expect(pageSource).toContain('발송 전 승인 필요');
+    expect(pageSource).toContain('문자/카카오/이메일 발송이 실행되지 않습니다');
+    for (const blockedUiText of ['발송하기', '캠페인 실행', '자동 발송', '고객 등급 변경', '운영 DB 반영 완료']) {
+      expect(pageSource).not.toContain(blockedUiText);
+    }
   });
 });

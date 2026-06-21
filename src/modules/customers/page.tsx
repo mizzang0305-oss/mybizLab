@@ -21,7 +21,10 @@ import { getCustomerDisplayLabel } from '@/shared/lib/customerDisplay';
 import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from '@/shared/lib/inquirySchema';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { buildCustomerTimelineIntelligenceDashboard, getCustomerIntelligenceCard } from '@/shared/lib/services/customerTimelineIntelligenceService';
-import { buildVipCustomerReadonlyView } from '@/shared/lib/services/vipCustomerReadonlyViewService';
+import {
+  buildVipCampaignPreparationPreview,
+  buildVipCustomerReadonlyView,
+} from '@/shared/lib/services/vipCustomerReadonlyViewService';
 import {
   getInquiryStatusLabel,
   getOrderChannelLabel,
@@ -411,6 +414,14 @@ export function CustomersPage() {
     storeSubscriptionPlan: currentStore?.subscription_plan,
     timelineEvents: customerTimeline,
   });
+  const vipCampaignPreview = buildVipCampaignPreparationPreview({
+    customers,
+    orders,
+    preferences: customerPreferences,
+    storeId: currentStore?.id || '',
+    storeSubscriptionPlan: currentStore?.subscription_plan,
+    timelineEvents: customerTimeline,
+  });
   const selectedCustomerInsight = getCustomerIntelligenceCard(intelligenceDashboard, selectedCustomer?.id);
   const selectedIntelligenceTimeline = selectedCustomerInsight?.timeline || [];
 
@@ -552,6 +563,47 @@ export function CustomersPage() {
             description={vipReadonlyView.emptyState.description}
           />
         )}
+
+        <div className="mt-6 rounded-[28px] border border-slate-200 bg-white p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-600">preview-only</p>
+              <h3 className="mt-2 text-xl font-black text-slate-900">캠페인 준비 미리보기</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                확인 전용입니다. 발송 전 승인 필요. 이 화면에서는 문자/카카오/이메일 발송이 실행되지 않습니다.
+                고객 등급과 메모는 변경되지 않습니다.
+              </p>
+            </div>
+            <StatusBadge label="read-only" status="ready" />
+          </div>
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            {vipCampaignPreview.sections.map((section) => (
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4" key={section.section}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black text-slate-900">{section.title}</p>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                    {section.candidateCount}명
+                  </span>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500">{section.purpose}</p>
+                <div className="mt-3 space-y-2">
+                  {section.maskedCandidates.slice(0, 3).map((candidate) => (
+                    <div className="rounded-2xl bg-white px-3 py-2 text-xs text-slate-600" key={candidate.customerId}>
+                      <p className="font-bold text-slate-800">{candidate.maskedDisplayName}</p>
+                      <p>{candidate.recommendedReason}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 rounded-2xl bg-white px-3 py-2 text-xs leading-5 text-slate-500">
+                  {section.suggestedMessageDraft}
+                </p>
+                <p className="mt-3 text-[11px] font-semibold leading-5 text-slate-500">
+                  {section.cautionText} 발송 기능은 별도 승인 후 확장합니다.
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
       </Panel>
 
       <Panel title="문의 Inbox" subtitle="공개 문의를 고객 기억, 연락 채널, 최근 타임라인과 함께 읽기 전용으로 확인합니다.">
