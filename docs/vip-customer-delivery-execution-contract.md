@@ -147,3 +147,5 @@ The current code-level contract is:
 - `blockedActions: ["send_sms", "send_kakao", "send_email", "schedule_send", "execute_campaign", "resolve_raw_recipient", "write_delivery_log", "create_campaign_execution"]`
 
 This contract is read-only and in-memory. It must not call a database, provider API, webhook, payment API, notification API, or network endpoint.
+
+The operator-facing readiness checklist that precedes any future execution design is documented in `docs/vip-customer-delivery-readiness-checklist.md`.
