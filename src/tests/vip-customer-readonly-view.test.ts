@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   buildVipCampaignPreparationPreview,
   buildVipDeliveryExecutionContract,
+  buildVipDeliveryReadinessChecklist,
   buildVipDeliveryApprovalGatePlan,
   buildVipCustomerReadonlyView,
   buildVipCustomerReadonlyReportSample,
@@ -449,5 +450,57 @@ describe('VIP customer readonly view service', () => {
     }
     expect(executionDoc).not.toMatch(/[A-Z0-9._%+-]+@gmail\.com|[A-Z0-9._%+-]+@naver\.com/i);
     expect(executionDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a read-only delivery readiness checklist without provider integration or recipient resolution', () => {
+    const checklist = buildVipDeliveryReadinessChecklist();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const readinessDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-readiness-checklist.md'), 'utf8');
+    const executionDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-execution-contract.md'), 'utf8');
+
+    expect(checklist).toEqual({
+      readinessCheckEnabled: true,
+      deliveryExecutionEnabled: false,
+      providerIntegrationEnabled: false,
+      checklistMode: 'readiness_only',
+      requiresOwnerApproval: true,
+      requiresMarketingConsent: true,
+      requiresRecipientCountReview: true,
+      requiresMessageBodyReview: true,
+      requiresCostApproval: true,
+      requiresDuplicatePrevention: true,
+      requiresOptOutExclusion: true,
+      requiresFailurePolicy: true,
+      requiresCancellationPolicy: true,
+      blockedActions: [
+        'send_sms',
+        'send_kakao',
+        'send_email',
+        'schedule_send',
+        'execute_campaign',
+        'resolve_raw_recipient',
+        'write_delivery_log',
+        'create_campaign_execution',
+      ],
+    });
+    expect(JSON.stringify(checklist)).not.toMatch(/phone|emailAddress|customerName|subscriptionPlanIsCustomerVipSource/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|writeDeliveryLog|createCampaignExecution|deliveryProvider|fetch\(|axios/i);
+    for (const requiredDocPhrase of [
+      'readiness_only',
+      'owner approval checklist',
+      'marketing consent checklist',
+      'recipient count review checklist',
+      'message body review checklist',
+      'cost approval checklist',
+      'duplicate prevention checklist',
+      'opt-out and withdrawal exclusion checklist',
+      'failure and cancellation policy checklist',
+      'provider integration is future-only',
+    ]) {
+      expect(readinessDoc).toContain(requiredDocPhrase);
+    }
+    expect(executionDoc).toContain('docs/vip-customer-delivery-readiness-checklist.md');
+    expect(readinessDoc).not.toMatch(/[A-Z0-9._%+-]+@gmail\.com|[A-Z0-9._%+-]+@naver\.com/i);
+    expect(readinessDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });

@@ -192,6 +192,23 @@ export interface VipDeliveryExecutionContract {
   requiresRollbackPolicy: true;
 }
 
+export interface VipDeliveryReadinessChecklist {
+  blockedActions: VipDeliveryExecutionBlockedAction[];
+  checklistMode: 'readiness_only';
+  deliveryExecutionEnabled: false;
+  providerIntegrationEnabled: false;
+  readinessCheckEnabled: true;
+  requiresCancellationPolicy: true;
+  requiresCostApproval: true;
+  requiresDuplicatePrevention: true;
+  requiresFailurePolicy: true;
+  requiresMarketingConsent: true;
+  requiresMessageBodyReview: true;
+  requiresOptOutExclusion: true;
+  requiresOwnerApproval: true;
+  requiresRecipientCountReview: true;
+}
+
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
   customerVipDefinition:
     'customer VIP means a store-scoped customer candidate derived from customer memory signals.',
@@ -676,5 +693,24 @@ export function buildVipDeliveryExecutionContract(): VipDeliveryExecutionContrac
     requiresMessageBodyReview: true,
     requiresOwnerApproval: true,
     requiresRollbackPolicy: true,
+  };
+}
+
+export function buildVipDeliveryReadinessChecklist(): VipDeliveryReadinessChecklist {
+  return {
+    blockedActions: VIP_DELIVERY_EXECUTION_BLOCKED_ACTIONS,
+    checklistMode: 'readiness_only',
+    deliveryExecutionEnabled: false,
+    providerIntegrationEnabled: false,
+    readinessCheckEnabled: true,
+    requiresCancellationPolicy: true,
+    requiresCostApproval: true,
+    requiresDuplicatePrevention: true,
+    requiresFailurePolicy: true,
+    requiresMarketingConsent: true,
+    requiresMessageBodyReview: true,
+    requiresOptOutExclusion: true,
+    requiresOwnerApproval: true,
+    requiresRecipientCountReview: true,
   };
 }
