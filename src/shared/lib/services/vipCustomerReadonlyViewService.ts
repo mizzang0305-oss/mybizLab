@@ -112,6 +112,35 @@ export type VipDeliveryExecutionBlockedAction =
 
 export type VipDeliveryExecutionFutureChannel = 'email' | 'kakao' | 'sms';
 
+export type CustomerMarketingConsentStatus =
+  | 'expired'
+  | 'invalid'
+  | 'opted_in'
+  | 'opted_out'
+  | 'unknown'
+  | 'withdrawn';
+
+export type CustomerMarketingConsentSource =
+  | 'kakao_channel'
+  | 'manual_import'
+  | 'offline_paper'
+  | 'owner_uploaded_list'
+  | 'pos_import'
+  | 'public_page_form'
+  | 'reservation_form'
+  | 'unknown'
+  | 'waiting_entry';
+
+export type CustomerMarketingConsentBlockedAction =
+  | 'create_consent_table'
+  | 'execute_campaign'
+  | 'read_real_customer_consent'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_consent_record';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -209,6 +238,24 @@ export interface VipDeliveryReadinessChecklist {
   requiresRecipientCountReview: true;
 }
 
+export interface CustomerMarketingConsentModelPlan {
+  allowedDeliveryStatuses: CustomerMarketingConsentStatus[];
+  blockedActions: CustomerMarketingConsentBlockedAction[];
+  blockedDeliveryStatuses: CustomerMarketingConsentStatus[];
+  consentModelEnabled: false;
+  consentSources: CustomerMarketingConsentSource[];
+  deliveryExecutionEnabled: false;
+  futureTable: 'customer_marketing_consents';
+  migrationRequiredBeforeExecution: true;
+  productionWriteEnabled: false;
+  providerIntegrationEnabled: false;
+  requiresEvidence: true;
+  requiresOptOutExclusion: true;
+  requiresStoreScopedConsent: true;
+  requiresUnknownExclusion: true;
+  requiresWithdrawalOverride: true;
+}
+
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
   customerVipDefinition:
     'customer VIP means a store-scoped customer candidate derived from customer memory signals.',
@@ -252,6 +299,35 @@ const VIP_DELIVERY_EXECUTION_BLOCKED_ACTIONS: VipDeliveryExecutionBlockedAction[
   'create_campaign_execution',
 ];
 const VIP_DELIVERY_EXECUTION_FUTURE_CHANNELS: VipDeliveryExecutionFutureChannel[] = ['sms', 'kakao', 'email'];
+const CUSTOMER_MARKETING_ALLOWED_CONSENT_STATUSES: CustomerMarketingConsentStatus[] = ['opted_in'];
+const CUSTOMER_MARKETING_BLOCKED_CONSENT_STATUSES: CustomerMarketingConsentStatus[] = [
+  'unknown',
+  'opted_out',
+  'withdrawn',
+  'expired',
+  'invalid',
+];
+const CUSTOMER_MARKETING_CONSENT_SOURCES: CustomerMarketingConsentSource[] = [
+  'public_page_form',
+  'reservation_form',
+  'waiting_entry',
+  'manual_import',
+  'pos_import',
+  'owner_uploaded_list',
+  'kakao_channel',
+  'offline_paper',
+  'unknown',
+];
+const CUSTOMER_MARKETING_CONSENT_BLOCKED_ACTIONS: CustomerMarketingConsentBlockedAction[] = [
+  'create_consent_table',
+  'write_consent_record',
+  'read_real_customer_consent',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'execute_campaign',
+  'resolve_raw_recipient',
+];
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
@@ -712,5 +788,25 @@ export function buildVipDeliveryReadinessChecklist(): VipDeliveryReadinessCheckl
     requiresOptOutExclusion: true,
     requiresOwnerApproval: true,
     requiresRecipientCountReview: true,
+  };
+}
+
+export function buildCustomerMarketingConsentModelPlan(): CustomerMarketingConsentModelPlan {
+  return {
+    allowedDeliveryStatuses: CUSTOMER_MARKETING_ALLOWED_CONSENT_STATUSES,
+    blockedActions: CUSTOMER_MARKETING_CONSENT_BLOCKED_ACTIONS,
+    blockedDeliveryStatuses: CUSTOMER_MARKETING_BLOCKED_CONSENT_STATUSES,
+    consentModelEnabled: false,
+    consentSources: CUSTOMER_MARKETING_CONSENT_SOURCES,
+    deliveryExecutionEnabled: false,
+    futureTable: 'customer_marketing_consents',
+    migrationRequiredBeforeExecution: true,
+    productionWriteEnabled: false,
+    providerIntegrationEnabled: false,
+    requiresEvidence: true,
+    requiresOptOutExclusion: true,
+    requiresStoreScopedConsent: true,
+    requiresUnknownExclusion: true,
+    requiresWithdrawalOverride: true,
   };
 }

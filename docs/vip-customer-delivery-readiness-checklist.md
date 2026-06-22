@@ -72,6 +72,8 @@ Future delivery must exclude customers without current marketing consent, custom
 
 The checklist does not query real customer consent records. It only documents the future readiness condition.
 
+The consent model contract is documented in `docs/customer-marketing-consent-model.md`. It keeps `customer_marketing_consents` as a future schema proposal only and does not add a migration, seed, consent write UI, real customer consent read, or production DB write.
+
 ## Recipient Count Review Checklist
 
 Future delivery must start from masked preview data and aggregate counts. The owner must review the final recipient count before any cost-bearing or provider-facing action exists.

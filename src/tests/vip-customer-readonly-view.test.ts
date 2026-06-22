@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  buildCustomerMarketingConsentModelPlan,
   buildVipCampaignPreparationPreview,
   buildVipDeliveryExecutionContract,
   buildVipDeliveryReadinessChecklist,
@@ -502,5 +503,106 @@ describe('VIP customer readonly view service', () => {
     expect(executionDoc).toContain('docs/vip-customer-delivery-readiness-checklist.md');
     expect(readinessDoc).not.toMatch(/[A-Z0-9._%+-]+@gmail\.com|[A-Z0-9._%+-]+@naver\.com/i);
     expect(readinessDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a pure customer marketing consent model plan without migration, writes, or provider integration', () => {
+    const consentPlan = buildCustomerMarketingConsentModelPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+
+    expect(consentPlan.consentModelEnabled).toBe(false);
+    expect(consentPlan.migrationRequiredBeforeExecution).toBe(true);
+    expect(consentPlan.productionWriteEnabled).toBe(false);
+    expect(consentPlan.deliveryExecutionEnabled).toBe(false);
+    expect(consentPlan.providerIntegrationEnabled).toBe(false);
+    expect(consentPlan.allowedDeliveryStatuses).toEqual(['opted_in']);
+    expect(consentPlan.blockedDeliveryStatuses).toEqual([
+      'unknown',
+      'opted_out',
+      'withdrawn',
+      'expired',
+      'invalid',
+    ]);
+    expect(consentPlan.consentSources).toEqual([
+      'public_page_form',
+      'reservation_form',
+      'waiting_entry',
+      'manual_import',
+      'pos_import',
+      'owner_uploaded_list',
+      'kakao_channel',
+      'offline_paper',
+      'unknown',
+    ]);
+    expect(consentPlan.requiresStoreScopedConsent).toBe(true);
+    expect(consentPlan.requiresEvidence).toBe(true);
+    expect(consentPlan.requiresWithdrawalOverride).toBe(true);
+    expect(consentPlan.requiresOptOutExclusion).toBe(true);
+    expect(consentPlan.requiresUnknownExclusion).toBe(true);
+    expect(consentPlan.futureTable).toBe('customer_marketing_consents');
+    expect(consentPlan.blockedActions).toEqual([
+      'create_consent_table',
+      'write_consent_record',
+      'read_real_customer_consent',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'execute_campaign',
+      'resolve_raw_recipient',
+    ]);
+    expect(serviceSource).not.toMatch(/createConsentTable|writeConsentRecord|readRealCustomerConsent/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|deliveryProvider|fetch\(|axios/i);
+  });
+
+  it('documents the customer marketing consent model without SQL, real PII, or send UI scope', () => {
+    const consentDoc = readFileSync(join(process.cwd(), 'docs/customer-marketing-consent-model.md'), 'utf8');
+    const readinessDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-readiness-checklist.md'), 'utf8');
+    const executionDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-execution-contract.md'), 'utf8');
+    const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
+    const changedDocBundle = [consentDoc, readinessDoc, executionDoc].join('\n');
+
+    for (const requiredPhrase of [
+      'Consent Status',
+      'Consent Source',
+      'Consent Timestamp',
+      'Opt-Out And Withdrawal',
+      'Consent Evidence',
+      'Store Tenancy',
+      'Future Schema Proposal',
+      'customer_marketing_consents',
+      'requiresMarketingConsent=true',
+      'requiresOptOutExclusion=true',
+      'docs/customer-marketing-consent-model.md',
+    ]) {
+      expect(changedDocBundle).toContain(requiredPhrase);
+    }
+    for (const status of ['unknown', 'opted_in', 'opted_out', 'withdrawn', 'expired', 'invalid']) {
+      expect(consentDoc).toContain(status);
+    }
+    for (const source of [
+      'public_page_form',
+      'reservation_form',
+      'waiting_entry',
+      'manual_import',
+      'pos_import',
+      'owner_uploaded_list',
+      'kakao_channel',
+      'offline_paper',
+      'unknown',
+    ]) {
+      expect(consentDoc).toContain(source);
+    }
+    expect(changedDocBundle).not.toMatch(
+      new RegExp(`CREATE\\s+TABLE|ALTER\\s+TABLE|INSERT\\s+INTO|SUPABASE|${'service'}_${'role'}`, 'i'),
+    );
+    expect(changedDocBundle).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(changedDocBundle).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(pageSource).not.toContain('buildCustomerMarketingConsentModelPlan');
+    for (const blockedUiText of [
+      'send, scheduled send, or execute campaign buttons',
+      'campaign execution paths',
+      'consent write UI',
+    ]) {
+      expect(consentDoc).toContain(blockedUiText);
+    }
   });
 });
