@@ -103,6 +103,8 @@ The current safety contract is:
 
 This contract is read-only. It is not a delivery implementation.
 
+The stricter execution contract is documented in `docs/vip-customer-delivery-execution-contract.md`. It keeps provider integration disabled, allowed channels empty, raw recipient resolution blocked, delivery log writes blocked, and campaign execution table creation blocked until a separate future approval.
+
 ## Explicit Non-Goals
 
 This plan does not add:

@@ -35,6 +35,8 @@ SMS, Kakao, and email integrations require a separate delivery approval gate. Un
 
 The detailed gate is defined in `docs/vip-customer-delivery-approval-gate.md`. It requires owner approval, marketing consent review, masked preview review, final recipient count review, cost review, store_id tenancy review, failure/cancellation/withdrawal handling, duplicate-send prevention, and future delivery logs before any delivery integration can be designed.
 
+The execution contract is defined in `docs/vip-customer-delivery-execution-contract.md`. It keeps delivery execution disabled, provider integration disabled, allowed channels empty, and raw recipient resolution future-only.
+
 ## Privacy And Masking
 
 The preview shows masked names, masked contacts, aggregate reasons, and candidate counts only. It must not render raw customer names, raw phone numbers, raw email addresses, raw rows, secrets, or private notes.
