@@ -22,6 +22,7 @@ import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { buildCustomerTimelineIntelligenceDashboard, getCustomerIntelligenceCard } from '@/shared/lib/services/customerTimelineIntelligenceService';
 import {
+  buildVipDeliveryApprovalGatePlan,
   buildVipCampaignPreparationPreview,
   buildVipCustomerReadonlyView,
 } from '@/shared/lib/services/vipCustomerReadonlyViewService';
@@ -422,6 +423,7 @@ export function CustomersPage() {
     storeSubscriptionPlan: currentStore?.subscription_plan,
     timelineEvents: customerTimeline,
   });
+  const vipDeliveryApprovalGatePlan = buildVipDeliveryApprovalGatePlan();
   const selectedCustomerInsight = getCustomerIntelligenceCard(intelligenceDashboard, selectedCustomer?.id);
   const selectedIntelligenceTimeline = selectedCustomerInsight?.timeline || [];
 
@@ -570,9 +572,14 @@ export function CustomersPage() {
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-600">preview-only</p>
               <h3 className="mt-2 text-xl font-black text-slate-900">캠페인 준비 미리보기</h3>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                확인 전용입니다. 발송 전 승인 필요. 이 화면에서는 문자/카카오/이메일 발송이 실행되지 않습니다.
+                확인 전용입니다. 발송 전 승인 필요. SMS/Kakao/Email delivery is not executed here.
                 고객 등급과 메모는 변경되지 않습니다.
               </p>
+              <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-semibold leading-5 text-orange-800">
+                별도 승인 게이트 필요. 마케팅 동의, 대상자 수, 메시지 초안 검토 후 별도 승인 필요.
+                SMS/Kakao/Email 연동은 future approval scope입니다.
+                deliveryExecutionEnabled={String(vipDeliveryApprovalGatePlan.deliveryExecutionEnabled)}.
+              </div>
             </div>
             <StatusBadge label="read-only" status="ready" />
           </div>
