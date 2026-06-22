@@ -22,6 +22,7 @@ import { customerContactSchema, inquiryStatusValues, normalizeInquiryTags } from
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { buildCustomerTimelineIntelligenceDashboard, getCustomerIntelligenceCard } from '@/shared/lib/services/customerTimelineIntelligenceService';
 import {
+  buildVipDeliveryExecutionContract,
   buildVipDeliveryApprovalGatePlan,
   buildVipCampaignPreparationPreview,
   buildVipCustomerReadonlyView,
@@ -424,6 +425,7 @@ export function CustomersPage() {
     timelineEvents: customerTimeline,
   });
   const vipDeliveryApprovalGatePlan = buildVipDeliveryApprovalGatePlan();
+  const vipDeliveryExecutionContract = buildVipDeliveryExecutionContract();
   const selectedCustomerInsight = getCustomerIntelligenceCard(intelligenceDashboard, selectedCustomer?.id);
   const selectedIntelligenceTimeline = selectedCustomerInsight?.timeline || [];
 
@@ -579,6 +581,13 @@ export function CustomersPage() {
                 별도 승인 게이트 필요. 마케팅 동의, 대상자 수, 메시지 초안 검토 후 별도 승인 필요.
                 SMS/Kakao/Email 연동은 future approval scope입니다.
                 deliveryExecutionEnabled={String(vipDeliveryApprovalGatePlan.deliveryExecutionEnabled)}.
+              </div>
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold leading-5 text-slate-700">
+                Delivery execution contract required. This screen does not deliver messages. Marketing consent,
+                final recipient count, message body review, cost approval, duplicate prevention, audit log,
+                failure handling, and rollback policy must be approved before future SMS/Kakao/Email scope.
+                providerIntegrationEnabled={String(vipDeliveryExecutionContract.providerIntegrationEnabled)};
+                allowedChannels={vipDeliveryExecutionContract.allowedChannels.length}.
               </div>
             </div>
             <StatusBadge label="read-only" status="ready" />

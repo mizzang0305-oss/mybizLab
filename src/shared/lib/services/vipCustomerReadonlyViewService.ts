@@ -100,6 +100,18 @@ export type VipDeliveryApprovalBlockedAction =
   | 'send_kakao'
   | 'send_sms';
 
+export type VipDeliveryExecutionBlockedAction =
+  | 'create_campaign_execution'
+  | 'execute_campaign'
+  | 'resolve_raw_recipient'
+  | 'schedule_send'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_delivery_log';
+
+export type VipDeliveryExecutionFutureChannel = 'email' | 'kakao' | 'sms';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -161,6 +173,25 @@ export interface VipDeliveryApprovalGatePlan {
   storeTenancyRequired: true;
 }
 
+export interface VipDeliveryExecutionContract {
+  allowedChannels: [];
+  blockedActions: VipDeliveryExecutionBlockedAction[];
+  deliveryExecutionEnabled: false;
+  providerIntegrationEnabled: false;
+  futureChannels: VipDeliveryExecutionFutureChannel[];
+  requiresAuditLog: true;
+  requiresCancellationPolicy: true;
+  requiresCostApproval: true;
+  requiresDuplicateSendPrevention: true;
+  requiresFailureHandling: true;
+  requiresFinalRecipientCountReview: true;
+  requiresMarketingConsent: true;
+  requiresMaskedPreviewReview: true;
+  requiresMessageBodyReview: true;
+  requiresOwnerApproval: true;
+  requiresRollbackPolicy: true;
+}
+
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
   customerVipDefinition:
     'customer VIP means a store-scoped customer candidate derived from customer memory signals.',
@@ -193,6 +224,17 @@ const VIP_DELIVERY_APPROVAL_BLOCKED_ACTIONS: VipDeliveryApprovalBlockedAction[] 
   'schedule_send',
   'execute_campaign',
 ];
+const VIP_DELIVERY_EXECUTION_BLOCKED_ACTIONS: VipDeliveryExecutionBlockedAction[] = [
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'schedule_send',
+  'execute_campaign',
+  'resolve_raw_recipient',
+  'write_delivery_log',
+  'create_campaign_execution',
+];
+const VIP_DELIVERY_EXECUTION_FUTURE_CHANNELS: VipDeliveryExecutionFutureChannel[] = ['sms', 'kakao', 'email'];
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
@@ -613,5 +655,26 @@ export function buildVipDeliveryApprovalGatePlan(): VipDeliveryApprovalGatePlan 
     requiresOwnerApproval: true,
     rollbackPolicyRequired: true,
     storeTenancyRequired: true,
+  };
+}
+
+export function buildVipDeliveryExecutionContract(): VipDeliveryExecutionContract {
+  return {
+    allowedChannels: [],
+    blockedActions: VIP_DELIVERY_EXECUTION_BLOCKED_ACTIONS,
+    deliveryExecutionEnabled: false,
+    futureChannels: VIP_DELIVERY_EXECUTION_FUTURE_CHANNELS,
+    providerIntegrationEnabled: false,
+    requiresAuditLog: true,
+    requiresCancellationPolicy: true,
+    requiresCostApproval: true,
+    requiresDuplicateSendPrevention: true,
+    requiresFailureHandling: true,
+    requiresFinalRecipientCountReview: true,
+    requiresMarketingConsent: true,
+    requiresMaskedPreviewReview: true,
+    requiresMessageBodyReview: true,
+    requiresOwnerApproval: true,
+    requiresRollbackPolicy: true,
   };
 }

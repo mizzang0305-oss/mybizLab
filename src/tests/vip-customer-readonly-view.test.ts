@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   buildVipCampaignPreparationPreview,
+  buildVipDeliveryExecutionContract,
   buildVipDeliveryApprovalGatePlan,
   buildVipCustomerReadonlyView,
   buildVipCustomerReadonlyReportSample,
@@ -223,6 +224,7 @@ describe('VIP customer readonly view service', () => {
       readFileSync(join(process.cwd(), 'docs/vip-customer-criteria.md'), 'utf8'),
       readFileSync(join(process.cwd(), 'docs/vip-customer-report-sample.md'), 'utf8'),
       readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-approval-gate.md'), 'utf8'),
+      readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-execution-contract.md'), 'utf8'),
       JSON.stringify(VIP_CUSTOMER_CRITERIA_DOCUMENTATION),
     ].join('\n');
 
@@ -394,5 +396,58 @@ describe('VIP customer readonly view service', () => {
     for (const blockedUiText of ['발송하기', '예약 발송', '캠페인 실행', '카카오 발송', '문자 발송', '이메일 발송', '고객에게 전송 완료']) {
       expect(pageSource).not.toContain(blockedUiText);
     }
+  });
+
+  it('builds a pure delivery execution contract without provider integration or execution paths', () => {
+    const contract = buildVipDeliveryExecutionContract();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
+    const executionDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-execution-contract.md'), 'utf8');
+
+    expect(contract.deliveryExecutionEnabled).toBe(false);
+    expect(contract.providerIntegrationEnabled).toBe(false);
+    expect(contract.allowedChannels).toEqual([]);
+    expect(contract.futureChannels).toEqual(['sms', 'kakao', 'email']);
+    expect(contract.requiresOwnerApproval).toBe(true);
+    expect(contract.requiresMarketingConsent).toBe(true);
+    expect(contract.requiresMaskedPreviewReview).toBe(true);
+    expect(contract.requiresFinalRecipientCountReview).toBe(true);
+    expect(contract.requiresMessageBodyReview).toBe(true);
+    expect(contract.requiresDuplicateSendPrevention).toBe(true);
+    expect(contract.requiresCostApproval).toBe(true);
+    expect(contract.requiresAuditLog).toBe(true);
+    expect(contract.requiresCancellationPolicy).toBe(true);
+    expect(contract.requiresFailureHandling).toBe(true);
+    expect(contract.requiresRollbackPolicy).toBe(true);
+    expect(contract.blockedActions).toEqual([
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'schedule_send',
+      'execute_campaign',
+      'resolve_raw_recipient',
+      'write_delivery_log',
+      'create_campaign_execution',
+    ]);
+    expect(JSON.stringify(contract)).not.toMatch(/phone|emailAddress|customerName|subscriptionPlanIsCustomerVipSource/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|writeDeliveryLog|createCampaignExecution|deliveryProvider|fetch\(|axios/i);
+    expect(pageSource).toContain('buildVipDeliveryExecutionContract');
+    expect(pageSource).toContain('Delivery execution contract required');
+    expect(pageSource).toContain('providerIntegrationEnabled');
+    for (const blockedUiText of ['발송하기', '예약 발송', '캠페인 실행', '문자 발송', '카카오 발송', '이메일 발송', '전송 완료']) {
+      expect(pageSource).not.toContain(blockedUiText);
+    }
+    for (const requiredDocPhrase of [
+      'ownerApprovalRequired',
+      'marketingConsentRequired',
+      'duplicateSendPreventionRequired',
+      'auditLogRequired',
+      'failureHandlingRequired',
+      'providerIntegrationEnabled: false',
+    ]) {
+      expect(executionDoc).toContain(requiredDocPhrase);
+    }
+    expect(executionDoc).not.toMatch(/[A-Z0-9._%+-]+@gmail\.com|[A-Z0-9._%+-]+@naver\.com/i);
+    expect(executionDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });
