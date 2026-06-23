@@ -1,21 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { isLaunchGateEnabled } from '../../../shared/lib/launchGates';
-import { createSupabaseRepository } from '../../../shared/lib/repositories/supabaseRepository';
-import { getRequestMethod } from '../../nodeResponse';
-import { getSupabaseAdminClient } from '../../supabaseAdmin';
+import { isLaunchGateEnabled } from '../../../shared/lib/launchGates.js';
+import { createSupabaseRepository } from '../../../shared/lib/repositories/supabaseRepository.js';
+import { getRequestMethod } from '../../nodeResponse.js';
+import { getSupabaseAdminClient } from '../../supabaseAdmin.js';
 import {
   type CustomerMemoryIntakeRepository,
-} from '../repositories/customerRepository';
+} from '../repositories/customerRepository.js';
 import {
   createProductionCustomerMemorySchemaAdapter,
   type CustomerMemorySupabaseClientLike,
-} from '../repositories/customerMemoryProductionAdapter';
+} from '../repositories/customerMemoryProductionAdapter.js';
 import {
   buildAdminCustomerMemoryReadModel,
   submitCustomerMemoryInquiryIntake,
   type CustomerMemoryInquiryIntakeInput,
-} from './customerMemoryIntakeService';
+} from './customerMemoryIntakeService.js';
 
 export type CustomerMemoryRequestLike =
   | Request

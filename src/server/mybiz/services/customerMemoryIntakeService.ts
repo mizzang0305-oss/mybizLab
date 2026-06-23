@@ -1,4 +1,4 @@
-import { createId } from '../../../shared/lib/ids';
+import { createId } from '../../../shared/lib/ids.js';
 import {
   buildCustomerContact,
   buildCustomerTimelineEvent,
@@ -7,8 +7,8 @@ import {
   normalizeCustomerEmail,
   normalizeCustomerPhone,
   normalizeCustomerRecord,
-} from '../../../shared/lib/domain/customerMemory';
-import { normalizeInquiryTags } from '../../../shared/lib/inquirySchema';
+} from '../../../shared/lib/domain/customerMemory.js';
+import { normalizeInquiryTags } from '../../../shared/lib/inquirySchema.js';
 import type {
   Customer,
   CustomerContact,
@@ -16,7 +16,7 @@ import type {
   Inquiry,
   InquiryCategory,
 } from '../../../shared/types/models';
-import type { CustomerMemoryIntakeRepository } from '../repositories/customerRepository';
+import type { CustomerMemoryIntakeRepository } from '../repositories/customerRepository.js';
 
 export interface CustomerMemoryInquiryIntakeInput {
   category?: InquiryCategory;

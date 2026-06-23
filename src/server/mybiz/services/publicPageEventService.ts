@@ -1,10 +1,10 @@
 import {
   buildMockPublicPageEvents,
   buildPublicPageEventReadModel,
-} from '../../../shared/lib/services/publicPageEventReadModelService';
-import { getRequestMethod } from '../../nodeResponse';
-import { getSupabaseAdminClient } from '../../supabaseAdmin';
-import type { CustomerMemoryRequestLike } from './customerMemoryApi';
+} from '../../../shared/lib/services/publicPageEventReadModelService.js';
+import { getRequestMethod } from '../../nodeResponse.js';
+import { getSupabaseAdminClient } from '../../supabaseAdmin.js';
+import type { CustomerMemoryRequestLike } from './customerMemoryApi.js';
 
 interface PublicPageEventApiAccess {
   profileId: string;

@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest';
 import vercelConfig from '../../vercel.json';
 
 describe('vercel public API rewrites', () => {
+  it('routes root SEO files through the public function', () => {
+    expect(vercelConfig.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dest: '/api/public?resource=seo-sitemap',
+          src: '/sitemap.xml',
+        }),
+        expect.objectContaining({
+          dest: '/api/public?resource=seo-robots',
+          src: '/robots.txt',
+        }),
+      ]),
+    );
+  });
+
   it('routes public order customer mutations through the single public function', () => {
     const route = vercelConfig.routes.find(
       (entry) =>

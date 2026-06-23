@@ -5,9 +5,9 @@ import type {
   LeadCaptureStatus,
   LeadCaptureTransitionPatch,
 } from '../../../domain/mybiz/leadCapture';
-import type { LaunchGateKey } from '../../../shared/lib/launchGates';
+import type { LaunchGateKey } from '../../../shared/lib/launchGates.js';
 
-import { isLaunchGateEnabled } from '../../../shared/lib/launchGates';
+import { isLaunchGateEnabled } from '../../../shared/lib/launchGates.js';
 
 export type LeadCaptureRepositoryMode = 'mock' | 'supabase-disabled' | 'supabase';
 export type LeadCaptureWriteGateKey =

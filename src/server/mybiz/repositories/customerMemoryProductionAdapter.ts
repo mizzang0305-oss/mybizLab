@@ -9,7 +9,7 @@ import {
   assertCustomerMemorySpineWriteAllowed,
   type CustomerMemoryIntakeRepository,
   type CustomerMemorySpineWriteApproval,
-} from './customerRepository';
+} from './customerRepository.js';
 
 type QueryResult = {
   data?: Record<string, unknown>[] | null;
