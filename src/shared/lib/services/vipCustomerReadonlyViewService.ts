@@ -146,11 +146,13 @@ export type VipDeliveryProviderSelectionCandidateChannel = 'email' | 'kakao' | '
 export type VipDeliveryProviderSelectionCriteria =
   | 'api_key_management'
   | 'approval_review_required'
+  | 'consent_model_compatibility'
   | 'cost'
   | 'failure_retry_policy'
   | 'fallback_strategy'
   | 'personal_data_processing'
   | 'rate_limit'
+  | 'readiness_checklist_compatibility'
   | 'vendor_lock_in'
   | 'webhook_callback_future_scope';
 
@@ -384,6 +386,8 @@ const VIP_DELIVERY_PROVIDER_SELECTION_CRITERIA: VipDeliveryProviderSelectionCrit
   'webhook_callback_future_scope',
   'vendor_lock_in',
   'fallback_strategy',
+  'consent_model_compatibility',
+  'readiness_checklist_compatibility',
 ];
 const VIP_DELIVERY_PROVIDER_SELECTION_BLOCKED_ACTIONS: VipDeliveryProviderSelectionBlockedAction[] = [
   'install_provider_sdk',

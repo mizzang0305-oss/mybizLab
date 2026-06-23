@@ -98,6 +98,8 @@ The code-level provider selection plan uses these criteria:
 - `webhook_callback_future_scope`
 - `vendor_lock_in`
 - `fallback_strategy`
+- `consent_model_compatibility`
+- `readiness_checklist_compatibility`
 
 ## Cost Criteria
 

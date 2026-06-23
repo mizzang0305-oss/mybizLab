@@ -635,6 +635,8 @@ describe('VIP customer readonly view service', () => {
       'webhook_callback_future_scope',
       'vendor_lock_in',
       'fallback_strategy',
+      'consent_model_compatibility',
+      'readiness_checklist_compatibility',
     ]);
     expect(providerPlan.blockedActions).toEqual([
       'install_provider_sdk',
