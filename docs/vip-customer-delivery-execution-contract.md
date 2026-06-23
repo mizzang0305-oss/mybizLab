@@ -49,6 +49,8 @@ Future delivery must exclude:
 
 Subscription VIP status is not a customer VIP signal and is not a delivery execution signal.
 
+The future consent status, source, evidence, withdrawal, and store tenancy model is defined in `docs/customer-marketing-consent-model.md`. That model is a planning contract only; it does not create the `customer_marketing_consents` table or any consent write path.
+
 ## Recipient Review Standard
 
 Before any future delivery attempt, the owner must review the final recipient count. Masked preview review and raw recipient resolution are separate steps.
