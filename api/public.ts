@@ -19,11 +19,6 @@ import {
   handleSitemapRequest,
   handleStoreSitemapRequest,
 } from '../src/server/seoRoutes.js';
-import {
-  handlePublicCustomerMemoryInquiryRequest,
-  type CustomerMemoryRequestLike,
-} from '../src/server/mybiz/services/customerMemoryApi.js';
-import { handlePublicPageEventPreviewRequest } from '../src/server/mybiz/services/publicPageEventService.js';
 import { handlePlatformPublicRequest } from '../src/server/platformAdminApi.js';
 import { getRequestMethod, sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../src/server/supabaseAdmin.js';
@@ -117,14 +112,30 @@ async function routePublicRequest(request: PublicRequestLike) {
     case 'inquiry':
       return method === 'POST' ? handlePublicInquiryRequest(request) : methodNotAllowed('POST');
     case 'customer-memory-inquiry':
-      return method === 'POST'
-        ? handlePublicCustomerMemoryInquiryRequest(request as CustomerMemoryRequestLike)
-        : methodNotAllowed('POST');
+      if (method !== 'POST') {
+        return methodNotAllowed('POST');
+      }
+
+      {
+        const { handlePublicCustomerMemoryInquiryRequest } = await import(
+          '../src/server/mybiz/services/customerMemoryApi.js'
+        );
+        return handlePublicCustomerMemoryInquiryRequest(
+          request as Parameters<typeof handlePublicCustomerMemoryInquiryRequest>[0],
+        );
+      }
     case 'public-page-events/preview':
     case 'public-page-events/mock':
-      return method === 'GET'
-        ? handlePublicPageEventPreviewRequest(request as CustomerMemoryRequestLike)
-        : methodNotAllowed('GET');
+      if (method !== 'GET') {
+        return methodNotAllowed('GET');
+      }
+
+      {
+        const { handlePublicPageEventPreviewRequest } = await import(
+          '../src/server/mybiz/services/publicPageEventService.js'
+        );
+        return handlePublicPageEventPreviewRequest(request as Parameters<typeof handlePublicPageEventPreviewRequest>[0]);
+      }
     case 'consultation':
       return method === 'POST' ? handlePublicConsultationRequest(request) : methodNotAllowed('POST');
     case 'order':

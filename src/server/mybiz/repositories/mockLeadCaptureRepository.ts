@@ -6,9 +6,9 @@ import {
   type LeadCaptureStatus,
   type LeadCaptureTransitionPatch,
 } from '../../../domain/mybiz/leadCapture';
-import { isLaunchGateEnabled } from '../../../shared/lib/launchGates';
+import { isLaunchGateEnabled } from '../../../shared/lib/launchGates.js';
 
-import type { LeadCaptureRepository } from './leadCaptureRepository';
+import type { LeadCaptureRepository } from './leadCaptureRepository.js';
 
 function assertOwnerReviewedLeadCaptureEnabled() {
   if (!isLaunchGateEnabled('ownerReviewedLeadCaptureEnabled')) {

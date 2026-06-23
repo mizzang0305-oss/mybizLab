@@ -51,6 +51,38 @@ describe('server runtime imports', () => {
     }
   });
 
+  it('keeps public SEO routes isolated from MyBiz service runtime imports at module load', () => {
+    const source = readFileSync(join(process.cwd(), 'api', 'public.ts'), 'utf8');
+    const moduleHeader = source.slice(0, source.indexOf('async function routePublicRequest'));
+
+    expect(moduleHeader).not.toContain('customerMemoryApi');
+    expect(moduleHeader).not.toContain('publicPageEventService');
+    expect(source).toMatch(/await import\(\s*['"]\.\.\/src\/server\/mybiz\/services\/customerMemoryApi\.js['"]\s*\)/);
+    expect(source).toMatch(
+      /await import\(\s*['"]\.\.\/src\/server\/mybiz\/services\/publicPageEventService\.js['"]\s*\)/,
+    );
+  });
+
+  it('uses explicit js extensions for customer-memory server runtime imports', () => {
+    const files = [
+      join(process.cwd(), 'src', 'server', 'mybiz', 'services', 'customerMemoryApi.ts'),
+      join(process.cwd(), 'src', 'server', 'mybiz', 'services', 'publicPageEventService.ts'),
+      join(process.cwd(), 'src', 'server', 'mybiz', 'repositories', 'customerRepository.ts'),
+      join(process.cwd(), 'src', 'server', 'mybiz', 'repositories', 'leadCaptureRepository.ts'),
+      join(process.cwd(), 'src', 'server', 'mybiz', 'repositories', 'mockLeadCaptureRepository.ts'),
+    ];
+
+    for (const filePath of files) {
+      const source = readFileSync(filePath, 'utf8');
+      const extensionlessImports =
+        source.match(
+          /from ['"][^'"]*(launchGates|supabaseRepository|nodeResponse|supabaseAdmin|customerRepository|customerMemoryProductionAdapter|customerMemoryIntakeService)['"]/g,
+        ) ?? [];
+
+      expect(extensionlessImports, filePath).toEqual([]);
+    }
+  });
+
   it('keeps server-loaded billing plan imports resolvable in Vercel Node runtime', () => {
     const source = readFileSync(join(process.cwd(), 'src', 'shared', 'lib', 'billingPlans.ts'), 'utf8');
 

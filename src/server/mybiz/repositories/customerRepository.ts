@@ -1,4 +1,4 @@
-import { isLaunchGateEnabled } from '../../../shared/lib/launchGates';
+import { isLaunchGateEnabled } from '../../../shared/lib/launchGates.js';
 import type { Customer, CustomerContact } from '../../../shared/types/models';
 import type { CustomerSpineInquiryRepository } from './inquiryRepository';
 import type { CustomerSpineTimelineRepository } from './customerTimelineRepository';
