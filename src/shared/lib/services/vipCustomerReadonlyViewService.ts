@@ -141,6 +141,34 @@ export type CustomerMarketingConsentBlockedAction =
   | 'send_sms'
   | 'write_consent_record';
 
+export type VipDeliveryProviderSelectionCandidateChannel = 'email' | 'kakao' | 'sms';
+
+export type VipDeliveryProviderSelectionCriteria =
+  | 'api_key_management'
+  | 'approval_review_required'
+  | 'consent_model_compatibility'
+  | 'cost'
+  | 'failure_retry_policy'
+  | 'fallback_strategy'
+  | 'personal_data_processing'
+  | 'rate_limit'
+  | 'readiness_checklist_compatibility'
+  | 'vendor_lock_in'
+  | 'webhook_callback_future_scope';
+
+export type VipDeliveryProviderSelectionBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'call_provider_api'
+  | 'execute_campaign'
+  | 'import_provider_client'
+  | 'install_provider_sdk'
+  | 'register_webhook'
+  | 'schedule_send'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -256,6 +284,21 @@ export interface CustomerMarketingConsentModelPlan {
   requiresWithdrawalOverride: true;
 }
 
+export interface VipDeliveryProviderSelectionPlan {
+  allowedChannels: [];
+  apiKeyRequiredNow: false;
+  blockedActions: VipDeliveryProviderSelectionBlockedAction[];
+  candidateChannels: VipDeliveryProviderSelectionCandidateChannel[];
+  deliveryExecutionEnabled: false;
+  envChangeRequiredNow: false;
+  evaluationCriteria: VipDeliveryProviderSelectionCriteria[];
+  providerIntegrationEnabled: false;
+  providerSelectionOnly: true;
+  requiresConsentModel: true;
+  requiresOwnerApprovalBeforeIntegration: true;
+  requiresReadinessChecklist: true;
+}
+
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
   customerVipDefinition:
     'customer VIP means a store-scoped customer candidate derived from customer memory signals.',
@@ -327,6 +370,37 @@ const CUSTOMER_MARKETING_CONSENT_BLOCKED_ACTIONS: CustomerMarketingConsentBlocke
   'send_email',
   'execute_campaign',
   'resolve_raw_recipient',
+];
+const VIP_DELIVERY_PROVIDER_SELECTION_CANDIDATE_CHANNELS: VipDeliveryProviderSelectionCandidateChannel[] = [
+  'sms',
+  'kakao',
+  'email',
+];
+const VIP_DELIVERY_PROVIDER_SELECTION_CRITERIA: VipDeliveryProviderSelectionCriteria[] = [
+  'cost',
+  'approval_review_required',
+  'personal_data_processing',
+  'api_key_management',
+  'rate_limit',
+  'failure_retry_policy',
+  'webhook_callback_future_scope',
+  'vendor_lock_in',
+  'fallback_strategy',
+  'consent_model_compatibility',
+  'readiness_checklist_compatibility',
+];
+const VIP_DELIVERY_PROVIDER_SELECTION_BLOCKED_ACTIONS: VipDeliveryProviderSelectionBlockedAction[] = [
+  'install_provider_sdk',
+  'add_api_key',
+  'add_env',
+  'import_provider_client',
+  'call_provider_api',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'schedule_send',
+  'execute_campaign',
+  'register_webhook',
 ];
 
 function normalizeText(value: unknown) {
@@ -808,5 +882,22 @@ export function buildCustomerMarketingConsentModelPlan(): CustomerMarketingConse
     requiresStoreScopedConsent: true,
     requiresUnknownExclusion: true,
     requiresWithdrawalOverride: true,
+  };
+}
+
+export function buildVipDeliveryProviderSelectionPlan(): VipDeliveryProviderSelectionPlan {
+  return {
+    allowedChannels: [],
+    apiKeyRequiredNow: false,
+    blockedActions: VIP_DELIVERY_PROVIDER_SELECTION_BLOCKED_ACTIONS,
+    candidateChannels: VIP_DELIVERY_PROVIDER_SELECTION_CANDIDATE_CHANNELS,
+    deliveryExecutionEnabled: false,
+    envChangeRequiredNow: false,
+    evaluationCriteria: VIP_DELIVERY_PROVIDER_SELECTION_CRITERIA,
+    providerIntegrationEnabled: false,
+    providerSelectionOnly: true,
+    requiresConsentModel: true,
+    requiresOwnerApprovalBeforeIntegration: true,
+    requiresReadinessChecklist: true,
   };
 }

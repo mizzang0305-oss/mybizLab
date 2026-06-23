@@ -106,6 +106,8 @@ Future delivery must define failure states, cancellation before execution, parti
 
 SMS, Kakao, and email providers are future-only. This checklist does not install provider SDKs, add provider imports, configure API keys, add environment variables, call external APIs, or create webhook handlers.
 
+Provider comparison is documented in `docs/vip-customer-delivery-provider-selection.md`. That document is a selection plan only; it must remain separate from provider integration, delivery execution, raw recipient resolution, and any cost-bearing send path.
+
 ## Store Tenancy And Privacy
 
 Every future readiness review must remain scoped to the active `store_id`. Planning docs, fixtures, tests, and screenshots must use masked or aggregate evidence only.
