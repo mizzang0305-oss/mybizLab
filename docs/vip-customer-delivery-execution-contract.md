@@ -151,3 +151,5 @@ The current code-level contract is:
 This contract is read-only and in-memory. It must not call a database, provider API, webhook, payment API, notification API, or network endpoint.
 
 The operator-facing readiness checklist that precedes any future execution design is documented in `docs/vip-customer-delivery-readiness-checklist.md`.
+
+The future provider integration architecture is documented in `docs/vip-customer-delivery-provider-integration-architecture.md`. That architecture remains plan-only and does not add provider SDKs, API keys, env changes, provider imports, API calls, raw recipient resolution, delivery log tables, webhook endpoints, send buttons, scheduled-send buttons, execute-campaign buttons, migrations, seed data, or production DB writes.

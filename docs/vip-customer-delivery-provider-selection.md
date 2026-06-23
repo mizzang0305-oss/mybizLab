@@ -199,6 +199,12 @@ Provider selection depends on `docs/vip-customer-delivery-readiness-checklist.md
 
 Future provider integration must not proceed until owner approval, message body review, recipient count review, cost approval, duplicate prevention, failure policy, cancellation policy, and opt-out exclusion are all complete.
 
+## Provider Integration Architecture Link
+
+Provider selection feeds the future provider integration architecture in `docs/vip-customer-delivery-provider-integration-architecture.md`.
+
+That architecture document remains future-only. It does not add provider SDKs, API keys, env files, provider imports, API calls, send controls, raw recipient resolution, delivery log tables, webhook endpoints, production DB writes, migrations, or seed data.
+
 ## Blocked Actions
 
 The provider selection plan blocks:

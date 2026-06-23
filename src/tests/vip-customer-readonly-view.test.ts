@@ -6,6 +6,7 @@ import {
   buildCustomerMarketingConsentModelPlan,
   buildVipCampaignPreparationPreview,
   buildVipDeliveryExecutionContract,
+  buildVipDeliveryProviderIntegrationArchitecturePlan,
   buildVipDeliveryProviderSelectionPlan,
   buildVipDeliveryReadinessChecklist,
   buildVipDeliveryApprovalGatePlan,
@@ -675,5 +676,99 @@ describe('VIP customer readonly view service', () => {
     expect(readinessDoc).toContain('docs/vip-customer-delivery-provider-selection.md');
     expect(providerDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(providerDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a provider integration architecture plan without SDKs, keys, recipient resolution, logs, or callbacks', () => {
+    const architecture = buildVipDeliveryProviderIntegrationArchitecturePlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const architectureDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-delivery-provider-integration-architecture.md'),
+      'utf8',
+    );
+    const providerSelectionDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-delivery-provider-selection.md'),
+      'utf8',
+    );
+    const executionContractDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-delivery-execution-contract.md'),
+      'utf8',
+    );
+    const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
+
+    expect(architecture).toMatchObject({
+      architectureOnly: true,
+      providerIntegrationEnabled: false,
+      deliveryExecutionEnabled: false,
+      apiKeyRequiredNow: false,
+      envChangeRequiredNow: false,
+      providerSdkRequiredNow: false,
+      webhookEnabledNow: false,
+      rawRecipientResolutionEnabled: false,
+      deliveryLogTableEnabled: false,
+    });
+    expect(architecture.allowedRuntimeProviders).toEqual([]);
+    expect(architecture.futureProviderChannels).toEqual(['sms', 'kakao', 'email']);
+    expect(architecture.requiredPreconditions).toEqual([
+      'marketing_consent_model',
+      'delivery_readiness_checklist',
+      'owner_approval_gate',
+      'delivery_execution_contract',
+      'provider_selection_plan',
+    ]);
+    expect(architecture.futureComponents).toEqual([
+      'DeliveryProviderAdapter',
+      'SmsProviderAdapter',
+      'KakaoProviderAdapter',
+      'EmailProviderAdapter',
+      'SecureSecretProvider',
+      'RecipientResolver',
+      'ConsentVerifier',
+      'ReadinessVerifier',
+      'ApprovalVerifier',
+      'DeliveryAuditLogger',
+      'RateLimitGuard',
+      'RetryPolicy',
+      'FallbackPolicy',
+      'WebhookStatusReceiver',
+    ]);
+    expect(architecture.blockedActions).toEqual([
+      'install_provider_sdk',
+      'add_api_key',
+      'add_env',
+      'import_provider_client',
+      'call_provider_api',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'schedule_send',
+      'execute_campaign',
+      'resolve_raw_recipient',
+      'write_delivery_log',
+      'create_delivery_log_table',
+      'register_webhook',
+      'handle_provider_callback',
+    ]);
+    expect(serviceSource).not.toMatch(/from ['"].*(twilio|sendgrid|mailgun|resend|solapi|cool.?sms|aligo|kakao)/i);
+    expect(serviceSource).not.toMatch(/\b(fetch|axios)\s*\(|callProviderApi|createProviderClient|sendSms|sendKakao|sendEmail/i);
+    expect(pageSource).not.toContain('buildVipDeliveryProviderIntegrationArchitecturePlan');
+    for (const requiredPhrase of [
+      'provider integration architecture plan only',
+      'Future Architecture Flow',
+      'Future Components',
+      'Secret And Env Architecture',
+      'Provider Adapter Architecture',
+      'Recipient Resolution Boundary',
+      'Audit Log And Delivery Log Boundary',
+      'Webhook And Callback Boundary',
+      'Failure, Retry, And Fallback Architecture',
+      'docs/vip-customer-delivery-provider-selection.md',
+      'docs/vip-customer-delivery-execution-contract.md',
+    ]) {
+      expect(architectureDoc).toContain(requiredPhrase);
+    }
+    expect(providerSelectionDoc).toContain('docs/vip-customer-delivery-provider-integration-architecture.md');
+    expect(executionContractDoc).toContain('docs/vip-customer-delivery-provider-integration-architecture.md');
+    expect(architectureDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(architectureDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });
