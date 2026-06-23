@@ -6,6 +6,7 @@ import {
   buildCustomerMarketingConsentModelPlan,
   buildVipCampaignPreparationPreview,
   buildVipDeliveryExecutionContract,
+  buildVipDeliveryProviderSelectionPlan,
   buildVipDeliveryReadinessChecklist,
   buildVipDeliveryApprovalGatePlan,
   buildVipCustomerReadonlyView,
@@ -394,7 +395,7 @@ describe('VIP customer readonly view service', () => {
       'execute_campaign',
     ]);
     expect(JSON.stringify(plan)).not.toMatch(/phone|emailAddress|customerName|subscriptionPlanIsCustomerVipSource/i);
-    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|deliveryProvider|fetch\(|axios/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|providerClient|fetch\(|axios/i);
     for (const blockedUiText of ['발송하기', '예약 발송', '캠페인 실행', '카카오 발송', '문자 발송', '이메일 발송', '고객에게 전송 완료']) {
       expect(pageSource).not.toContain(blockedUiText);
     }
@@ -432,7 +433,7 @@ describe('VIP customer readonly view service', () => {
       'create_campaign_execution',
     ]);
     expect(JSON.stringify(contract)).not.toMatch(/phone|emailAddress|customerName|subscriptionPlanIsCustomerVipSource/i);
-    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|writeDeliveryLog|createCampaignExecution|deliveryProvider|fetch\(|axios/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|writeDeliveryLog|createCampaignExecution|providerClient|fetch\(|axios/i);
     expect(pageSource).toContain('buildVipDeliveryExecutionContract');
     expect(pageSource).toContain('Delivery execution contract required');
     expect(pageSource).toContain('providerIntegrationEnabled');
@@ -485,7 +486,7 @@ describe('VIP customer readonly view service', () => {
       ],
     });
     expect(JSON.stringify(checklist)).not.toMatch(/phone|emailAddress|customerName|subscriptionPlanIsCustomerVipSource/i);
-    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|writeDeliveryLog|createCampaignExecution|deliveryProvider|fetch\(|axios/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|writeDeliveryLog|createCampaignExecution|providerClient|fetch\(|axios/i);
     for (const requiredDocPhrase of [
       'readiness_only',
       'owner approval checklist',
@@ -550,7 +551,7 @@ describe('VIP customer readonly view service', () => {
       'resolve_raw_recipient',
     ]);
     expect(serviceSource).not.toMatch(/createConsentTable|writeConsentRecord|readRealCustomerConsent/i);
-    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|deliveryProvider|fetch\(|axios/i);
+    expect(serviceSource).not.toMatch(/sendSms|sendKakao|sendEmail|scheduleSend|executeCampaign|resolveRawRecipient|providerClient|fetch\(|axios/i);
   });
 
   it('documents the customer marketing consent model without SQL, real PII, or send UI scope', () => {
@@ -604,5 +605,73 @@ describe('VIP customer readonly view service', () => {
     ]) {
       expect(consentDoc).toContain(blockedUiText);
     }
+  });
+
+  it('builds a provider selection plan without provider integration, env changes, or delivery execution', () => {
+    const providerPlan = buildVipDeliveryProviderSelectionPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const providerDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-provider-selection.md'), 'utf8');
+    const consentDoc = readFileSync(join(process.cwd(), 'docs/customer-marketing-consent-model.md'), 'utf8');
+    const readinessDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-readiness-checklist.md'), 'utf8');
+    const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
+
+    expect(providerPlan.providerSelectionOnly).toBe(true);
+    expect(providerPlan.providerIntegrationEnabled).toBe(false);
+    expect(providerPlan.deliveryExecutionEnabled).toBe(false);
+    expect(providerPlan.apiKeyRequiredNow).toBe(false);
+    expect(providerPlan.envChangeRequiredNow).toBe(false);
+    expect(providerPlan.allowedChannels).toEqual([]);
+    expect(providerPlan.candidateChannels).toEqual(['sms', 'kakao', 'email']);
+    expect(providerPlan.requiresConsentModel).toBe(true);
+    expect(providerPlan.requiresReadinessChecklist).toBe(true);
+    expect(providerPlan.requiresOwnerApprovalBeforeIntegration).toBe(true);
+    expect(providerPlan.evaluationCriteria).toEqual([
+      'cost',
+      'approval_review_required',
+      'personal_data_processing',
+      'api_key_management',
+      'rate_limit',
+      'failure_retry_policy',
+      'webhook_callback_future_scope',
+      'vendor_lock_in',
+      'fallback_strategy',
+    ]);
+    expect(providerPlan.blockedActions).toEqual([
+      'install_provider_sdk',
+      'add_api_key',
+      'add_env',
+      'import_provider_client',
+      'call_provider_api',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'schedule_send',
+      'execute_campaign',
+      'register_webhook',
+    ]);
+    expect(serviceSource).not.toMatch(/from ['"].*(twilio|sendgrid|mailgun|resend|solapi|cool.?sms|aligo|kakao)/i);
+    expect(serviceSource).not.toMatch(/new\s+(Twilio|SendGrid|Mailgun|Resend)|providerClient|callProviderApi|fetch\(|axios/i);
+    expect(pageSource).not.toContain('buildVipDeliveryProviderSelectionPlan');
+    for (const requiredPhrase of [
+      'provider selection plan only',
+      'SMS Candidate Criteria',
+      'Kakao Candidate Criteria',
+      'Email Candidate Criteria',
+      'Cost Criteria',
+      'Approval And Review Criteria',
+      'Personal Data Criteria',
+      'API Key And Env Criteria',
+      'Failure, Retry, And Rate Limit Criteria',
+      'Webhook And Callback Scope',
+      'Lock-In And Fallback Criteria',
+      'docs/customer-marketing-consent-model.md',
+      'docs/vip-customer-delivery-readiness-checklist.md',
+    ]) {
+      expect(providerDoc).toContain(requiredPhrase);
+    }
+    expect(consentDoc).toContain('docs/vip-customer-delivery-provider-selection.md');
+    expect(readinessDoc).toContain('docs/vip-customer-delivery-provider-selection.md');
+    expect(providerDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(providerDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });

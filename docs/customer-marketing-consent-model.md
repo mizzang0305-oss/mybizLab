@@ -158,3 +158,5 @@ The current code-level plan is implemented as a pure in-memory contract builder.
 ## Future Provider Scope
 
 SMS, Kakao, and email providers remain future-only. A separate owner approval gate is required before any provider integration, raw recipient resolution, consent write UI, delivery log table, or campaign execution path can be designed.
+
+Provider comparison is tracked separately in `docs/vip-customer-delivery-provider-selection.md`. That plan is provider selection only and does not add provider SDKs, API keys, environment variables, provider imports, API calls, webhook handlers, or send execution.
