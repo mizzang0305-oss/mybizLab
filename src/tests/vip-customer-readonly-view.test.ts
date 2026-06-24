@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   buildJulyLaunchChecklistPlan,
+  buildJulyPricingPlanLock,
   buildCustomerMarketingConsentModelPlan,
   buildVipCampaignPreparationPreview,
   buildVipDeliveryExecutionContract,
@@ -1120,5 +1121,94 @@ describe('VIP customer readonly view service', () => {
     expect(checklistDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
     expect(launchScopeDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(launchScopeDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a July pricing plan lock without payment automation or subscription writes', () => {
+    const pricingLock = buildJulyPricingPlanLock();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const pricingDoc = readFileSync(join(process.cwd(), 'docs/july-pricing-plan-lock.md'), 'utf8');
+    const checklistDoc = readFileSync(join(process.cwd(), 'docs/july-launch-checklist.md'), 'utf8');
+    const launchScopeDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-memory-launch-scope.md'), 'utf8');
+
+    expect(pricingLock).toMatchObject({
+      billingWebhookEnabled: false,
+      paymentAutomationEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      pricingPlanOnly: true,
+      productionSideEffectsEnabled: false,
+      requiresOwnerApprovalBeforePublishing: true,
+      requiresPilotFeedbackBeforeFinalPrice: true,
+      subscriptionWriteEnabled: false,
+      targetMonth: '2026-07',
+    });
+    expect(pricingLock.recommendedPlans).toEqual([
+      {
+        code: 'free',
+        name: 'Free',
+        monthlyPriceKrw: 0,
+        role: 'lead_capture_and_demo',
+      },
+      {
+        code: 'starter',
+        name: 'Starter',
+        monthlyPriceKrw: 29000,
+        role: 'paid_entry_memory_card',
+      },
+      {
+        code: 'growth',
+        name: 'Growth',
+        monthlyPriceKrw: 99000,
+        role: 'core_memory_revenue_engine',
+      },
+      {
+        code: 'pro',
+        name: 'Pro',
+        monthlyPriceKrw: 199000,
+        role: 'advanced_operations_and_reports',
+      },
+      {
+        code: 'franchise',
+        name: 'Franchise',
+        monthlyPriceKrw: null,
+        role: 'multi_store_and_template_package',
+        startsFromKrw: 499000,
+      },
+    ]);
+    expect(pricingLock.blockedActions).toEqual([
+      'create_subscription',
+      'write_subscription',
+      'charge_payment',
+      'enable_payment_automation',
+      'register_billing_webhook',
+      'add_pg_provider',
+      'add_api_key',
+      'add_env',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'resolve_raw_recipient',
+    ]);
+    expect(serviceSource).not.toMatch(
+      /createSubscription|writeSubscription|chargePayment|enablePaymentAutomation|registerBillingWebhook|addPgProvider|sendSms|sendKakao|sendEmail|resolveRawRecipient|providerClient|fetch\(|axios/i,
+    );
+
+    for (const requiredPhrase of [
+      'July 2026 Pricing Plan Lock',
+      'memory-based revenue engine',
+      'Growth is the core paid plan',
+      'Payment And Billing Boundary',
+      'payment automation: disabled',
+      'billing webhook: disabled',
+      'subscription write: disabled',
+      'Delivery Boundary',
+      'Owner Approval And Pilot Feedback',
+      'buildJulyPricingPlanLock()',
+    ]) {
+      expect(pricingDoc).toContain(requiredPhrase);
+    }
+    expect(checklistDoc).toContain('docs/july-pricing-plan-lock.md');
+    expect(launchScopeDoc).toContain('docs/july-pricing-plan-lock.md');
+    expect(pricingDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(pricingDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });

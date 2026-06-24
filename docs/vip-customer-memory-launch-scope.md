@@ -84,6 +84,18 @@ Before launch, pricing must clarify:
 - which delivery execution features are excluded
 - what future approval is required for SMS, Kakao, email, provider integration, raw recipient access, delivery audit logs, and payment automation
 
+The July pilot pricing lock is documented in `docs/july-pricing-plan-lock.md`.
+
+The default draft structure is:
+
+- Free for lead capture and demo
+- Starter at 29,000 KRW for paid entry customer-memory reports
+- Growth at 99,000 KRW as the core memory-based revenue engine
+- Pro at 199,000 KRW for advanced operations and reports
+- Franchise as consultation or starts from 499,000 KRW for multi-store packages
+
+This pricing lock is not payment automation. It must not create subscriptions, write subscription state, charge payments, register billing webhooks, add PG providers, add API keys, add environment variables, send messages, or resolve raw recipients.
+
 ## Privacy And Consent
 
 The pilot must preserve:

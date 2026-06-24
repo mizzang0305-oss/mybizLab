@@ -339,6 +339,51 @@ export type JulyLaunchChecklistNotOpenScope =
   | 'recipient_export'
   | 'webhook_callback';
 
+export type JulyPricingPlanCode = 'franchise' | 'free' | 'growth' | 'pro' | 'starter';
+
+export type JulyPricingPlanRole =
+  | 'advanced_operations_and_reports'
+  | 'core_memory_revenue_engine'
+  | 'lead_capture_and_demo'
+  | 'multi_store_and_template_package'
+  | 'paid_entry_memory_card';
+
+export type JulyPricingPlanBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'add_pg_provider'
+  | 'charge_payment'
+  | 'create_subscription'
+  | 'enable_payment_automation'
+  | 'register_billing_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_subscription';
+
+export interface JulyPricingRecommendedPlan {
+  code: JulyPricingPlanCode;
+  name: string;
+  monthlyPriceKrw: number | null;
+  role: JulyPricingPlanRole;
+  startsFromKrw?: number;
+}
+
+export interface JulyPricingPlanLock {
+  billingWebhookEnabled: false;
+  blockedActions: JulyPricingPlanBlockedAction[];
+  paymentAutomationEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  pricingPlanOnly: true;
+  productionSideEffectsEnabled: false;
+  recommendedPlans: JulyPricingRecommendedPlan[];
+  requiresOwnerApprovalBeforePublishing: true;
+  requiresPilotFeedbackBeforeFinalPrice: true;
+  subscriptionWriteEnabled: false;
+  targetMonth: '2026-07';
+}
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -838,6 +883,53 @@ const JULY_LAUNCH_CHECKLIST_BLOCKED_ACTIONS: JulyLaunchChecklistBlockedAction[] 
   'add_env',
   'register_webhook',
   'enable_payment_automation',
+];
+const JULY_PRICING_RECOMMENDED_PLANS: JulyPricingRecommendedPlan[] = [
+  {
+    code: 'free',
+    name: 'Free',
+    monthlyPriceKrw: 0,
+    role: 'lead_capture_and_demo',
+  },
+  {
+    code: 'starter',
+    name: 'Starter',
+    monthlyPriceKrw: 29000,
+    role: 'paid_entry_memory_card',
+  },
+  {
+    code: 'growth',
+    name: 'Growth',
+    monthlyPriceKrw: 99000,
+    role: 'core_memory_revenue_engine',
+  },
+  {
+    code: 'pro',
+    name: 'Pro',
+    monthlyPriceKrw: 199000,
+    role: 'advanced_operations_and_reports',
+  },
+  {
+    code: 'franchise',
+    name: 'Franchise',
+    monthlyPriceKrw: null,
+    role: 'multi_store_and_template_package',
+    startsFromKrw: 499000,
+  },
+];
+const JULY_PRICING_BLOCKED_ACTIONS: JulyPricingPlanBlockedAction[] = [
+  'create_subscription',
+  'write_subscription',
+  'charge_payment',
+  'enable_payment_automation',
+  'register_billing_webhook',
+  'add_pg_provider',
+  'add_api_key',
+  'add_env',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'resolve_raw_recipient',
 ];
 
 function normalizeText(value: unknown) {
@@ -1440,6 +1532,22 @@ export function buildJulyLaunchChecklistPlan(): JulyLaunchChecklistPlan {
     requiresPilotStoreSelection: true,
     requiresPricingPlanLock: true,
     requiresPrivacyConsentReview: true,
+    targetMonth: '2026-07',
+  };
+}
+
+export function buildJulyPricingPlanLock(): JulyPricingPlanLock {
+  return {
+    billingWebhookEnabled: false,
+    blockedActions: JULY_PRICING_BLOCKED_ACTIONS,
+    paymentAutomationEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    pricingPlanOnly: true,
+    productionSideEffectsEnabled: false,
+    recommendedPlans: JULY_PRICING_RECOMMENDED_PLANS,
+    requiresOwnerApprovalBeforePublishing: true,
+    requiresPilotFeedbackBeforeFinalPrice: true,
+    subscriptionWriteEnabled: false,
     targetMonth: '2026-07',
   };
 }
