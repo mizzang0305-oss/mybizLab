@@ -107,6 +107,8 @@ Secret/env readiness is a prerequisite for future provider integration, but it d
 
 The future provider adapter work must not start until this architecture, provider selection, marketing consent, delivery readiness, owner approval, and execution contract gates are all locked.
 
+Raw recipient resolution is also future-only and tracked in `docs/vip-customer-raw-recipient-resolution-plan.md`. Any future raw phone or email access must stay behind this server-only secret/env boundary and must not expose raw recipients to client bundles, public logs, PR comments, screenshots, reports, or local notes.
+
 ## Contract
 
 The current code-level contract is:
@@ -138,4 +140,5 @@ This contract is pure and in-memory. It must not read env values, call a databas
 - `docs/vip-customer-delivery-provider-selection.md`
 - `docs/vip-customer-delivery-execution-contract.md`
 - `docs/customer-marketing-consent-model.md`
+- `docs/vip-customer-raw-recipient-resolution-plan.md`
 - `docs/vip-customer-delivery-readiness-checklist.md`

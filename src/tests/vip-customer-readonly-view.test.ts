@@ -9,6 +9,7 @@ import {
   buildVipDeliveryProviderIntegrationArchitecturePlan,
   buildVipDeliveryProviderSelectionPlan,
   buildVipDeliverySecretEnvArchitecturePlan,
+  buildVipRawRecipientResolutionPlan,
   buildVipDeliveryReadinessChecklist,
   buildVipDeliveryApprovalGatePlan,
   buildVipCustomerReadonlyView,
@@ -864,5 +865,72 @@ describe('VIP customer readonly view service', () => {
     expect(secretEnvDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
     expect(secretEnvDoc).not.toMatch(/NEXT_PUBLIC_|VITE_|process\.env|import\.meta\.env/);
     expect(architectureDoc).toContain('docs/vip-customer-delivery-secret-env-architecture.md');
+  });
+
+  it('builds a raw recipient resolution boundary plan without raw access, provider calls, or delivery writes', () => {
+    const rawRecipientPlan = buildVipRawRecipientResolutionPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const rawRecipientDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-raw-recipient-resolution-plan.md'),
+      'utf8',
+    );
+    const consentDoc = readFileSync(join(process.cwd(), 'docs/customer-marketing-consent-model.md'), 'utf8');
+    const secretEnvDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-delivery-secret-env-architecture.md'),
+      'utf8',
+    );
+
+    expect(rawRecipientPlan).toMatchObject({
+      rawRecipientResolutionEnabled: false,
+      maskedPreviewOnly: true,
+      deliveryExecutionEnabled: false,
+      providerIntegrationEnabled: false,
+      productionWriteEnabled: false,
+      requiresOwnerApproval: true,
+      requiresMarketingConsent: true,
+      requiresStoreScopedConsent: true,
+      requiresSecureExecutionScope: true,
+      requiresAuditLog: true,
+      requiresOptOutExclusion: true,
+    });
+    expect(rawRecipientPlan.allowedNow).toEqual([]);
+    expect(rawRecipientPlan.futureResolutionFields).toEqual(['phone', 'email']);
+    expect(rawRecipientPlan.blockedStatuses).toEqual(['unknown', 'opted_out', 'withdrawn', 'expired', 'invalid']);
+    expect(rawRecipientPlan.blockedActions).toEqual([
+      'read_raw_phone',
+      'read_raw_email',
+      'resolve_raw_recipient',
+      'export_recipient_list',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'execute_campaign',
+      'write_delivery_log',
+    ]);
+    expect(JSON.stringify(rawRecipientPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(rawRecipientPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /readRawPhone|readRawEmail|resolveRawRecipient|exportRecipientList|writeDeliveryLog|sendSms|sendKakao|sendEmail/i,
+    );
+    expect(serviceSource).not.toMatch(/\b(fetch|axios)\s*\(|from ['"].*(twilio|sendgrid|mailgun|resend|solapi|aligo|kakao)/i);
+
+    for (const requiredPhrase of [
+      'raw recipient resolution plan only',
+      'masked preview only',
+      'Raw phone and email access remains future-only',
+      'Consent And Opt-Out Boundary',
+      'Store Tenancy Boundary',
+      'Secret/Env Boundary',
+      'Audit Boundary',
+      'blockedStatuses: ["unknown", "opted_out", "withdrawn", "expired", "invalid"]',
+      'docs/customer-marketing-consent-model.md',
+      'docs/vip-customer-delivery-secret-env-architecture.md',
+    ]) {
+      expect(rawRecipientDoc).toContain(requiredPhrase);
+    }
+    expect(consentDoc).toContain('docs/vip-customer-raw-recipient-resolution-plan.md');
+    expect(secretEnvDoc).toContain('docs/vip-customer-raw-recipient-resolution-plan.md');
+    expect(rawRecipientDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(rawRecipientDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });
