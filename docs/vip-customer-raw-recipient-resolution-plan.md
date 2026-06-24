@@ -78,7 +78,7 @@ Future resolution must run only inside a secure server-side execution scope. It 
 
 ## Audit Boundary
 
-Future raw recipient resolution requires an audit plan before any implementation.
+Future raw recipient resolution requires the audit plan in `docs/vip-customer-delivery-audit-log-plan.md` before any implementation.
 
 The audit boundary must record redacted, store-scoped evidence such as:
 
@@ -119,6 +119,7 @@ This contract is pure and in-memory. It must not call a database, read raw custo
 ## Related Documents
 
 - `docs/customer-marketing-consent-model.md`
+- `docs/vip-customer-delivery-audit-log-plan.md`
 - `docs/vip-customer-delivery-secret-env-architecture.md`
 - `docs/vip-customer-delivery-provider-integration-architecture.md`
 - `docs/vip-customer-delivery-execution-contract.md`
