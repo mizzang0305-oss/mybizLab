@@ -73,6 +73,8 @@ These names are not provider imports, SDK wrappers, API clients, webhook handler
 
 Future provider integration must define secure secret storage before any provider code is added.
 
+The detailed Secret/Env Architecture is documented in `docs/vip-customer-delivery-secret-env-architecture.md`.
+
 Required future decisions:
 
 - separation of local, preview, and production secrets
@@ -194,3 +196,4 @@ This contract is pure and in-memory. It must not call a database, provider API, 
 - `docs/vip-customer-delivery-readiness-checklist.md`
 - `docs/vip-customer-delivery-execution-contract.md`
 - `docs/vip-customer-delivery-provider-selection.md`
+- `docs/vip-customer-delivery-secret-env-architecture.md`
