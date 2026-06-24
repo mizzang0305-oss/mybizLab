@@ -214,15 +214,19 @@ export type VipDeliverySecretEnvArchitectureBlockedAction =
   | 'add_env'
   | 'call_provider_api'
   | 'commit_env_file'
+  | 'execute_campaign'
   | 'expose_secret_in_client_bundle'
   | 'import_provider_client'
   | 'install_provider_sdk'
   | 'log_secret_value'
+  | 'read_secret_value'
   | 'read_real_customer_data'
   | 'register_webhook'
+  | 'schedule_send'
   | 'send_email'
   | 'send_kakao'
-  | 'send_sms';
+  | 'send_sms'
+  | 'store_secret_value';
 
 export type VipDeliverySecretEnvArchitectureControl =
   | 'emergency_revocation_plan'
@@ -581,7 +585,11 @@ const VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_BLOCKED_ACTIONS: VipDeliverySecretEnv
   'send_sms',
   'send_kakao',
   'send_email',
+  'schedule_send',
+  'execute_campaign',
   'log_secret_value',
+  'store_secret_value',
+  'read_secret_value',
   'read_real_customer_data',
 ];
 const VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_SCOPES: VipDeliverySecretEnvArchitectureScope[] = [

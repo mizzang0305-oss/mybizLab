@@ -835,7 +835,11 @@ describe('VIP customer readonly view service', () => {
       'send_sms',
       'send_kakao',
       'send_email',
+      'schedule_send',
+      'execute_campaign',
       'log_secret_value',
+      'store_secret_value',
+      'read_secret_value',
       'read_real_customer_data',
     ]);
     expect(serviceSource).not.toMatch(/from ['"].*(twilio|sendgrid|mailgun|resend|solapi|cool.?sms|aligo|kakao)/i);

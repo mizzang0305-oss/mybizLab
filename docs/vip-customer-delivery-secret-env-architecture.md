@@ -128,9 +128,9 @@ The current code-level contract is:
 - `publicClientEnvAllowed: []`
 - `futureSecretScopes: ["local", "preview", "production"]`
 - `linkedContracts: ["provider_integration_architecture", "provider_selection_plan", "delivery_execution_contract", "marketing_consent_model", "delivery_readiness_checklist"]`
-- `blockedActions: ["add_api_key", "add_env", "commit_env_file", "expose_secret_in_client_bundle", "install_provider_sdk", "import_provider_client", "call_provider_api", "register_webhook", "send_sms", "send_kakao", "send_email", "log_secret_value", "read_real_customer_data"]`
+- `blockedActions: ["add_api_key", "add_env", "commit_env_file", "expose_secret_in_client_bundle", "install_provider_sdk", "import_provider_client", "call_provider_api", "register_webhook", "send_sms", "send_kakao", "send_email", "schedule_send", "execute_campaign", "log_secret_value", "store_secret_value", "read_secret_value", "read_real_customer_data"]`
 
-This contract is pure and in-memory. It must not read env values, call a database, call a provider API, register a webhook, send a message, create a key, write configuration, or read real customer data.
+This contract is pure and in-memory. It must not read env values, call a database, call a provider API, register a webhook, send a message, schedule delivery, execute a campaign, create a key, write configuration, store a secret value, read a secret value, or read real customer data.
 
 ## Related Documents
 
