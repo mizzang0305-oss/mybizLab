@@ -8,6 +8,7 @@ import {
   buildVipDeliveryExecutionContract,
   buildVipDeliveryProviderIntegrationArchitecturePlan,
   buildVipDeliveryProviderSelectionPlan,
+  buildVipDeliverySecretEnvArchitecturePlan,
   buildVipDeliveryReadinessChecklist,
   buildVipDeliveryApprovalGatePlan,
   buildVipCustomerReadonlyView,
@@ -770,5 +771,98 @@ describe('VIP customer readonly view service', () => {
     expect(executionContractDoc).toContain('docs/vip-customer-delivery-provider-integration-architecture.md');
     expect(architectureDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(architectureDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a Secret/Env Architecture plan without adding keys, env, provider imports, or execution paths', () => {
+    const secretEnvPlan = buildVipDeliverySecretEnvArchitecturePlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const secretEnvDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-delivery-secret-env-architecture.md'),
+      'utf8',
+    );
+    const architectureDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-delivery-provider-integration-architecture.md'),
+      'utf8',
+    );
+    const pageSource = readFileSync(join(process.cwd(), 'src/modules/customers/page.tsx'), 'utf8');
+
+    expect(secretEnvPlan).toMatchObject({
+      secretEnvArchitectureOnly: true,
+      apiKeyAdded: false,
+      envAdded: false,
+      apiKeyRequiredNow: false,
+      envChangeRequiredNow: false,
+      providerSdkRequiredNow: false,
+      providerImportEnabled: false,
+      providerIntegrationEnabled: false,
+      deliveryExecutionEnabled: false,
+      webhookEnabledNow: false,
+      productionWriteEnabled: false,
+      realCustomerDataReadEnabled: false,
+    });
+    expect(secretEnvPlan.allowedSecretNames).toEqual([]);
+    expect(secretEnvPlan.requiredRuntimeEnvVars).toEqual([]);
+    expect(secretEnvPlan.publicClientEnvAllowed).toEqual([]);
+    expect(secretEnvPlan.futureSecretScopes).toEqual(['local', 'preview', 'production']);
+    expect(secretEnvPlan.linkedContracts).toEqual([
+      'provider_integration_architecture',
+      'provider_selection_plan',
+      'delivery_execution_contract',
+      'marketing_consent_model',
+      'delivery_readiness_checklist',
+    ]);
+    expect(secretEnvPlan.requiredControls).toEqual([
+      'server_only_secret_boundary',
+      'environment_separation',
+      'owner_approval_before_key_creation',
+      'secret_rotation_plan',
+      'emergency_revocation_plan',
+      'least_privilege_provider_account',
+      'redacted_logging_policy',
+      'no_client_public_secret',
+      'no_build_output_secret',
+      'no_pr_comment_secret',
+    ]);
+    expect(secretEnvPlan.blockedActions).toEqual([
+      'add_api_key',
+      'add_env',
+      'commit_env_file',
+      'expose_secret_in_client_bundle',
+      'install_provider_sdk',
+      'import_provider_client',
+      'call_provider_api',
+      'register_webhook',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'schedule_send',
+      'execute_campaign',
+      'log_secret_value',
+      'store_secret_value',
+      'read_secret_value',
+      'read_real_customer_data',
+    ]);
+    expect(serviceSource).not.toMatch(/from ['"].*(twilio|sendgrid|mailgun|resend|solapi|cool.?sms|aligo|kakao)/i);
+    expect(serviceSource).not.toMatch(/\b(fetch|axios)\s*\(|process\.env|import\.meta\.env|callProviderApi|createProviderClient/i);
+    expect(pageSource).not.toContain('buildVipDeliverySecretEnvArchitecturePlan');
+    for (const requiredPhrase of [
+      'Secret/Env Architecture plan only',
+      'server-only secrets',
+      'Environment Separation',
+      'API Key Lifecycle',
+      'Logging And Evidence',
+      'provider_secret_configured=true',
+      'allowedSecretNames: []',
+      'requiredRuntimeEnvVars: []',
+      'publicClientEnvAllowed: []',
+      'docs/vip-customer-delivery-provider-integration-architecture.md',
+      'docs/vip-customer-delivery-provider-selection.md',
+    ]) {
+      expect(secretEnvDoc).toContain(requiredPhrase);
+    }
+    expect(secretEnvDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(secretEnvDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(secretEnvDoc).not.toMatch(/NEXT_PUBLIC_|VITE_|process\.env|import\.meta\.env/);
+    expect(architectureDoc).toContain('docs/vip-customer-delivery-secret-env-architecture.md');
   });
 });

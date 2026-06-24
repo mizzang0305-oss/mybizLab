@@ -209,6 +209,46 @@ export type VipDeliveryProviderIntegrationArchitecturePrecondition =
   | 'owner_approval_gate'
   | 'provider_selection_plan';
 
+export type VipDeliverySecretEnvArchitectureBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'call_provider_api'
+  | 'commit_env_file'
+  | 'execute_campaign'
+  | 'expose_secret_in_client_bundle'
+  | 'import_provider_client'
+  | 'install_provider_sdk'
+  | 'log_secret_value'
+  | 'read_secret_value'
+  | 'read_real_customer_data'
+  | 'register_webhook'
+  | 'schedule_send'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'store_secret_value';
+
+export type VipDeliverySecretEnvArchitectureControl =
+  | 'emergency_revocation_plan'
+  | 'environment_separation'
+  | 'least_privilege_provider_account'
+  | 'no_build_output_secret'
+  | 'no_client_public_secret'
+  | 'no_pr_comment_secret'
+  | 'owner_approval_before_key_creation'
+  | 'redacted_logging_policy'
+  | 'secret_rotation_plan'
+  | 'server_only_secret_boundary';
+
+export type VipDeliverySecretEnvArchitectureScope = 'local' | 'preview' | 'production';
+
+export type VipDeliverySecretEnvLinkedContract =
+  | 'delivery_execution_contract'
+  | 'delivery_readiness_checklist'
+  | 'marketing_consent_model'
+  | 'provider_integration_architecture'
+  | 'provider_selection_plan';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -356,6 +396,28 @@ export interface VipDeliveryProviderIntegrationArchitecturePlan {
   webhookEnabledNow: false;
 }
 
+export interface VipDeliverySecretEnvArchitecturePlan {
+  allowedSecretNames: [];
+  apiKeyAdded: false;
+  apiKeyRequiredNow: false;
+  blockedActions: VipDeliverySecretEnvArchitectureBlockedAction[];
+  deliveryExecutionEnabled: false;
+  envAdded: false;
+  envChangeRequiredNow: false;
+  futureSecretScopes: VipDeliverySecretEnvArchitectureScope[];
+  linkedContracts: VipDeliverySecretEnvLinkedContract[];
+  productionWriteEnabled: false;
+  providerImportEnabled: false;
+  providerIntegrationEnabled: false;
+  providerSdkRequiredNow: false;
+  publicClientEnvAllowed: [];
+  realCustomerDataReadEnabled: false;
+  requiredControls: VipDeliverySecretEnvArchitectureControl[];
+  requiredRuntimeEnvVars: [];
+  secretEnvArchitectureOnly: true;
+  webhookEnabledNow: false;
+}
+
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
   customerVipDefinition:
     'customer VIP means a store-scoped customer candidate derived from customer memory signals.',
@@ -498,6 +560,49 @@ const VIP_DELIVERY_PROVIDER_INTEGRATION_ARCHITECTURE_BLOCKED_ACTIONS: VipDeliver
   'create_delivery_log_table',
   'register_webhook',
   'handle_provider_callback',
+];
+const VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_CONTROLS: VipDeliverySecretEnvArchitectureControl[] = [
+  'server_only_secret_boundary',
+  'environment_separation',
+  'owner_approval_before_key_creation',
+  'secret_rotation_plan',
+  'emergency_revocation_plan',
+  'least_privilege_provider_account',
+  'redacted_logging_policy',
+  'no_client_public_secret',
+  'no_build_output_secret',
+  'no_pr_comment_secret',
+];
+const VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_BLOCKED_ACTIONS: VipDeliverySecretEnvArchitectureBlockedAction[] = [
+  'add_api_key',
+  'add_env',
+  'commit_env_file',
+  'expose_secret_in_client_bundle',
+  'install_provider_sdk',
+  'import_provider_client',
+  'call_provider_api',
+  'register_webhook',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'schedule_send',
+  'execute_campaign',
+  'log_secret_value',
+  'store_secret_value',
+  'read_secret_value',
+  'read_real_customer_data',
+];
+const VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_SCOPES: VipDeliverySecretEnvArchitectureScope[] = [
+  'local',
+  'preview',
+  'production',
+];
+const VIP_DELIVERY_SECRET_ENV_LINKED_CONTRACTS: VipDeliverySecretEnvLinkedContract[] = [
+  'provider_integration_architecture',
+  'provider_selection_plan',
+  'delivery_execution_contract',
+  'marketing_consent_model',
+  'delivery_readiness_checklist',
 ];
 
 function normalizeText(value: unknown) {
@@ -1014,6 +1119,30 @@ export function buildVipDeliveryProviderIntegrationArchitecturePlan(): VipDelive
     providerSdkRequiredNow: false,
     rawRecipientResolutionEnabled: false,
     requiredPreconditions: VIP_DELIVERY_PROVIDER_INTEGRATION_ARCHITECTURE_PRECONDITIONS,
+    webhookEnabledNow: false,
+  };
+}
+
+export function buildVipDeliverySecretEnvArchitecturePlan(): VipDeliverySecretEnvArchitecturePlan {
+  return {
+    allowedSecretNames: [],
+    apiKeyAdded: false,
+    apiKeyRequiredNow: false,
+    blockedActions: VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_BLOCKED_ACTIONS,
+    deliveryExecutionEnabled: false,
+    envAdded: false,
+    envChangeRequiredNow: false,
+    futureSecretScopes: VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_SCOPES,
+    linkedContracts: VIP_DELIVERY_SECRET_ENV_LINKED_CONTRACTS,
+    productionWriteEnabled: false,
+    providerImportEnabled: false,
+    providerIntegrationEnabled: false,
+    providerSdkRequiredNow: false,
+    publicClientEnvAllowed: [],
+    realCustomerDataReadEnabled: false,
+    requiredControls: VIP_DELIVERY_SECRET_ENV_ARCHITECTURE_CONTROLS,
+    requiredRuntimeEnvVars: [],
+    secretEnvArchitectureOnly: true,
     webhookEnabledNow: false,
   };
 }
