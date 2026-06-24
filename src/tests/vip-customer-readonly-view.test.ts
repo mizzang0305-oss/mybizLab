@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  buildJulyLaunchChecklistPlan,
   buildCustomerMarketingConsentModelPlan,
   buildVipCampaignPreparationPreview,
   buildVipDeliveryExecutionContract,
@@ -1018,5 +1019,106 @@ describe('VIP customer readonly view service', () => {
     expect(executionContractDoc).toContain('docs/vip-customer-delivery-audit-log-plan.md');
     expect(auditLogDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(auditLogDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a July launch checklist plan without production side effects', () => {
+    const launchPlan = buildJulyLaunchChecklistPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const checklistDoc = readFileSync(join(process.cwd(), 'docs/july-launch-checklist.md'), 'utf8');
+    const launchScopeDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-memory-launch-scope.md'), 'utf8');
+
+    expect(launchPlan).toMatchObject({
+      actualDeliveryEnabled: false,
+      deliveryLogWriteEnabled: false,
+      launchMode: 'pilot_readonly_revenue_engine',
+      launchPlanOnly: true,
+      paymentAutomationEnabled: false,
+      productionSideEffectsEnabled: false,
+      providerIntegrationEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      requiresDemoScenario: true,
+      requiresOwnerApprovalBeforeLaunch: true,
+      requiresPilotStoreSelection: true,
+      requiresPricingPlanLock: true,
+      requiresPrivacyConsentReview: true,
+      targetMonth: '2026-07',
+    });
+    expect(launchPlan.openScope).toEqual([
+      'vip_customer_memory_readonly',
+      'vip_criteria_report_sample',
+      'vip_campaign_preparation_preview',
+      'delivery_approval_gate',
+      'delivery_execution_contract',
+      'delivery_readiness_checklist',
+      'customer_marketing_consent_model',
+      'provider_selection_plan',
+      'provider_integration_architecture',
+      'secret_env_architecture',
+      'raw_recipient_resolution_boundary',
+      'delivery_audit_log_plan',
+      'public_pricing_domain_pages',
+      'actual_delivery_disabled',
+    ]);
+    expect(launchPlan.notOpenScope).toEqual([
+      'actual_sms_kakao_email_send',
+      'provider_integration',
+      'api_key_env_registration',
+      'raw_phone_email_resolution',
+      'recipient_export',
+      'delivery_log_table_write',
+      'webhook_callback',
+      'payment_billing_automation',
+      'production_db_migration_write',
+    ]);
+    expect(launchPlan.blockedActions).toEqual([
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'resolve_raw_recipient',
+      'export_recipient_list',
+      'write_delivery_log',
+      'create_migration',
+      'add_api_key',
+      'add_env',
+      'register_webhook',
+      'enable_payment_automation',
+    ]);
+    expect(JSON.stringify(launchPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(launchPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /resolveRawRecipient|exportRecipientList|writeDeliveryLog|sendSms|sendKakao|sendEmail|registerWebhook|enablePaymentAutomation|providerClient|fetch\(|axios/i,
+    );
+
+    for (const requiredPhrase of [
+      'July 2026 Launch Checklist',
+      'Open Scope For July Pilot',
+      'Not Open Scope',
+      'Pilot Store Onboarding Checklist',
+      'Demo Scenario',
+      'Pricing And Plan Lock',
+      'Privacy And Consent Review',
+      'Delivery Owner Approval Checklist',
+      'Provider, Env, And Key Status',
+      'Raw Recipient And Audit Status',
+      'Operational Risk Controls',
+      'buildJulyLaunchChecklistPlan()',
+    ]) {
+      expect(checklistDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'VIP Customer Memory Launch Scope',
+      'Launchable Scope',
+      'Not Launchable Scope',
+      'Pilot Store Conditions',
+      'Pricing Lock',
+      'Privacy And Consent',
+      'docs/july-launch-checklist.md',
+    ]) {
+      expect(launchScopeDoc).toContain(requiredPhrase);
+    }
+    expect(checklistDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(checklistDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(launchScopeDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(launchScopeDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });
