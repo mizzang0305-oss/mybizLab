@@ -249,6 +249,26 @@ export type VipDeliverySecretEnvLinkedContract =
   | 'provider_integration_architecture'
   | 'provider_selection_plan';
 
+export type VipRawRecipientResolutionFutureField = 'email' | 'phone';
+
+export type VipRawRecipientResolutionBlockedStatus =
+  | 'expired'
+  | 'invalid'
+  | 'opted_out'
+  | 'unknown'
+  | 'withdrawn';
+
+export type VipRawRecipientResolutionBlockedAction =
+  | 'execute_campaign'
+  | 'export_recipient_list'
+  | 'read_raw_email'
+  | 'read_raw_phone'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_delivery_log';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -416,6 +436,24 @@ export interface VipDeliverySecretEnvArchitecturePlan {
   requiredRuntimeEnvVars: [];
   secretEnvArchitectureOnly: true;
   webhookEnabledNow: false;
+}
+
+export interface VipRawRecipientResolutionPlan {
+  allowedNow: [];
+  blockedActions: VipRawRecipientResolutionBlockedAction[];
+  blockedStatuses: VipRawRecipientResolutionBlockedStatus[];
+  deliveryExecutionEnabled: false;
+  futureResolutionFields: VipRawRecipientResolutionFutureField[];
+  maskedPreviewOnly: true;
+  productionWriteEnabled: false;
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  requiresAuditLog: true;
+  requiresMarketingConsent: true;
+  requiresOptOutExclusion: true;
+  requiresOwnerApproval: true;
+  requiresSecureExecutionScope: true;
+  requiresStoreScopedConsent: true;
 }
 
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
@@ -603,6 +641,25 @@ const VIP_DELIVERY_SECRET_ENV_LINKED_CONTRACTS: VipDeliverySecretEnvLinkedContra
   'delivery_execution_contract',
   'marketing_consent_model',
   'delivery_readiness_checklist',
+];
+const VIP_RAW_RECIPIENT_RESOLUTION_FIELDS: VipRawRecipientResolutionFutureField[] = ['phone', 'email'];
+const VIP_RAW_RECIPIENT_RESOLUTION_BLOCKED_STATUSES: VipRawRecipientResolutionBlockedStatus[] = [
+  'unknown',
+  'opted_out',
+  'withdrawn',
+  'expired',
+  'invalid',
+];
+const VIP_RAW_RECIPIENT_RESOLUTION_BLOCKED_ACTIONS: VipRawRecipientResolutionBlockedAction[] = [
+  'read_raw_phone',
+  'read_raw_email',
+  'resolve_raw_recipient',
+  'export_recipient_list',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'execute_campaign',
+  'write_delivery_log',
 ];
 
 function normalizeText(value: unknown) {
@@ -1144,5 +1201,25 @@ export function buildVipDeliverySecretEnvArchitecturePlan(): VipDeliverySecretEn
     requiredRuntimeEnvVars: [],
     secretEnvArchitectureOnly: true,
     webhookEnabledNow: false,
+  };
+}
+
+export function buildVipRawRecipientResolutionPlan(): VipRawRecipientResolutionPlan {
+  return {
+    allowedNow: [],
+    blockedActions: VIP_RAW_RECIPIENT_RESOLUTION_BLOCKED_ACTIONS,
+    blockedStatuses: VIP_RAW_RECIPIENT_RESOLUTION_BLOCKED_STATUSES,
+    deliveryExecutionEnabled: false,
+    futureResolutionFields: VIP_RAW_RECIPIENT_RESOLUTION_FIELDS,
+    maskedPreviewOnly: true,
+    productionWriteEnabled: false,
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    requiresAuditLog: true,
+    requiresMarketingConsent: true,
+    requiresOptOutExclusion: true,
+    requiresOwnerApproval: true,
+    requiresSecureExecutionScope: true,
+    requiresStoreScopedConsent: true,
   };
 }
