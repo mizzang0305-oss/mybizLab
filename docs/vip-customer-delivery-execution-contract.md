@@ -94,6 +94,8 @@ Future delivery must define:
 
 Future implementation will need an audit trail that can support operations review without leaking raw customer data.
 
+The dedicated future audit log boundary is documented in `docs/vip-customer-delivery-audit-log-plan.md`.
+
 Required log fields for future design:
 
 - `campaign_id`
@@ -153,3 +155,5 @@ This contract is read-only and in-memory. It must not call a database, provider 
 The operator-facing readiness checklist that precedes any future execution design is documented in `docs/vip-customer-delivery-readiness-checklist.md`.
 
 The future provider integration architecture is documented in `docs/vip-customer-delivery-provider-integration-architecture.md`. That architecture remains plan-only and does not add provider SDKs, API keys, env changes, provider imports, API calls, raw recipient resolution, delivery log tables, webhook endpoints, send buttons, scheduled-send buttons, execute-campaign buttons, migrations, seed data, or production DB writes.
+
+The future delivery audit log plan is documented in `docs/vip-customer-delivery-audit-log-plan.md`. That plan remains documentation and pure contract only; it does not create a table, migration, SQL file, write path, raw recipient storage, provider integration, webhook endpoint, or send path.

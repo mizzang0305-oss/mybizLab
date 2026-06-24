@@ -10,6 +10,7 @@ import {
   buildVipDeliveryProviderSelectionPlan,
   buildVipDeliverySecretEnvArchitecturePlan,
   buildVipRawRecipientResolutionPlan,
+  buildVipDeliveryAuditLogPlan,
   buildVipDeliveryReadinessChecklist,
   buildVipDeliveryApprovalGatePlan,
   buildVipCustomerReadonlyView,
@@ -932,5 +933,90 @@ describe('VIP customer readonly view service', () => {
     expect(secretEnvDoc).toContain('docs/vip-customer-raw-recipient-resolution-plan.md');
     expect(rawRecipientDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(rawRecipientDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a delivery audit log plan without migrations, raw recipient storage, or delivery writes', () => {
+    const auditLogPlan = buildVipDeliveryAuditLogPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const auditLogDoc = readFileSync(join(process.cwd(), 'docs/vip-customer-delivery-audit-log-plan.md'), 'utf8');
+    const rawRecipientDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-raw-recipient-resolution-plan.md'),
+      'utf8',
+    );
+    const executionContractDoc = readFileSync(
+      join(process.cwd(), 'docs/vip-customer-delivery-execution-contract.md'),
+      'utf8',
+    );
+
+    expect(auditLogPlan).toMatchObject({
+      auditLogPlanOnly: true,
+      deliveryLogTableEnabled: false,
+      migrationRequiredBeforeExecution: true,
+      productionWriteEnabled: false,
+      rawRecipientStorageEnabled: false,
+      requiresOwnerApproval: true,
+      requiresMaskedRecipientSnapshot: true,
+      requiresMessageBodyHash: true,
+      requiresRecipientCount: true,
+      requiresExecutionStatus: true,
+      requiresFailureReason: true,
+      requiresCancellationReason: true,
+      futureTable: 'vip_delivery_audit_logs',
+    });
+    expect(auditLogPlan.futureFields).toEqual([
+      'delivery_audit_id',
+      'store_id',
+      'campaign_id',
+      'approved_by',
+      'approved_at',
+      'approval_snapshot',
+      'recipient_count',
+      'masked_recipient_snapshot',
+      'message_template_id',
+      'message_body_hash',
+      'provider',
+      'channel',
+      'execution_status',
+      'failure_reason',
+      'cancellation_reason',
+      'created_at',
+    ]);
+    expect(auditLogPlan.blockedActions).toEqual([
+      'create_delivery_log_table',
+      'write_delivery_log',
+      'store_raw_recipient',
+      'store_raw_phone',
+      'store_raw_email',
+      'execute_campaign',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'register_webhook',
+    ]);
+    expect(JSON.stringify(auditLogPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(auditLogPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /createDeliveryLogTable|writeDeliveryLog|storeRawRecipient|storeRawPhone|storeRawEmail|sendSms|sendKakao|sendEmail|registerWebhook|providerClient|fetch\(|axios/i,
+    );
+
+    for (const requiredPhrase of [
+      'audit log plan only',
+      'does not create the `vip_delivery_audit_logs` table',
+      'migration remains prohibited',
+      'production write remains prohibited',
+      'raw recipient storage remains prohibited',
+      'masked_recipient_snapshot',
+      'message_body_hash',
+      'failure_reason',
+      'cancellation_reason',
+      'docs/vip-customer-raw-recipient-resolution-plan.md',
+      'docs/vip-customer-delivery-execution-contract.md',
+    ]) {
+      expect(auditLogDoc).toContain(requiredPhrase);
+    }
+    expect(rawRecipientDoc).toContain('docs/vip-customer-delivery-audit-log-plan.md');
+    expect(executionContractDoc).toContain('docs/vip-customer-delivery-audit-log-plan.md');
+    expect(auditLogDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(auditLogDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
 });

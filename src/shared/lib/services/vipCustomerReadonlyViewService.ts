@@ -269,6 +269,36 @@ export type VipRawRecipientResolutionBlockedAction =
   | 'send_sms'
   | 'write_delivery_log';
 
+export type VipDeliveryAuditLogFutureField =
+  | 'approval_snapshot'
+  | 'approved_at'
+  | 'approved_by'
+  | 'campaign_id'
+  | 'cancellation_reason'
+  | 'channel'
+  | 'created_at'
+  | 'delivery_audit_id'
+  | 'execution_status'
+  | 'failure_reason'
+  | 'masked_recipient_snapshot'
+  | 'message_body_hash'
+  | 'message_template_id'
+  | 'provider'
+  | 'recipient_count'
+  | 'store_id';
+
+export type VipDeliveryAuditLogBlockedAction =
+  | 'create_delivery_log_table'
+  | 'execute_campaign'
+  | 'register_webhook'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'store_raw_email'
+  | 'store_raw_phone'
+  | 'store_raw_recipient'
+  | 'write_delivery_log';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -454,6 +484,24 @@ export interface VipRawRecipientResolutionPlan {
   requiresOwnerApproval: true;
   requiresSecureExecutionScope: true;
   requiresStoreScopedConsent: true;
+}
+
+export interface VipDeliveryAuditLogPlan {
+  auditLogPlanOnly: true;
+  blockedActions: VipDeliveryAuditLogBlockedAction[];
+  deliveryLogTableEnabled: false;
+  futureFields: VipDeliveryAuditLogFutureField[];
+  futureTable: 'vip_delivery_audit_logs';
+  migrationRequiredBeforeExecution: true;
+  productionWriteEnabled: false;
+  rawRecipientStorageEnabled: false;
+  requiresCancellationReason: true;
+  requiresExecutionStatus: true;
+  requiresFailureReason: true;
+  requiresMaskedRecipientSnapshot: true;
+  requiresMessageBodyHash: true;
+  requiresOwnerApproval: true;
+  requiresRecipientCount: true;
 }
 
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
@@ -660,6 +708,36 @@ const VIP_RAW_RECIPIENT_RESOLUTION_BLOCKED_ACTIONS: VipRawRecipientResolutionBlo
   'send_email',
   'execute_campaign',
   'write_delivery_log',
+];
+const VIP_DELIVERY_AUDIT_LOG_FIELDS: VipDeliveryAuditLogFutureField[] = [
+  'delivery_audit_id',
+  'store_id',
+  'campaign_id',
+  'approved_by',
+  'approved_at',
+  'approval_snapshot',
+  'recipient_count',
+  'masked_recipient_snapshot',
+  'message_template_id',
+  'message_body_hash',
+  'provider',
+  'channel',
+  'execution_status',
+  'failure_reason',
+  'cancellation_reason',
+  'created_at',
+];
+const VIP_DELIVERY_AUDIT_LOG_BLOCKED_ACTIONS: VipDeliveryAuditLogBlockedAction[] = [
+  'create_delivery_log_table',
+  'write_delivery_log',
+  'store_raw_recipient',
+  'store_raw_phone',
+  'store_raw_email',
+  'execute_campaign',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'register_webhook',
 ];
 
 function normalizeText(value: unknown) {
@@ -1221,5 +1299,25 @@ export function buildVipRawRecipientResolutionPlan(): VipRawRecipientResolutionP
     requiresOwnerApproval: true,
     requiresSecureExecutionScope: true,
     requiresStoreScopedConsent: true,
+  };
+}
+
+export function buildVipDeliveryAuditLogPlan(): VipDeliveryAuditLogPlan {
+  return {
+    auditLogPlanOnly: true,
+    blockedActions: VIP_DELIVERY_AUDIT_LOG_BLOCKED_ACTIONS,
+    deliveryLogTableEnabled: false,
+    futureFields: VIP_DELIVERY_AUDIT_LOG_FIELDS,
+    futureTable: 'vip_delivery_audit_logs',
+    migrationRequiredBeforeExecution: true,
+    productionWriteEnabled: false,
+    rawRecipientStorageEnabled: false,
+    requiresCancellationReason: true,
+    requiresExecutionStatus: true,
+    requiresFailureReason: true,
+    requiresMaskedRecipientSnapshot: true,
+    requiresMessageBodyHash: true,
+    requiresOwnerApproval: true,
+    requiresRecipientCount: true,
   };
 }
