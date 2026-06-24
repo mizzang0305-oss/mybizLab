@@ -299,6 +299,46 @@ export type VipDeliveryAuditLogBlockedAction =
   | 'store_raw_recipient'
   | 'write_delivery_log';
 
+export type JulyLaunchChecklistBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'create_migration'
+  | 'enable_payment_automation'
+  | 'export_recipient_list'
+  | 'register_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_delivery_log';
+
+export type JulyLaunchChecklistOpenScope =
+  | 'actual_delivery_disabled'
+  | 'customer_marketing_consent_model'
+  | 'delivery_approval_gate'
+  | 'delivery_audit_log_plan'
+  | 'delivery_execution_contract'
+  | 'delivery_readiness_checklist'
+  | 'provider_integration_architecture'
+  | 'provider_selection_plan'
+  | 'public_pricing_domain_pages'
+  | 'raw_recipient_resolution_boundary'
+  | 'secret_env_architecture'
+  | 'vip_campaign_preparation_preview'
+  | 'vip_criteria_report_sample'
+  | 'vip_customer_memory_readonly';
+
+export type JulyLaunchChecklistNotOpenScope =
+  | 'actual_sms_kakao_email_send'
+  | 'api_key_env_registration'
+  | 'delivery_log_table_write'
+  | 'payment_billing_automation'
+  | 'production_db_migration_write'
+  | 'provider_integration'
+  | 'raw_phone_email_resolution'
+  | 'recipient_export'
+  | 'webhook_callback';
+
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
 
 export interface VipCampaignPreparationPreviewCandidate {
@@ -502,6 +542,26 @@ export interface VipDeliveryAuditLogPlan {
   requiresMessageBodyHash: true;
   requiresOwnerApproval: true;
   requiresRecipientCount: true;
+}
+
+export interface JulyLaunchChecklistPlan {
+  actualDeliveryEnabled: false;
+  blockedActions: JulyLaunchChecklistBlockedAction[];
+  deliveryLogWriteEnabled: false;
+  launchMode: 'pilot_readonly_revenue_engine';
+  launchPlanOnly: true;
+  notOpenScope: JulyLaunchChecklistNotOpenScope[];
+  openScope: JulyLaunchChecklistOpenScope[];
+  paymentAutomationEnabled: false;
+  productionSideEffectsEnabled: false;
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  requiresDemoScenario: true;
+  requiresOwnerApprovalBeforeLaunch: true;
+  requiresPilotStoreSelection: true;
+  requiresPricingPlanLock: true;
+  requiresPrivacyConsentReview: true;
+  targetMonth: '2026-07';
 }
 
 export const VIP_CUSTOMER_CRITERIA_DOCUMENTATION = {
@@ -738,6 +798,46 @@ const VIP_DELIVERY_AUDIT_LOG_BLOCKED_ACTIONS: VipDeliveryAuditLogBlockedAction[]
   'send_kakao',
   'send_email',
   'register_webhook',
+];
+const JULY_LAUNCH_CHECKLIST_OPEN_SCOPE: JulyLaunchChecklistOpenScope[] = [
+  'vip_customer_memory_readonly',
+  'vip_criteria_report_sample',
+  'vip_campaign_preparation_preview',
+  'delivery_approval_gate',
+  'delivery_execution_contract',
+  'delivery_readiness_checklist',
+  'customer_marketing_consent_model',
+  'provider_selection_plan',
+  'provider_integration_architecture',
+  'secret_env_architecture',
+  'raw_recipient_resolution_boundary',
+  'delivery_audit_log_plan',
+  'public_pricing_domain_pages',
+  'actual_delivery_disabled',
+];
+const JULY_LAUNCH_CHECKLIST_NOT_OPEN_SCOPE: JulyLaunchChecklistNotOpenScope[] = [
+  'actual_sms_kakao_email_send',
+  'provider_integration',
+  'api_key_env_registration',
+  'raw_phone_email_resolution',
+  'recipient_export',
+  'delivery_log_table_write',
+  'webhook_callback',
+  'payment_billing_automation',
+  'production_db_migration_write',
+];
+const JULY_LAUNCH_CHECKLIST_BLOCKED_ACTIONS: JulyLaunchChecklistBlockedAction[] = [
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'resolve_raw_recipient',
+  'export_recipient_list',
+  'write_delivery_log',
+  'create_migration',
+  'add_api_key',
+  'add_env',
+  'register_webhook',
+  'enable_payment_automation',
 ];
 
 function normalizeText(value: unknown) {
@@ -1319,5 +1419,27 @@ export function buildVipDeliveryAuditLogPlan(): VipDeliveryAuditLogPlan {
     requiresMessageBodyHash: true,
     requiresOwnerApproval: true,
     requiresRecipientCount: true,
+  };
+}
+
+export function buildJulyLaunchChecklistPlan(): JulyLaunchChecklistPlan {
+  return {
+    actualDeliveryEnabled: false,
+    blockedActions: JULY_LAUNCH_CHECKLIST_BLOCKED_ACTIONS,
+    deliveryLogWriteEnabled: false,
+    launchMode: 'pilot_readonly_revenue_engine',
+    launchPlanOnly: true,
+    notOpenScope: JULY_LAUNCH_CHECKLIST_NOT_OPEN_SCOPE,
+    openScope: JULY_LAUNCH_CHECKLIST_OPEN_SCOPE,
+    paymentAutomationEnabled: false,
+    productionSideEffectsEnabled: false,
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    requiresDemoScenario: true,
+    requiresOwnerApprovalBeforeLaunch: true,
+    requiresPilotStoreSelection: true,
+    requiresPricingPlanLock: true,
+    requiresPrivacyConsentReview: true,
+    targetMonth: '2026-07',
   };
 }
