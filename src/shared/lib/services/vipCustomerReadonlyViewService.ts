@@ -362,6 +362,24 @@ export type JulyPricingPlanBlockedAction =
   | 'send_sms'
   | 'write_subscription';
 
+export type PilotStoreOnboardingBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'charge_payment'
+  | 'create_store'
+  | 'create_subscription'
+  | 'export_recipient_list'
+  | 'import_customer_data'
+  | 'read_real_customer_data'
+  | 'register_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_subscription';
+
+export type PilotStoreOnboardingPrioritySegment = 'cafe' | 'dessert' | 'restaurant';
+
 export interface JulyPricingRecommendedPlan {
   code: JulyPricingPlanCode;
   name: string;
@@ -382,6 +400,31 @@ export interface JulyPricingPlanLock {
   requiresPilotFeedbackBeforeFinalPrice: true;
   subscriptionWriteEnabled: false;
   targetMonth: '2026-07';
+}
+
+export interface PilotStoreOnboardingPlan {
+  actualDeliveryEnabled: false;
+  blockedActions: PilotStoreOnboardingBlockedAction[];
+  customerDataImportEnabled: false;
+  onboardingPlanOnly: true;
+  paymentAutomationEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  prioritySegments: PilotStoreOnboardingPrioritySegment[];
+  productionSideEffectsEnabled: false;
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  recommendedPrimaryMonthlyPriceKrw: 99000;
+  recommendedPrimaryPlan: 'growth';
+  requiresDemoScenario: true;
+  requiresOwnerApprovalBeforePilot: true;
+  requiresPricingPlanLock: true;
+  requiresPrivacyConsentReview: true;
+  storeCreationEnabled: false;
+  targetMonth: '2026-07';
+  targetPilotStoreCount: {
+    max: 5;
+    min: 3;
+  };
 }
 
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
@@ -930,6 +973,27 @@ const JULY_PRICING_BLOCKED_ACTIONS: JulyPricingPlanBlockedAction[] = [
   'send_kakao',
   'send_email',
   'resolve_raw_recipient',
+];
+const PILOT_STORE_ONBOARDING_PRIORITY_SEGMENTS: PilotStoreOnboardingPrioritySegment[] = [
+  'restaurant',
+  'cafe',
+  'dessert',
+];
+const PILOT_STORE_ONBOARDING_BLOCKED_ACTIONS: PilotStoreOnboardingBlockedAction[] = [
+  'create_store',
+  'import_customer_data',
+  'read_real_customer_data',
+  'resolve_raw_recipient',
+  'export_recipient_list',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'charge_payment',
+  'create_subscription',
+  'write_subscription',
+  'add_api_key',
+  'add_env',
+  'register_webhook',
 ];
 
 function normalizeText(value: unknown) {
@@ -1549,5 +1613,32 @@ export function buildJulyPricingPlanLock(): JulyPricingPlanLock {
     requiresPilotFeedbackBeforeFinalPrice: true,
     subscriptionWriteEnabled: false,
     targetMonth: '2026-07',
+  };
+}
+
+export function buildPilotStoreOnboardingPlan(): PilotStoreOnboardingPlan {
+  return {
+    actualDeliveryEnabled: false,
+    blockedActions: PILOT_STORE_ONBOARDING_BLOCKED_ACTIONS,
+    customerDataImportEnabled: false,
+    onboardingPlanOnly: true,
+    paymentAutomationEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    prioritySegments: PILOT_STORE_ONBOARDING_PRIORITY_SEGMENTS,
+    productionSideEffectsEnabled: false,
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    recommendedPrimaryMonthlyPriceKrw: 99000,
+    recommendedPrimaryPlan: 'growth',
+    requiresDemoScenario: true,
+    requiresOwnerApprovalBeforePilot: true,
+    requiresPricingPlanLock: true,
+    requiresPrivacyConsentReview: true,
+    storeCreationEnabled: false,
+    targetMonth: '2026-07',
+    targetPilotStoreCount: {
+      max: 5,
+      min: 3,
+    },
   };
 }

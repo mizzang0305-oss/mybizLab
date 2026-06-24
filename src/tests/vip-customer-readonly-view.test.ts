@@ -1211,4 +1211,116 @@ describe('VIP customer readonly view service', () => {
     expect(pricingDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(pricingDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
   });
+
+  it('builds a pilot store onboarding plan without production side effects', async () => {
+    const serviceModule = await import('@/shared/lib/services/vipCustomerReadonlyViewService');
+    const maybeBuilder = (serviceModule as Record<string, unknown>).buildPilotStoreOnboardingPlan;
+
+    expect(typeof maybeBuilder).toBe('function');
+
+    const onboardingPlan = (maybeBuilder as () => {
+      actualDeliveryEnabled: false;
+      blockedActions: string[];
+      customerDataImportEnabled: false;
+      onboardingPlanOnly: true;
+      paymentAutomationEnabled: false;
+      positioning: 'memory_based_revenue_engine';
+      prioritySegments: string[];
+      productionSideEffectsEnabled: false;
+      providerIntegrationEnabled: false;
+      rawRecipientResolutionEnabled: false;
+      recommendedPrimaryMonthlyPriceKrw: 99000;
+      recommendedPrimaryPlan: 'growth';
+      requiresDemoScenario: true;
+      requiresOwnerApprovalBeforePilot: true;
+      requiresPricingPlanLock: true;
+      requiresPrivacyConsentReview: true;
+      storeCreationEnabled: false;
+      targetMonth: '2026-07';
+      targetPilotStoreCount: { max: 5; min: 3 };
+    })();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const onboardingDoc = readFileSync(join(process.cwd(), 'docs/pilot-store-onboarding-checklist.md'), 'utf8');
+    const demoDoc = readFileSync(join(process.cwd(), 'docs/pilot-demo-scenario.md'), 'utf8');
+    const checklistDoc = readFileSync(join(process.cwd(), 'docs/july-launch-checklist.md'), 'utf8');
+    const pricingDoc = readFileSync(join(process.cwd(), 'docs/july-pricing-plan-lock.md'), 'utf8');
+
+    expect(onboardingPlan).toMatchObject({
+      actualDeliveryEnabled: false,
+      customerDataImportEnabled: false,
+      onboardingPlanOnly: true,
+      paymentAutomationEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      productionSideEffectsEnabled: false,
+      providerIntegrationEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      recommendedPrimaryMonthlyPriceKrw: 99000,
+      recommendedPrimaryPlan: 'growth',
+      requiresDemoScenario: true,
+      requiresOwnerApprovalBeforePilot: true,
+      requiresPricingPlanLock: true,
+      requiresPrivacyConsentReview: true,
+      storeCreationEnabled: false,
+      targetMonth: '2026-07',
+      targetPilotStoreCount: {
+        max: 5,
+        min: 3,
+      },
+    });
+    expect(onboardingPlan.prioritySegments).toEqual(['restaurant', 'cafe', 'dessert']);
+    expect(onboardingPlan.blockedActions).toEqual([
+      'create_store',
+      'import_customer_data',
+      'read_real_customer_data',
+      'resolve_raw_recipient',
+      'export_recipient_list',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'charge_payment',
+      'create_subscription',
+      'write_subscription',
+      'add_api_key',
+      'add_env',
+      'register_webhook',
+    ]);
+    expect(JSON.stringify(onboardingPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(onboardingPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /createStore|importCustomerData|readRealCustomerData|resolveRawRecipient|exportRecipientList|sendSms|sendKakao|sendEmail|chargePayment|createSubscription|writeSubscription|addApiKey|addEnv|registerWebhook|providerClient|fetch\(|axios/i,
+    );
+
+    for (const requiredPhrase of [
+      'Pilot Store Onboarding Checklist',
+      '7월 파일럿 목표',
+      '파일럿 매장 3~5곳',
+      '음식점/카페/디저트 우선',
+      '기억 기반 매출 엔진',
+      '우선 타깃 매장',
+      '제외',
+      '파일럿 제안 조건',
+      'Growth 99,000원',
+      '실제 발송은 미포함',
+      'buildPilotStoreOnboardingPlan()',
+    ]) {
+      expect(onboardingDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Pilot Demo Scenario',
+      '사장님 현재 문제 확인',
+      'MyBiz 가치 제시',
+      '돈 받을 포인트',
+      '안전 경계 설명',
+      'read-only revenue proof',
+    ]) {
+      expect(demoDoc).toContain(requiredPhrase);
+    }
+    expect(checklistDoc).toContain('docs/pilot-store-onboarding-checklist.md');
+    expect(checklistDoc).toContain('docs/pilot-demo-scenario.md');
+    expect(pricingDoc).toContain('docs/pilot-store-onboarding-checklist.md');
+    expect(onboardingDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(onboardingDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(demoDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(demoDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
 });
