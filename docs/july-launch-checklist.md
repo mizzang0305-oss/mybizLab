@@ -96,6 +96,8 @@ Before July launch, the owner must lock:
 
 Payment automation remains disabled in this checklist.
 
+The pricing structure is tracked separately in `docs/july-pricing-plan-lock.md`. It locks Free, Starter, Growth, Pro, and Franchise as plan concepts only, with Growth as the core memory-based revenue engine. It does not create subscriptions, charge payments, register billing webhooks, or enable automated billing.
+
 ## Privacy And Consent Review
 
 The launch must keep privacy and consent review visible before any future delivery.
@@ -196,6 +198,7 @@ This contract is pure and in-memory. It must not query a database, write data, c
 ## Related Documents
 
 - `docs/vip-customer-memory-launch-scope.md`
+- `docs/july-pricing-plan-lock.md`
 - `docs/vip-customer-delivery-readiness-checklist.md`
 - `docs/vip-customer-delivery-execution-contract.md`
 - `docs/customer-marketing-consent-model.md`
