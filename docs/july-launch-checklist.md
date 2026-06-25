@@ -98,6 +98,8 @@ Payment automation remains disabled in this checklist.
 
 The pricing structure is tracked separately in `docs/july-pricing-plan-lock.md`. It locks Free, Starter, Growth, Pro, and Franchise as plan concepts only, with Growth as the core memory-based revenue engine. It does not create subscriptions, charge payments, register billing webhooks, or enable automated billing.
 
+Pilot store onboarding is tracked separately in `docs/pilot-store-onboarding-checklist.md` and `docs/pilot-demo-scenario.md`. It defines the July pilot target stores, owner-facing demo flow, Growth-first pricing proposal, and no-effect safety boundary without creating stores, importing customers, reading real customer data, sending messages, or enabling payment automation.
+
 ## Privacy And Consent Review
 
 The launch must keep privacy and consent review visible before any future delivery.
@@ -199,6 +201,8 @@ This contract is pure and in-memory. It must not query a database, write data, c
 
 - `docs/vip-customer-memory-launch-scope.md`
 - `docs/july-pricing-plan-lock.md`
+- `docs/pilot-store-onboarding-checklist.md`
+- `docs/pilot-demo-scenario.md`
 - `docs/vip-customer-delivery-readiness-checklist.md`
 - `docs/vip-customer-delivery-execution-contract.md`
 - `docs/customer-marketing-consent-model.md`

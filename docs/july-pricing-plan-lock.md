@@ -190,6 +190,8 @@ Before publishing pricing externally, the owner must approve:
 
 Pilot feedback must confirm that owners understand the current product as a customer-memory revenue engine, not as an actual sending or payment automation product.
 
+The July pilot onboarding plan is tracked in `docs/pilot-store-onboarding-checklist.md`. It keeps Growth 99,000 KRW as the primary recommended pilot proposal and keeps actual payment automation, subscription writes, delivery, provider integration, and raw recipient access out of scope.
+
 ## Code Contract
 
 The pure contract is `buildJulyPricingPlanLock()`.
@@ -213,4 +215,5 @@ This contract is pure and in-memory. It must not create subscriptions, write sub
 ## Related Documents
 
 - `docs/july-launch-checklist.md`
+- `docs/pilot-store-onboarding-checklist.md`
 - `docs/vip-customer-memory-launch-scope.md`
