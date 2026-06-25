@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   buildJulyLaunchChecklistPlan,
+  buildPilotSalesKitPlan,
   buildJulyPricingPlanLock,
   buildCustomerMarketingConsentModelPlan,
   buildVipCampaignPreparationPreview,
@@ -1322,5 +1323,97 @@ describe('VIP customer readonly view service', () => {
     expect(onboardingDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
     expect(demoDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(demoDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+  });
+
+  it('builds a pilot sales kit plan without outbound, payment, or customer-data side effects', () => {
+    const salesKitPlan = buildPilotSalesKitPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const salesKitDoc = readFileSync(join(process.cwd(), 'docs/pilot-sales-kit.md'), 'utf8');
+    const objectionDoc = readFileSync(join(process.cwd(), 'docs/pilot-objection-handling.md'), 'utf8');
+    const onboardingDoc = readFileSync(join(process.cwd(), 'docs/pilot-store-onboarding-checklist.md'), 'utf8');
+    const demoDoc = readFileSync(join(process.cwd(), 'docs/pilot-demo-scenario.md'), 'utf8');
+
+    expect(salesKitPlan).toMatchObject({
+      actualDeliveryEnabled: false,
+      customerDataImportEnabled: false,
+      outboundEnabled: false,
+      paymentAutomationEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      primaryOfferMonthlyPriceKrw: 99000,
+      primaryOfferPlan: 'growth',
+      providerIntegrationEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      requiresOwnerApprovalBeforeUse: true,
+      requiresPrivacyBoundaryExplanation: true,
+      requiresReadOnlyPilotExplanation: true,
+      salesKitPlanOnly: true,
+      storeCreationEnabled: false,
+      targetMonth: '2026-07',
+      targetPilotStoreCount: {
+        max: 5,
+        min: 3,
+      },
+    });
+    expect(salesKitPlan.requiredSalesAssets).toEqual([
+      'three_minute_pitch',
+      'thirty_second_pitch',
+      'pricing_pitch',
+      'objection_handling',
+      'pre_contract_checklist',
+    ]);
+    expect(salesKitPlan.blockedActions).toEqual([
+      'send_sales_sms',
+      'send_sales_kakao',
+      'send_sales_email',
+      'create_store',
+      'import_customer_data',
+      'read_real_customer_data',
+      'charge_payment',
+      'create_subscription',
+      'write_subscription',
+      'resolve_raw_recipient',
+      'add_api_key',
+      'add_env',
+      'register_webhook',
+    ]);
+    expect(JSON.stringify(salesKitPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(salesKitPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /sendSalesSms|sendSalesKakao|sendSalesEmail|createStore|importCustomerData|readRealCustomerData|chargePayment|createSubscription|writeSubscription|resolveRawRecipient|addApiKey|addEnv|registerWebhook|providerClient|fetch\(|axios/i,
+    );
+
+    for (const requiredPhrase of [
+      'Pilot Sales Kit',
+      'memory-based revenue engine SaaS',
+      '3분 설명 스크립트',
+      '30초 한 줄 제안',
+      '가격 제안 멘트',
+      'Pre-Contract Checklist',
+      'Growth 99,000',
+      'buildPilotSalesKitPlan()',
+    ]) {
+      expect(salesKitDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Pilot Objection Handling',
+      '우리는 단골 다 기억해요',
+      '문자 자동 발송 하는 거예요',
+      'CRM이랑 뭐가 달라요',
+      '비싸요',
+      '개인정보 괜찮아요',
+      '지금 당장 필요한가요',
+      'buildPilotSalesKitPlan()',
+    ]) {
+      expect(objectionDoc).toContain(requiredPhrase);
+    }
+    expect(onboardingDoc).toContain('docs/pilot-sales-kit.md');
+    expect(onboardingDoc).toContain('docs/pilot-objection-handling.md');
+    expect(demoDoc).toContain('docs/pilot-sales-kit.md');
+    expect(demoDoc).toContain('docs/pilot-objection-handling.md');
+    for (const doc of [salesKitDoc, objectionDoc]) {
+      expect(doc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+      expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+      expect(doc).not.toMatch(/automatic customer grade changes|payment automation enabled|provider integration enabled/i);
+    }
   });
 });

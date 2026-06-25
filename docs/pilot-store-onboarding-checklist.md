@@ -103,6 +103,8 @@ This contract is pure and in-memory. It must not query a database, create a stor
 
 ## Related Documents
 
+- `docs/pilot-sales-kit.md`
+- `docs/pilot-objection-handling.md`
 - `docs/pilot-demo-scenario.md`
 - `docs/july-launch-checklist.md`
 - `docs/july-pricing-plan-lock.md`

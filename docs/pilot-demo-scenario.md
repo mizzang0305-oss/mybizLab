@@ -47,6 +47,8 @@ Do not promise actual SMS/Kakao/Email delivery, automatic customer grade changes
 
 ## Related Documents
 
+- `docs/pilot-sales-kit.md`
+- `docs/pilot-objection-handling.md`
 - `docs/pilot-store-onboarding-checklist.md`
 - `docs/july-launch-checklist.md`
 - `docs/july-pricing-plan-lock.md`
