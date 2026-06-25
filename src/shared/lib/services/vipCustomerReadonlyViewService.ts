@@ -402,6 +402,49 @@ export type PilotSalesKitBlockedAction =
   | 'send_sales_sms'
   | 'write_subscription';
 
+export type PilotConsultationRecordConversionGrade = 'cold' | 'hot' | 'no_fit' | 'warm';
+
+export type PilotConsultationRecordNextAction =
+  | 'mark_not_fit'
+  | 'propose_growth'
+  | 'propose_starter'
+  | 'schedule_follow_up';
+
+export type PilotConsultationRecordRequiredField =
+  | 'actual_delivery_excluded_understood'
+  | 'average_order_value_opportunity'
+  | 'business_type'
+  | 'consultation_date'
+  | 'conversion_grade'
+  | 'current_customer_management'
+  | 'growth_price_reaction'
+  | 'interested_features'
+  | 'main_pain_point'
+  | 'next_action'
+  | 'objections'
+  | 'preference_importance'
+  | 'privacy_consent_readiness'
+  | 'readonly_pilot_understood'
+  | 'regular_customer_pattern'
+  | 'revisit_need';
+
+export type PilotConsultationRecordBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'charge_payment'
+  | 'create_lead'
+  | 'create_store'
+  | 'create_subscription'
+  | 'import_customer_data'
+  | 'read_real_customer_data'
+  | 'register_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_sales_email'
+  | 'send_sales_kakao'
+  | 'send_sales_sms'
+  | 'write_consultation_record'
+  | 'write_subscription';
+
 export interface JulyPricingRecommendedPlan {
   code: JulyPricingPlanCode;
   name: string;
@@ -471,6 +514,31 @@ export interface PilotSalesKitPlan {
     max: 5;
     min: 3;
   };
+}
+
+export interface PilotConsultationRecordPlan {
+  actualDeliveryEnabled: false;
+  blockedActions: PilotConsultationRecordBlockedAction[];
+  consultationRecordPlanOnly: true;
+  conversionGrades: PilotConsultationRecordConversionGrade[];
+  customerDataImportEnabled: false;
+  leadCreationEnabled: false;
+  paymentAutomationEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  possibleNextActions: PilotConsultationRecordNextAction[];
+  primaryOfferMonthlyPriceKrw: 99000;
+  primaryOfferPlan: 'growth';
+  productionWriteEnabled: false;
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  realCustomerDataReadEnabled: false;
+  recordTemplateOnly: true;
+  requiredRecordFields: PilotConsultationRecordRequiredField[];
+  requiresOwnerApprovalBeforeUse: true;
+  requiresPrivacyBoundaryExplanation: true;
+  requiresReadOnlyPilotExplanation: true;
+  storeCreationEnabled: false;
+  targetMonth: '2026-07';
 }
 
 export type VipCampaignPreparationSectionId = 'dormancy_risk' | 'raise_average_order_value' | 'return_this_week';
@@ -1058,6 +1126,53 @@ const PILOT_SALES_KIT_BLOCKED_ACTIONS: PilotSalesKitBlockedAction[] = [
   'charge_payment',
   'create_subscription',
   'write_subscription',
+  'resolve_raw_recipient',
+  'add_api_key',
+  'add_env',
+  'register_webhook',
+];
+const PILOT_CONSULTATION_RECORD_CONVERSION_GRADES: PilotConsultationRecordConversionGrade[] = [
+  'hot',
+  'warm',
+  'cold',
+  'no_fit',
+];
+const PILOT_CONSULTATION_RECORD_NEXT_ACTIONS: PilotConsultationRecordNextAction[] = [
+  'propose_growth',
+  'propose_starter',
+  'schedule_follow_up',
+  'mark_not_fit',
+];
+const PILOT_CONSULTATION_RECORD_REQUIRED_FIELDS: PilotConsultationRecordRequiredField[] = [
+  'consultation_date',
+  'business_type',
+  'current_customer_management',
+  'regular_customer_pattern',
+  'preference_importance',
+  'revisit_need',
+  'average_order_value_opportunity',
+  'main_pain_point',
+  'interested_features',
+  'growth_price_reaction',
+  'objections',
+  'privacy_consent_readiness',
+  'readonly_pilot_understood',
+  'actual_delivery_excluded_understood',
+  'next_action',
+  'conversion_grade',
+];
+const PILOT_CONSULTATION_RECORD_BLOCKED_ACTIONS: PilotConsultationRecordBlockedAction[] = [
+  'write_consultation_record',
+  'create_lead',
+  'create_store',
+  'import_customer_data',
+  'read_real_customer_data',
+  'charge_payment',
+  'create_subscription',
+  'write_subscription',
+  'send_sales_sms',
+  'send_sales_kakao',
+  'send_sales_email',
   'resolve_raw_recipient',
   'add_api_key',
   'add_env',
@@ -1734,5 +1849,32 @@ export function buildPilotSalesKitPlan(): PilotSalesKitPlan {
       max: 5,
       min: 3,
     },
+  };
+}
+
+export function buildPilotConsultationRecordPlan(): PilotConsultationRecordPlan {
+  return {
+    actualDeliveryEnabled: false,
+    blockedActions: PILOT_CONSULTATION_RECORD_BLOCKED_ACTIONS,
+    consultationRecordPlanOnly: true,
+    conversionGrades: PILOT_CONSULTATION_RECORD_CONVERSION_GRADES,
+    customerDataImportEnabled: false,
+    leadCreationEnabled: false,
+    paymentAutomationEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    possibleNextActions: PILOT_CONSULTATION_RECORD_NEXT_ACTIONS,
+    primaryOfferMonthlyPriceKrw: 99000,
+    primaryOfferPlan: 'growth',
+    productionWriteEnabled: false,
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    realCustomerDataReadEnabled: false,
+    recordTemplateOnly: true,
+    requiredRecordFields: PILOT_CONSULTATION_RECORD_REQUIRED_FIELDS,
+    requiresOwnerApprovalBeforeUse: true,
+    requiresPrivacyBoundaryExplanation: true,
+    requiresReadOnlyPilotExplanation: true,
+    storeCreationEnabled: false,
+    targetMonth: '2026-07',
   };
 }

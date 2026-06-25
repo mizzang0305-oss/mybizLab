@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   buildJulyLaunchChecklistPlan,
+  buildPilotConsultationRecordPlan,
   buildPilotSalesKitPlan,
   buildJulyPricingPlanLock,
   buildCustomerMarketingConsentModelPlan,
@@ -1414,6 +1415,118 @@ describe('VIP customer readonly view service', () => {
       expect(doc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
       expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
       expect(doc).not.toMatch(/automatic customer grade changes|payment automation enabled|provider integration enabled/i);
+    }
+  });
+
+  it('builds a pilot consultation record plan without lead, store, payment, or customer-data writes', () => {
+    const consultationPlan = buildPilotConsultationRecordPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const consultationDoc = readFileSync(join(process.cwd(), 'docs/pilot-consultation-record-template.md'), 'utf8');
+    const preContractDoc = readFileSync(join(process.cwd(), 'docs/pilot-pre-contract-checklist.md'), 'utf8');
+    const salesKitDoc = readFileSync(join(process.cwd(), 'docs/pilot-sales-kit.md'), 'utf8');
+    const onboardingDoc = readFileSync(join(process.cwd(), 'docs/pilot-store-onboarding-checklist.md'), 'utf8');
+
+    expect(consultationPlan).toMatchObject({
+      actualDeliveryEnabled: false,
+      consultationRecordPlanOnly: true,
+      customerDataImportEnabled: false,
+      leadCreationEnabled: false,
+      paymentAutomationEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      primaryOfferMonthlyPriceKrw: 99000,
+      primaryOfferPlan: 'growth',
+      productionWriteEnabled: false,
+      providerIntegrationEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      realCustomerDataReadEnabled: false,
+      recordTemplateOnly: true,
+      requiresOwnerApprovalBeforeUse: true,
+      requiresPrivacyBoundaryExplanation: true,
+      requiresReadOnlyPilotExplanation: true,
+      storeCreationEnabled: false,
+      targetMonth: '2026-07',
+    });
+    expect(consultationPlan.conversionGrades).toEqual(['hot', 'warm', 'cold', 'no_fit']);
+    expect(consultationPlan.possibleNextActions).toEqual([
+      'propose_growth',
+      'propose_starter',
+      'schedule_follow_up',
+      'mark_not_fit',
+    ]);
+    expect(consultationPlan.requiredRecordFields).toEqual([
+      'consultation_date',
+      'business_type',
+      'current_customer_management',
+      'regular_customer_pattern',
+      'preference_importance',
+      'revisit_need',
+      'average_order_value_opportunity',
+      'main_pain_point',
+      'interested_features',
+      'growth_price_reaction',
+      'objections',
+      'privacy_consent_readiness',
+      'readonly_pilot_understood',
+      'actual_delivery_excluded_understood',
+      'next_action',
+      'conversion_grade',
+    ]);
+    expect(consultationPlan.blockedActions).toEqual([
+      'write_consultation_record',
+      'create_lead',
+      'create_store',
+      'import_customer_data',
+      'read_real_customer_data',
+      'charge_payment',
+      'create_subscription',
+      'write_subscription',
+      'send_sales_sms',
+      'send_sales_kakao',
+      'send_sales_email',
+      'resolve_raw_recipient',
+      'add_api_key',
+      'add_env',
+      'register_webhook',
+    ]);
+    expect(JSON.stringify(consultationPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(consultationPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /writeConsultationRecord|createLead|createStore|importCustomerData|readRealCustomerData|chargePayment|createSubscription|writeSubscription|sendSalesSms|sendSalesKakao|sendSalesEmail|resolveRawRecipient|addApiKey|addEnv|registerWebhook|providerClient|fetch\(|axios/i,
+    );
+
+    for (const requiredPhrase of [
+      'Pilot Consultation Record Template',
+      '상담 기록 템플릿',
+      '전환 가능성 등급',
+      'HOT',
+      'WARM',
+      'COLD',
+      'NO_FIT',
+      'Growth 99,000',
+      'write_consultation_record',
+      'buildPilotConsultationRecordPlan()',
+    ]) {
+      expect(consultationDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Pilot Pre-Contract Checklist',
+      '계약 전 필수 확인',
+      '파일럿 성공 기준',
+      'Growth 99,000',
+      'read-only 파일럿',
+      'raw phone/email',
+      'buildPilotConsultationRecordPlan()',
+    ]) {
+      expect(preContractDoc).toContain(requiredPhrase);
+    }
+    expect(salesKitDoc).toContain('docs/pilot-consultation-record-template.md');
+    expect(salesKitDoc).toContain('docs/pilot-pre-contract-checklist.md');
+    expect(onboardingDoc).toContain('docs/pilot-consultation-record-template.md');
+    expect(onboardingDoc).toContain('docs/pilot-pre-contract-checklist.md');
+    for (const doc of [consultationDoc, preContractDoc]) {
+      expect(doc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+      expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+      expect(doc).not.toMatch(/lead created|store created|payment automation enabled|provider integration enabled/i);
     }
   });
 });
