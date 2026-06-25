@@ -380,6 +380,28 @@ export type PilotStoreOnboardingBlockedAction =
 
 export type PilotStoreOnboardingPrioritySegment = 'cafe' | 'dessert' | 'restaurant';
 
+export type PilotSalesKitRequiredAsset =
+  | 'objection_handling'
+  | 'pre_contract_checklist'
+  | 'pricing_pitch'
+  | 'thirty_second_pitch'
+  | 'three_minute_pitch';
+
+export type PilotSalesKitBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'charge_payment'
+  | 'create_store'
+  | 'create_subscription'
+  | 'import_customer_data'
+  | 'read_real_customer_data'
+  | 'register_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_sales_email'
+  | 'send_sales_kakao'
+  | 'send_sales_sms'
+  | 'write_subscription';
+
 export interface JulyPricingRecommendedPlan {
   code: JulyPricingPlanCode;
   name: string;
@@ -419,6 +441,30 @@ export interface PilotStoreOnboardingPlan {
   requiresOwnerApprovalBeforePilot: true;
   requiresPricingPlanLock: true;
   requiresPrivacyConsentReview: true;
+  storeCreationEnabled: false;
+  targetMonth: '2026-07';
+  targetPilotStoreCount: {
+    max: 5;
+    min: 3;
+  };
+}
+
+export interface PilotSalesKitPlan {
+  actualDeliveryEnabled: false;
+  blockedActions: PilotSalesKitBlockedAction[];
+  customerDataImportEnabled: false;
+  outboundEnabled: false;
+  paymentAutomationEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  primaryOfferMonthlyPriceKrw: 99000;
+  primaryOfferPlan: 'growth';
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  requiredSalesAssets: PilotSalesKitRequiredAsset[];
+  requiresOwnerApprovalBeforeUse: true;
+  requiresPrivacyBoundaryExplanation: true;
+  requiresReadOnlyPilotExplanation: true;
+  salesKitPlanOnly: true;
   storeCreationEnabled: false;
   targetMonth: '2026-07';
   targetPilotStoreCount: {
@@ -991,6 +1037,28 @@ const PILOT_STORE_ONBOARDING_BLOCKED_ACTIONS: PilotStoreOnboardingBlockedAction[
   'charge_payment',
   'create_subscription',
   'write_subscription',
+  'add_api_key',
+  'add_env',
+  'register_webhook',
+];
+const PILOT_SALES_KIT_REQUIRED_ASSETS: PilotSalesKitRequiredAsset[] = [
+  'three_minute_pitch',
+  'thirty_second_pitch',
+  'pricing_pitch',
+  'objection_handling',
+  'pre_contract_checklist',
+];
+const PILOT_SALES_KIT_BLOCKED_ACTIONS: PilotSalesKitBlockedAction[] = [
+  'send_sales_sms',
+  'send_sales_kakao',
+  'send_sales_email',
+  'create_store',
+  'import_customer_data',
+  'read_real_customer_data',
+  'charge_payment',
+  'create_subscription',
+  'write_subscription',
+  'resolve_raw_recipient',
   'add_api_key',
   'add_env',
   'register_webhook',
@@ -1634,6 +1702,32 @@ export function buildPilotStoreOnboardingPlan(): PilotStoreOnboardingPlan {
     requiresOwnerApprovalBeforePilot: true,
     requiresPricingPlanLock: true,
     requiresPrivacyConsentReview: true,
+    storeCreationEnabled: false,
+    targetMonth: '2026-07',
+    targetPilotStoreCount: {
+      max: 5,
+      min: 3,
+    },
+  };
+}
+
+export function buildPilotSalesKitPlan(): PilotSalesKitPlan {
+  return {
+    actualDeliveryEnabled: false,
+    blockedActions: PILOT_SALES_KIT_BLOCKED_ACTIONS,
+    customerDataImportEnabled: false,
+    outboundEnabled: false,
+    paymentAutomationEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    primaryOfferMonthlyPriceKrw: 99000,
+    primaryOfferPlan: 'growth',
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    requiredSalesAssets: PILOT_SALES_KIT_REQUIRED_ASSETS,
+    requiresOwnerApprovalBeforeUse: true,
+    requiresPrivacyBoundaryExplanation: true,
+    requiresReadOnlyPilotExplanation: true,
+    salesKitPlanOnly: true,
     storeCreationEnabled: false,
     targetMonth: '2026-07',
     targetPilotStoreCount: {

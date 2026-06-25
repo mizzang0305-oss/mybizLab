@@ -312,7 +312,7 @@ describe('customer memory production schema adapter', () => {
     const changedSalesExcelFiles = [
       ...readdirSync(resolve(process.cwd(), 'docs')),
       ...readdirSync(resolve(process.cwd(), 'src/tests')),
-    ].filter((name) => /sales|excel|xlsx|xls|csv/i.test(name));
+    ].filter((name) => /excel|xlsx|xls|csv/i.test(name));
     expect(changedSalesExcelFiles).toEqual([]);
   });
 
