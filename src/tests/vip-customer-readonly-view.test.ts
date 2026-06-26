@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  buildBlogReadinessVerificationPlan,
   buildE2eFeatureDataFlowAndChannelAuditPlan,
   buildJulyLaunchChecklistPlan,
   buildPilotConsultationRecordPlan,
@@ -1638,6 +1639,103 @@ describe('VIP customer readonly view service', () => {
     expect(JSON.stringify(auditPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(serviceSource).not.toMatch(
       /callYoutubeApi|callInstagramApi|callThreadsApi|publishBlogPost|addOauthClient|addApiKey|addEnv|uploadVideo|publishSocialPost|writeCustomerData|createStore|createLead|chargePayment|sendSms|sendKakao|sendEmail|resolveRawRecipient|providerClient|fetch\(|axios/i,
+    );
+  });
+
+  it('builds a blog readiness verification plan without auto-publishing or external blog APIs', () => {
+    const blogPlan = buildBlogReadinessVerificationPlan();
+    const blogDoc = readFileSync(join(process.cwd(), 'docs/blog-readiness-verification.md'), 'utf8');
+    const seoDoc = readFileSync(join(process.cwd(), 'docs/content-seo-launch-plan.md'), 'utf8');
+    const channelDoc = readFileSync(join(process.cwd(), 'docs/channel-integration-readiness-audit.md'), 'utf8');
+    const launchChecklist = readFileSync(join(process.cwd(), 'docs/july-launch-checklist.md'), 'utf8');
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+
+    expect(blogPlan).toMatchObject({
+      apiKeyRequiredNow: false,
+      blogAutoPublishingEnabled: false,
+      blogReadinessPlanOnly: true,
+      blogStatus: 'needs_verification',
+      customerDataBasedContentEnabled: false,
+      envRequiredNow: false,
+      externalBlogApiEnabled: false,
+      launchMode: 'pilot_readonly_revenue_engine',
+      oauthEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      realCustomerCasePublishingEnabled: false,
+      recommendedLaunchMode: 'manual_publish_or_markdown_pipeline_only',
+      requiresAuthorReviewFlow: true,
+      requiresCanonicalUrl: true,
+      requiresOwnerApprovalBeforePublishing: true,
+      requiresSeoMetadata: true,
+      requiresUtmTrackingPlan: true,
+      targetMonth: '2026-07',
+    });
+    expect(blogPlan.recommendedTopics).toEqual([
+      'why_small_stores_need_customer_memory',
+      'customer_memory_card_revisit',
+      'order_apps_crm_customer_data_gap',
+      'cafe_restaurant_regular_customer_automation',
+      'small_business_ai_support_customer_memory_engine',
+      'mybiz_july_pilot_recruiting',
+    ]);
+    expect(blogPlan.blockedActions).toEqual([
+      'auto_publish_blog_post',
+      'call_external_blog_api',
+      'add_oauth_client',
+      'add_api_key',
+      'add_env',
+      'publish_customer_case_without_approval',
+      'generate_article_from_real_customer_data',
+      'publish_social_post',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'charge_payment',
+      'write_customer_data',
+    ]);
+
+    for (const requiredPhrase of [
+      'Blog Readiness Verification',
+      'needs_verification',
+      'manual_publish_or_markdown_pipeline_only',
+      'MyBiz native blog',
+      'Biz2Lab blog',
+      'markdown-based publishing',
+      'RSS',
+      'sitemap',
+      'canonical',
+      'SEO title',
+      'meta description',
+      'internal link',
+      'UTM',
+      'author/review flow',
+      'auto-publishing not open',
+      'external blog API key/env not used',
+      'why_small_stores_need_customer_memory',
+      'mybiz_july_pilot_recruiting',
+    ]) {
+      expect(blogDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Content SEO Launch Plan',
+      'stores without memory lose sales',
+      'customer memory card',
+      'VIP candidate',
+      'campaign prep preview',
+      'Growth 99,000 KRW',
+      'pilot consultation request',
+      'no actual delivery',
+      'no raw contact',
+      'no payment automation',
+    ]) {
+      expect(seoDoc).toContain(requiredPhrase);
+    }
+    expect(channelDoc).toContain('docs/blog-readiness-verification.md');
+    expect(launchChecklist).toContain('docs/blog-readiness-verification.md');
+    expect(JSON.stringify(blogPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(blogPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /autoPublishBlogPost|callExternalBlogApi|addOauthClient|addApiKey|addEnv|publishCustomerCaseWithoutApproval|generateArticleFromRealCustomerData|publishSocialPost|sendSms|sendKakao|sendEmail|chargePayment|writeCustomerData|providerClient|fetch\(|axios/i,
     );
   });
 });

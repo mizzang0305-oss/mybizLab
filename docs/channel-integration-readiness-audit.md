@@ -39,6 +39,8 @@ The July pilot should use manual publishing or link-only workflows for external 
 
 - Purpose: SEO acquisition, case articles, government-support keywords, and small-business AI education
 - Current status: `needs_verification`
+- Verification plan: `docs/blog-readiness-verification.md`
+- Content SEO plan: `docs/content-seo-launch-plan.md`
 - Possible future integration:
   - MyBiz native blog
   - Biz2Lab blog connection
@@ -109,6 +111,8 @@ Blocked actions:
 
 ## Related Documents
 
+- `docs/blog-readiness-verification.md`
+- `docs/content-seo-launch-plan.md`
 - `docs/e2e-feature-data-flow-audit.md`
 - `docs/july-launch-checklist.md`
 - `docs/vip-customer-delivery-secret-env-architecture.md`

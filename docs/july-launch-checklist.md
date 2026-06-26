@@ -34,6 +34,8 @@ The following scope can be opened as read-only, preview-only, or plan-only:
 - raw recipient resolution boundary
 - delivery audit log plan
 - public pricing/domain pages
+- blog readiness verification
+- manual content SEO launch plan
 
 All delivery remains disabled.
 
@@ -99,6 +101,8 @@ Payment automation remains disabled in this checklist.
 The pricing structure is tracked separately in `docs/july-pricing-plan-lock.md`. It locks Free, Starter, Growth, Pro, and Franchise as plan concepts only, with Growth as the core memory-based revenue engine. It does not create subscriptions, charge payments, register billing webhooks, or enable automated billing.
 
 Pilot store onboarding is tracked separately in `docs/pilot-store-onboarding-checklist.md` and `docs/pilot-demo-scenario.md`. It defines the July pilot target stores, owner-facing demo flow, Growth-first pricing proposal, and no-effect safety boundary without creating stores, importing customers, reading real customer data, sending messages, or enabling payment automation.
+
+Blog readiness is tracked separately in `docs/blog-readiness-verification.md` and `docs/content-seo-launch-plan.md`. It keeps July content acquisition manual or markdown-only, requires SEO metadata, canonical URL, UTM tracking, and author/review flow, and does not auto-publish posts, add blog API keys, add env vars, or publish real customer cases.
 
 ## Privacy And Consent Review
 
@@ -212,3 +216,5 @@ This contract is pure and in-memory. It must not query a database, write data, c
 - `docs/vip-customer-delivery-audit-log-plan.md`
 - `docs/e2e-feature-data-flow-audit.md`
 - `docs/channel-integration-readiness-audit.md`
+- `docs/blog-readiness-verification.md`
+- `docs/content-seo-launch-plan.md`
