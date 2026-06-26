@@ -210,3 +210,5 @@ This contract is pure and in-memory. It must not query a database, write data, c
 - `docs/vip-customer-delivery-secret-env-architecture.md`
 - `docs/vip-customer-raw-recipient-resolution-plan.md`
 - `docs/vip-customer-delivery-audit-log-plan.md`
+- `docs/e2e-feature-data-flow-audit.md`
+- `docs/channel-integration-readiness-audit.md`
