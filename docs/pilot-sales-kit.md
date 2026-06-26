@@ -106,6 +106,8 @@ This contract is pure and in-memory. It must not call a provider, send a sales m
 ## Related Documents
 
 - `docs/pilot-objection-handling.md`
+- `docs/pilot-consultation-record-template.md`
+- `docs/pilot-pre-contract-checklist.md`
 - `docs/pilot-demo-scenario.md`
 - `docs/pilot-store-onboarding-checklist.md`
 - `docs/july-pricing-plan-lock.md`
