@@ -445,6 +445,52 @@ export type PilotConsultationRecordBlockedAction =
   | 'write_consultation_record'
   | 'write_subscription';
 
+export type E2eFeatureDataFlowAuditArea =
+  | 'analytics_gap'
+  | 'blocked_flow_map'
+  | 'blog_readiness'
+  | 'channel_integration_readiness'
+  | 'data_flow_map'
+  | 'feature_matrix'
+  | 'instagram_readiness'
+  | 'launch_risk'
+  | 'threads_readiness'
+  | 'youtube_readiness';
+
+export type E2eChannelIntegrationAuditChannel = 'blog' | 'instagram' | 'threads' | 'youtube';
+
+export type E2eChannelIntegrationAuditStatus = 'needs_verification' | 'not_implemented';
+
+export type E2eChannelLaunchRecommendation =
+  | 'manual_post_or_content_checklist_only'
+  | 'manual_publish_or_markdown_pipeline_only'
+  | 'manual_upload_or_link_only';
+
+export type E2eFeatureDataFlowAuditBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'add_oauth_client'
+  | 'call_instagram_api'
+  | 'call_threads_api'
+  | 'call_youtube_api'
+  | 'charge_payment'
+  | 'create_lead'
+  | 'create_store'
+  | 'publish_blog_post'
+  | 'publish_social_post'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'upload_video'
+  | 'write_customer_data';
+
+export interface E2eChannelIntegrationAuditStatusItem {
+  channel: E2eChannelIntegrationAuditChannel;
+  launchRecommendation: E2eChannelLaunchRecommendation;
+  status: E2eChannelIntegrationAuditStatus;
+}
+
 export interface JulyPricingRecommendedPlan {
   code: JulyPricingPlanCode;
   name: string;
@@ -538,6 +584,24 @@ export interface PilotConsultationRecordPlan {
   requiresPrivacyBoundaryExplanation: true;
   requiresReadOnlyPilotExplanation: true;
   storeCreationEnabled: false;
+  targetMonth: '2026-07';
+}
+
+export interface E2eFeatureDataFlowAndChannelAuditPlan {
+  auditPlanOnly: true;
+  blogAutoPublishingEnabled: false;
+  blockedActions: E2eFeatureDataFlowAuditBlockedAction[];
+  channelStatuses: E2eChannelIntegrationAuditStatusItem[];
+  dataFlowExecutionEnabled: false;
+  launchMode: 'pilot_readonly_revenue_engine';
+  paymentAutomationEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  productionSideEffectsEnabled: false;
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  realCustomerDataReadEnabled: false;
+  requiredAuditAreas: E2eFeatureDataFlowAuditArea[];
+  socialPublishingEnabled: false;
   targetMonth: '2026-07';
 }
 
@@ -1177,6 +1241,62 @@ const PILOT_CONSULTATION_RECORD_BLOCKED_ACTIONS: PilotConsultationRecordBlockedA
   'add_api_key',
   'add_env',
   'register_webhook',
+];
+
+const E2E_FEATURE_DATA_FLOW_AUDIT_AREAS: E2eFeatureDataFlowAuditArea[] = [
+  'feature_matrix',
+  'data_flow_map',
+  'blocked_flow_map',
+  'channel_integration_readiness',
+  'youtube_readiness',
+  'instagram_readiness',
+  'threads_readiness',
+  'blog_readiness',
+  'analytics_gap',
+  'launch_risk',
+];
+
+const E2E_CHANNEL_INTEGRATION_STATUSES: E2eChannelIntegrationAuditStatusItem[] = [
+  {
+    channel: 'youtube',
+    launchRecommendation: 'manual_upload_or_link_only',
+    status: 'not_implemented',
+  },
+  {
+    channel: 'instagram',
+    launchRecommendation: 'manual_post_or_content_checklist_only',
+    status: 'not_implemented',
+  },
+  {
+    channel: 'threads',
+    launchRecommendation: 'manual_post_or_content_checklist_only',
+    status: 'not_implemented',
+  },
+  {
+    channel: 'blog',
+    launchRecommendation: 'manual_publish_or_markdown_pipeline_only',
+    status: 'needs_verification',
+  },
+];
+
+const E2E_FEATURE_DATA_FLOW_AUDIT_BLOCKED_ACTIONS: E2eFeatureDataFlowAuditBlockedAction[] = [
+  'call_youtube_api',
+  'call_instagram_api',
+  'call_threads_api',
+  'publish_blog_post',
+  'add_oauth_client',
+  'add_api_key',
+  'add_env',
+  'upload_video',
+  'publish_social_post',
+  'write_customer_data',
+  'create_store',
+  'create_lead',
+  'charge_payment',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'resolve_raw_recipient',
 ];
 
 function normalizeText(value: unknown) {
@@ -1875,6 +1995,26 @@ export function buildPilotConsultationRecordPlan(): PilotConsultationRecordPlan 
     requiresPrivacyBoundaryExplanation: true,
     requiresReadOnlyPilotExplanation: true,
     storeCreationEnabled: false,
+    targetMonth: '2026-07',
+  };
+}
+
+export function buildE2eFeatureDataFlowAndChannelAuditPlan(): E2eFeatureDataFlowAndChannelAuditPlan {
+  return {
+    auditPlanOnly: true,
+    blogAutoPublishingEnabled: false,
+    blockedActions: E2E_FEATURE_DATA_FLOW_AUDIT_BLOCKED_ACTIONS,
+    channelStatuses: E2E_CHANNEL_INTEGRATION_STATUSES,
+    dataFlowExecutionEnabled: false,
+    launchMode: 'pilot_readonly_revenue_engine',
+    paymentAutomationEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    productionSideEffectsEnabled: false,
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    realCustomerDataReadEnabled: false,
+    requiredAuditAreas: E2E_FEATURE_DATA_FLOW_AUDIT_AREAS,
+    socialPublishingEnabled: false,
     targetMonth: '2026-07',
   };
 }

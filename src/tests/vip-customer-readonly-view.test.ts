@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  buildE2eFeatureDataFlowAndChannelAuditPlan,
   buildJulyLaunchChecklistPlan,
   buildPilotConsultationRecordPlan,
   buildPilotSalesKitPlan,
@@ -1528,5 +1529,115 @@ describe('VIP customer readonly view service', () => {
       expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
       expect(doc).not.toMatch(/lead created|store created|payment automation enabled|provider integration enabled/i);
     }
+  });
+
+  it('builds an E2E feature data-flow and channel audit plan without channel, payment, or data side effects', () => {
+    const auditPlan = buildE2eFeatureDataFlowAndChannelAuditPlan();
+    const e2eDoc = readFileSync(join(process.cwd(), 'docs/e2e-feature-data-flow-audit.md'), 'utf8');
+    const channelDoc = readFileSync(join(process.cwd(), 'docs/channel-integration-readiness-audit.md'), 'utf8');
+    const launchChecklist = readFileSync(join(process.cwd(), 'docs/july-launch-checklist.md'), 'utf8');
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+
+    expect(auditPlan).toMatchObject({
+      auditPlanOnly: true,
+      blogAutoPublishingEnabled: false,
+      dataFlowExecutionEnabled: false,
+      launchMode: 'pilot_readonly_revenue_engine',
+      paymentAutomationEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      productionSideEffectsEnabled: false,
+      providerIntegrationEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      realCustomerDataReadEnabled: false,
+      socialPublishingEnabled: false,
+      targetMonth: '2026-07',
+    });
+    expect(auditPlan.requiredAuditAreas).toEqual([
+      'feature_matrix',
+      'data_flow_map',
+      'blocked_flow_map',
+      'channel_integration_readiness',
+      'youtube_readiness',
+      'instagram_readiness',
+      'threads_readiness',
+      'blog_readiness',
+      'analytics_gap',
+      'launch_risk',
+    ]);
+    expect(auditPlan.channelStatuses).toEqual([
+      {
+        channel: 'youtube',
+        launchRecommendation: 'manual_upload_or_link_only',
+        status: 'not_implemented',
+      },
+      {
+        channel: 'instagram',
+        launchRecommendation: 'manual_post_or_content_checklist_only',
+        status: 'not_implemented',
+      },
+      {
+        channel: 'threads',
+        launchRecommendation: 'manual_post_or_content_checklist_only',
+        status: 'not_implemented',
+      },
+      {
+        channel: 'blog',
+        launchRecommendation: 'manual_publish_or_markdown_pipeline_only',
+        status: 'needs_verification',
+      },
+    ]);
+    expect(auditPlan.blockedActions).toEqual([
+      'call_youtube_api',
+      'call_instagram_api',
+      'call_threads_api',
+      'publish_blog_post',
+      'add_oauth_client',
+      'add_api_key',
+      'add_env',
+      'upload_video',
+      'publish_social_post',
+      'write_customer_data',
+      'create_store',
+      'create_lead',
+      'charge_payment',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'resolve_raw_recipient',
+    ]);
+
+    for (const requiredPhrase of [
+      'E2E Feature Data Flow Audit',
+      'current openable features',
+      'not open yet',
+      'core data flow audit',
+      'blocked risk flows',
+      'analytics gap',
+      'launch risk',
+      'pilot consultation record template',
+    ]) {
+      expect(e2eDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Channel Integration Readiness Audit',
+      'YouTube',
+      'Instagram',
+      'Threads',
+      'Blog',
+      'not_implemented',
+      'needs_verification',
+      'manual upload',
+      'manual post',
+      'manual publish',
+    ]) {
+      expect(channelDoc).toContain(requiredPhrase);
+    }
+    expect(launchChecklist).toContain('docs/e2e-feature-data-flow-audit.md');
+    expect(launchChecklist).toContain('docs/channel-integration-readiness-audit.md');
+    expect(JSON.stringify(auditPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(auditPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /callYoutubeApi|callInstagramApi|callThreadsApi|publishBlogPost|addOauthClient|addApiKey|addEnv|uploadVideo|publishSocialPost|writeCustomerData|createStore|createLead|chargePayment|sendSms|sendKakao|sendEmail|resolveRawRecipient|providerClient|fetch\(|axios/i,
+    );
   });
 });
