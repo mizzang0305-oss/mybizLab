@@ -485,6 +485,33 @@ export type E2eFeatureDataFlowAuditBlockedAction =
   | 'upload_video'
   | 'write_customer_data';
 
+export type BlogReadinessStatus = 'needs_verification';
+
+export type BlogReadinessLaunchMode = 'manual_publish_or_markdown_pipeline_only';
+
+export type BlogReadinessRecommendedTopic =
+  | 'cafe_restaurant_regular_customer_automation'
+  | 'customer_memory_card_revisit'
+  | 'mybiz_july_pilot_recruiting'
+  | 'order_apps_crm_customer_data_gap'
+  | 'small_business_ai_support_customer_memory_engine'
+  | 'why_small_stores_need_customer_memory';
+
+export type BlogReadinessBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'add_oauth_client'
+  | 'auto_publish_blog_post'
+  | 'call_external_blog_api'
+  | 'charge_payment'
+  | 'generate_article_from_real_customer_data'
+  | 'publish_customer_case_without_approval'
+  | 'publish_social_post'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_customer_data';
+
 export interface E2eChannelIntegrationAuditStatusItem {
   channel: E2eChannelIntegrationAuditChannel;
   launchRecommendation: E2eChannelLaunchRecommendation;
@@ -602,6 +629,29 @@ export interface E2eFeatureDataFlowAndChannelAuditPlan {
   realCustomerDataReadEnabled: false;
   requiredAuditAreas: E2eFeatureDataFlowAuditArea[];
   socialPublishingEnabled: false;
+  targetMonth: '2026-07';
+}
+
+export interface BlogReadinessVerificationPlan {
+  apiKeyRequiredNow: false;
+  blogAutoPublishingEnabled: false;
+  blogReadinessPlanOnly: true;
+  blogStatus: BlogReadinessStatus;
+  blockedActions: BlogReadinessBlockedAction[];
+  customerDataBasedContentEnabled: false;
+  envRequiredNow: false;
+  externalBlogApiEnabled: false;
+  launchMode: 'pilot_readonly_revenue_engine';
+  oauthEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  realCustomerCasePublishingEnabled: false;
+  recommendedLaunchMode: BlogReadinessLaunchMode;
+  recommendedTopics: BlogReadinessRecommendedTopic[];
+  requiresAuthorReviewFlow: true;
+  requiresCanonicalUrl: true;
+  requiresOwnerApprovalBeforePublishing: true;
+  requiresSeoMetadata: true;
+  requiresUtmTrackingPlan: true;
   targetMonth: '2026-07';
 }
 
@@ -1297,6 +1347,31 @@ const E2E_FEATURE_DATA_FLOW_AUDIT_BLOCKED_ACTIONS: E2eFeatureDataFlowAuditBlocke
   'send_kakao',
   'send_email',
   'resolve_raw_recipient',
+];
+
+const BLOG_READINESS_RECOMMENDED_TOPICS: BlogReadinessRecommendedTopic[] = [
+  'why_small_stores_need_customer_memory',
+  'customer_memory_card_revisit',
+  'order_apps_crm_customer_data_gap',
+  'cafe_restaurant_regular_customer_automation',
+  'small_business_ai_support_customer_memory_engine',
+  'mybiz_july_pilot_recruiting',
+];
+
+const BLOG_READINESS_BLOCKED_ACTIONS: BlogReadinessBlockedAction[] = [
+  'auto_publish_blog_post',
+  'call_external_blog_api',
+  'add_oauth_client',
+  'add_api_key',
+  'add_env',
+  'publish_customer_case_without_approval',
+  'generate_article_from_real_customer_data',
+  'publish_social_post',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'charge_payment',
+  'write_customer_data',
 ];
 
 function normalizeText(value: unknown) {
@@ -2015,6 +2090,31 @@ export function buildE2eFeatureDataFlowAndChannelAuditPlan(): E2eFeatureDataFlow
     realCustomerDataReadEnabled: false,
     requiredAuditAreas: E2E_FEATURE_DATA_FLOW_AUDIT_AREAS,
     socialPublishingEnabled: false,
+    targetMonth: '2026-07',
+  };
+}
+
+export function buildBlogReadinessVerificationPlan(): BlogReadinessVerificationPlan {
+  return {
+    apiKeyRequiredNow: false,
+    blogAutoPublishingEnabled: false,
+    blogReadinessPlanOnly: true,
+    blogStatus: 'needs_verification',
+    blockedActions: BLOG_READINESS_BLOCKED_ACTIONS,
+    customerDataBasedContentEnabled: false,
+    envRequiredNow: false,
+    externalBlogApiEnabled: false,
+    launchMode: 'pilot_readonly_revenue_engine',
+    oauthEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    realCustomerCasePublishingEnabled: false,
+    recommendedLaunchMode: 'manual_publish_or_markdown_pipeline_only',
+    recommendedTopics: BLOG_READINESS_RECOMMENDED_TOPICS,
+    requiresAuthorReviewFlow: true,
+    requiresCanonicalUrl: true,
+    requiresOwnerApprovalBeforePublishing: true,
+    requiresSeoMetadata: true,
+    requiresUtmTrackingPlan: true,
     targetMonth: '2026-07',
   };
 }
