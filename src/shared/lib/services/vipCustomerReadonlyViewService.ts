@@ -512,6 +512,14 @@ export type BlogReadinessBlockedAction =
   | 'send_sms'
   | 'write_customer_data';
 
+export type ContentSeoLaunchKitPublishStatus =
+  | 'approved_for_manual_publish'
+  | 'draft_manual_only'
+  | 'needs_revision'
+  | 'owner_review_required'
+  | 'published_manually'
+  | 'rejected';
+
 export interface E2eChannelIntegrationAuditStatusItem {
   channel: E2eChannelIntegrationAuditChannel;
   launchRecommendation: E2eChannelLaunchRecommendation;
@@ -652,6 +660,47 @@ export interface BlogReadinessVerificationPlan {
   requiresOwnerApprovalBeforePublishing: true;
   requiresSeoMetadata: true;
   requiresUtmTrackingPlan: true;
+  targetMonth: '2026-07';
+}
+
+export interface ContentSeoLaunchKitItem {
+  cta: 'pilot consultation request';
+  id: BlogReadinessRecommendedTopic;
+  internalLinkTarget: string;
+  introAngle: string;
+  metaDescription: string;
+  outline: string[];
+  publishStatus: 'draft_manual_only';
+  searchIntent: string;
+  secondaryKeywords: string[];
+  seoTitle: string;
+  targetKeyword: string;
+  utmPlaceholder: string;
+}
+
+export interface ContentSeoLaunchKitPlan {
+  apiKeyRequiredNow: false;
+  autoPublishingEnabled: false;
+  blockedActions: BlogReadinessBlockedAction[];
+  contentCount: 6;
+  contentItems: ContentSeoLaunchKitItem[];
+  contentKitPlanOnly: true;
+  customerDataBasedContentEnabled: false;
+  envRequiredNow: false;
+  externalBlogApiEnabled: false;
+  launchMode: 'pilot_readonly_revenue_engine';
+  manualReviewRequired: true;
+  oauthEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  publishStatuses: ContentSeoLaunchKitPublishStatus[];
+  realCustomerCasePublishingEnabled: false;
+  requiresCanonicalUrl: true;
+  requiresCta: true;
+  requiresInternalLinks: true;
+  requiresOwnerApprovalBeforePublishing: true;
+  requiresSeoMetadata: true;
+  requiresUtmPlaceholder: true;
+  socialPublishingEnabled: false;
   targetMonth: '2026-07';
 }
 
@@ -1372,6 +1421,144 @@ const BLOG_READINESS_BLOCKED_ACTIONS: BlogReadinessBlockedAction[] = [
   'send_email',
   'charge_payment',
   'write_customer_data',
+];
+
+const CONTENT_SEO_LAUNCH_KIT_PUBLISH_STATUSES: ContentSeoLaunchKitPublishStatus[] = [
+  'draft_manual_only',
+  'owner_review_required',
+  'approved_for_manual_publish',
+  'published_manually',
+  'rejected',
+  'needs_revision',
+];
+
+const CONTENT_SEO_LAUNCH_KIT_ITEMS: ContentSeoLaunchKitItem[] = [
+  {
+    cta: 'pilot consultation request',
+    id: 'why_small_stores_need_customer_memory',
+    internalLinkTarget: '/pricing',
+    introAngle:
+      'Show store owners how scattered regular-customer memory turns into missed revisit timing and weaker average order value.',
+    metaDescription:
+      'Why small stores lose repeat revenue when regular-customer preferences live only in memory, and how MyBiz starts with safe read-only customer memory.',
+    outline: [
+      'regular-customer memory problem',
+      'missed revisit and average-order-value cost',
+      'MyBiz customer memory card and VIP candidate preview',
+      'manual pilot consultation CTA',
+    ],
+    publishStatus: 'draft_manual_only',
+    searchIntent: 'problem awareness for store owners who manage regular customers manually',
+    secondaryKeywords: ['regular customer management', 'store CRM', 'revisit marketing'],
+    seoTitle: 'Why Small Stores Need to Remember Regular Customers',
+    targetKeyword: 'small store customer memory',
+    utmPlaceholder: 'utm_source=manual_blog&utm_medium=seo&utm_campaign=july_pilot_customer_memory',
+  },
+  {
+    cta: 'pilot consultation request',
+    id: 'customer_memory_card_revisit',
+    internalLinkTarget: '/dashboard/customers',
+    introAngle:
+      'Explain the customer memory card as a read-only way to prepare the next visit without sending messages or editing customer records.',
+    metaDescription:
+      'How a customer memory card helps store owners prepare revisit suggestions while keeping campaign delivery and raw contacts blocked.',
+    outline: [
+      'customer context owners need before a revisit',
+      'masked memory card fields',
+      'VIP candidate and campaign prep preview flow',
+      'approval-first delivery boundary',
+    ],
+    publishStatus: 'draft_manual_only',
+    searchIntent: 'solution comparison for customer revisit preparation',
+    secondaryKeywords: ['customer memory card', 'revisit preparation', 'VIP customer candidate'],
+    seoTitle: 'How a Customer Memory Card Raises Revisit Intent',
+    targetKeyword: 'customer memory card revisit',
+    utmPlaceholder: 'utm_source=manual_blog&utm_medium=seo&utm_campaign=july_pilot_memory_card',
+  },
+  {
+    cta: 'pilot consultation request',
+    id: 'order_apps_crm_customer_data_gap',
+    internalLinkTarget: '/pricing',
+    introAngle:
+      'Position MyBiz against the gap between order-app data, CRM lists, and actionable memory that owners can use before outreach.',
+    metaDescription:
+      'Order apps and CRM lists often miss the practical regular-customer memory store owners need for repeat visits and higher order value.',
+    outline: [
+      'where order apps stop',
+      'where generic CRM lists stop',
+      'memory-based revenue engine angle',
+      'manual-only pilot next step',
+    ],
+    publishStatus: 'draft_manual_only',
+    searchIntent: 'comparison for owners evaluating CRM and order-app limitations',
+    secondaryKeywords: ['order app CRM gap', 'store customer data', 'regular customer data'],
+    seoTitle: 'Order Apps and CRM Still Miss Regular-Customer Memory',
+    targetKeyword: 'order app CRM customer data gap',
+    utmPlaceholder: 'utm_source=manual_blog&utm_medium=seo&utm_campaign=july_pilot_crm_gap',
+  },
+  {
+    cta: 'pilot consultation request',
+    id: 'cafe_restaurant_regular_customer_automation',
+    internalLinkTarget: '/dashboard/customers',
+    introAngle:
+      'Frame cafe and restaurant automation as preview-first: owners review candidates and message drafts before any future approved delivery.',
+    metaDescription:
+      'A safe cafe and restaurant regular-customer automation plan starts with read-only customer memory and manual approval, not auto-send.',
+    outline: [
+      'regular-customer patterns in cafes and restaurants',
+      'VIP candidate sections',
+      'campaign prep preview only',
+      'separate approval before delivery',
+    ],
+    publishStatus: 'draft_manual_only',
+    searchIntent: 'category solution search for restaurant and cafe customer management',
+    secondaryKeywords: ['cafe customer management', 'restaurant CRM', 'regular customer automation'],
+    seoTitle: 'Cafe and Restaurant Regular-Customer Automation Starts with Memory',
+    targetKeyword: 'regular customer automation cafe restaurant',
+    utmPlaceholder: 'utm_source=manual_blog&utm_medium=seo&utm_campaign=july_pilot_cafe_restaurant',
+  },
+  {
+    cta: 'pilot consultation request',
+    id: 'small_business_ai_support_customer_memory_engine',
+    internalLinkTarget: '/pricing',
+    introAngle:
+      'Connect small-business AI support interest to a concrete memory-based revenue engine without promising public funding approval.',
+    metaDescription:
+      'Small-business AI support should lead to measurable customer memory workflows, not unsupported revenue guarantees or funding claims.',
+    outline: [
+      'AI support interest from small businesses',
+      'customer memory as practical AI use case',
+      'Growth plan pilot offer',
+      'approval and privacy boundaries',
+    ],
+    publishStatus: 'draft_manual_only',
+    searchIntent: 'education for owners exploring AI support and practical SaaS use cases',
+    secondaryKeywords: ['small business AI', 'AI store SaaS', 'customer memory engine'],
+    seoTitle: 'Small-Business AI Support Needs a Customer Memory Engine',
+    targetKeyword: 'small business AI customer memory',
+    utmPlaceholder: 'utm_source=manual_blog&utm_medium=seo&utm_campaign=july_pilot_ai_support',
+  },
+  {
+    cta: 'pilot consultation request',
+    id: 'mybiz_july_pilot_recruiting',
+    internalLinkTarget: '/pricing',
+    introAngle:
+      'Invite 3 to 5 pilot stores into a read-only July flow centered on customer memory, VIP candidates, and campaign preparation previews.',
+    metaDescription:
+      'MyBiz July pilot recruiting guide for store owners who want a safe memory-based revenue engine before delivery or payment automation.',
+    outline: [
+      'who the July pilot is for',
+      'what opens in read-only mode',
+      'Growth 99,000 KRW offer',
+      'manual consultation request next step',
+    ],
+    publishStatus: 'draft_manual_only',
+    searchIntent: 'conversion search for owners considering the MyBiz July pilot',
+    secondaryKeywords: ['MyBiz pilot', 'store SaaS pilot', 'Growth 99000'],
+    seoTitle: 'MyBiz July Pilot Recruiting Guide',
+    targetKeyword: 'MyBiz July pilot',
+    utmPlaceholder: 'utm_source=manual_blog&utm_medium=seo&utm_campaign=july_pilot_recruiting',
+  },
 ];
 
 function normalizeText(value: unknown) {
@@ -2115,6 +2302,34 @@ export function buildBlogReadinessVerificationPlan(): BlogReadinessVerificationP
     requiresOwnerApprovalBeforePublishing: true,
     requiresSeoMetadata: true,
     requiresUtmTrackingPlan: true,
+    targetMonth: '2026-07',
+  };
+}
+
+export function buildContentSeoLaunchKitPlan(): ContentSeoLaunchKitPlan {
+  return {
+    apiKeyRequiredNow: false,
+    autoPublishingEnabled: false,
+    blockedActions: BLOG_READINESS_BLOCKED_ACTIONS,
+    contentCount: 6,
+    contentItems: CONTENT_SEO_LAUNCH_KIT_ITEMS,
+    contentKitPlanOnly: true,
+    customerDataBasedContentEnabled: false,
+    envRequiredNow: false,
+    externalBlogApiEnabled: false,
+    launchMode: 'pilot_readonly_revenue_engine',
+    manualReviewRequired: true,
+    oauthEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    publishStatuses: CONTENT_SEO_LAUNCH_KIT_PUBLISH_STATUSES,
+    realCustomerCasePublishingEnabled: false,
+    requiresCanonicalUrl: true,
+    requiresCta: true,
+    requiresInternalLinks: true,
+    requiresOwnerApprovalBeforePublishing: true,
+    requiresSeoMetadata: true,
+    requiresUtmPlaceholder: true,
+    socialPublishingEnabled: false,
     targetMonth: '2026-07',
   };
 }

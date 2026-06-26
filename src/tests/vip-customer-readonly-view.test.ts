@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   buildBlogReadinessVerificationPlan,
+  buildContentSeoLaunchKitPlan,
   buildE2eFeatureDataFlowAndChannelAuditPlan,
   buildJulyLaunchChecklistPlan,
   buildPilotConsultationRecordPlan,
@@ -1734,6 +1735,142 @@ describe('VIP customer readonly view service', () => {
     expect(launchChecklist).toContain('docs/blog-readiness-verification.md');
     expect(JSON.stringify(blogPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
     expect(JSON.stringify(blogPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /autoPublishBlogPost|callExternalBlogApi|addOauthClient|addApiKey|addEnv|publishCustomerCaseWithoutApproval|generateArticleFromRealCustomerData|publishSocialPost|sendSms|sendKakao|sendEmail|chargePayment|writeCustomerData|providerClient|fetch\(|axios/i,
+    );
+  });
+
+  it('builds a manual Content SEO launch kit without publishing, OAuth, API keys, or customer-data content', () => {
+    const launchKit = buildContentSeoLaunchKitPlan();
+    const kitDoc = readFileSync(join(process.cwd(), 'docs/content-seo-launch-kit.md'), 'utf8');
+    const checklistDoc = readFileSync(join(process.cwd(), 'docs/manual-publish-checklist.md'), 'utf8');
+    const seoPlanDoc = readFileSync(join(process.cwd(), 'docs/content-seo-launch-plan.md'), 'utf8');
+    const blogDoc = readFileSync(join(process.cwd(), 'docs/blog-readiness-verification.md'), 'utf8');
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+
+    expect(launchKit).toMatchObject({
+      apiKeyRequiredNow: false,
+      autoPublishingEnabled: false,
+      contentCount: 6,
+      contentKitPlanOnly: true,
+      customerDataBasedContentEnabled: false,
+      envRequiredNow: false,
+      externalBlogApiEnabled: false,
+      launchMode: 'pilot_readonly_revenue_engine',
+      manualReviewRequired: true,
+      oauthEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      realCustomerCasePublishingEnabled: false,
+      requiresCanonicalUrl: true,
+      requiresCta: true,
+      requiresInternalLinks: true,
+      requiresOwnerApprovalBeforePublishing: true,
+      requiresSeoMetadata: true,
+      requiresUtmPlaceholder: true,
+      socialPublishingEnabled: false,
+      targetMonth: '2026-07',
+    });
+    expect(launchKit.publishStatuses).toEqual([
+      'draft_manual_only',
+      'owner_review_required',
+      'approved_for_manual_publish',
+      'published_manually',
+      'rejected',
+      'needs_revision',
+    ]);
+    expect(launchKit.contentItems.map((item) => item.id)).toEqual([
+      'why_small_stores_need_customer_memory',
+      'customer_memory_card_revisit',
+      'order_apps_crm_customer_data_gap',
+      'cafe_restaurant_regular_customer_automation',
+      'small_business_ai_support_customer_memory_engine',
+      'mybiz_july_pilot_recruiting',
+    ]);
+    expect(launchKit.contentItems.every((item) => item.publishStatus === 'draft_manual_only')).toBe(true);
+    for (const item of launchKit.contentItems) {
+      expect(item.seoTitle).toBeTruthy();
+      expect(item.metaDescription).toBeTruthy();
+      expect(item.targetKeyword).toBeTruthy();
+      expect(item.secondaryKeywords.length).toBeGreaterThan(0);
+      expect(item.searchIntent).toBeTruthy();
+      expect(item.outline.length).toBeGreaterThan(0);
+      expect(item.introAngle).toBeTruthy();
+      expect(item.cta).toBe('pilot consultation request');
+      expect(item.internalLinkTarget).toBeTruthy();
+      expect(item.utmPlaceholder).toContain('utm_');
+    }
+    expect(launchKit.blockedActions).toEqual([
+      'auto_publish_blog_post',
+      'call_external_blog_api',
+      'add_oauth_client',
+      'add_api_key',
+      'add_env',
+      'publish_customer_case_without_approval',
+      'generate_article_from_real_customer_data',
+      'publish_social_post',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'charge_payment',
+      'write_customer_data',
+    ]);
+
+    for (const requiredPhrase of [
+      'Content SEO Launch Kit',
+      'draft_manual_only',
+      'stores without memory lose sales',
+      'customer memory card',
+      'VIP candidate',
+      'campaign prep preview',
+      'Growth 99,000 KRW',
+      'pilot consultation request',
+      'no actual delivery',
+      'no raw contact',
+      'no payment automation',
+      'revenue guarantee',
+      'auto-send is available',
+      'unauthorized real customer case',
+      'personal-data-based content generation',
+      'government support approval/selection guarantee',
+      'payment automation availability',
+      'why_small_stores_need_customer_memory',
+      'customer_memory_card_revisit',
+      'order_apps_crm_customer_data_gap',
+      'cafe_restaurant_regular_customer_automation',
+      'small_business_ai_support_customer_memory_engine',
+      'mybiz_july_pilot_recruiting',
+    ]) {
+      expect(kitDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Manual Publish Checklist',
+      'owner approval before publishing',
+      'SEO title',
+      'meta description',
+      'canonical URL',
+      'UTM placeholder',
+      'internal link',
+      'CTA',
+      'personal information',
+      'real customer case',
+      'revenue guarantee',
+      'not auto-published',
+      'record URL after manual publishing',
+      'draft_manual_only',
+      'owner_review_required',
+      'approved_for_manual_publish',
+      'published_manually',
+      'rejected',
+      'needs_revision',
+    ]) {
+      expect(checklistDoc).toContain(requiredPhrase);
+    }
+    expect(seoPlanDoc).toContain('docs/content-seo-launch-kit.md');
+    expect(seoPlanDoc).toContain('docs/manual-publish-checklist.md');
+    expect(blogDoc).toContain('docs/content-seo-launch-kit.md');
+    expect(blogDoc).toContain('docs/manual-publish-checklist.md');
+    expect(JSON.stringify(launchKit)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(launchKit)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(serviceSource).not.toMatch(
       /autoPublishBlogPost|callExternalBlogApi|addOauthClient|addApiKey|addEnv|publishCustomerCaseWithoutApproval|generateArticleFromRealCustomerData|publishSocialPost|sendSms|sendKakao|sendEmail|chargePayment|writeCustomerData|providerClient|fetch\(|axios/i,
     );

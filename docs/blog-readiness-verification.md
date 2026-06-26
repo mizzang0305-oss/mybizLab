@@ -24,6 +24,8 @@ The blog supports three July pilot goals:
 
 The July pilot should start with manual publishing or a markdown-only pipeline. Automation remains blocked until a separate owner approval, author/review flow, publishing rollback plan, and analytics policy exist.
 
+The current manual content package is `docs/content-seo-launch-kit.md`, and every item must pass `docs/manual-publish-checklist.md` before publishing.
+
 ## Publishing Surface Options
 
 | Option | July status | Notes |
@@ -108,6 +110,8 @@ This contract is pure and in-memory. It must not call external blog APIs, add ke
 
 ## Related Documents
 
+- `docs/content-seo-launch-kit.md`
+- `docs/manual-publish-checklist.md`
 - `docs/content-seo-launch-plan.md`
 - `docs/channel-integration-readiness-audit.md`
 - `docs/e2e-feature-data-flow-audit.md`
