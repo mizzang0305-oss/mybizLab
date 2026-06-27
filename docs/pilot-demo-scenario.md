@@ -45,8 +45,12 @@ The close should ask whether the owner wants to join the read-only July pilot.
 
 Do not promise actual SMS/Kakao/Email delivery, automatic customer grade changes, payment automation, or live customer import during this step.
 
+Before a live owner conversation, rehearse the 3-minute synthetic-only flow in `docs/demo-rehearsal-script.md` and `docs/demo-synthetic-scenario.md`. The rehearsal package uses fictional customer memory examples only and must not include real customer data.
+
 ## Related Documents
 
+- `docs/demo-rehearsal-script.md`
+- `docs/demo-synthetic-scenario.md`
 - `docs/pilot-sales-kit.md`
 - `docs/pilot-objection-handling.md`
 - `docs/pilot-store-onboarding-checklist.md`

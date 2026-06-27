@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   buildBlogReadinessVerificationPlan,
   buildContentSeoLaunchKitPlan,
+  buildDemoRehearsalPackagePlan,
   buildE2eFeatureDataFlowAndChannelAuditPlan,
   buildJulyLaunchChecklistPlan,
   buildPilotConsultationRecordPlan,
@@ -1648,6 +1649,107 @@ describe('VIP customer readonly view service', () => {
     expect(consultationDoc).toContain('docs/pilot-outreach-manual-kit.md');
     expect(consultationDoc).toContain('docs/pilot-follow-up-script.md');
     for (const doc of [outreachDoc, followUpDoc]) {
+      expect(doc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+      expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+      expect(doc).not.toMatch(/sent automatically|lead created|store created|payment automation enabled|provider integration enabled/i);
+    }
+  });
+
+  it('builds a synthetic-only demo rehearsal package without customer-data, delivery, provider, or payment side effects', () => {
+    const rehearsalPlan = buildDemoRehearsalPackagePlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const rehearsalDoc = readFileSync(join(process.cwd(), 'docs/demo-rehearsal-script.md'), 'utf8');
+    const syntheticScenarioDoc = readFileSync(join(process.cwd(), 'docs/demo-synthetic-scenario.md'), 'utf8');
+    const pilotDemoDoc = readFileSync(join(process.cwd(), 'docs/pilot-demo-scenario.md'), 'utf8');
+    const salesKitDoc = readFileSync(join(process.cwd(), 'docs/pilot-sales-kit.md'), 'utf8');
+
+    expect(rehearsalPlan).toMatchObject({
+      actualDeliveryEnabled: false,
+      customerDataImportEnabled: false,
+      demoDurationMinutes: 3,
+      demoRehearsalPlanOnly: true,
+      launchMode: 'pilot_readonly_revenue_engine',
+      paymentAutomationEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      primaryOfferMonthlyPriceKrw: 99000,
+      primaryOfferPlan: 'growth',
+      providerIntegrationEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      realCustomerDataReadEnabled: false,
+      requiresOwnerApprovalBeforeUse: true,
+      requiresPrivacyBoundaryExplanation: true,
+      requiresReadOnlyPilotExplanation: true,
+      storeCreationEnabled: false,
+      syntheticDataOnly: true,
+      targetMonth: '2026-07',
+    });
+    expect(rehearsalPlan.requiredDemoAssets).toEqual([
+      'three_minute_script',
+      'problem_framing',
+      'screen_value_explanation',
+      'growth_price_pitch',
+      'synthetic_customer_memory_example',
+      'synthetic_vip_candidate_example',
+      'synthetic_campaign_preview_example',
+    ]);
+    expect(rehearsalPlan.blockedActions).toEqual([
+      'read_real_customer_data',
+      'import_customer_data',
+      'create_store',
+      'create_customer',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'charge_payment',
+      'create_subscription',
+      'write_subscription',
+      'resolve_raw_recipient',
+      'add_api_key',
+      'add_env',
+      'register_webhook',
+    ]);
+    expect(JSON.stringify(rehearsalPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(rehearsalPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /(?:readRealCustomerData|importCustomerData|createStore|createCustomer|sendSms|sendKakao|sendEmail|chargePayment|createSubscription|writeSubscription|resolveRawRecipient|addApiKey|addEnv|registerWebhook)\s*\(/i,
+    );
+    expect(serviceSource).not.toMatch(/providerClient|fetch\(|axios/i);
+
+    for (const requiredPhrase of [
+      'Demo Rehearsal Script',
+      '3-minute demo flow',
+      '1 minute: problem framing',
+      '1 minute: MyBiz screen value explanation',
+      '1 minute: Growth 99,000 KRW pitch',
+      'Synthetic customer memory example',
+      'Synthetic VIP candidate example',
+      'Synthetic campaign preview example',
+      'real customer data use is forbidden',
+      'actual SMS/Kakao/Email delivery is forbidden',
+      'revenue guarantee wording is forbidden',
+      'buildDemoRehearsalPackagePlan()',
+    ]) {
+      expect(rehearsalDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Demo Synthetic Scenario',
+      'synthetic-only',
+      'Growth 99,000 KRW',
+      'synthetic_pilot_store',
+      'synthetic_regular_guest_a',
+      'masked_vip_candidate_01',
+      'masked_aov_candidate_01',
+      'no real customer data is read',
+      'no SMS/Kakao/Email delivery is available',
+      'avoid revenue guarantee wording',
+    ]) {
+      expect(syntheticScenarioDoc).toContain(requiredPhrase);
+    }
+    for (const doc of [pilotDemoDoc, salesKitDoc]) {
+      expect(doc).toContain('docs/demo-rehearsal-script.md');
+      expect(doc).toContain('docs/demo-synthetic-scenario.md');
+    }
+    for (const doc of [rehearsalDoc, syntheticScenarioDoc]) {
       expect(doc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
       expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
       expect(doc).not.toMatch(/sent automatically|lead created|store created|payment automation enabled|provider integration enabled/i);

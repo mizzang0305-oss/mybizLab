@@ -105,6 +105,8 @@ This contract is pure and in-memory. It must not call a provider, send a sales m
 
 ## Related Documents
 
+- `docs/demo-rehearsal-script.md`
+- `docs/demo-synthetic-scenario.md`
 - `docs/pilot-outreach-manual-kit.md`
 - `docs/pilot-follow-up-script.md`
 - `docs/pilot-objection-handling.md`
