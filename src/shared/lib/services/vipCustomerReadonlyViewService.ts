@@ -498,6 +498,43 @@ export type DemoRehearsalBlockedAction =
   | 'send_sms'
   | 'write_subscription';
 
+export type JulyLaunchGoNoGoGoCriterion =
+  | 'blog_manual_content_plan_ready'
+  | 'consultation_record_ready'
+  | 'demo_rehearsal_ready'
+  | 'growth_price_locked'
+  | 'outreach_manual_kit_ready'
+  | 'pricing_page_ok'
+  | 'production_public_pages_ok'
+  | 'robots_txt_ok'
+  | 'sales_kit_ready'
+  | 'sitemap_xml_ok';
+
+export type JulyLaunchGoNoGoNoGoCriterion =
+  | 'delivery_misleading_claim'
+  | 'demo_rehearsal_not_ready'
+  | 'growth_pitch_weak'
+  | 'privacy_boundary_unclear'
+  | 'production_smoke_failed'
+  | 'unclear_price_pitch';
+
+export type JulyLaunchGoNoGoBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'charge_payment'
+  | 'create_lead'
+  | 'create_store'
+  | 'create_subscription'
+  | 'execute_launch'
+  | 'import_customer_data'
+  | 'read_real_customer_data'
+  | 'register_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_subscription';
+
 export type E2eFeatureDataFlowAuditArea =
   | 'analytics_gap'
   | 'blocked_flow_map'
@@ -728,6 +765,28 @@ export interface DemoRehearsalPackagePlan {
   requiresReadOnlyPilotExplanation: true;
   storeCreationEnabled: false;
   syntheticDataOnly: true;
+  targetMonth: '2026-07';
+}
+
+export interface JulyLaunchGoNoGoGatePlan {
+  blockedActions: JulyLaunchGoNoGoBlockedAction[];
+  goCriteria: JulyLaunchGoNoGoGoCriterion[];
+  goNoGoPlanOnly: true;
+  launchExecutionEnabled: false;
+  launchMode: 'pilot_readonly_revenue_engine';
+  noGoCriteria: JulyLaunchGoNoGoNoGoCriterion[];
+  positioning: 'memory_based_revenue_engine';
+  requiresDemoRehearsal: true;
+  requiresManualPilotStoreSelection: true;
+  requiresNoActualDelivery: true;
+  requiresNoPaymentAutomation: true;
+  requiresNoRawRecipientResolution: true;
+  requiresOwnerGoApproval: true;
+  requiresPricingLock: true;
+  requiresPrivacyBoundary: true;
+  requiresProductionSmoke: true;
+  requiresRobotsTxtValid: true;
+  requiresSitemapValid: true;
   targetMonth: '2026-07';
 }
 
@@ -1502,6 +1561,46 @@ const DEMO_REHEARSAL_BLOCKED_ACTIONS: DemoRehearsalBlockedAction[] = [
   'import_customer_data',
   'create_store',
   'create_customer',
+  'send_sms',
+  'send_kakao',
+  'send_email',
+  'charge_payment',
+  'create_subscription',
+  'write_subscription',
+  'resolve_raw_recipient',
+  'add_api_key',
+  'add_env',
+  'register_webhook',
+];
+
+const JULY_LAUNCH_GO_NO_GO_GO_CRITERIA: JulyLaunchGoNoGoGoCriterion[] = [
+  'production_public_pages_ok',
+  'pricing_page_ok',
+  'robots_txt_ok',
+  'sitemap_xml_ok',
+  'growth_price_locked',
+  'sales_kit_ready',
+  'outreach_manual_kit_ready',
+  'consultation_record_ready',
+  'demo_rehearsal_ready',
+  'blog_manual_content_plan_ready',
+];
+
+const JULY_LAUNCH_GO_NO_GO_NO_GO_CRITERIA: JulyLaunchGoNoGoNoGoCriterion[] = [
+  'unclear_price_pitch',
+  'delivery_misleading_claim',
+  'privacy_boundary_unclear',
+  'growth_pitch_weak',
+  'demo_rehearsal_not_ready',
+  'production_smoke_failed',
+];
+
+const JULY_LAUNCH_GO_NO_GO_BLOCKED_ACTIONS: JulyLaunchGoNoGoBlockedAction[] = [
+  'execute_launch',
+  'create_store',
+  'create_lead',
+  'import_customer_data',
+  'read_real_customer_data',
   'send_sms',
   'send_kakao',
   'send_email',
@@ -2489,6 +2588,30 @@ export function buildDemoRehearsalPackagePlan(): DemoRehearsalPackagePlan {
     requiresReadOnlyPilotExplanation: true,
     storeCreationEnabled: false,
     syntheticDataOnly: true,
+    targetMonth: '2026-07',
+  };
+}
+
+export function buildJulyLaunchGoNoGoGatePlan(): JulyLaunchGoNoGoGatePlan {
+  return {
+    blockedActions: JULY_LAUNCH_GO_NO_GO_BLOCKED_ACTIONS,
+    goCriteria: JULY_LAUNCH_GO_NO_GO_GO_CRITERIA,
+    goNoGoPlanOnly: true,
+    launchExecutionEnabled: false,
+    launchMode: 'pilot_readonly_revenue_engine',
+    noGoCriteria: JULY_LAUNCH_GO_NO_GO_NO_GO_CRITERIA,
+    positioning: 'memory_based_revenue_engine',
+    requiresDemoRehearsal: true,
+    requiresManualPilotStoreSelection: true,
+    requiresNoActualDelivery: true,
+    requiresNoPaymentAutomation: true,
+    requiresNoRawRecipientResolution: true,
+    requiresOwnerGoApproval: true,
+    requiresPricingLock: true,
+    requiresPrivacyBoundary: true,
+    requiresProductionSmoke: true,
+    requiresRobotsTxtValid: true,
+    requiresSitemapValid: true,
     targetMonth: '2026-07',
   };
 }

@@ -68,6 +68,7 @@ This audit checks whether the July pilot can explain the full customer-memory re
 | consultation record -> pilot conversion grade | plan_only | Conversion grade is a manual planning label only. |
 | pricing plan -> Growth offer | ready | Growth 99,000 KRW is the primary July pilot offer. |
 | pilot onboarding -> Growth 99,000 proposal | ready | Onboarding materials connect the pilot to Growth-first positioning. |
+| demo rehearsal -> Go/No-Go gate | plan_only | The synthetic-only 3-minute rehearsal feeds the July launch gate without reading real customer data. |
 
 ## blocked risk flows
 
@@ -124,6 +125,9 @@ This contract is pure and in-memory. It must not call social APIs, publish conte
 
 ## Related Documents
 
+- `docs/july-launch-go-no-go-gate.md`
+- `docs/demo-rehearsal-script.md`
+- `docs/demo-synthetic-scenario.md`
 - `docs/channel-integration-readiness-audit.md`
 - `docs/july-launch-checklist.md`
 - `docs/pilot-consultation-record-template.md`
