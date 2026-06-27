@@ -7,6 +7,7 @@ import {
   buildContentSeoLaunchKitPlan,
   buildDemoRehearsalPackagePlan,
   buildE2eFeatureDataFlowAndChannelAuditPlan,
+  buildJulyLaunchGoNoGoGatePlan,
   buildJulyLaunchChecklistPlan,
   buildPilotConsultationRecordPlan,
   buildPilotOutreachManualKitPlan,
@@ -1754,6 +1755,104 @@ describe('VIP customer readonly view service', () => {
       expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
       expect(doc).not.toMatch(/sent automatically|lead created|store created|payment automation enabled|provider integration enabled/i);
     }
+  });
+
+  it('builds a July launch Go/No-Go gate without launch, data, delivery, or payment execution', () => {
+    const gatePlan = buildJulyLaunchGoNoGoGatePlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const gateDoc = readFileSync(join(process.cwd(), 'docs/july-launch-go-no-go-gate.md'), 'utf8');
+    const launchChecklistDoc = readFileSync(join(process.cwd(), 'docs/july-launch-checklist.md'), 'utf8');
+    const preContractDoc = readFileSync(join(process.cwd(), 'docs/pilot-pre-contract-checklist.md'), 'utf8');
+    const e2eDoc = readFileSync(join(process.cwd(), 'docs/e2e-feature-data-flow-audit.md'), 'utf8');
+
+    expect(gatePlan).toMatchObject({
+      goNoGoPlanOnly: true,
+      launchExecutionEnabled: false,
+      launchMode: 'pilot_readonly_revenue_engine',
+      positioning: 'memory_based_revenue_engine',
+      requiresDemoRehearsal: true,
+      requiresManualPilotStoreSelection: true,
+      requiresNoActualDelivery: true,
+      requiresNoPaymentAutomation: true,
+      requiresNoRawRecipientResolution: true,
+      requiresOwnerGoApproval: true,
+      requiresPricingLock: true,
+      requiresPrivacyBoundary: true,
+      requiresProductionSmoke: true,
+      requiresRobotsTxtValid: true,
+      requiresSitemapValid: true,
+      targetMonth: '2026-07',
+    });
+    expect(gatePlan.goCriteria).toEqual([
+      'production_public_pages_ok',
+      'pricing_page_ok',
+      'robots_txt_ok',
+      'sitemap_xml_ok',
+      'growth_price_locked',
+      'sales_kit_ready',
+      'outreach_manual_kit_ready',
+      'consultation_record_ready',
+      'demo_rehearsal_ready',
+      'blog_manual_content_plan_ready',
+    ]);
+    expect(gatePlan.noGoCriteria).toEqual([
+      'unclear_price_pitch',
+      'delivery_misleading_claim',
+      'privacy_boundary_unclear',
+      'growth_pitch_weak',
+      'demo_rehearsal_not_ready',
+      'production_smoke_failed',
+    ]);
+    expect(gatePlan.blockedActions).toEqual([
+      'execute_launch',
+      'create_store',
+      'create_lead',
+      'import_customer_data',
+      'read_real_customer_data',
+      'send_sms',
+      'send_kakao',
+      'send_email',
+      'charge_payment',
+      'create_subscription',
+      'write_subscription',
+      'resolve_raw_recipient',
+      'add_api_key',
+      'add_env',
+      'register_webhook',
+    ]);
+    expect(serviceSource).not.toMatch(
+      /(?:executeLaunch|createStore|createLead|importCustomerData|readRealCustomerData|sendSms|sendKakao|sendEmail|chargePayment|createSubscription|writeSubscription|resolveRawRecipient|addApiKey|addEnv|registerWebhook)\s*\(/i,
+    );
+    expect(serviceSource).not.toMatch(/providerClient|fetch\(|axios/i);
+
+    for (const requiredPhrase of [
+      'July Launch Go/No-Go Gate',
+      'production_public_pages_ok',
+      'pricing_page_ok',
+      'robots_txt_ok',
+      'sitemap_xml_ok',
+      'growth_price_locked',
+      'sales_kit_ready',
+      'outreach_manual_kit_ready',
+      'consultation_record_ready',
+      'demo_rehearsal_ready',
+      'blog_manual_content_plan_ready',
+      'unclear_price_pitch',
+      'delivery_misleading_claim',
+      'privacy_boundary_unclear',
+      'growth_pitch_weak',
+      'demo_rehearsal_not_ready',
+      'production_smoke_failed',
+      'buildJulyLaunchGoNoGoGatePlan()',
+    ]) {
+      expect(gateDoc).toContain(requiredPhrase);
+    }
+    for (const doc of [launchChecklistDoc, preContractDoc, e2eDoc]) {
+      expect(doc).toContain('docs/july-launch-go-no-go-gate.md');
+    }
+    expect(gateDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(gateDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(gateDoc).not.toMatch(/launch executed|store created|lead created|payment automation enabled|provider integration enabled/i);
   });
 
   it('builds an E2E feature data-flow and channel audit plan without channel, payment, or data side effects', () => {

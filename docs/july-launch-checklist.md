@@ -6,6 +6,8 @@ This checklist prepares MyBiz for a July 2026 pilot launch as a read-only revenu
 
 The checklist is plan-only. It does not enable production writes, delivery execution, raw recipient access, provider integration, payment automation, migrations, or webhooks.
 
+Before any July pilot start, apply the final Go/No-Go gate in `docs/july-launch-go-no-go-gate.md`. The gate must confirm production public pages, pricing, robots.txt, sitemap.xml, Growth 99,000 KRW pricing, sales kit, outreach manual kit, consultation record, demo rehearsal, and manual content readiness.
+
 ## Launch Goal
 
 The July pilot should prove that store owners can see useful customer-memory insights before any cost-bearing or legally sensitive delivery feature exists.
@@ -203,6 +205,7 @@ This contract is pure and in-memory. It must not query a database, write data, c
 
 ## Related Documents
 
+- `docs/july-launch-go-no-go-gate.md`
 - `docs/vip-customer-memory-launch-scope.md`
 - `docs/july-pricing-plan-lock.md`
 - `docs/pilot-store-onboarding-checklist.md`

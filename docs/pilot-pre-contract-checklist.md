@@ -57,6 +57,9 @@ Required pre-contract values:
 
 ## Related Documents
 
+- `docs/july-launch-go-no-go-gate.md`
+- `docs/demo-rehearsal-script.md`
+- `docs/demo-synthetic-scenario.md`
 - `docs/pilot-consultation-record-template.md`
 - `docs/pilot-sales-kit.md`
 - `docs/pilot-store-onboarding-checklist.md`
