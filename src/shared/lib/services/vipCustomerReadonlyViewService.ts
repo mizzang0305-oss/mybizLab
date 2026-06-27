@@ -473,6 +473,31 @@ export type PilotOutreachManualKitBlockedAction =
   | 'send_sales_sms'
   | 'write_subscription';
 
+export type DemoRehearsalRequiredAsset =
+  | 'growth_price_pitch'
+  | 'problem_framing'
+  | 'screen_value_explanation'
+  | 'synthetic_campaign_preview_example'
+  | 'synthetic_customer_memory_example'
+  | 'synthetic_vip_candidate_example'
+  | 'three_minute_script';
+
+export type DemoRehearsalBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'charge_payment'
+  | 'create_customer'
+  | 'create_store'
+  | 'create_subscription'
+  | 'import_customer_data'
+  | 'read_real_customer_data'
+  | 'register_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_email'
+  | 'send_kakao'
+  | 'send_sms'
+  | 'write_subscription';
+
 export type E2eFeatureDataFlowAuditArea =
   | 'analytics_gap'
   | 'blocked_flow_map'
@@ -681,6 +706,29 @@ export interface PilotOutreachManualKitPlan {
     max: 5;
     min: 3;
   };
+}
+
+export interface DemoRehearsalPackagePlan {
+  actualDeliveryEnabled: false;
+  blockedActions: DemoRehearsalBlockedAction[];
+  customerDataImportEnabled: false;
+  demoDurationMinutes: 3;
+  demoRehearsalPlanOnly: true;
+  launchMode: 'pilot_readonly_revenue_engine';
+  paymentAutomationEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  primaryOfferMonthlyPriceKrw: 99000;
+  primaryOfferPlan: 'growth';
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  realCustomerDataReadEnabled: false;
+  requiredDemoAssets: DemoRehearsalRequiredAsset[];
+  requiresOwnerApprovalBeforeUse: true;
+  requiresPrivacyBoundaryExplanation: true;
+  requiresReadOnlyPilotExplanation: true;
+  storeCreationEnabled: false;
+  syntheticDataOnly: true;
+  targetMonth: '2026-07';
 }
 
 export interface E2eFeatureDataFlowAndChannelAuditPlan {
@@ -1430,6 +1478,33 @@ const PILOT_OUTREACH_MANUAL_KIT_BLOCKED_ACTIONS: PilotOutreachManualKitBlockedAc
   'create_store',
   'import_customer_data',
   'read_real_customer_data',
+  'charge_payment',
+  'create_subscription',
+  'write_subscription',
+  'resolve_raw_recipient',
+  'add_api_key',
+  'add_env',
+  'register_webhook',
+];
+
+const DEMO_REHEARSAL_REQUIRED_ASSETS: DemoRehearsalRequiredAsset[] = [
+  'three_minute_script',
+  'problem_framing',
+  'screen_value_explanation',
+  'growth_price_pitch',
+  'synthetic_customer_memory_example',
+  'synthetic_vip_candidate_example',
+  'synthetic_campaign_preview_example',
+];
+
+const DEMO_REHEARSAL_BLOCKED_ACTIONS: DemoRehearsalBlockedAction[] = [
+  'read_real_customer_data',
+  'import_customer_data',
+  'create_store',
+  'create_customer',
+  'send_sms',
+  'send_kakao',
+  'send_email',
   'charge_payment',
   'create_subscription',
   'write_subscription',
@@ -2390,6 +2465,31 @@ export function buildPilotOutreachManualKitPlan(): PilotOutreachManualKitPlan {
       max: 5,
       min: 3,
     },
+  };
+}
+
+export function buildDemoRehearsalPackagePlan(): DemoRehearsalPackagePlan {
+  return {
+    actualDeliveryEnabled: false,
+    blockedActions: DEMO_REHEARSAL_BLOCKED_ACTIONS,
+    customerDataImportEnabled: false,
+    demoDurationMinutes: 3,
+    demoRehearsalPlanOnly: true,
+    launchMode: 'pilot_readonly_revenue_engine',
+    paymentAutomationEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    primaryOfferMonthlyPriceKrw: 99000,
+    primaryOfferPlan: 'growth',
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    realCustomerDataReadEnabled: false,
+    requiredDemoAssets: DEMO_REHEARSAL_REQUIRED_ASSETS,
+    requiresOwnerApprovalBeforeUse: true,
+    requiresPrivacyBoundaryExplanation: true,
+    requiresReadOnlyPilotExplanation: true,
+    storeCreationEnabled: false,
+    syntheticDataOnly: true,
+    targetMonth: '2026-07',
   };
 }
 
