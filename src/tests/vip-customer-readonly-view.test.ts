@@ -8,6 +8,7 @@ import {
   buildE2eFeatureDataFlowAndChannelAuditPlan,
   buildJulyLaunchChecklistPlan,
   buildPilotConsultationRecordPlan,
+  buildPilotOutreachManualKitPlan,
   buildPilotSalesKitPlan,
   buildJulyPricingPlanLock,
   buildCustomerMarketingConsentModelPlan,
@@ -1383,7 +1384,7 @@ describe('VIP customer readonly view service', () => {
     expect(JSON.stringify(salesKitPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
     expect(JSON.stringify(salesKitPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(serviceSource).not.toMatch(
-      /sendSalesSms|sendSalesKakao|sendSalesEmail|createStore|importCustomerData|readRealCustomerData|chargePayment|createSubscription|writeSubscription|resolveRawRecipient|addApiKey|addEnv|registerWebhook|providerClient|fetch\(|axios/i,
+      /(?:sendSalesSms|sendSalesKakao|sendSalesEmail|createStore|importCustomerData|readRealCustomerData|chargePayment|createSubscription|writeSubscription|resolveRawRecipient|addApiKey|addEnv|registerWebhook)\s*\(|providerClient|fetch\(|axios/i,
     );
 
     for (const requiredPhrase of [
@@ -1494,7 +1495,7 @@ describe('VIP customer readonly view service', () => {
     expect(JSON.stringify(consultationPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
     expect(JSON.stringify(consultationPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(serviceSource).not.toMatch(
-      /writeConsultationRecord|createLead|createStore|importCustomerData|readRealCustomerData|chargePayment|createSubscription|writeSubscription|sendSalesSms|sendSalesKakao|sendSalesEmail|resolveRawRecipient|addApiKey|addEnv|registerWebhook|providerClient|fetch\(|axios/i,
+      /(?:writeConsultationRecord|createLead|createStore|importCustomerData|readRealCustomerData|chargePayment|createSubscription|writeSubscription|sendSalesSms|sendSalesKakao|sendSalesEmail|resolveRawRecipient|addApiKey|addEnv|registerWebhook)\s*\(|providerClient|fetch\(|axios/i,
     );
 
     for (const requiredPhrase of [
@@ -1530,6 +1531,126 @@ describe('VIP customer readonly view service', () => {
       expect(doc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
       expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
       expect(doc).not.toMatch(/lead created|store created|payment automation enabled|provider integration enabled/i);
+    }
+  });
+
+  it('builds a pilot outreach manual kit plan without outbound, lead, store, payment, or customer-data side effects', () => {
+    const outreachPlan = buildPilotOutreachManualKitPlan();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const outreachDoc = readFileSync(join(process.cwd(), 'docs/pilot-outreach-manual-kit.md'), 'utf8');
+    const followUpDoc = readFileSync(join(process.cwd(), 'docs/pilot-follow-up-script.md'), 'utf8');
+    const salesKitDoc = readFileSync(join(process.cwd(), 'docs/pilot-sales-kit.md'), 'utf8');
+    const consultationDoc = readFileSync(join(process.cwd(), 'docs/pilot-consultation-record-template.md'), 'utf8');
+
+    expect(outreachPlan).toMatchObject({
+      actualDeliveryEnabled: false,
+      customerDataImportEnabled: false,
+      leadCreationEnabled: false,
+      launchMode: 'pilot_readonly_revenue_engine',
+      manualCopyOnly: true,
+      outboundAutomationEnabled: false,
+      outreachKitPlanOnly: true,
+      paymentAutomationEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      primaryOfferMonthlyPriceKrw: 99000,
+      primaryOfferPlan: 'growth',
+      providerIntegrationEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      realCustomerDataReadEnabled: false,
+      requiresOwnerApprovalBeforeUse: true,
+      requiresPrivacyBoundaryExplanation: true,
+      requiresReadOnlyPilotExplanation: true,
+      sendSalesEmailEnabled: false,
+      sendSalesKakaoEnabled: false,
+      sendSalesSmsEnabled: false,
+      storeCreationEnabled: false,
+      targetMonth: '2026-07',
+      targetPilotStoreCount: {
+        max: 5,
+        min: 3,
+      },
+    });
+    expect(outreachPlan.requiredOutreachAssets).toEqual([
+      'visit_opening',
+      'phone_opening',
+      'manual_kakao_draft',
+      'follow_up_script',
+      'conversion_grade_filter',
+    ]);
+    expect(outreachPlan.conversionGrades).toEqual(['hot', 'warm', 'cold', 'no_fit']);
+    expect(outreachPlan.possibleNextActions).toEqual([
+      'propose_growth',
+      'propose_starter',
+      'schedule_follow_up',
+      'mark_not_fit',
+    ]);
+    expect(outreachPlan.blockedActions).toEqual([
+      'send_sales_sms',
+      'send_sales_kakao',
+      'send_sales_email',
+      'auto_send_outreach',
+      'create_lead',
+      'create_store',
+      'import_customer_data',
+      'read_real_customer_data',
+      'charge_payment',
+      'create_subscription',
+      'write_subscription',
+      'resolve_raw_recipient',
+      'add_api_key',
+      'add_env',
+      'register_webhook',
+    ]);
+    expect(JSON.stringify(outreachPlan)).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(JSON.stringify(outreachPlan)).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(serviceSource).not.toMatch(
+      /(?:sendSalesSms|sendSalesKakao|sendSalesEmail|autoSendOutreach|createLead|createStore|importCustomerData|readRealCustomerData|chargePayment|createSubscription|writeSubscription|resolveRawRecipient|addApiKey|addEnv|registerWebhook)\s*\(/i,
+    );
+    expect(serviceSource).not.toMatch(/providerClient|fetch\(|axios/i);
+
+    for (const requiredPhrase of [
+      'Pilot Outreach Manual Kit',
+      '방문 30초 오프닝',
+      '전화 30초 오프닝',
+      '수동 카카오 초안',
+      '후속 상담 멘트',
+      'HOT',
+      'WARM',
+      'COLD',
+      'NO_FIT',
+      '매출 보장 금지',
+      '자동 발송 가능하다고 말하지 않기',
+      '고객 데이터 자동 수집 가능하다고 말하지 않기',
+      '결제 자동화가 열린 것처럼 말하지 않기',
+      '실제 고객 사례',
+      '정부지원사업 선정/승인 보장 금지',
+      'Growth 99,000',
+      'read-only',
+      'buildPilotOutreachManualKitPlan()',
+    ]) {
+      expect(outreachDoc).toContain(requiredPhrase);
+    }
+    for (const requiredPhrase of [
+      'Pilot Follow-up Script',
+      'Growth 99,000',
+      'HOT/WARM/COLD/NO_FIT',
+      'propose_growth',
+      'propose_starter',
+      'schedule_follow_up',
+      'mark_not_fit',
+      'read-only',
+      'buildPilotOutreachManualKitPlan()',
+    ]) {
+      expect(followUpDoc).toContain(requiredPhrase);
+    }
+    expect(salesKitDoc).toContain('docs/pilot-outreach-manual-kit.md');
+    expect(salesKitDoc).toContain('docs/pilot-follow-up-script.md');
+    expect(consultationDoc).toContain('docs/pilot-outreach-manual-kit.md');
+    expect(consultationDoc).toContain('docs/pilot-follow-up-script.md');
+    for (const doc of [outreachDoc, followUpDoc]) {
+      expect(doc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+      expect(doc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+      expect(doc).not.toMatch(/sent automatically|lead created|store created|payment automation enabled|provider integration enabled/i);
     }
   });
 
