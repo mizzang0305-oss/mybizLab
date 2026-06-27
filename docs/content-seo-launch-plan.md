@@ -57,6 +57,11 @@ Before a manual post goes live:
 - no real customer case is included without separate approval.
 - no raw phone, raw email, or customer row evidence is included.
 
+The detailed July content kit and manual publishing gate are defined in:
+
+- `docs/content-seo-launch-kit.md`
+- `docs/manual-publish-checklist.md`
+
 ## Safety Boundary
 
 Current status:
@@ -73,6 +78,8 @@ Current status:
 
 ## Related Documents
 
+- `docs/content-seo-launch-kit.md`
+- `docs/manual-publish-checklist.md`
 - `docs/blog-readiness-verification.md`
 - `docs/channel-integration-readiness-audit.md`
 - `docs/july-launch-checklist.md`
