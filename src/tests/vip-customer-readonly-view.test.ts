@@ -12,6 +12,7 @@ import {
   buildPilotConsultationRecordPlan,
   buildPilotOutreachManualKitPlan,
   buildPilotSalesKitPlan,
+  buildPostPilotIntegrationApprovalMatrix,
   buildJulyPricingPlanLock,
   buildCustomerMarketingConsentModelPlan,
   buildVipCampaignPreparationPreview,
@@ -1853,6 +1854,82 @@ describe('VIP customer readonly view service', () => {
     expect(gateDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
     expect(gateDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
     expect(gateDoc).not.toMatch(/launch executed|store created|lead created|payment automation enabled|provider integration enabled/i);
+  });
+
+  it('builds a post-pilot integration approval matrix with all integrations disabled now', () => {
+    const matrix = buildPostPilotIntegrationApprovalMatrix();
+    const serviceSource = readFileSync(join(process.cwd(), 'src/shared/lib/services/vipCustomerReadonlyViewService.ts'), 'utf8');
+    const matrixDoc = readFileSync(join(process.cwd(), 'docs/post-pilot-integration-approval-matrix.md'), 'utf8');
+    const e2eDoc = readFileSync(join(process.cwd(), 'docs/e2e-feature-data-flow-audit.md'), 'utf8');
+    const channelDoc = readFileSync(join(process.cwd(), 'docs/channel-integration-readiness-audit.md'), 'utf8');
+
+    expect(matrix).toMatchObject({
+      allIntegrationsDisabledNow: true,
+      approvalMatrixPlanOnly: true,
+      blogAutoPublishingEnabled: false,
+      deliveryExecutionEnabled: false,
+      migrationExecutionEnabled: false,
+      paymentExecutionEnabled: false,
+      positioning: 'memory_based_revenue_engine',
+      productionExecutionEnabled: false,
+      rawRecipientResolutionEnabled: false,
+      requiresSeparateOwnerApproval: true,
+      socialIntegrationEnabled: false,
+      targetMonth: '2026-07',
+    });
+    expect(matrix.approvalItems.map((item) => item.area)).toEqual([
+      'production_db_migration',
+      'real_store_customer_import',
+      'raw_recipient_resolution',
+      'sms_kakao_email_provider',
+      'delivery_audit_log_table_write',
+      'payment_billing_subscription',
+      'youtube_integration',
+      'instagram_integration',
+      'threads_integration',
+      'blog_auto_publishing',
+      'cross_channel_analytics',
+    ]);
+    expect(matrix.approvalItems.every((item) => item.ownerReviewRequired)).toBe(true);
+    expect(matrix.approvalItems.every((item) => item.rollbackPlanRequired)).toBe(true);
+    expect(matrix.approvalItems.every((item) => item.safetyScanRequired)).toBe(true);
+    expect(matrix.approvalItems.every((item) => item.approvalPhrase.startsWith('OWNER_APPROVES_'))).toBe(true);
+    expect(serviceSource).not.toMatch(
+      /(?:runMigration|importCustomerData|resolveRawRecipient|sendSms|sendKakao|sendEmail|writeDeliveryLog|chargePayment|createSubscription|callYoutubeApi|callInstagramApi|callThreadsApi|autoPublishBlog|addApiKey|addEnv|registerWebhook)\s*\(/i,
+    );
+    expect(serviceSource).not.toMatch(/providerClient|fetch\(|axios/i);
+
+    for (const requiredPhrase of [
+      'Post-Pilot Integration Approval Matrix',
+      'OWNER_APPROVES_PRODUCTION_DB_MIGRATION_AFTER_PILOT',
+      'OWNER_APPROVES_REAL_STORE_CUSTOMER_IMPORT_AFTER_PILOT',
+      'OWNER_APPROVES_RAW_RECIPIENT_RESOLUTION_AFTER_PILOT',
+      'OWNER_APPROVES_SMS_KAKAO_EMAIL_PROVIDER_AFTER_PILOT',
+      'OWNER_APPROVES_DELIVERY_AUDIT_LOG_WRITE_AFTER_PILOT',
+      'OWNER_APPROVES_PAYMENT_BILLING_SUBSCRIPTION_AFTER_PILOT',
+      'OWNER_APPROVES_YOUTUBE_INTEGRATION_AFTER_PILOT',
+      'OWNER_APPROVES_INSTAGRAM_INTEGRATION_AFTER_PILOT',
+      'OWNER_APPROVES_THREADS_INTEGRATION_AFTER_PILOT',
+      'OWNER_APPROVES_BLOG_AUTO_PUBLISHING_AFTER_PILOT',
+      'OWNER_APPROVES_CROSS_CHANNEL_ANALYTICS_AFTER_PILOT',
+      'all integrations disabled now: true',
+      'production execution enabled: false',
+      'migration execution enabled: false',
+      'payment execution enabled: false',
+      'delivery execution enabled: false',
+      'social integration enabled: false',
+      'blog auto-publishing enabled: false',
+      'raw recipient resolution enabled: false',
+      'buildPostPilotIntegrationApprovalMatrix()',
+    ]) {
+      expect(matrixDoc).toContain(requiredPhrase);
+    }
+    for (const doc of [e2eDoc, channelDoc]) {
+      expect(doc).toContain('docs/post-pilot-integration-approval-matrix.md');
+    }
+    expect(matrixDoc).not.toMatch(/[A-Z0-9._%+-]+@(gmail|naver)\.com/i);
+    expect(matrixDoc).not.toMatch(/01[016789]-?\d{3,4}-?\d{4}/);
+    expect(matrixDoc).not.toMatch(/migration executed|provider integration enabled|payment automation enabled|blog auto-published/i);
   });
 
   it('builds an E2E feature data-flow and channel audit plan without channel, payment, or data side effects', () => {
