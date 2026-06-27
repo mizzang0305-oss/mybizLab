@@ -106,6 +106,8 @@ This contract is pure and in-memory. It must not write a consultation record, cr
 
 ## Related Documents
 
+- `docs/pilot-outreach-manual-kit.md`
+- `docs/pilot-follow-up-script.md`
 - `docs/pilot-pre-contract-checklist.md`
 - `docs/pilot-sales-kit.md`
 - `docs/pilot-store-onboarding-checklist.md`

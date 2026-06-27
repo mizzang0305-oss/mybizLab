@@ -445,6 +445,34 @@ export type PilotConsultationRecordBlockedAction =
   | 'write_consultation_record'
   | 'write_subscription';
 
+export type PilotOutreachManualKitRequiredAsset =
+  | 'conversion_grade_filter'
+  | 'follow_up_script'
+  | 'manual_kakao_draft'
+  | 'phone_opening'
+  | 'visit_opening';
+
+export type PilotOutreachManualKitConversionGrade = PilotConsultationRecordConversionGrade;
+
+export type PilotOutreachManualKitNextAction = PilotConsultationRecordNextAction;
+
+export type PilotOutreachManualKitBlockedAction =
+  | 'add_api_key'
+  | 'add_env'
+  | 'auto_send_outreach'
+  | 'charge_payment'
+  | 'create_lead'
+  | 'create_store'
+  | 'create_subscription'
+  | 'import_customer_data'
+  | 'read_real_customer_data'
+  | 'register_webhook'
+  | 'resolve_raw_recipient'
+  | 'send_sales_email'
+  | 'send_sales_kakao'
+  | 'send_sales_sms'
+  | 'write_subscription';
+
 export type E2eFeatureDataFlowAuditArea =
   | 'analytics_gap'
   | 'blocked_flow_map'
@@ -620,6 +648,39 @@ export interface PilotConsultationRecordPlan {
   requiresReadOnlyPilotExplanation: true;
   storeCreationEnabled: false;
   targetMonth: '2026-07';
+}
+
+export interface PilotOutreachManualKitPlan {
+  actualDeliveryEnabled: false;
+  blockedActions: PilotOutreachManualKitBlockedAction[];
+  conversionGrades: PilotOutreachManualKitConversionGrade[];
+  customerDataImportEnabled: false;
+  leadCreationEnabled: false;
+  launchMode: 'pilot_readonly_revenue_engine';
+  manualCopyOnly: true;
+  outboundAutomationEnabled: false;
+  outreachKitPlanOnly: true;
+  paymentAutomationEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  possibleNextActions: PilotOutreachManualKitNextAction[];
+  primaryOfferMonthlyPriceKrw: 99000;
+  primaryOfferPlan: 'growth';
+  providerIntegrationEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  realCustomerDataReadEnabled: false;
+  requiredOutreachAssets: PilotOutreachManualKitRequiredAsset[];
+  requiresOwnerApprovalBeforeUse: true;
+  requiresPrivacyBoundaryExplanation: true;
+  requiresReadOnlyPilotExplanation: true;
+  sendSalesEmailEnabled: false;
+  sendSalesKakaoEnabled: false;
+  sendSalesSmsEnabled: false;
+  storeCreationEnabled: false;
+  targetMonth: '2026-07';
+  targetPilotStoreCount: {
+    max: 5;
+    min: 3;
+  };
 }
 
 export interface E2eFeatureDataFlowAndChannelAuditPlan {
@@ -1336,6 +1397,42 @@ const PILOT_CONSULTATION_RECORD_BLOCKED_ACTIONS: PilotConsultationRecordBlockedA
   'send_sales_sms',
   'send_sales_kakao',
   'send_sales_email',
+  'resolve_raw_recipient',
+  'add_api_key',
+  'add_env',
+  'register_webhook',
+];
+const PILOT_OUTREACH_MANUAL_KIT_REQUIRED_ASSETS: PilotOutreachManualKitRequiredAsset[] = [
+  'visit_opening',
+  'phone_opening',
+  'manual_kakao_draft',
+  'follow_up_script',
+  'conversion_grade_filter',
+];
+const PILOT_OUTREACH_MANUAL_KIT_CONVERSION_GRADES: PilotOutreachManualKitConversionGrade[] = [
+  'hot',
+  'warm',
+  'cold',
+  'no_fit',
+];
+const PILOT_OUTREACH_MANUAL_KIT_NEXT_ACTIONS: PilotOutreachManualKitNextAction[] = [
+  'propose_growth',
+  'propose_starter',
+  'schedule_follow_up',
+  'mark_not_fit',
+];
+const PILOT_OUTREACH_MANUAL_KIT_BLOCKED_ACTIONS: PilotOutreachManualKitBlockedAction[] = [
+  'send_sales_sms',
+  'send_sales_kakao',
+  'send_sales_email',
+  'auto_send_outreach',
+  'create_lead',
+  'create_store',
+  'import_customer_data',
+  'read_real_customer_data',
+  'charge_payment',
+  'create_subscription',
+  'write_subscription',
   'resolve_raw_recipient',
   'add_api_key',
   'add_env',
@@ -2258,6 +2355,41 @@ export function buildPilotConsultationRecordPlan(): PilotConsultationRecordPlan 
     requiresReadOnlyPilotExplanation: true,
     storeCreationEnabled: false,
     targetMonth: '2026-07',
+  };
+}
+
+export function buildPilotOutreachManualKitPlan(): PilotOutreachManualKitPlan {
+  return {
+    actualDeliveryEnabled: false,
+    blockedActions: PILOT_OUTREACH_MANUAL_KIT_BLOCKED_ACTIONS,
+    conversionGrades: PILOT_OUTREACH_MANUAL_KIT_CONVERSION_GRADES,
+    customerDataImportEnabled: false,
+    leadCreationEnabled: false,
+    launchMode: 'pilot_readonly_revenue_engine',
+    manualCopyOnly: true,
+    outboundAutomationEnabled: false,
+    outreachKitPlanOnly: true,
+    paymentAutomationEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    possibleNextActions: PILOT_OUTREACH_MANUAL_KIT_NEXT_ACTIONS,
+    primaryOfferMonthlyPriceKrw: 99000,
+    primaryOfferPlan: 'growth',
+    providerIntegrationEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    realCustomerDataReadEnabled: false,
+    requiredOutreachAssets: PILOT_OUTREACH_MANUAL_KIT_REQUIRED_ASSETS,
+    requiresOwnerApprovalBeforeUse: true,
+    requiresPrivacyBoundaryExplanation: true,
+    requiresReadOnlyPilotExplanation: true,
+    sendSalesEmailEnabled: false,
+    sendSalesKakaoEnabled: false,
+    sendSalesSmsEnabled: false,
+    storeCreationEnabled: false,
+    targetMonth: '2026-07',
+    targetPilotStoreCount: {
+      max: 5,
+      min: 3,
+    },
   };
 }
 
