@@ -535,6 +535,19 @@ export type JulyLaunchGoNoGoBlockedAction =
   | 'send_sms'
   | 'write_subscription';
 
+export type PostPilotIntegrationApprovalArea =
+  | 'blog_auto_publishing'
+  | 'cross_channel_analytics'
+  | 'delivery_audit_log_table_write'
+  | 'instagram_integration'
+  | 'payment_billing_subscription'
+  | 'production_db_migration'
+  | 'raw_recipient_resolution'
+  | 'real_store_customer_import'
+  | 'sms_kakao_email_provider'
+  | 'threads_integration'
+  | 'youtube_integration';
+
 export type E2eFeatureDataFlowAuditArea =
   | 'analytics_gap'
   | 'blocked_flow_map'
@@ -787,6 +800,33 @@ export interface JulyLaunchGoNoGoGatePlan {
   requiresProductionSmoke: true;
   requiresRobotsTxtValid: true;
   requiresSitemapValid: true;
+  targetMonth: '2026-07';
+}
+
+export interface PostPilotIntegrationApprovalItem {
+  approvalPhrase: string;
+  area: PostPilotIntegrationApprovalArea;
+  firstExecutionLimit: string;
+  ownerReviewRequired: true;
+  productionImpact: 'high' | 'medium';
+  requiredPreconditions: string[];
+  rollbackPlanRequired: true;
+  safetyScanRequired: true;
+}
+
+export interface PostPilotIntegrationApprovalMatrixPlan {
+  allIntegrationsDisabledNow: true;
+  approvalItems: PostPilotIntegrationApprovalItem[];
+  approvalMatrixPlanOnly: true;
+  blogAutoPublishingEnabled: false;
+  deliveryExecutionEnabled: false;
+  migrationExecutionEnabled: false;
+  paymentExecutionEnabled: false;
+  positioning: 'memory_based_revenue_engine';
+  productionExecutionEnabled: false;
+  rawRecipientResolutionEnabled: false;
+  requiresSeparateOwnerApproval: true;
+  socialIntegrationEnabled: false;
   targetMonth: '2026-07';
 }
 
@@ -1611,6 +1651,119 @@ const JULY_LAUNCH_GO_NO_GO_BLOCKED_ACTIONS: JulyLaunchGoNoGoBlockedAction[] = [
   'add_api_key',
   'add_env',
   'register_webhook',
+];
+
+const POST_PILOT_INTEGRATION_APPROVAL_ITEMS: PostPilotIntegrationApprovalItem[] = [
+  {
+    approvalPhrase: 'OWNER_APPROVES_PRODUCTION_DB_MIGRATION_AFTER_PILOT',
+    area: 'production_db_migration',
+    firstExecutionLimit: 'one reviewed migration in staging before production',
+    ownerReviewRequired: true,
+    productionImpact: 'high',
+    requiredPreconditions: ['schema design', 'rollback plan', 'backup evidence', 'staging validation'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_REAL_STORE_CUSTOMER_IMPORT_AFTER_PILOT',
+    area: 'real_store_customer_import',
+    firstExecutionLimit: 'one manually selected pilot store',
+    ownerReviewRequired: true,
+    productionImpact: 'high',
+    requiredPreconditions: ['store scope', 'consent boundary', 'PII minimization', 'import rollback'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_RAW_RECIPIENT_RESOLUTION_AFTER_PILOT',
+    area: 'raw_recipient_resolution',
+    firstExecutionLimit: 'masked dry-run evidence before raw access',
+    ownerReviewRequired: true,
+    productionImpact: 'high',
+    requiredPreconditions: ['consent model', 'tenant check', 'access log', 'recipient exclusion policy'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_SMS_KAKAO_EMAIL_PROVIDER_AFTER_PILOT',
+    area: 'sms_kakao_email_provider',
+    firstExecutionLimit: 'one provider sandbox or reviewed dry-run only',
+    ownerReviewRequired: true,
+    productionImpact: 'high',
+    requiredPreconditions: ['provider contract', 'API key storage', 'rate limit', 'failure retry policy'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_DELIVERY_AUDIT_LOG_WRITE_AFTER_PILOT',
+    area: 'delivery_audit_log_table_write',
+    firstExecutionLimit: 'one campaign-purpose audit design review',
+    ownerReviewRequired: true,
+    productionImpact: 'high',
+    requiredPreconditions: ['migration approval', 'raw recipient policy', 'message hash design', 'retention policy'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_PAYMENT_BILLING_SUBSCRIPTION_AFTER_PILOT',
+    area: 'payment_billing_subscription',
+    firstExecutionLimit: 'one test payment path before live billing',
+    ownerReviewRequired: true,
+    productionImpact: 'high',
+    requiredPreconditions: ['pricing lock', 'refund policy', 'billing webhook review', 'subscription rollback'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_YOUTUBE_INTEGRATION_AFTER_PILOT',
+    area: 'youtube_integration',
+    firstExecutionLimit: 'manual upload or read-only channel proof first',
+    ownerReviewRequired: true,
+    productionImpact: 'medium',
+    requiredPreconditions: ['OAuth review', 'content approval', 'token storage plan', 'manual rollback'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_INSTAGRAM_INTEGRATION_AFTER_PILOT',
+    area: 'instagram_integration',
+    firstExecutionLimit: 'manual post review before API posting',
+    ownerReviewRequired: true,
+    productionImpact: 'medium',
+    requiredPreconditions: ['OAuth review', 'brand copy approval', 'token storage plan', 'manual rollback'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_THREADS_INTEGRATION_AFTER_PILOT',
+    area: 'threads_integration',
+    firstExecutionLimit: 'manual post review before API posting',
+    ownerReviewRequired: true,
+    productionImpact: 'medium',
+    requiredPreconditions: ['OAuth review', 'brand copy approval', 'token storage plan', 'manual rollback'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_BLOG_AUTO_PUBLISHING_AFTER_PILOT',
+    area: 'blog_auto_publishing',
+    firstExecutionLimit: 'one owner-reviewed article only',
+    ownerReviewRequired: true,
+    productionImpact: 'medium',
+    requiredPreconditions: ['manual publish checklist', 'SEO metadata review', 'customer case exclusion', 'rollback URL'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
+  {
+    approvalPhrase: 'OWNER_APPROVES_CROSS_CHANNEL_ANALYTICS_AFTER_PILOT',
+    area: 'cross_channel_analytics',
+    firstExecutionLimit: 'read-only aggregate dashboard only',
+    ownerReviewRequired: true,
+    productionImpact: 'medium',
+    requiredPreconditions: ['UTM policy', 'event taxonomy', 'no raw PII', 'dashboard review'],
+    rollbackPlanRequired: true,
+    safetyScanRequired: true,
+  },
 ];
 
 const E2E_FEATURE_DATA_FLOW_AUDIT_AREAS: E2eFeatureDataFlowAuditArea[] = [
@@ -2612,6 +2765,24 @@ export function buildJulyLaunchGoNoGoGatePlan(): JulyLaunchGoNoGoGatePlan {
     requiresProductionSmoke: true,
     requiresRobotsTxtValid: true,
     requiresSitemapValid: true,
+    targetMonth: '2026-07',
+  };
+}
+
+export function buildPostPilotIntegrationApprovalMatrix(): PostPilotIntegrationApprovalMatrixPlan {
+  return {
+    allIntegrationsDisabledNow: true,
+    approvalItems: POST_PILOT_INTEGRATION_APPROVAL_ITEMS,
+    approvalMatrixPlanOnly: true,
+    blogAutoPublishingEnabled: false,
+    deliveryExecutionEnabled: false,
+    migrationExecutionEnabled: false,
+    paymentExecutionEnabled: false,
+    positioning: 'memory_based_revenue_engine',
+    productionExecutionEnabled: false,
+    rawRecipientResolutionEnabled: false,
+    requiresSeparateOwnerApproval: true,
+    socialIntegrationEnabled: false,
     targetMonth: '2026-07',
   };
 }

@@ -77,6 +77,7 @@ The July pilot should use manual publishing or link-only workflows for external 
 - no UTM naming standard for pilot channels
 - no owner approval record for channel content
 - no automated publishing rollback plan
+- post-pilot channel integrations require the separate approval phrases in `docs/post-pilot-integration-approval-matrix.md`
 
 ## Code Contract
 
@@ -111,6 +112,7 @@ Blocked actions:
 
 ## Related Documents
 
+- `docs/post-pilot-integration-approval-matrix.md`
 - `docs/blog-readiness-verification.md`
 - `docs/content-seo-launch-plan.md`
 - `docs/e2e-feature-data-flow-audit.md`

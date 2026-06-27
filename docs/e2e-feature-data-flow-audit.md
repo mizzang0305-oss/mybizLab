@@ -98,6 +98,7 @@ These flows must stay blocked before separate owner approval, legal/privacy revi
 - blog publishing status needs verification before any automation plan
 - public pages and pricing are smoke-tested, but channel attribution is not production-ready
 - payment, provider delivery, raw recipient resolution, and production writes remain blocked
+- post-pilot integrations require separate approval phrases in `docs/post-pilot-integration-approval-matrix.md`
 - PR #148 remains outside this audit
 
 ## Code Contract
@@ -126,6 +127,7 @@ This contract is pure and in-memory. It must not call social APIs, publish conte
 ## Related Documents
 
 - `docs/july-launch-go-no-go-gate.md`
+- `docs/post-pilot-integration-approval-matrix.md`
 - `docs/demo-rehearsal-script.md`
 - `docs/demo-synthetic-scenario.md`
 - `docs/channel-integration-readiness-audit.md`
