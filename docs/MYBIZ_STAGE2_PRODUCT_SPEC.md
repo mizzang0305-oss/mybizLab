@@ -80,7 +80,9 @@ Rule/template drafts can run without an external AI provider. `PUBLISHED` requir
 
 ## Storage contract
 
-`ObjectStorageAdapter` owns `put`, signed upload/read URL creation, derived-object deletion, metadata and hashing. Provider binding, bucket creation and paid resources are not part of this change.
+`ObjectStorageAdapter` owns byte persistence, signed upload/read URL creation, derived-object deletion, metadata and SHA-256 receipts. The R2 local adapter writes real bytes under a caller-supplied private root, creates one-time short-lived capabilities, rejects filename-controlled paths, MIME/size violations and overwrite collisions, and re-reads bytes when verifying a receipt. It is dev/local only: it neither proves store membership nor binds a Production provider or public bucket.
+
+The verified receipt flow is `UPLOAD_INTENT → SIGNED_UPLOAD → OBJECT_EXISTS → SERVER_METADATA_VERIFY → HASH_VERIFY → EVIDENCE_RECORDED`. An upload URL alone is never evidence success.
 
 ## Security contract
 

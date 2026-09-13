@@ -4,6 +4,9 @@
 
 begin;
 
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+
 create table if not exists public.service_jobs (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(id) on delete cascade,
@@ -20,7 +23,13 @@ create table if not exists public.service_jobs (
   created_by uuid not null references public.profiles(id),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
-  check ((requires_contract and contract_state <> 'NOT_REQUIRED') or (not requires_contract and contract_state = 'NOT_REQUIRED'))
+  check ((requires_contract and contract_state <> 'NOT_REQUIRED') or (not requires_contract and contract_state = 'NOT_REQUIRED')),
+  check (
+    state in ('JOB_CREATED', 'CONTRACT_REQUIRED')
+    or not requires_contract
+    or contract_state in ('ACCEPTED', 'SIGNED')
+  ),
+  unique (id, store_id)
 );
 
 create table if not exists public.job_evidence_assets (
@@ -29,11 +38,15 @@ create table if not exists public.job_evidence_assets (
   job_id uuid not null references public.service_jobs(id) on delete cascade,
   uploader_user_id uuid not null references public.profiles(id),
   evidence_type text not null check (evidence_type in ('before_photo', 'during_photo', 'after_photo', 'video', 'document', 'checklist', 'other')),
-  storage_provider text not null,
+  storage_provider text not null check (storage_provider in ('local', 'supabase')),
   storage_object_key text not null,
-  original_filename text not null,
-  mime_type text not null,
-  size_bytes bigint not null check (size_bytes > 0),
+  original_filename text not null check (
+    char_length(original_filename) between 1 and 255
+    and position('/' in original_filename) = 0
+    and position(chr(92) in original_filename) = 0
+  ),
+  mime_type text not null check (mime_type in ('image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'application/pdf', 'application/json')),
+  size_bytes bigint not null check (size_bytes between 1 and 26214400),
   sha256 text not null check (sha256 ~ '^[a-f0-9]{64}$'),
   server_received_at timestamptz not null default timezone('utc', now()),
   client_capture_at timestamptz,
@@ -41,6 +54,12 @@ create table if not exists public.job_evidence_assets (
   metadata jsonb not null default '{}'::jsonb,
   revision_number integer not null check (revision_number > 0),
   status text not null default 'active' check (status in ('active', 'superseded', 'quarantined')),
+  check (
+    storage_object_key like
+      'stores/' || store_id::text || '/jobs/' || job_id::text || '/revisions/' || revision_number::text || '/%'
+    and position('..' in storage_object_key) = 0
+    and position(chr(92) in storage_object_key) = 0
+  ),
   unique (store_id, storage_provider, storage_object_key)
 );
 
@@ -52,7 +71,8 @@ create table if not exists public.job_evidence_revisions (
   created_by uuid not null references public.profiles(id),
   reason text,
   created_at timestamptz not null default timezone('utc', now()),
-  unique (job_id, revision_number)
+  unique (job_id, revision_number),
+  unique (job_id, revision_number, store_id)
 );
 
 create table if not exists public.job_confirmations (
@@ -63,7 +83,8 @@ create table if not exists public.job_confirmations (
   outcome text not null check (outcome in ('confirmed', 'correction_requested')),
   actor_label text,
   confirmed_at timestamptz not null default timezone('utc', now()),
-  metadata jsonb not null default '{}'::jsonb
+  metadata jsonb not null default '{}'::jsonb,
+  unique (job_id, evidence_revision)
 );
 
 create table if not exists public.job_confirmation_links (
@@ -71,9 +92,10 @@ create table if not exists public.job_confirmation_links (
   store_id uuid not null references public.stores(id) on delete cascade,
   job_id uuid not null references public.service_jobs(id) on delete cascade,
   evidence_revision integer not null check (evidence_revision > 0),
-  token_hash text not null unique check (char_length(token_hash) = 64),
+  token_hash text not null unique check (token_hash ~ '^[a-f0-9]{64}$'),
   expires_at timestamptz not null,
   revoked_at timestamptz,
+  consumed_at timestamptz,
   created_at timestamptz not null default timezone('utc', now())
 );
 
@@ -158,6 +180,168 @@ create table if not exists public.vertical_templates (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.job_evidence_assets
+  add constraint job_evidence_assets_revision_fk
+  foreign key (job_id, revision_number, store_id)
+  references public.job_evidence_revisions (job_id, revision_number, store_id);
+alter table public.job_confirmations
+  add constraint job_confirmations_revision_fk
+  foreign key (job_id, evidence_revision, store_id)
+  references public.job_evidence_revisions (job_id, revision_number, store_id);
+alter table public.job_confirmation_links
+  add constraint job_confirmation_links_revision_fk
+  foreign key (job_id, evidence_revision, store_id)
+  references public.job_evidence_revisions (job_id, revision_number, store_id);
+alter table public.consent_records
+  add constraint consent_records_revision_fk
+  foreign key (job_id, evidence_revision, store_id)
+  references public.job_evidence_revisions (job_id, revision_number, store_id);
+alter table public.content_candidates
+  add constraint content_candidates_revision_fk
+  foreign key (job_id, evidence_revision, store_id)
+  references public.job_evidence_revisions (job_id, revision_number, store_id);
+alter table public.brand_site_portfolio_items
+  add constraint brand_site_portfolio_items_revision_fk
+  foreign key (job_id, evidence_revision, store_id)
+  references public.job_evidence_revisions (job_id, revision_number, store_id);
+
+create or replace function private.initialize_job_evidence_revision()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.job_evidence_revisions (store_id, job_id, revision_number, created_by, reason)
+  values (new.store_id, new.id, new.evidence_revision, new.created_by, 'job_created');
+  return new;
+end;
+$$;
+
+revoke all on function private.initialize_job_evidence_revision() from public, anon, authenticated;
+
+create trigger initialize_job_evidence_revision_after_insert
+after insert on public.service_jobs
+for each row execute function private.initialize_job_evidence_revision();
+
+create or replace function private.create_next_job_evidence_revision(
+  p_job_id uuid,
+  p_actor_id uuid,
+  p_reason text
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_store_id uuid;
+  v_current_revision integer;
+  v_next_revision integer;
+  v_had_confirmation boolean;
+begin
+  select j.store_id, j.evidence_revision
+    into v_store_id, v_current_revision
+  from public.service_jobs j
+  where j.id = p_job_id
+  for update;
+
+  if not found then
+    raise exception 'SERVICE_JOB_NOT_FOUND' using errcode = 'P0002';
+  end if;
+
+  if p_actor_id is null or not exists (
+    select 1
+    from public.store_members sm
+    where sm.store_id = v_store_id and sm.profile_id = p_actor_id
+  ) then
+    raise exception 'SERVICE_JOB_MEMBER_REQUIRED' using errcode = '42501';
+  end if;
+
+  select exists (
+    select 1
+    from public.job_confirmations c
+    where c.job_id = p_job_id
+      and c.evidence_revision = v_current_revision
+      and c.outcome = 'confirmed'
+  ) into v_had_confirmation;
+
+  v_next_revision := v_current_revision + 1;
+
+  insert into public.job_evidence_revisions (store_id, job_id, revision_number, created_by, reason)
+  values (v_store_id, p_job_id, v_next_revision, p_actor_id, nullif(btrim(p_reason), ''));
+
+  update public.service_jobs
+  set evidence_revision = v_next_revision,
+      state = case when v_had_confirmation then 'CONFIRMATION_OUTDATED' else 'WORK_COMPLETED' end,
+      updated_at = timezone('utc', now())
+  where id = p_job_id;
+
+  return v_next_revision;
+end;
+$$;
+
+revoke all on function private.create_next_job_evidence_revision(uuid, uuid, text) from public, anon, authenticated;
+grant usage on schema private to service_role;
+grant execute on function private.create_next_job_evidence_revision(uuid, uuid, text) to service_role;
+
+create or replace function private.consume_job_confirmation_link(
+  p_token_hash text,
+  p_outcome text,
+  p_actor_label text default null,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_link public.job_confirmation_links%rowtype;
+  v_confirmation_id uuid;
+begin
+  if p_token_hash !~ '^[a-f0-9]{64}$' or p_outcome not in ('confirmed', 'correction_requested') then
+    raise exception 'INVALID_CONFIRMATION_INPUT' using errcode = '22023';
+  end if;
+
+  select * into v_link
+  from public.job_confirmation_links l
+  where l.token_hash = p_token_hash
+  for update;
+
+  if not found
+    or v_link.revoked_at is not null
+    or v_link.consumed_at is not null
+    or v_link.expires_at <= timezone('utc', now())
+    or not exists (
+      select 1 from public.service_jobs j
+      where j.id = v_link.job_id
+        and j.store_id = v_link.store_id
+        and j.evidence_revision = v_link.evidence_revision
+    ) then
+    raise exception 'CONFIRMATION_LINK_INVALID' using errcode = '22023';
+  end if;
+
+  insert into public.job_confirmations (store_id, job_id, evidence_revision, outcome, actor_label, metadata)
+  values (v_link.store_id, v_link.job_id, v_link.evidence_revision, p_outcome, p_actor_label, coalesce(p_metadata, '{}'::jsonb))
+  returning id into v_confirmation_id;
+
+  update public.job_confirmation_links
+  set consumed_at = timezone('utc', now())
+  where id = v_link.id;
+
+  update public.service_jobs
+  set state = case when p_outcome = 'confirmed' then 'CUSTOMER_CONFIRMED' else 'CUSTOMER_CORRECTION_REQUESTED' end,
+      updated_at = timezone('utc', now())
+  where id = v_link.job_id;
+
+  return v_confirmation_id;
+end;
+$$;
+
+revoke all on function private.consume_job_confirmation_link(text, text, text, jsonb) from public, anon, authenticated;
+grant execute on function private.consume_job_confirmation_link(text, text, text, jsonb) to service_role;
+
 create index if not exists service_jobs_store_state_created_idx on public.service_jobs (store_id, state, created_at desc);
 create index if not exists job_evidence_assets_job_revision_idx on public.job_evidence_assets (job_id, revision_number, evidence_type);
 create index if not exists job_confirmations_job_revision_idx on public.job_confirmations (job_id, evidence_revision, confirmed_at desc);
@@ -187,7 +371,7 @@ revoke all privileges on table public.service_jobs, public.job_evidence_assets, 
 grant select on table public.service_jobs, public.job_evidence_assets, public.job_evidence_revisions,
   public.job_confirmations, public.consent_records, public.job_payment_requests, public.content_candidates,
   public.brand_sites, public.brand_site_portfolio_items, public.vertical_templates to authenticated;
-grant insert on table public.service_jobs, public.job_evidence_assets, public.job_evidence_revisions to authenticated;
+grant insert on table public.service_jobs, public.job_evidence_assets to authenticated;
 grant all privileges on table public.service_jobs, public.job_evidence_assets, public.job_evidence_revisions,
   public.job_confirmations, public.job_confirmation_links, public.consent_records, public.job_payment_requests,
   public.content_candidates, public.brand_sites, public.brand_site_portfolio_items, public.vertical_templates
@@ -208,14 +392,14 @@ create policy evidence_assets_member_insert on public.job_evidence_assets for in
   public.is_store_member(store_id)
   and uploader_user_id = auth.uid()
   and status = 'active'
-  and exists (select 1 from public.service_jobs j where j.id = job_evidence_assets.job_id and j.store_id = job_evidence_assets.store_id)
+  and exists (
+    select 1 from public.service_jobs j
+    where j.id = job_evidence_assets.job_id
+      and j.store_id = job_evidence_assets.store_id
+      and j.evidence_revision = job_evidence_assets.revision_number
+  )
 );
 create policy evidence_revisions_member_select on public.job_evidence_revisions for select to authenticated using (public.is_store_member(store_id));
-create policy evidence_revisions_member_insert on public.job_evidence_revisions for insert to authenticated with check (
-  public.is_store_member(store_id)
-  and created_by = auth.uid()
-  and exists (select 1 from public.service_jobs j where j.id = job_evidence_revisions.job_id and j.store_id = job_evidence_revisions.store_id)
-);
 create policy confirmations_member_select on public.job_confirmations for select to authenticated using (public.is_store_member(store_id));
 create policy consent_records_member_select on public.consent_records for select to authenticated using (public.is_store_member(store_id));
 create policy payment_requests_member_select on public.job_payment_requests for select to authenticated using (public.is_store_member(store_id));

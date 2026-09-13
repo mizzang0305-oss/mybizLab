@@ -97,8 +97,19 @@ export interface ConfirmationLinkPolicyInput {
   now: string;
 }
 
+export interface ObjectStorageReceipt {
+  storageProvider: string;
+  objectKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  etag: string;
+  storedAt: string;
+  verifiedAt: string;
+}
+
 export interface ObjectStorageAdapter {
-  put(input: { objectKey: string; bytes: Uint8Array; mimeType: string }): Promise<{ etag?: string }>;
+  put(input: { objectKey: string; bytes: Uint8Array; mimeType: string }): Promise<ObjectStorageReceipt>;
   getSignedUploadUrl(input: { objectKey: string; mimeType: string; sizeBytes: number }): Promise<string>;
   getSignedReadUrl(input: { objectKey: string; expiresInSeconds: number }): Promise<string>;
   deleteDerived(input: { objectKey: string }): Promise<void>;
