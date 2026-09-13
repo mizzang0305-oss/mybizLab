@@ -15,6 +15,21 @@ function extractSideEffects() {
   return JSON.parse(match[1]) as Record<string, unknown>;
 }
 
+function extractBracedBlock(source: string, marker: string) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) return '';
+  const openIndex = source.indexOf('{', markerIndex + marker.length);
+  if (openIndex < 0) return '';
+
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] === '}') depth -= 1;
+    if (depth === 0) return source.slice(markerIndex, index + 1);
+  }
+  return '';
+}
+
 describe('customer-memory contact-only harness mode', () => {
   it('adds the approved contact-only gate while preserving existing approval gates', () => {
     [
@@ -53,7 +68,7 @@ describe('customer-memory contact-only harness mode', () => {
       'does not call `appendTimelineEvent`',
     ].forEach((expected) => expect(doc + harness).toContain(expected));
 
-    const contactOnlyBlock = harness.match(/if \(options\.contactOnly\) \{[\s\S]*?return;\n\s{2}\}/)?.[0] || '';
+    const contactOnlyBlock = extractBracedBlock(harness, 'if (options.contactOnly)');
     expect(contactOnlyBlock).toContain('saveCustomerContact');
     expect(contactOnlyBlock).not.toContain('saveCustomer(');
     expect(contactOnlyBlock).not.toContain('saveInquiry');
