@@ -27,7 +27,18 @@ describe('R2.2 cinematic homepage contract', () => {
     for (const id of CORE_INDUSTRIES) {
       const media = getIndustryMedia(id);
       expect(media.beforeImage).not.toBe(media.afterImage);
+      expect(media.beforeImage).toContain('/industry-aligned/');
+      expect(media.afterImage).toContain('/industry-aligned/');
+      expect(media.visualSourceType).toBe('ai-generated-staged-image');
       expect(media.disclosureText).toContain('실제 고객 사례가 아닙니다');
+    }
+  });
+
+  it('ships recognizable visual examples for all five displayed industries', () => {
+    for (const filename of ['cleaning-after.webp', 'hair-after.webp', 'installation-after.webp', 'wig.webp', 'interior.webp']) {
+      const file = join(process.cwd(), 'public/media/mybiz-stage2/industry-aligned', filename);
+      expect(existsSync(file), file).toBe(true);
+      expect(statSync(file).size, file).toBeGreaterThan(10_000);
     }
   });
 

@@ -43,12 +43,14 @@ try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
 
   for (const industry of ['cleaning', 'hair', 'installation']) {
-    await page.getByRole('tab', { name: new RegExp(industry === 'cleaning' ? '^청소' : industry === 'hair' ? '^미용실' : '^설치·수리') }).click();
+    const industryLabel = industry === 'cleaning' ? '청소' : industry === 'hair' ? '미용실' : '설치·수리';
+    await page.getByRole('tab', { name: new RegExp(`^${industryLabel}`) }).click();
     const video = page.locator(`[data-hero-media="${industry}"]`);
     await video.scrollIntoViewIfNeeded();
     await video.waitFor({ state: 'visible' });
     await page.waitForTimeout(350);
     await page.waitForFunction((id) => { const el = document.querySelector(`[data-hero-media="${id}"]`); return el instanceof HTMLVideoElement && el.readyState >= 2 && Number.isFinite(el.duration); }, industry);
+    await page.getByRole('button', { name: `${industryLabel} 작업 공정 영상 재생` }).click();
     const playbackControl = page.locator('button[aria-label="영상 재생"], button[aria-label="영상 일시정지"]').first();
     if (await video.evaluate((element) => element.paused)) await playbackControl.click();
     const frameHash = () => video.evaluate((element) => {

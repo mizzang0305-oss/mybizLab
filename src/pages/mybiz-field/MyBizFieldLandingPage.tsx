@@ -29,33 +29,33 @@ export function MyBizFieldLandingPage() {
       <ServiceExperience activeIndustry={activeIndustry} />
       <WebsitePackageShowcase media={media} />
 
-      <section className="border-y border-white/10 px-4 py-20 sm:px-8 sm:py-24" id="features">
+      <section className="border-y border-[#e5ddd2] bg-white px-4 py-12 text-[#172431] sm:px-8" id="features">
         <div className="mx-auto max-w-[84rem]">
-          <div className="grid gap-9 lg:grid-cols-[0.72fr_1.28fr] lg:items-end">
-            <div><p className="text-sm font-bold text-[#e6b06b]">SIMPLE PROCESS</p><h2 className="mt-3 max-w-2xl break-keep font-display text-4xl font-black leading-[1.08] tracking-[-0.045em] sm:text-5xl">{HOMEPAGE_COPY.workflow.heading}</h2></div>
-            <ol className="grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2">
-              {HOMEPAGE_COPY.workflow.items.map(([title, detail], index) => <li className="min-h-36 bg-[#101923] p-6" key={title}><span className="text-xs font-bold text-[#e6b06b]">{String(index + 1).padStart(2, '0')}</span><h3 className="mt-3 text-xl font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-white/48">{detail}</p></li>)}
+          <div className="grid gap-7 lg:grid-cols-[0.62fr_1.38fr] lg:items-center">
+            <div><p className="text-xs font-black tracking-[0.14em] text-[#b66f30]">SIMPLE PROCESS</p><h2 className="mt-2 max-w-2xl break-keep font-display text-3xl font-black leading-[1.08] tracking-[-0.045em] sm:text-4xl">{HOMEPAGE_COPY.workflow.heading}</h2></div>
+            <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {HOMEPAGE_COPY.workflow.items.map(([title, detail], index) => <li className="min-h-32 rounded-xl border border-[#e4ddd3] bg-[#fffaf3] p-4" key={title}><span className="text-[10px] font-black text-[#bf7535]">{String(index + 1).padStart(2, '0')}</span><h3 className="mt-2 text-base font-black">{title}</h3><p className="mt-1 text-xs leading-5 text-[#697782]">{detail}</p></li>)}
             </ol>
           </div>
         </div>
       </section>
 
-      <section className="bg-[#111b25] px-4 py-20 sm:px-8 sm:py-28" id="cases">
-        <div className="mx-auto grid max-w-[84rem] gap-10 lg:grid-cols-[0.82fr_1.18fr]">
-          <div><p className="text-sm font-bold text-[#e6b06b]">EVIDENCE WITH CONTEXT</p><h2 className="mt-3 max-w-xl break-keep font-display text-4xl font-black leading-[1.08] tracking-[-0.045em] sm:text-6xl">사진첩이 아니라, 업무 맥락이 남는 기록.</h2><p className="mt-6 max-w-xl text-base leading-8 text-white/52">기록은 작업을 설명하는 근거입니다. 해시나 화면 표시가 진실·법적 효력·결제를 자동 보장한다고 과장하지 않습니다.</p></div>
-          <div className="divide-y divide-white/10 border-y border-white/10">{evidenceItems.map(([title, body], index) => { const Icon = [FileCheck2, History, ShieldCheck][index]; return <article className="grid gap-4 py-7 sm:grid-cols-[0.3fr_1fr] sm:py-9" key={title}><h3 className="flex items-center gap-3 text-xl font-black text-[#f1c994]"><Icon aria-hidden size={20} />{title}</h3><p className="text-sm leading-7 text-white/52">{body}</p></article>; })}</div>
+      <section className="bg-[#10202d] px-4 py-14 sm:px-8" id="cases">
+        <div className="mx-auto grid max-w-[84rem] gap-8 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
+          <div><p className="text-xs font-black tracking-[0.14em] text-[#e6b06b]">EVIDENCE WITH CONTEXT</p><h2 className="mt-2 max-w-xl break-keep font-display text-3xl font-black leading-[1.08] tracking-[-0.045em] sm:text-4xl">사진첩이 아니라, 업무 맥락이 남는 기록.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-white/58">기록은 작업을 설명하는 근거입니다. 화면 표시가 법적 효력·결제를 자동 보장한다고 과장하지 않습니다.</p></div>
+          <div className="grid gap-3 sm:grid-cols-3">{evidenceItems.map(([title, body], index) => { const Icon = [FileCheck2, History, ShieldCheck][index]; return <article className="rounded-xl border border-white/10 bg-white/[0.035] p-5" key={title}><h3 className="flex items-center gap-2 text-base font-black text-[#f1c994]"><Icon aria-hidden size={18} />{title}</h3><p className="mt-3 text-xs leading-5 text-white/55">{body}</p></article>; })}</div>
         </div>
       </section>
 
-      <section className="bg-[#f6f2ea] px-4 py-20 text-[#172431] sm:px-8 sm:py-28" id="resources">
+      <section className="bg-[#fffdf9] px-4 py-14 text-[#172431] sm:px-8" id="resources">
         <div className="mx-auto max-w-[84rem]">
-          <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr]">
-            <div><p className="text-sm font-bold text-[#a56632]">CLEAR BOUNDARIES</p><h2 className="mt-3 max-w-xl break-keep font-display text-4xl font-black leading-[1.08] tracking-[-0.045em] sm:text-5xl">{HOMEPAGE_COPY.trust.heading}</h2><ul className="mt-7 grid gap-3">{HOMEPAGE_COPY.trust.items.map((item) => <li className="flex items-start gap-3 text-sm font-semibold text-[#596773]" key={item}><Check aria-hidden className="mt-0.5 shrink-0 text-[#a56632]" size={17} />{item}</li>)}</ul></div>
-            <div className="divide-y divide-[#d8d0c4] border-y border-[#d8d0c4]">{HOMEPAGE_FAQ.map(([question, answer]) => <details className="group py-5" key={question}><summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-black"><span>{question}</span><span aria-hidden className="text-[#a56632] transition group-open:rotate-45">+</span></summary><p className="mt-3 max-w-2xl text-sm leading-7 text-[#596773]">{answer}</p></details>)}</div>
+          <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
+            <div><p className="text-xs font-black tracking-[0.14em] text-[#a56632]">CLEAR BOUNDARIES</p><h2 className="mt-2 max-w-xl break-keep font-display text-3xl font-black leading-[1.08] tracking-[-0.045em] sm:text-4xl">{HOMEPAGE_COPY.trust.heading}</h2><ul className="mt-5 grid gap-2">{HOMEPAGE_COPY.trust.items.map((item) => <li className="flex items-start gap-2 text-xs font-semibold text-[#596773]" key={item}><Check aria-hidden className="mt-0.5 shrink-0 text-[#a56632]" size={15} />{item}</li>)}</ul></div>
+            <div className="divide-y divide-[#d8d0c4] border-y border-[#d8d0c4]">{HOMEPAGE_FAQ.map(([question, answer]) => <details className="group py-4" key={question}><summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-black"><span>{question}</span><span aria-hidden className="text-[#a56632] transition group-open:rotate-45">+</span></summary><p className="mt-2 max-w-2xl text-xs leading-5 text-[#596773]">{answer}</p></details>)}</div>
           </div>
 
-          <div className="mt-20 overflow-hidden rounded-[1.75rem] bg-[#dca45f] p-7 sm:p-12">
-            <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end"><div><p className="flex items-center gap-2 text-sm font-bold"><Sparkles aria-hidden size={17} />Built by MyBizLab</p><h2 className="mt-3 max-w-4xl break-keep font-display text-4xl font-black tracking-[-0.05em] sm:text-6xl">{HOMEPAGE_COPY.final.heading}</h2><p className="mt-5 max-w-2xl text-base leading-8 text-[#34414b]">{HOMEPAGE_COPY.final.body}</p></div><div className="flex flex-wrap gap-3 lg:justify-end"><a className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#111a22] px-6 text-sm font-black text-white" href="#services">업종별 체험<ArrowRight aria-hidden size={16} /></a><Link className="inline-flex min-h-12 items-center rounded-full border border-[#111a22]/35 px-6 text-sm font-black" to="/demo/service-os">Service OS 데모</Link><Link className="inline-flex min-h-12 items-center rounded-full border border-[#111a22]/35 px-6 text-sm font-black" to="/contact">도입 상담</Link></div></div>
+          <div className="mt-12 overflow-hidden rounded-2xl bg-[#dfa758] p-6 sm:p-8">
+            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end"><div><p className="flex items-center gap-2 text-xs font-bold"><Sparkles aria-hidden size={15} />Built by MyBizLab</p><h2 className="mt-2 max-w-4xl break-keep font-display text-3xl font-black tracking-[-0.05em] sm:text-4xl">{HOMEPAGE_COPY.final.heading}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-[#34414b]">{HOMEPAGE_COPY.final.body}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><a className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#111a22] px-5 text-xs font-black text-white" href="#services">업종별 체험<ArrowRight aria-hidden size={15} /></a><Link className="inline-flex min-h-11 items-center rounded-full border border-[#111a22]/35 px-5 text-xs font-black" to="/demo/service-os">Service OS 데모</Link><Link className="inline-flex min-h-11 items-center rounded-full border border-[#111a22]/35 px-5 text-xs font-black" to="/contact">도입 상담</Link></div></div>
           </div>
         </div>
       </section>

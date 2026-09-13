@@ -33,5 +33,17 @@
       "before": { "path": "installation/before.webp", "sha256": "51568340e255195830eeacad6cd578f6a678438d6367d324b930961b06d8d9c1" },
       "after": { "path": "installation/after.webp", "sha256": "efcabd5a4e7499801ac09b1c6d9a17adebe7968d29d7b48e617f92c39f87054b" }
     }
+  },
+  "visual_examples": {
+    "policy": "ai-generated-staged-images-not-real-customer-cases",
+    "generator": "OpenAI built-in image generation",
+    "cleaning_before": { "path": "industry-aligned/cleaning-before.webp", "bytes": 33938, "sha256": "c0506fff222eb94304fe1ca65c09a9119eab5d1a87c5e69997b6017146c44adf" },
+    "cleaning_after": { "path": "industry-aligned/cleaning-after.webp", "bytes": 22754, "sha256": "f5fb0c8a52a4a80bc024c72dca662dab6a48ca505b32e908166bdab6ee63ec6c" },
+    "hair_before": { "path": "industry-aligned/hair-before.webp", "bytes": 37346, "sha256": "272b5c84c86398d6b0cfe5c574bfd18d07f2fe4ef29736cda042fa646ac76f90" },
+    "hair_after": { "path": "industry-aligned/hair-after.webp", "bytes": 26004, "sha256": "1f6b375969b82e006fd9bd4a5d509f43488140cb488de45c1222ae60d9b04eac" },
+    "installation_before": { "path": "industry-aligned/installation-before.webp", "bytes": 32772, "sha256": "414c5aa4f2f07392d8f0df80dc2a02d28f703a75d5b7278ea5d00ac58b27b21d" },
+    "installation_after": { "path": "industry-aligned/installation-after.webp", "bytes": 30440, "sha256": "f2663a5ac1f36f1450f6942ca59038c097381f658bcacb026aafc6b53fa47f61" },
+    "wig": { "path": "industry-aligned/wig.webp", "bytes": 37434, "sha256": "5c4235314a39f4e1a1f7814184bb8d695bb163b9fd142cc91098f035affd2bd8" },
+    "interior": { "path": "industry-aligned/interior.webp", "bytes": 43282, "sha256": "2c0395e7ffcd52883dbd0e9d95b4351d25094e11eb6d44a27950035fdb9b7a7f" }
   }
 }
