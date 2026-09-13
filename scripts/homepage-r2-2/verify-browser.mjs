@@ -21,7 +21,7 @@ function assert(condition, message) {
 
 await mkdir(evidenceDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
-const report = { baseUrl, startedAt: new Date().toISOString(), viewports: [], industries: [], performance: [], reducedMotion: null, errorFallback: null };
+const report = { baseUrl, startedAt: new Date().toISOString(), viewports: [], industries: [], verticals: [], performance: [], reducedMotion: null, errorFallback: null };
 
 try {
   for (const [name, width, height] of viewports) {
@@ -42,6 +42,15 @@ try {
   page.on('request', (request) => { if (/\/media\/mybiz-stage2\/.+\.(mp4|webp)$/.test(request.url())) mediaRequests.push(new URL(request.url()).pathname); });
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
 
+  const initialVideo = page.locator('[data-hero-media="cleaning"]');
+  await page.waitForFunction(() => { const el = document.querySelector('[data-hero-media="cleaning"]'); return el instanceof HTMLVideoElement && el.readyState >= 2; });
+  const initialStart = await initialVideo.evaluate((element) => element.currentTime);
+  await page.waitForTimeout(850);
+  const initialEnd = await initialVideo.evaluate((element) => element.currentTime);
+  assert((initialEnd - initialStart + 12) % 12 > 0.25, `initial hero autoplay did not advance: ${initialStart}/${initialEnd}`);
+  assert(await page.locator('[data-video-visible="true"]').isVisible(), 'initial hero video is not visibly rendered');
+  report.initialAutoplay = { industry: 'cleaning', initialStart, initialEnd, visible: true, pass: true };
+
   for (const industry of ['cleaning', 'hair', 'installation']) {
     const industryLabel = industry === 'cleaning' ? '청소' : industry === 'hair' ? '미용실' : '설치·수리';
     await page.getByRole('tab', { name: new RegExp(`^${industryLabel}`) }).click();
@@ -50,7 +59,6 @@ try {
     await video.waitFor({ state: 'visible' });
     await page.waitForTimeout(350);
     await page.waitForFunction((id) => { const el = document.querySelector(`[data-hero-media="${id}"]`); return el instanceof HTMLVideoElement && el.readyState >= 2 && Number.isFinite(el.duration); }, industry);
-    await page.getByRole('button', { name: `${industryLabel} 작업 공정 영상 재생` }).click();
     const playbackControl = page.locator('button[aria-label="영상 재생"], button[aria-label="영상 일시정지"]').first();
     if (await video.evaluate((element) => element.paused)) await playbackControl.click();
     const frameHash = () => video.evaluate((element) => {
@@ -102,6 +110,21 @@ try {
   assert(loopedTime < 1.5, `first loop did not wrap normally: ${loopedTime}`);
   report.loopedTime = loopedTime;
 
+  for (const [industry, industryLabel] of [['cleaning', '청소'], ['hair', '미용실'], ['installation', '설치·수리'], ['wig', '가발·두피'], ['interior', '인테리어']]) {
+    await page.getByRole('tab', { name: new RegExp(`^${industryLabel}`) }).click();
+    assert(await page.locator(`[data-industry-panel="${industry}"]`).isVisible(), `${industry}: experience panel did not synchronize`);
+    assert(await page.locator(`[data-website-preview="${industry}"]`).first().isVisible(), `${industry}: website preview did not synchronize`);
+    const pairId = await page.locator('[data-before-after]').getAttribute('data-pair-id');
+    assert(pairId?.startsWith(`${industry}-`), `${industry}: pair did not synchronize`);
+    const approvalCount = await page.locator('#experience input[type="checkbox"]:checked').count();
+    assert(approvalCount === 0, `${industry}: approval state leaked from another industry`);
+    if (industry === 'wig' || industry === 'interior') {
+      assert(await page.locator(`[data-hero-still="${industry}"]`).isVisible(), `${industry}: cinematic still is not visible`);
+      assert(await page.locator(`[data-hero-media="${industry}"]`).count() === 0, `${industry}: another industry's video was reused`);
+    }
+    report.verticals.push({ industry, pairId, websiteSync: true, approvalReset: true, videoStatus: industry === 'wig' || industry === 'interior' ? 'not-available-yet' : 'available', pass: true });
+  }
+
   await page.locator('#experience').scrollIntoViewIfNeeded();
   const approvalBoxes = page.locator('#experience input[type="checkbox"]');
   const slider = page.locator('#experience input[type="range"]');
@@ -119,6 +142,8 @@ try {
   await approvalBoxes.nth(2).check();
   assert(await page.locator('[data-portfolio-eligible="true"]').isVisible(), 'three-part approval did not enable portfolio candidate');
   await page.getByRole('tab', { name: /^청소/ }).click();
+  await page.locator('[data-industry-panel="cleaning"]').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => document.querySelectorAll('#experience input[type="checkbox"]:checked').length === 0);
   assert(await page.locator('#experience input[type="checkbox"]:checked').count() === 0, 'industry switch did not reset demo approvals');
 
   const basic = page.getByRole('tab', { name: 'Basic' });
@@ -204,4 +229,10 @@ try {
   await browser.close();
 }
 
-console.log(JSON.stringify({ pass: report.pass, evidenceDir, industries: report.industries.length, viewports: report.viewports.length }));
+console.log(JSON.stringify({
+  pass: report.pass,
+  evidenceDir,
+  heroVideos: report.industries.length,
+  verticals: report.verticals.length,
+  viewports: report.viewports.length,
+}));

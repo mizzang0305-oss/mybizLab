@@ -1,4 +1,4 @@
-import type { HeroChapter, IndustryMedia } from '../media/mediaManifest';
+import type { HeroChapter, HeroVideoMedia } from '../media/mediaManifest';
 
 export type PlaybackIntent = 'auto' | 'manual' | 'paused';
 export type PlaybackStatus = 'poster' | 'loading' | 'playing' | 'paused' | 'blocked' | 'error';
@@ -13,7 +13,9 @@ export interface PlaybackConditions {
 }
 
 export function shouldAttemptPlayback(conditions: PlaybackConditions): boolean {
-  return conditions.intent !== 'paused' && conditions.inViewport && conditions.pageVisible && !conditions.reducedMotion && !conditions.saveData && !conditions.modalOpen;
+  if (conditions.intent === 'paused' || !conditions.inViewport || !conditions.pageVisible || conditions.modalOpen) return false;
+  if (conditions.intent === 'manual') return true;
+  return !conditions.reducedMotion && !conditions.saveData;
 }
 
 export function classifyPlaybackError(error: unknown): PlaybackStatus {
@@ -28,6 +30,6 @@ export function isCurrentSourceEvent(eventSource: string, activeSource: string):
   }
 }
 
-export function chapterForTime(media: IndustryMedia, currentTime: number): HeroChapter {
+export function chapterForTime(media: HeroVideoMedia, currentTime: number): HeroChapter {
   return [...media.chapters].reverse().find((chapter) => currentTime >= chapter.startsAt) ?? media.chapters[0];
 }

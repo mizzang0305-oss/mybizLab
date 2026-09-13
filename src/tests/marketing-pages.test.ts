@@ -112,7 +112,9 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('MyBiz');
     expect(html).toContain('작업한 만큼,');
     expect(html).toContain('증거와 다음');
-    expect(html).toContain('청소·미용실·설치업');
+    expect(html).toContain('청소·미용·설치부터 가발·인테리어까지');
+    expect(html).toContain('가발·두피');
+    expect(html).toContain('거실 리뉴얼·부분 인테리어·마감');
     expect(html).toContain('무료로 시작하기');
     expect(html).toContain('직접 체험하기');
     expect(html).toContain('Service OS 데모');

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { IndustryMedia } from '../media/mediaManifest';
+import type { HeroVideoMedia } from '../media/mediaManifest';
 import {
   chapterForTime,
   classifyPlaybackError,
@@ -18,7 +18,7 @@ function readMediaPreference(query: string) {
   return typeof window !== 'undefined' && window.matchMedia(query).matches;
 }
 
-export function useHeroPlayback(media: IndustryMedia, modalOpen: boolean) {
+export function useHeroPlayback(media: HeroVideoMedia, modalOpen: boolean) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [mobile, setMobile] = useState(() => readMediaPreference('(max-width: 767px)'));
@@ -98,8 +98,12 @@ export function useHeroPlayback(media: IndustryMedia, modalOpen: boolean) {
 
   const onCanPlay = useCallback((video: HTMLVideoElement) => {
     if (!isCurrentSourceEvent(video.currentSrc, source)) return;
-    if (intent === 'paused' || reducedMotion || saveData) {
-      setStatus(intent === 'paused' ? 'paused' : 'poster');
+    if (intent === 'paused') {
+      setStatus('paused');
+      return;
+    }
+    if (intent === 'auto' && (reducedMotion || saveData)) {
+      setStatus('poster');
       return;
     }
     void attemptPlay();

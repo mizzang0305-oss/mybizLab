@@ -4,10 +4,10 @@ import { CalendarDays, CircleCheck, ClipboardList, MapPin, UserRound } from 'luc
 import { BeforeAfterCompare } from './BeforeAfterCompare';
 import { HOMEPAGE_COPY } from './content/homepageCopy';
 import { createDemoApprovalState, isPortfolioEligible } from './experienceState';
-import { getIndustryMedia, type CoreIndustry } from './media/mediaManifest';
+import { getIndustryMedia, type ServiceIndustry } from './media/mediaManifest';
 
 interface ServiceExperienceProps {
-  activeIndustry: CoreIndustry;
+  activeIndustry: ServiceIndustry;
 }
 
 const jobMeta = [
@@ -43,7 +43,7 @@ export function ServiceExperience({ activeIndustry }: ServiceExperienceProps) {
           <p className="max-w-2xl text-sm leading-6 text-[#5e6a74] lg:justify-self-end">{HOMEPAGE_COPY.experience.body}<span className="mt-1 block text-xs text-[#8a8178]">업체명·일정·고객 상태는 저장되지 않는 시연 데이터입니다.</span></p>
         </div>
 
-        <div aria-labelledby={`industry-tab-${activeIndustry}`} className="mt-7 overflow-hidden rounded-2xl border border-[#d3c9bb] bg-white shadow-[0_22px_60px_-45px_rgba(23,36,49,.65)]" data-industry-panel={activeIndustry} id="industry-experience-panel" role="tabpanel">
+        <div aria-labelledby={`industry-tab-${activeIndustry}`} className="mt-7 overflow-hidden rounded-2xl border border-[#d3c9bb] bg-white shadow-[0_22px_60px_-45px_rgba(23,36,49,.65)]" data-industry-panel={activeIndustry} data-video-status={media.videoStatus} id="industry-experience-panel" role="tabpanel">
           <div className="grid lg:grid-cols-[0.27fr_0.47fr_0.26fr]">
             <aside className="flex flex-col bg-[#102332] p-6 text-white lg:min-h-[31rem]">
               <div>
@@ -59,6 +59,12 @@ export function ServiceExperience({ activeIndustry }: ServiceExperienceProps) {
                   </div>
                 ))}
               </dl>
+              <div className="mt-5 grid gap-2 border-t border-white/12 pt-5 text-[11px]">
+                <div className="flex items-center justify-between gap-3"><span className="text-white/45">업종</span><strong>{media.label}</strong></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-white/45">고객 확인</span><strong>{approval.confirmed ? '확인됨' : '미확인'}</strong></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-white/45">홈페이지 사용 동의</span><strong>{approval.consented ? '동의됨' : '미동의'}</strong></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-white/45">업체 검토</span><strong>{approval.merchantApproved ? '검토 완료' : '검토 전'}</strong></div>
+              </div>
               <div className="mt-auto border-t border-white/12 pt-5 text-xs leading-5 text-white/55">
                 <p className="font-bold text-white/80">작업 메모</p>
                 <p className="mt-2">같은 장소와 피사체의 전후를 한 작업 기록으로 비교합니다.</p>

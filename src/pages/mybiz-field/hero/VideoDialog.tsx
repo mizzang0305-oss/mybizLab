@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 
-import type { IndustryMedia } from '../media/mediaManifest';
+import type { HeroVideoMedia } from '../media/mediaManifest';
 
 interface VideoDialogProps {
-  media: IndustryMedia;
+  media: HeroVideoMedia;
   open: boolean;
   onClose: () => void;
   trigger: HTMLElement | null;

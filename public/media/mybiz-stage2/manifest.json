@@ -1,9 +1,11 @@
 {
-  "version": "r2.2",
-  "generated_at": "2026-09-13",
+  "version": "r2.2-final-5-vertical",
+  "generated_at": "2026-09-14",
   "runtime_policy": "derived-local-assets-only",
   "industries": {
     "cleaning": {
+      "service": "소파 패브릭 클리닝",
+      "job_alignment": "PASS_PROCESS_REFERENCE",
       "source_page": "https://commons.wikimedia.org/wiki/File:Sofa_cleaning.webm",
       "author": "GolhaMedia",
       "license": "CC BY-SA 4.0",
@@ -14,6 +16,8 @@
       "after": { "path": "cleaning/after.webp", "sha256": "4bc3c37038ff288b8f940fee43aec218f5f96a3043f9e55bdcddc48d2cec9e4b" }
     },
     "hair": {
+      "service": "레이어드 보브 커트",
+      "job_alignment": "PASS_HAIRCUT_PROCESS_REFERENCE",
       "source_page": "https://commons.wikimedia.org/wiki/File:Haircut_practice_-_Tokyo_area_-_2013_1_30.webm",
       "author": "Tokyo",
       "license": "CC BY 4.0",
@@ -24,6 +28,8 @@
       "after": { "path": "hair/after.webp", "sha256": "c0439c0db250b4b8363193c84d9b3a55dc10533fd4d024b2d3567f5740586fd1" }
     },
     "installation": {
+      "service": "맞춤 벽 선반 제작·설치",
+      "job_alignment": "PASS_CARPENTRY_PROCESS_REFERENCE",
       "source_page": "https://commons.wikimedia.org/wiki/File:Carpentry_03.ogv",
       "author": "Mostafameraji",
       "license": "CC BY-SA 4.0",
@@ -37,13 +43,19 @@
   "visual_examples": {
     "policy": "ai-generated-staged-images-not-real-customer-cases",
     "generator": "OpenAI built-in image generation",
-    "cleaning_before": { "path": "industry-aligned/cleaning-before.webp", "bytes": 33938, "sha256": "c0506fff222eb94304fe1ca65c09a9119eab5d1a87c5e69997b6017146c44adf" },
-    "cleaning_after": { "path": "industry-aligned/cleaning-after.webp", "bytes": 22754, "sha256": "f5fb0c8a52a4a80bc024c72dca662dab6a48ca505b32e908166bdab6ee63ec6c" },
+    "pair_validation": { "same_subject": true, "same_location": true, "same_camera": true, "same_structure": true },
+    "cleaning_pair": { "pair_id": "cleaning-sofa-generated-v3", "source_type": "ai-generated-staged-image", "synthetic": true, "actual_customer": false, "path": "industry-aligned/cleaning-sofa-pair-v3.webp", "bytes": 147048, "sha256": "914e9c382cd25fa79d7aae0f1e1d20469e7507cd2f9c80109a57a09d13eda421" },
+    "cleaning_before": { "path": "industry-aligned/cleaning-sofa-before-v3.webp", "bytes": 102768, "sha256": "7462aaa7e8dc547ab62de46d1856b49e97afa4cc022fbf7afe843a0d2588a0ef" },
+    "cleaning_after": { "path": "industry-aligned/cleaning-sofa-after-v3.webp", "bytes": 100500, "sha256": "87f6a18a717b7345c2ab7dbf8c895f34a494d8c5d44631365125bfe323213e59" },
     "hair_before": { "path": "industry-aligned/hair-before.webp", "bytes": 37346, "sha256": "272b5c84c86398d6b0cfe5c574bfd18d07f2fe4ef29736cda042fa646ac76f90" },
     "hair_after": { "path": "industry-aligned/hair-after.webp", "bytes": 26004, "sha256": "1f6b375969b82e006fd9bd4a5d509f43488140cb488de45c1222ae60d9b04eac" },
     "installation_before": { "path": "industry-aligned/installation-before.webp", "bytes": 32772, "sha256": "414c5aa4f2f07392d8f0df80dc2a02d28f703a75d5b7278ea5d00ac58b27b21d" },
     "installation_after": { "path": "industry-aligned/installation-after.webp", "bytes": 30440, "sha256": "f2663a5ac1f36f1450f6942ca59038c097381f658bcacb026aafc6b53fa47f61" },
-    "wig": { "path": "industry-aligned/wig.webp", "bytes": 37434, "sha256": "5c4235314a39f4e1a1f7814184bb8d695bb163b9fd142cc91098f035affd2bd8" },
-    "interior": { "path": "industry-aligned/interior.webp", "bytes": 43282, "sha256": "2c0395e7ffcd52883dbd0e9d95b4351d25094e11eb6d44a27950035fdb9b7a7f" }
+    "wig_pair": { "pair_id": "wig-fitting-generated-v1", "source_type": "ai-generated-staged-image", "synthetic": true, "actual_customer": false, "medical_claim": false, "path": "industry-aligned/wig-pair-v1.webp", "bytes": 75034, "sha256": "b66b1459aaab1659895e8a654abbc007b411204abf51836137eaa64f59dca5e6" },
+    "wig_before": { "path": "industry-aligned/wig-before-v1.webp", "bytes": 54422, "sha256": "a24c0cd19ca161341fb208724a667f331ade0e9160452186bb82f4d4eaf58559" },
+    "wig_after": { "path": "industry-aligned/wig-after-v1.webp", "bytes": 52292, "sha256": "8c98ce109aafe4b40aea8510f88872cf6b68cfb4c893a0be6e1e436322e951b8" },
+    "interior_pair": { "pair_id": "interior-livingroom-generated-v1", "source_type": "ai-generated-staged-image", "synthetic": true, "actual_customer": false, "actual_project": false, "path": "industry-aligned/interior-pair-v1.webp", "bytes": 79834, "sha256": "8789598610c340e7dec1b8890f42c24c7eabee37e2e1b53ec63fdf463ead2ae5" },
+    "interior_before": { "path": "industry-aligned/interior-before-v1.webp", "bytes": 46756, "sha256": "f580983baa0ff986b2f2c3cd2253b41ae2c1fc04a63c909aea1341113e082634" },
+    "interior_after": { "path": "industry-aligned/interior-after-v1.webp", "bytes": 58884, "sha256": "ef45f6cf59baf4d1c7b37f4db6c5a1152227b56c784fc3cc9c79b5e6911c2ab6" }
   }
 }

@@ -8,7 +8,7 @@ import { ServiceExperience } from './ServiceExperience';
 import { WebsitePackageShowcase } from './WebsitePackageShowcase';
 import { HOMEPAGE_COPY, HOMEPAGE_FAQ } from './content/homepageCopy';
 import { CinematicHero } from './hero/CinematicHero';
-import { getIndustryMedia, type CoreIndustry } from './media/mediaManifest';
+import { getIndustryMedia, type ServiceIndustry } from './media/mediaManifest';
 
 const evidenceItems = [
   ['Original', '원본과 편집본을 구분하고 파일 변경 감지를 위한 무결성 정보를 연결합니다.'],
@@ -17,10 +17,10 @@ const evidenceItems = [
 ] as const;
 
 export function MyBizFieldLandingPage() {
-  const [activeIndustry, setActiveIndustry] = useState<CoreIndustry>('cleaning');
+  const [activeIndustry, setActiveIndustry] = useState<ServiceIndustry>('cleaning');
   const media = getIndustryMedia(activeIndustry);
 
-  usePageMeta('작업부터 다음 고객까지 연결하는 MyBiz Service OS', '청소·미용실·설치업의 작업 전후 기록, 고객 확인, 브랜드 홈페이지 확장을 한 흐름으로 체험하세요.');
+  usePageMeta('작업부터 다음 고객까지 연결하는 MyBiz Service OS', '청소·미용실·설치·수리·가발·인테리어의 작업 전후 기록, 고객 확인, 브랜드 홈페이지 확장을 한 흐름으로 체험하세요.');
 
   return (
     <main className="overflow-x-hidden bg-[#0b111a] text-white" data-active-industry={activeIndustry} data-cinematic-home="true" data-landing-mode="cinematic-industry-video" data-service-os-home="stage2-r2-2">
@@ -42,7 +42,7 @@ export function MyBizFieldLandingPage() {
 
       <section className="bg-[#10202d] px-4 py-14 sm:px-8" id="cases">
         <div className="mx-auto grid max-w-[84rem] gap-8 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
-          <div><p className="text-xs font-black tracking-[0.14em] text-[#e6b06b]">EVIDENCE WITH CONTEXT</p><h2 className="mt-2 max-w-xl break-keep font-display text-3xl font-black leading-[1.08] tracking-[-0.045em] sm:text-4xl">사진첩이 아니라, 업무 맥락이 남는 기록.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-white/58">기록은 작업을 설명하는 근거입니다. 화면 표시가 법적 효력·결제를 자동 보장한다고 과장하지 않습니다.</p></div>
+          <div><p className="text-xs font-black tracking-[0.14em] text-[#e6b06b]">CUSTOMER MEMORY</p><h2 className="mt-2 max-w-xl whitespace-pre-line break-keep font-display text-3xl font-black leading-[1.08] tracking-[-0.045em] sm:text-4xl">{HOMEPAGE_COPY.memory.heading}</h2><p className="mt-4 max-w-xl whitespace-pre-line text-sm leading-6 text-white/58">{HOMEPAGE_COPY.memory.body}</p></div>
           <div className="grid gap-3 sm:grid-cols-3">{evidenceItems.map(([title, body], index) => { const Icon = [FileCheck2, History, ShieldCheck][index]; return <article className="rounded-xl border border-white/10 bg-white/[0.035] p-5" key={title}><h3 className="flex items-center gap-2 text-base font-black text-[#f1c994]"><Icon aria-hidden size={18} />{title}</h3><p className="mt-3 text-xs leading-5 text-white/55">{body}</p></article>; })}</div>
         </div>
       </section>

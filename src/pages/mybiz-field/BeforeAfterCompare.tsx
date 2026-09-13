@@ -8,10 +8,10 @@ interface BeforeAfterCompareProps {
 
 export function BeforeAfterCompare({ media, value, onChange }: BeforeAfterCompareProps) {
   return (
-    <div className="relative mt-6 aspect-[4/3] overflow-hidden rounded-2xl border border-[#c9c1b4] bg-[#d8d1c5] sm:aspect-video" data-before-after="licensed-staged" data-pair-id={media.pairId}>
-      <img alt={media.afterAlt} className="absolute inset-0 h-full w-full object-cover" draggable={false} src={media.afterImage} />
+    <div className="relative mt-6 aspect-[4/3] overflow-hidden rounded-2xl border border-[#c9c1b4] bg-[#d8d1c5] sm:aspect-video" data-before-after="ai-generated-staged-image" data-pair-id={media.pairId}>
+      <img alt={media.afterAlt} className="absolute inset-0 h-full w-full object-cover" draggable={false} height="720" loading="lazy" src={media.afterImage} width="960" />
       <div aria-hidden className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - value}% 0 0)` }}>
-        <img alt="" className="absolute inset-0 h-full w-full object-cover" draggable={false} src={media.beforeImage} />
+        <img alt="" className="absolute inset-0 h-full w-full object-cover" draggable={false} height="720" loading="lazy" src={media.beforeImage} width="960" />
       </div>
       <span className="absolute right-3 top-3 rounded-md bg-[#08111a]/82 px-3 py-2 text-xs font-black text-white">AFTER · {media.afterLabel}</span>
       <span className="absolute left-3 top-3 rounded-md bg-[#08111a]/82 px-3 py-2 text-xs font-black text-white">BEFORE · {media.beforeLabel}</span>
