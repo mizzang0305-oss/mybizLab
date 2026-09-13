@@ -12,6 +12,7 @@ describe('MyBiz Stage 2 database certification workflow', () => {
     expect(workflow).toContain('pull_request:');
     expect(workflow).not.toContain('pull_request_target');
     expect(workflow).toMatch(/permissions:\s+contents: read/);
+    expect(workflow).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
     expect(workflow).toContain('persist-credentials: false');
     expect(workflow).not.toMatch(/SUPABASE_ACCESS_TOKEN:\s*\$\{\{/);
     expect(workflow).not.toMatch(/SUPABASE_DB_PASSWORD:\s*\$\{\{/);
