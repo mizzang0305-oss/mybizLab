@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 grant usage on schema extensions to anon, authenticated, service_role;
 grant execute on all functions in schema extensions to anon, authenticated, service_role;
-select extensions.plan(20);
+select extensions.plan(25);
 
 set local role postgres;
 
@@ -42,18 +42,24 @@ select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-0000000
 
 select extensions.lives_ok(
   $$insert into public.service_jobs (id, store_id, vertical, service_name, requires_contract, contract_state, state, created_by)
-    values ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'cleaning', 'Member job', false, 'NOT_REQUIRED', 'WORK_READY', '10000000-0000-0000-0000-000000000001')$$,
+    values ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'cleaning', 'Member job', false, 'NOT_REQUIRED', 'JOB_CREATED', '10000000-0000-0000-0000-000000000001')$$,
   'MEMBER_JOB_INSERT_ALLOW'
+);
+
+select extensions.lives_ok(
+  $$insert into public.service_jobs (id, store_id, vertical, service_name, requires_contract, contract_state, state, created_by)
+    values ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', 'cleaning', 'No-contract work ready', false, 'NOT_REQUIRED', 'WORK_READY', '10000000-0000-0000-0000-000000000001')$$,
+  'NO_CONTRACT_WORK_READY_ALLOW'
 );
 
 select extensions.lives_ok(
   $$insert into public.job_evidence_assets (store_id, job_id, uploader_user_id, evidence_type, storage_provider, storage_object_key, original_filename, mime_type, size_bytes, sha256, revision_number)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'before_photo', 'local', 'stores/20000000-0000-0000-0000-000000000001/jobs/30000000-0000-0000-0000-000000000001/revisions/1/original/40000000-0000-0000-0000-000000000001', 'before.png', 'image/png', 3, repeat('a', 64), 1)$$,
-  'MEMBER_EVIDENCE_INSERT_ALLOW'
+  'MEMBER_HARDENED_EVIDENCE_INSERT_ALLOW'
 );
 
 select extensions.results_eq(
-  $$select count(*)::bigint from public.service_jobs where store_id = '20000000-0000-0000-0000-000000000001'$$,
+  $$select count(*)::bigint from public.service_jobs where id = '30000000-0000-0000-0000-000000000001' and store_id = '20000000-0000-0000-0000-000000000001'$$,
   array[1::bigint],
   'MEMBER_OWN_DATA_SELECT_ALLOW'
 );
@@ -97,13 +103,19 @@ select extensions.lives_ok(
 select extensions.throws_ok(
   $$insert into public.job_evidence_revisions (store_id, job_id, revision_number, created_by)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 999, '10000000-0000-0000-0000-000000000001')$$,
-  'REVISION_999_DIRECT_CLIENT_INSERT_DENY'
+  'REVISION_ARBITRARY_INSERT_DENY'
+);
+
+select extensions.throws_ok(
+  $$insert into public.job_evidence_revisions (store_id, job_id, revision_number, created_by)
+    values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 3, '10000000-0000-0000-0000-000000000001')$$,
+  'REVISION_SKIP_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.job_evidence_assets (store_id, job_id, uploader_user_id, evidence_type, storage_provider, storage_object_key, original_filename, mime_type, size_bytes, sha256, revision_number)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'after_photo', 'local', 'stores/20000000-0000-0000-0000-000000000001/jobs/30000000-0000-0000-0000-000000000001/revisions/999/original/40000000-0000-0000-0000-000000000002', 'future.png', 'image/png', 3, repeat('b', 64), 999)$$,
-  'FUTURE_REVISION_ASSET_DENY'
+  'INVALID_REVISION_EVIDENCE_DENY'
 );
 
 select extensions.throws_ok(
@@ -154,9 +166,25 @@ select extensions.throws_ok(
 );
 
 set local role service_role;
+select extensions.throws_ok(
+  $$select private.create_next_job_evidence_revision('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'cross-tenant')$$,
+  'REVISION_CROSS_TENANT_DENY'
+);
+
+select extensions.throws_ok(
+  $$select private.create_next_job_evidence_revision('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'cross-job')$$,
+  'REVISION_CROSS_JOB_DENY'
+);
+
+select extensions.results_eq(
+  $$select private.create_next_job_evidence_revision('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'service-role-bump')::bigint$$,
+  array[2::bigint],
+  'SERVICE_ROLE_REVISION_BUMP_ALLOW'
+);
+
 select extensions.lives_ok(
   $$insert into public.job_confirmations (store_id, job_id, evidence_revision, outcome)
-    values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 1, 'confirmed')$$,
+    values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 2, 'confirmed')$$,
   'SERVICE_ROLE_TERMINAL_MUTATION_ALLOW'
 );
 

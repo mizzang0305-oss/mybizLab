@@ -82,13 +82,22 @@ describe('MyBiz Service OS migration draft', () => {
       'MEDICAL_TEMPLATE_PUBLIC_DEFAULT_DENY',
       'CONFIRMATION_TOKEN_HASH_CLIENT_READ_DENY',
       'MEMBER_JOB_INSERT_ALLOW',
-      'MEMBER_EVIDENCE_INSERT_ALLOW',
+      'CONTRACT_SENT_WORK_READY_DENY',
+      'REVISION_ARBITRARY_INSERT_DENY',
+      'REVISION_SKIP_DENY',
+      'REVISION_CROSS_TENANT_DENY',
+      'INVALID_REVISION_EVIDENCE_DENY',
+      'NO_CONTRACT_WORK_READY_ALLOW',
+      'CONTRACT_ACCEPTED_WORK_READY_ALLOW',
+      'CONTRACT_SIGNED_WORK_READY_ALLOW',
+      'MEMBER_HARDENED_EVIDENCE_INSERT_ALLOW',
       'MEMBER_OWN_DATA_SELECT_ALLOW',
+      'SERVICE_ROLE_REVISION_BUMP_ALLOW',
       'SERVICE_ROLE_TERMINAL_MUTATION_ALLOW',
     ]) {
       expect(rlsRehearsal).toContain(scenario);
     }
     expect(rlsRehearsal).toContain('Never run this seed against a linked or Production database.');
-    expect(rlsRehearsal).toContain('select extensions.plan(20)');
+    expect(rlsRehearsal).toContain('select extensions.plan(25)');
   });
 });
