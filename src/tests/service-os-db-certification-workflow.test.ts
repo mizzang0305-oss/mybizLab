@@ -21,7 +21,7 @@ describe('MyBiz Stage 2 database certification workflow', () => {
 
   it('pins the CLI and stages the draft only inside the runner temp directory', () => {
     expect(workflow).toContain('version: 2.117.0');
-    expect(workflow).toContain('${{ runner.temp }}/mybiz-stage2-db');
+    expect(workflow).toContain('$RUNNER_TEMP/mybiz-stage2-db');
     expect(workflow).toContain('supabase/migrations/*.sql');
     expect(workflow).toContain('supabase/migration_drafts/20260913083614_mybiz_stage2_service_os.sql');
     expect(workflow).toContain('$CI_SUPABASE_ROOT/supabase/migrations/20260913083614_mybiz_stage2_service_os.sql');

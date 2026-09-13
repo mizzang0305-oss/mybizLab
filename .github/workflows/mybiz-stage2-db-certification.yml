@@ -28,7 +28,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      CI_SUPABASE_ROOT: ${{ runner.temp }}/mybiz-stage2-db
       EXPECTED_CLI_VERSION: 2.117.0
       PGPASSWORD: postgres
 
@@ -55,6 +54,7 @@ jobs:
             exit 1
           fi
           echo "FINAL_SHA=$actual_sha" >> "$GITHUB_ENV"
+          echo "CI_SUPABASE_ROOT=$RUNNER_TEMP/mybiz-stage2-db" >> "$GITHUB_ENV"
 
       - name: Verify ephemeral Docker runtime
         shell: bash
