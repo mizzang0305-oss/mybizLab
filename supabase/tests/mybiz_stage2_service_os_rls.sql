@@ -73,18 +73,24 @@ select extensions.results_eq(
 select extensions.throws_ok(
   $$insert into public.service_jobs (store_id, vertical, service_name, requires_contract, contract_state, state, created_by)
     values ('20000000-0000-0000-0000-000000000002', 'hair', 'Cross tenant', false, 'NOT_REQUIRED', 'WORK_READY', '10000000-0000-0000-0000-000000000001')$$,
+  '42501',
+  null,
   'CROSS_TENANT_INSERT_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.service_jobs (store_id, vertical, service_name, requires_contract, contract_state, state, created_by)
     values ('20000000-0000-0000-0000-000000000001', 'cleaning', 'Draft contract', true, 'DRAFT', 'WORK_READY', '10000000-0000-0000-0000-000000000001')$$,
+  '23514',
+  null,
   'CONTRACT_DRAFT_WORK_READY_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.service_jobs (store_id, vertical, service_name, requires_contract, contract_state, state, created_by)
     values ('20000000-0000-0000-0000-000000000001', 'cleaning', 'Sent contract', true, 'SENT', 'WORK_READY', '10000000-0000-0000-0000-000000000001')$$,
+  '23514',
+  null,
   'CONTRACT_SENT_WORK_READY_DENY'
 );
 
@@ -103,48 +109,64 @@ select extensions.lives_ok(
 select extensions.throws_ok(
   $$insert into public.job_evidence_revisions (store_id, job_id, revision_number, created_by)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 999, '10000000-0000-0000-0000-000000000001')$$,
+  '42501',
+  null,
   'REVISION_ARBITRARY_INSERT_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.job_evidence_revisions (store_id, job_id, revision_number, created_by)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 3, '10000000-0000-0000-0000-000000000001')$$,
+  '42501',
+  null,
   'REVISION_SKIP_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.job_evidence_assets (store_id, job_id, uploader_user_id, evidence_type, storage_provider, storage_object_key, original_filename, mime_type, size_bytes, sha256, revision_number)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'after_photo', 'local', 'stores/20000000-0000-0000-0000-000000000001/jobs/30000000-0000-0000-0000-000000000001/revisions/999/original/40000000-0000-0000-0000-000000000002', 'future.png', 'image/png', 3, repeat('b', 64), 999)$$,
+  '42501',
+  null,
   'INVALID_REVISION_EVIDENCE_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.job_payment_requests (store_id, job_id, status, amount)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'PAYMENT_PAID', 1000)$$,
+  '42501',
+  null,
   'PAYMENT_SELF_MARK_PAID_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.job_confirmations (store_id, job_id, evidence_revision, outcome)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 1, 'confirmed')$$,
+  '42501',
+  null,
   'CUSTOMER_CONFIRMATION_DIRECT_CLIENT_INSERT_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.consent_records (store_id, job_id, evidence_revision, purpose, text_version, channels, actor, source)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 1, 'marketing', 'v1', array['website'], 'customer', 'secure_link')$$,
+  '42501',
+  null,
   'CONSENT_DIRECT_CLIENT_INSERT_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.content_candidates (store_id, job_id, evidence_revision, channel, status)
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 1, 'website', 'APPROVED')$$,
+  '42501',
+  null,
   'CONTENT_APPROVED_DIRECT_CLIENT_MUTATION_DENY'
 );
 
 select extensions.throws_ok(
   $$insert into public.brand_sites (store_id, slug, status)
     values ('20000000-0000-0000-0000-000000000001', 'forged-published-site', 'published')$$,
+  '42501',
+  null,
   'BRAND_PUBLISHED_DIRECT_CLIENT_MUTATION_DENY'
 );
 
@@ -156,23 +178,31 @@ select extensions.results_eq(
 
 select extensions.throws_ok(
   $$select token_hash from public.job_confirmation_links$$,
+  '42501',
+  null,
   'CONFIRMATION_TOKEN_HASH_CLIENT_READ_DENY'
 );
 
 set local role anon;
 select extensions.throws_ok(
   $$select token_hash from public.job_confirmation_links$$,
+  '42501',
+  null,
   'CONFIRMATION_TOKEN_HASH_ANON_READ_DENY'
 );
 
 set local role service_role;
 select extensions.throws_ok(
   $$select private.create_next_job_evidence_revision('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'cross-tenant')$$,
+  '42501',
+  null,
   'REVISION_CROSS_TENANT_DENY'
 );
 
 select extensions.throws_ok(
   $$select private.create_next_job_evidence_revision('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'cross-job')$$,
+  '42501',
+  null,
   'REVISION_CROSS_JOB_DENY'
 );
 
