@@ -1,6 +1,40 @@
 # MyBiz Stage 2 Verification
 
-## R2 hardening status — current
+## R2.1 database certification — current
+
+> Verified 2026-09-13 (Asia/Seoul) on GitHub-hosted `ubuntu-24.04` with an ephemeral Docker/Supabase stack. No Supabase project link, remote SQL, Production migration, Production database mutation, deploy, merge, real payment, signature or external publication occurred.
+
+- `DATABASE_ENFORCEMENT_CERTIFIED=true`
+- `RLS_RUNTIME_VERIFIED=true`
+- `MIGRATION_REHEARSAL_PASS=true`
+- `MIGRATION_PROMOTION_READY=false`
+- `TECHNICAL_READY_FOR_MERGE=true`
+- `HUMAN_PREVIEW_REVIEW_REQUIRED=true`
+- `READY_FOR_MERGE=false`
+- Initial passing run: [GitHub Actions 34754932251](https://github.com/mizzang0305-oss/mybizLab/actions/runs/34754932251), SHA `77fbfb57c1e5ce3701cae614b697aa4020c1a547`.
+
+### Database runtime evidence
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Runner / container runtime | PASS | GitHub-hosted `ubuntu-24.04`; Docker Server `28.0.4` |
+| Supabase CLI | PASS | Pinned `2.117.0`; command help checked before execution |
+| Ephemeral database | PASS | PostgreSQL `17.6`; `supabase start` followed by clean `supabase db reset --local` |
+| Baseline chain | PASS | CI-only production-shaped baseline fixture followed by all active repository migrations |
+| Stage 2 draft rehearsal | PASS | Draft copied only to the runner temporary migration directory and applied after the baseline chain |
+| pgTAP | PASS | `Files=1, Tests=25`, including 15 required negative and 8 required positive cases plus anon and cross-job boundary cases |
+| Contract invariant | PASS | `DRAFT`/`SENT + WORK_READY` denied; `ACCEPTED`/`SIGNED` and `NOT_REQUIRED` paths allowed |
+| Revision atomicity | PASS | `1 → 2`, concurrent revisions `2,3` with no duplicate, direct/skip/cross-job/cross-store denial |
+| Role boundaries | PASS | `anon`, `authenticated` and `service_role` expectations exercised independently |
+| Database lint | PASS | `No schema errors found` for `public,private` at warning level with errors fail-closed |
+| Application gates | PASS | lint, typecheck, build, focused `60/60`, full regression `874/874`, Production dependency audit `0` |
+| Remote mutation | PASS | `REMOTE_PROJECT_LINKED=0`, `REMOTE_DB_CONNECTION=0`, `REMOTE_SQL_EXECUTION=0`, `PRODUCTION_DB_MUTATION=0` |
+
+The workflow is `.github/workflows/mybiz-stage2-db-certification.yml`. It uses `pull_request`, never `pull_request_target`, grants only `contents: read`, accepts no external secrets, runs one standard runner job, emits only a sanitized job summary, and destroys the temporary stack without retaining a database dump.
+
+The Stage 2 SQL remains `supabase/migration_drafts/20260913083614_mybiz_stage2_service_os.sql`. Runtime rehearsal does not promote it into `supabase/migrations/`; Production migration remains a separate Owner gate.
+
+## R2 pre-CI status — historical
 
 > Verified 2026-09-13 (Asia/Seoul). Preview-only hardening; no Production deploy, database apply, real payment, signature, provider creation or external publication occurred.
 

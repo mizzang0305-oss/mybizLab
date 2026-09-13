@@ -8,6 +8,7 @@ on:
       - "supabase/**"
       - "src/domain/mybiz/**"
       - "src/tests/service-os-*.test.ts"
+      - "docs/MYBIZ_STAGE2_VERIFICATION.md"
       - ".github/workflows/mybiz-stage2-db-certification.yml"
   workflow_dispatch:
 
