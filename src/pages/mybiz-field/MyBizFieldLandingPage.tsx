@@ -3,180 +3,127 @@ import { Link } from 'react-router-dom';
 
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
 import { SERVICE_DESCRIPTION } from '@/shared/lib/siteConfig';
-import { DemoPreviewModal } from './DemoPreviewModal';
-import { businessCases, evidenceItems, workflowSteps } from './data';
+import { ServiceExperience } from './ServiceExperience';
+import { SERVICE_LOOP } from './experienceData';
+
+const heroScenes = [
+  { label: '기록', title: '무엇을 했는지 남습니다.', detail: '작업 전후, 담당자, 시간, Revision을 한 Job에 연결합니다.' },
+  { label: '확인', title: '고객이 결과를 확인합니다.', detail: '완료 확인과 보완 요청을 받되, 결제와 홍보 동의는 섞지 않습니다.' },
+  { label: '성장', title: '승인된 일이 다음 고객을 만납니다.', detail: '별도 동의와 업체 검토를 통과한 결과만 홈페이지와 콘텐츠 후보가 됩니다.' },
+] as const;
+
+const optionalModules = [
+  ['contract', '전자계약', '선택 옵션'],
+  ['website', '브랜드 홈페이지', '도입 상담'],
+  ['content', '콘텐츠 자동화', '준비 중'],
+  ['social', 'SNS', '연동 준비'],
+  ['api', 'API', '도입 상담'],
+] as const;
 
 export function MyBizFieldLandingPage() {
-  const [demoOpen, setDemoOpen] = useState(false);
+  const [scene, setScene] = useState(0);
+  const [modules, setModules] = useState<string[]>([]);
 
-  usePageMeta('MyBiz Field | 현장 작업·증빙·고객확인·결제·콘텐츠 SaaS', SERVICE_DESCRIPTION);
+  usePageMeta('작업부터 다음 고객까지 연결하는 Service OS', SERVICE_DESCRIPTION);
+  const activeScene = heroScenes[scene];
 
   return (
-    <main className="overflow-x-hidden bg-[#03040a] text-white" data-cinematic-home="true" data-landing-mode="hero-engine">
-      <section
-        className="relative overflow-hidden px-6 pb-24 pt-20 sm:px-10 sm:pb-28 sm:pt-28 lg:px-16 lg:pt-32"
-        data-cinematic-world="service-memory"
-        data-service-orbit-world="hero"
-      >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(249,115,22,0.22),transparent_32%),radial-gradient(circle_at_82%_24%,rgba(59,130,246,0.16),transparent_28%)]" />
-        <div className="relative mx-auto max-w-7xl">
-          <div className="max-w-5xl">
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-orange-400">MYBIZ FIELD · FIELD SERVICE SaaS</p>
-            <h1 className="mt-6 break-keep text-[clamp(3rem,8vw,7.7rem)] font-black leading-[0.93] tracking-[-0.065em]">
-              현장에서 찍고,
-              <br />
-              고객에게 확인받고,
-              <br />
-              <span className="text-orange-500">결제와 다음 고객까지.</span>
+    <main className="overflow-x-hidden bg-[#0b111a] text-white" data-cinematic-home="true" data-landing-mode="hero-engine" data-service-os-home="stage2">
+      <section className="relative isolate px-4 pb-20 pt-14 sm:px-8 sm:pb-28 sm:pt-24" data-cinematic-world="service-memory" data-service-orbit-world="hero">
+        <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(115deg,rgba(201,133,69,.13),transparent_35%),radial-gradient(circle_at_85%_12%,rgba(101,132,145,.18),transparent_30%)]" />
+        <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+          <div>
+            <p className="text-sm font-bold text-[#d8be98]">MyBiz Service OS</p>
+            <h1 className="mt-6 max-w-5xl break-keep text-[clamp(3.25rem,7vw,7.4rem)] font-black leading-[0.96] tracking-[-0.07em]">
+              작업한 만큼,<br />증거와 다음 매출이<br />남습니다.
             </h1>
-            <p className="mt-8 max-w-3xl break-keep text-base leading-8 text-white/60 sm:text-xl sm:leading-9">
-              청소·설치·수리·시공·점검 업체를 위한 현장 업무 SaaS. 전자계약은 필요한 업체만 선택하고, 작업 전후 증빙·고객 완료 확인·결제·마케팅 콘텐츠를 하나의 흐름으로 연결합니다.
+            <p className="mt-8 max-w-2xl break-keep text-base leading-8 text-white/62 sm:text-xl sm:leading-9">
+              청소, 미용, 설치·수리처럼 완료 결과가 중요한 서비스업을 위해 작업 등록부터 선택형 계약, 전후 증빙, 고객 확인, 결제 추적, 브랜드 성장까지 연결합니다.
             </p>
-          </div>
-
-          <div className="mt-10 flex flex-wrap gap-3">
-            <Link className="rounded-2xl bg-orange-600 px-6 py-4 text-sm font-black text-white transition hover:bg-orange-500" to="/onboarding?plan=free">
-              무료로 시작하기
-            </Link>
-            <button
-              className="rounded-2xl border border-white/15 bg-white/[0.05] px-6 py-4 text-sm font-black text-white transition hover:bg-white/[0.1]"
-              data-demo-trigger="homepage"
-              onClick={() => setDemoOpen(true)}
-              type="button"
-            >
-              데모 보기
-            </button>
-            <Link className="rounded-2xl border border-white/10 px-6 py-4 text-sm font-black text-white/70 transition hover:text-white" to="/pricing">
-              요금제 보기
-            </Link>
-          </div>
-
-          <div className="mt-16 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {['현장 증빙', '전자계약 · 선택', '고객 확인 + 결제', '블로그 · 영상 · SNS'].map((item) => (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-4 text-sm font-bold text-white/65" key={item}>
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 px-6 py-24 sm:px-10 lg:px-16" id="services">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-orange-400">운영 흐름 / Services</p>
-          <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <h2 className="max-w-4xl break-keep text-4xl font-black tracking-[-0.045em] sm:text-6xl">작업 한 건을 매출과 마케팅 자산으로 끝까지 연결합니다.</h2>
-            <p className="max-w-xl text-sm leading-7 text-white/50 sm:text-base">기능을 따로 쓰는 것이 아니라 작업 번호 하나를 중심으로 계약, 증빙, 확인, 결제, 콘텐츠가 이어집니다.</p>
-          </div>
-
-          <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {workflowSteps.map((step) => (
-              <article className="rounded-[1.75rem] border border-white/10 bg-white/[0.035] p-6" key={step.title}>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">{step.label}</p>
-                <h3 className="mt-4 text-2xl font-black">{step.title}</h3>
-                <p className="mt-3 break-keep text-sm leading-7 text-white/55">{step.body}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="mt-6 rounded-[1.75rem] border border-orange-500/20 bg-orange-500/[0.07] p-6 sm:p-8">
-            <div className="grid gap-5 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">OPTIONAL CONTRACT</p>
-                <h3 className="mt-3 text-3xl font-black">전자계약은 필요한 업체만 켭니다.</h3>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {['계약서 / 작업동의서', '서명 상태를 Job에 연결', '계약 없이 바로 현장 시작 가능'].map((item) => (
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm font-bold text-white/65" key={item}>{item}</div>
-                ))}
-              </div>
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link className="inline-flex min-h-12 items-center rounded-full bg-[#c98545] px-6 text-sm font-black text-[#111a22] transition hover:bg-[#d8a36d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8be98]" to="/onboarding?plan=free">무료로 시작하기</Link>
+              <a className="inline-flex min-h-12 items-center rounded-full border border-white/20 px-6 text-sm font-bold text-white hover:border-[#d8be98]" href="#experience">직접 체험하기</a>
+              <Link className="inline-flex min-h-12 items-center rounded-full px-4 text-sm font-bold text-white/65 hover:text-white" to="/pricing">현재 요금 보기</Link>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section className="px-6 py-24 sm:px-10 lg:px-16" id="features">
-        <div className="mx-auto grid max-w-7xl gap-10 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
-          <div className="xl:sticky xl:top-28">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-orange-400">EVIDENCE LEDGER</p>
-            <h2 className="mt-4 break-keep text-4xl font-black tracking-[-0.045em] sm:text-6xl">사진을 저장하는 게 아니라, 확인 가능한 업무 증거를 남깁니다.</h2>
-            <p className="mt-5 max-w-xl break-keep text-base leading-8 text-white/50">원본을 덮어쓰지 않고 작업 맥락과 변경·확인 기록을 연결합니다. 나중에 분쟁, 청구, 보고가 필요할 때 한 번에 꺼냅니다.</p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {evidenceItems.map((item) => (
-              <div className="min-h-32 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5" key={item}>
-                <span className="text-sm font-black text-orange-400">✓</span>
-                <p className="mt-4 text-lg font-black">{item}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 bg-white/[0.02] px-6 py-24 sm:px-10 lg:px-16" id="cases">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-orange-400">FIELD BUSINESS</p>
-          <h2 className="mt-4 max-w-4xl break-keep text-4xl font-black tracking-[-0.045em] sm:text-6xl">청소 하나가 아니라, 현장에서 완료를 증명해야 하는 업종 전체가 대상입니다.</h2>
-          <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {businessCases.map(([title, body]) => (
-              <article className="rounded-[1.75rem] border border-white/10 bg-[#090b12] p-6" key={title}>
-                <h3 className="text-2xl font-black">{title}</h3>
-                <p className="mt-3 break-keep text-sm leading-7 text-white/50">{body}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-24 sm:px-10 lg:px-16">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-6 sm:p-10">
-          <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-orange-400">CUSTOMER CONFIRMATION</p>
-              <h2 className="mt-4 break-keep text-4xl font-black tracking-[-0.045em] sm:text-5xl">고객도 직접 확인하고 체크합니다.</h2>
-              <p className="mt-5 break-keep text-base leading-8 text-white/55">고객은 링크 하나로 작업 전후 사진을 보고 완료 확인, 의견, 재작업 요청을 남깁니다. 확인 기록과 결제 상태는 분리해서 안전하게 보관합니다.</p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-black/30 p-5">
-              <div className="rounded-2xl bg-white p-5 text-slate-900">
-                <p className="text-xs font-black text-orange-600">작업 #20260913-0042</p>
-                <h3 className="mt-2 text-xl font-black">입주청소 작업 완료</h3>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-slate-100 p-4 text-center text-xs font-bold text-slate-500">BEFORE</div>
-                  <div className="rounded-xl bg-orange-50 p-4 text-center text-xs font-bold text-orange-700">AFTER</div>
+          <div className="relative mx-auto w-full max-w-xl">
+            <div className="absolute -inset-5 -z-10 rounded-[2.5rem] border border-white/5" />
+            <article className="overflow-hidden rounded-[2rem] border border-white/12 bg-[#f4f0e6] text-[#18242f] shadow-[0_35px_100px_-45px_rgba(0,0,0,.8)]">
+              <div className="flex items-center justify-between border-b border-[#d7d0c4] px-6 py-4 text-xs font-bold text-[#65737e]"><span>JOB #S-2042 · SAMPLE</span><span>REV 01</span></div>
+              <div className="p-6 sm:p-8">
+                <p className="text-sm font-bold text-[#8a572f]">{activeScene.label}</p>
+                <h2 className="mt-3 break-keep text-3xl font-black tracking-[-0.04em] sm:text-4xl">{activeScene.title}</h2>
+                <p className="mt-4 min-h-20 text-sm leading-7 text-[#5b6974]">{activeScene.detail}</p>
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  <div className="grid h-32 place-items-end rounded-xl bg-[repeating-linear-gradient(45deg,#59636a_0,#59636a_16px,#465158_16px,#465158_32px)] p-4 text-xs font-black text-white">BEFORE</div>
+                  <div className="grid h-32 place-items-end rounded-xl bg-[linear-gradient(135deg,#d8d1c5_25%,#c5b9a7_25%,#c5b9a7_50%,#d8d1c5_50%,#d8d1c5_75%,#c5b9a7_75%)] bg-[length:42px_42px] p-4 text-xs font-black text-[#18242f]">AFTER</div>
                 </div>
-                <label className="mt-5 flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm font-semibold">
-                  <input defaultChecked readOnly type="checkbox" />
-                  <span>작업 결과를 확인했습니다.</span>
-                </label>
-                <label className="mt-3 flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm text-slate-600">
-                  <input readOnly type="checkbox" />
-                  <span>작업 사진을 홍보 사례로 사용하는 것에 동의합니다. <strong className="text-slate-900">선택</strong></span>
-                </label>
-                <button className="mt-4 w-full rounded-xl bg-slate-950 py-3 text-sm font-black text-white" type="button">확인 완료</button>
+                <div className="mt-5 flex gap-2" aria-label="기록에서 성장까지" role="tablist">
+                  {heroScenes.map((item, index) => <button aria-selected={scene === index} className={`min-h-11 flex-1 rounded-full text-sm font-bold ${scene === index ? 'bg-[#18242f] text-white' : 'border border-[#c9c1b4] text-[#5b6974]'}`} key={item.label} onClick={() => setScene(index)} role="tab" type="button">{item.label}</button>)}
+                </div>
               </div>
+            </article>
+            <p className="mt-4 text-center text-xs text-white/38">합성 도해 · 실제 고객 사진과 운영 데이터가 아닙니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 px-4 py-16 sm:px-8 sm:py-20" id="services">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-8 lg:grid-cols-[0.7fr_1.3fr]">
+            <div><p className="text-sm font-bold text-[#d8be98]">한 건의 서비스, 하나의 흐름</p><h2 className="mt-3 break-keep text-4xl font-black tracking-[-0.05em] sm:text-5xl">화면이 아니라 일이 이어집니다.</h2></div>
+            <ol className="grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2">
+              {SERVICE_LOOP.map(([title, detail], index) => <li className="min-h-36 bg-[#111a24] p-6" key={title}><span className="text-xs font-bold text-[#c98545]">{String(index + 1).padStart(2, '0')}</span><h3 className="mt-3 text-xl font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-white/48">{detail}</p></li>)}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <ServiceExperience />
+
+      <section className="px-4 py-20 sm:px-8 sm:py-28" id="features">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+            <div><p className="text-sm font-bold text-[#d8be98]">원본은 덮어쓰지 않습니다</p><h2 className="mt-3 break-keep text-4xl font-black tracking-[-0.05em] sm:text-6xl">사진첩이 아니라, 업무 맥락이 남는 Evidence.</h2><p className="mt-6 max-w-xl text-base leading-8 text-white/55">해시는 파일 변경 감지를 위한 무결성 근거입니다. 진실이나 법적 효력을 자동으로 보장한다고 과장하지 않습니다.</p></div>
+            <div className="divide-y divide-white/10 border-y border-white/10">
+              {[
+                ['Original', '원본 object, 수신 시간, 작업자, MIME, 크기와 SHA-256을 연결'],
+                ['Revision', '새 버전은 append-only로 추가하고 이전 고객 확인의 대상 버전을 유지'],
+                ['Audit', '확인·보완·동의·철회·업체 승인을 서로 다른 이벤트로 기록'],
+                ['Storage', '원본과 thumbnail/content derived object를 분리하고 provider adapter로 교체 가능'],
+              ].map(([title, body]) => <article className="grid gap-3 py-6 sm:grid-cols-[0.28fr_1fr] sm:py-8" key={title}><h3 className="text-xl font-black text-[#d8be98]">{title}</h3><p className="text-sm leading-7 text-white/55">{body}</p></article>)}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="px-6 pb-24 sm:px-10 lg:px-16" id="resources">
-        <div className="mx-auto max-w-7xl rounded-[2.25rem] bg-orange-600 p-7 text-white sm:p-12">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-white/70">FROM WORK TO GROWTH</p>
-              <h2 className="mt-4 break-keep text-4xl font-black tracking-[-0.05em] sm:text-6xl">한 번 한 일을, 다음 고객을 부르는 자산으로 남기세요.</h2>
-              <p className="mt-5 max-w-3xl break-keep text-base leading-8 text-white/80">작업 증빙과 고객 확인이 쌓이면 블로그·영상·SNS 콘텐츠 후보가 함께 쌓입니다. 홍보 활용 동의를 받은 작업만 사용합니다.</p>
-            </div>
-            <div className="flex flex-wrap gap-3 lg:justify-end">
-              <Link className="rounded-2xl bg-white px-6 py-4 text-sm font-black text-orange-700" to="/onboarding?plan=free">무료로 시작하기</Link>
-              <Link className="rounded-2xl border border-white/30 px-6 py-4 text-sm font-black text-white" to="/pricing">요금제 보기</Link>
-              <Link className="rounded-2xl border border-white/30 px-6 py-4 text-sm font-black text-white" to="/contact">도입 문의</Link>
+      <section className="bg-[#172431] px-4 py-20 sm:px-8 sm:py-28" id="cases">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr]">
+            <div><p className="text-sm font-bold text-[#d8be98]">My MyBiz 구성</p><h2 className="mt-3 break-keep text-4xl font-black tracking-[-0.05em] sm:text-5xl">기본 업무부터 시작하고, 필요한 모듈만.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-white/55">아래 선택은 구매나 가입이 아닙니다. 실제 제공 상태와 가격은 현재 요금 페이지 및 도입 상담에서 확인합니다.</p></div>
+            <div className="overflow-hidden rounded-[2rem] border border-white/12 bg-[#0e1720]">
+              <div className="border-b border-white/10 p-6 sm:p-8"><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-bold text-[#d8be98]">BASE SAAS</p><h3 className="mt-2 text-2xl font-black">작업 · 전후 증빙 · 고객 확인</h3></div><span className="rounded-full bg-emerald-300/10 px-3 py-1 text-xs font-bold text-emerald-300">기본 구성</span></div></div>
+              <div className="divide-y divide-white/8">
+                {optionalModules.map(([id, label, status]) => {
+                  const checked = modules.includes(id);
+                  return <label className="flex min-h-16 cursor-pointer items-center justify-between gap-4 px-6 py-4 hover:bg-white/[0.03] sm:px-8" key={id}><span className="flex items-center gap-3"><input checked={checked} className="size-5" onChange={(event) => setModules((current) => event.target.checked ? [...current, id] : current.filter((item) => item !== id))} type="checkbox" /><strong>{label}</strong></span><span className="text-xs font-bold text-white/40">{status}</span></label>;
+                })}
+              </div>
+              <div aria-live="polite" className="border-t border-white/10 bg-[#d8be98] p-6 text-[#18242f] sm:p-8"><p className="text-xs font-bold">선택한 구성</p><p className="mt-2 text-lg font-black">기본 SaaS{modules.length ? ` + ${optionalModules.filter(([id]) => modules.includes(id)).map(([, label]) => label).join(' + ')}` : ''}</p></div>
             </div>
           </div>
         </div>
       </section>
 
-      <DemoPreviewModal onClose={() => setDemoOpen(false)} open={demoOpen} />
+      <section className="px-4 py-20 sm:px-8 sm:py-28" id="resources">
+        <div className="mx-auto max-w-7xl rounded-[2rem] bg-[#c98545] p-7 text-[#111a22] sm:p-12">
+          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+            <div><p className="text-sm font-bold">Built by MyBizLab</p><h2 className="mt-3 max-w-4xl break-keep text-4xl font-black tracking-[-0.055em] sm:text-6xl">작업부터 다음 고객까지, 끊기지 않게.</h2><p className="mt-5 max-w-2xl text-base leading-8 text-[#273541]">의료·규제 업종 공개 자동화는 기본 OFF입니다. 계약, 결제, SNS는 준비된 provider와 별도 승인 범위 안에서만 연결합니다.</p></div>
+            <div className="flex flex-wrap gap-3 lg:justify-end"><Link className="inline-flex min-h-12 items-center rounded-full bg-[#111a22] px-6 text-sm font-black text-white" to="/demo/service-os">제품 데모</Link><Link className="inline-flex min-h-12 items-center rounded-full border border-[#111a22]/35 px-6 text-sm font-black" to="/pricing">요금제</Link><Link className="inline-flex min-h-12 items-center rounded-full border border-[#111a22]/35 px-6 text-sm font-black" to="/contact">도입 문의</Link></div>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

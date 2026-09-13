@@ -22,9 +22,12 @@ import { PublicWaitingPage } from '@/modules/waiting/public-page';
 // their large vendor dependencies (gsap, recharts, etc.) from blocking
 // the initial app render.
 const AdminLoginPage = lazyPage(() => import('@/pages/AdminLoginPage'), 'AdminLoginPage');
+const BrandSitePreviewPage = lazyPage(() => import('@/pages/service-os/BrandSitePreviewPage'), 'BrandSitePreviewPage');
+const CustomerConfirmationDemoPage = lazyPage(() => import('@/pages/service-os/CustomerConfirmationDemoPage'), 'CustomerConfirmationDemoPage');
 const DemoDashboardPage = lazyPage(() => import('@/pages/DemoDashboardPage'), 'DemoDashboardPage');
 const LandingPage = lazyPage(() => import('@/pages/LandingPage'), 'LandingPage');
 const PricingPage = lazyPage(() => import('@/pages/PricingPage'), 'PricingPage');
+const ServiceOsDemoPage = lazyPage(() => import('@/pages/service-os/ServiceOsDemoPage'), 'ServiceOsDemoPage');
 
 function RouteLoadingFallback() {
   return (
@@ -163,6 +166,18 @@ export const appRoutes: RouteObject[] = [
       {
         path: '/demo/dashboard',
         element: <DemoDashboardPage />,
+      },
+      {
+        path: '/demo/service-os',
+        element: routeElement(ServiceOsDemoPage, { mode: 'public' }),
+      },
+      {
+        path: '/confirm/:token',
+        element: routeElement(CustomerConfirmationDemoPage, { mode: 'public' }),
+      },
+      {
+        path: '/site/:slug',
+        element: routeElement(BrandSitePreviewPage, { mode: 'public' }),
       },
       {
         path: '/features',

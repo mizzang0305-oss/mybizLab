@@ -108,18 +108,18 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('data-cinematic-home="true"');
     expect(html).toContain('data-service-orbit-world="hero"');
     expect(html).toContain('data-cinematic-world="service-memory"');
-    expect(html).toContain('AI 운영 플랫폼, MyBiz');
-    // Title split across shimmer-text span + plain span — check both parts
-    expect(html).toContain('고객을 기억하는');
-    expect(html).toContain('매장이 더 많이 팝니다');
-    expect(html).toContain('문의·예약·웨이팅·주문을 고객 기억으로 연결해 재방문과 객단가를 높입니다.');
+    expect(html).toContain('data-service-os-home="stage2"');
+    expect(html).toContain('MyBiz Service OS');
+    expect(html).toContain('작업한 만큼,');
+    expect(html).toContain('증거와 다음 매출이');
+    expect(html).toContain('청소, 미용, 설치·수리처럼 완료 결과가 중요한 서비스업');
     expect(html).toContain('무료로 시작하기');
-    expect(html).toContain('기능 살펴보기');
-    expect(html).toContain('데모 보기');
-    expect(html).toContain('운영 흐름 / Services');
-    expect(html).toContain('운영 대시보드');
-    expect(html).toContain('고객 기억');
-    expect(html).toContain('반복 매출');
+    expect(html).toContain('직접 체험하기');
+    expect(html).toContain('Service OS 데모 열기');
+    expect(html).toContain('한 건의 서비스, 하나의 흐름');
+    expect(html).toContain('Before / After');
+    expect(html).toContain('고객 확인');
+    expect(html).toContain('My MyBiz 구성');
     expect(html).toContain('이용약관');
     expect(html).toContain('개인정보처리방침');
     expectNoMybiCompanion(html);
@@ -159,11 +159,11 @@ describe('public marketing/runtime surfaces', () => {
     const html = renderRoute('/');
     const headerStart = html.indexOf('<header');
     const headerHtml = html.slice(headerStart, html.indexOf('</header>', headerStart));
-    const demoTriggers = html.match(/data-demo-trigger="homepage"/g) || [];
+    const demoLinks = html.match(/href="\/demo\/service-os"/g) || [];
     const loginLinks = headerHtml.match(/href="\/login\?next=\/dashboard"/g) || [];
     const signupLinks = headerHtml.match(/href="\/onboarding\?plan=free"/g) || [];
 
-    expect(demoTriggers).toHaveLength(1);
+    expect(demoLinks.length).toBeGreaterThanOrEqual(1);
     expect(loginLinks).toHaveLength(1);
     expect(signupLinks).toHaveLength(1);
     expect(html).not.toContain('data-demo-trigger="homepage-nav"');
@@ -218,11 +218,11 @@ describe('public marketing/runtime surfaces', () => {
     );
 
     expect(html).toContain('data-demo-modal="homepage"');
-    expect(html).toContain('MyBiz 데모 보기');
-    expect(html).toContain('공개 스토어 보기');
-    expect(html).toContain('데모 대시보드 보기');
-    expect(html).toContain('AI 상담 데모');
-    expect(html).toContain('href="/demo/dashboard"');
+    expect(html).toContain('MYBIZ SERVICE OS DEMO');
+    expect(html).toContain('Service OS 데모 보기');
+    expect(html).toContain('고객 확인 흐름 보기');
+    expect(html).toContain('증빙 → 콘텐츠');
+    expect(html).toContain('href="/demo/service-os"');
     expect(html).not.toContain('href="/login?next=/dashboard"');
     expect(html).toContain('닫기');
     expect(html).not.toContain('Pending');

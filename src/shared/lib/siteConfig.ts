@@ -1,8 +1,8 @@
 export const SITE_NAME = 'MyBiz';
 export const SERVICE_DOMAIN = 'mybiz.ai.kr';
-export const SERVICE_TAGLINE = '현장 작업을 증빙·확인·결제·마케팅까지 연결하는 SaaS';
+export const SERVICE_TAGLINE = '작업부터 다음 고객까지 연결하는 Service OS';
 export const SERVICE_DESCRIPTION =
-  'MyBiz Field는 청소, 설치, 수리, 시공, 점검 같은 현장 서비스 업무를 계약(선택), 작업 전후 증빙, 고객 확인, 결제, 콘텐츠 제작과 SNS 활용까지 하나의 흐름으로 연결하는 현장 업무 SaaS입니다.';
+  'MyBiz는 청소, 미용, 설치·수리처럼 완료 증빙이 중요한 서비스업의 작업 등록, 선택형 계약, 전후 증빙, 고객 확인, 결제 추적과 승인형 콘텐츠 성장을 연결하는 Service OS입니다.';
 export const POLICY_UPDATED_AT = '2026년 3월 14일';
 export const SUPPORT_PHONE_NUMBER = '032-214-5757';
 export const SUBSCRIPTION_START_PATH = '/onboarding?plan=free';
