@@ -2,6 +2,14 @@
 
 R2.1의 서비스 운영 흐름을 바꾸지 않고, 공개 홈페이지에서 청소·미용실·설치·수리의 작업 장면과 전후 기록을 실제 재생 가능한 영상으로 설명하는 프런트엔드 전용 변경이다.
 
+상태: 구현·로컬 브라우저·Preview runtime 검증 완료. Owner 인간 시각 검토 대기.
+
+```powershell
+npm ci
+npm run test -- --run src/tests/homepage-r2-2.test.ts src/tests/marketing-pages.test.ts
+npm run dev
+```
+
 ## 범위
 
 - 하나의 `activeIndustry`가 Hero, 전후 비교, 확인 시연, 홈페이지 패키지를 동기화한다.

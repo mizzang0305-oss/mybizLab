@@ -22,3 +22,9 @@ R2.2 commit/PR을 revert하거나 stacked branch를 폐기한다. DB/Production 
 ## 다음 단계
 
 Owner가 실제 Preview에서 영상 품질, 모바일 첫 화면, copy hierarchy, 업종 전환의 일관성을 확인한다. 승인 전에는 base branch 또는 main에 merge하지 않는다.
+
+핵심 3업종 필수 미디어는 모두 확보됐다. 가발·인테리어 전용 영상만 확장 예정이며 이번 완료 조건에는 포함되지 않는다.
+
+```powershell
+gh pr view 176 --repo mizzang0305-oss/mybizLab --web
+```

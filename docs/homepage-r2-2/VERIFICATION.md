@@ -1,5 +1,18 @@
 # Verification
 
+## 실행 결과
+
+- Base: `86c8c1ce7497437c11a81a19af6aaa1f2d66ef22` (R2.1).
+- Source relation: Draft PR #176의 Git head와 Vercel deployment Git SHA를 매 실행 시 exact compare한다.
+- lint/typecheck/build: PASS.
+- focused: 2 files, 24/24 PASS.
+- full regression: 154 files, 882/882 PASS, skip 0.
+- Production dependency audit: 0. 전체 audit에는 기존 dev-only Vitest 2건이 남는다.
+- media: desktop/mobile 3/3, H.264, 12초, 24fps; 전체 runtime media 5,673,521 bytes.
+- browser: requested viewport 360/390/430/768/1024/1440 모두 overflow 0. 실제 frame 변화, pause 시간 정지, resume, first loop, chapter seek, slider 0/50/100, source/pair sync, reduced motion, media failure를 확인했다.
+- mobile lab 3회: Chromium headless 145, 390×844, loopback, network/CPU unthrottled. median LCP 732ms, load 973.4ms, CLS 0.0000575. 이는 사용자 성과가 아닌 로컬 lab 진단값이며 비교할 선행 R2.2 기준선은 없다.
+- Preview: Vercel SSO 보호 유지. deployment와 Git SHA match 후 로그인된 Chrome에서 실제 playback과 industry source/pair/package sync를 확인했다.
+
 ## 정적 검증
 
 ```powershell
