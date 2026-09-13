@@ -143,7 +143,7 @@ select extensions.throws_ok(
     values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 1, 'confirmed')$$,
   '42501',
   null,
-  'CUSTOMER_CONFIRMATION_DIRECT_CLIENT_INSERT_DENY'
+  'CONFIRMATION_DIRECT_CLIENT_INSERT_DENY'
 );
 
 select extensions.throws_ok(
@@ -173,7 +173,7 @@ select extensions.throws_ok(
 select extensions.results_eq(
   $$select count(*)::bigint from public.vertical_templates where medical_mode$$,
   array[0::bigint],
-  'MEDICAL_TEMPLATE_PUBLIC_DEFAULT_DENY'
+  'MEDICAL_PUBLIC_DEFAULT_DENY'
 );
 
 select extensions.throws_ok(
