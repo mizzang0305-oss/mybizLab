@@ -16,7 +16,7 @@ export function CustomerConfirmationDemoPage() {
 
   if (!validDemoToken) {
     return (
-      <main className="page-shell py-16" data-confirmation-link="invalid">
+      <main className="page-shell min-h-screen py-16" data-confirmation-link="invalid">
         <div className="mx-auto max-w-xl rounded-3xl border border-rose-200 bg-white p-8 text-center">
           <h1 className="text-2xl font-black">유효하지 않은 데모 링크입니다.</h1>
           <p className="mt-3 text-sm leading-7 text-slate-600">운영 링크는 서버에 저장된 token hash, 만료, 작업과 Revision 범위를 모두 확인한 뒤에만 열립니다.</p>
