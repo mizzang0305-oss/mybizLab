@@ -66,6 +66,21 @@ function extractSideEffects() {
   return JSON.parse(match[1]) as Record<string, unknown>;
 }
 
+function extractBracedBlock(source: string, marker: string) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) return '';
+  const openIndex = source.indexOf('{', markerIndex + marker.length);
+  if (openIndex < 0) return '';
+
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] === '}') depth -= 1;
+    if (depth === 0) return source.slice(markerIndex, index + 1);
+  }
+  return '';
+}
+
 describe('customer-memory contact after-dependency approval gate alignment', () => {
   it('adds the after-dependency-fix contact approval phrase and preserves existing approval phrases', () => {
     [
@@ -173,7 +188,7 @@ describe('customer-memory contact after-dependency approval gate alignment', () 
   });
 
   it('keeps contact-only execution scoped away from customer, inquiry, timeline, public API, and raw output paths', () => {
-    const contactOnlyBlock = harness.match(/if \(options\.contactOnly\) \{[\s\S]*?return;\n\s{2}\}/)?.[0] || '';
+    const contactOnlyBlock = extractBracedBlock(harness, 'if (options.contactOnly)');
 
     expect(contactOnlyBlock).toContain('saveCustomerContact');
     expect(contactOnlyBlock).not.toContain('saveCustomer(');
