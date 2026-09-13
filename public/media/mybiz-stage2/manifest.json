@@ -1,0 +1,37 @@
+{
+  "version": "r2.2",
+  "generated_at": "2026-09-13",
+  "runtime_policy": "derived-local-assets-only",
+  "industries": {
+    "cleaning": {
+      "source_page": "https://commons.wikimedia.org/wiki/File:Sofa_cleaning.webm",
+      "author": "GolhaMedia",
+      "license": "CC BY-SA 4.0",
+      "source_sha256": "9a3084efbd7d24fe66b34b6aa4b77a91c30040657172acb37d07d25c4ca6abfd",
+      "desktop": { "path": "cleaning/hero-desktop.mp4", "bytes": 1951776, "sha256": "800efc95062afdb4fc54e3fd143bcc220a5109a53b6ee7b2f7e9d9a808a714c7" },
+      "mobile": { "path": "cleaning/hero-mobile.mp4", "bytes": 629632, "sha256": "e455ab802172e0728a4cfb77612eef284baa9588968ce5fd67f6073aaebb5d88" },
+      "before": { "path": "cleaning/before.webp", "sha256": "7e0f9ca7910c52423dadacf3c020f73d28676680655e924c6e5c67a42ba42156" },
+      "after": { "path": "cleaning/after.webp", "sha256": "4bc3c37038ff288b8f940fee43aec218f5f96a3043f9e55bdcddc48d2cec9e4b" }
+    },
+    "hair": {
+      "source_page": "https://commons.wikimedia.org/wiki/File:Haircut_practice_-_Tokyo_area_-_2013_1_30.webm",
+      "author": "Tokyo",
+      "license": "CC BY 4.0",
+      "source_sha256": "22aca05ad563d2c71f1adcf368bee3df8238f8b64e40c418c6f0f17324fb8626",
+      "desktop": { "path": "hair/hero-desktop.mp4", "bytes": 1206064, "sha256": "6541b5d31f4ade5c1d58c8f83e46635fe4640343358c2ce9b6665d3014c77dc6" },
+      "mobile": { "path": "hair/hero-mobile.mp4", "bytes": 437694, "sha256": "dc50a53e5ccaa2328e7dad744f5101a9502aeaf2c588ecf41617ddea9c024ed3" },
+      "before": { "path": "hair/before.webp", "sha256": "4b41f0e9d7e10d561260c91878bd1ce4a693088c7d88479a50dcd767c2866f01" },
+      "after": { "path": "hair/after.webp", "sha256": "c0439c0db250b4b8363193c84d9b3a55dc10533fd4d024b2d3567f5740586fd1" }
+    },
+    "installation": {
+      "source_page": "https://commons.wikimedia.org/wiki/File:Carpentry_03.ogv",
+      "author": "Mostafameraji",
+      "license": "CC BY-SA 4.0",
+      "source_sha256": "1d1377a88469a029380e9d07a4448871d71e2d7457b775e9e48df6c8eed416f8",
+      "desktop": { "path": "installation/hero-desktop.mp4", "bytes": 764133, "sha256": "55b012cadb53fd138f9378a1709550fba8ed28433fa1acf83bdfcbd657eee681" },
+      "mobile": { "path": "installation/hero-mobile.mp4", "bytes": 282645, "sha256": "219814ab1ae2e47ef1abe5f292c336999ba1fa2ee5c48a4f623e1c1c0db9cb6b" },
+      "before": { "path": "installation/before.webp", "sha256": "51568340e255195830eeacad6cd578f6a678438d6367d324b930961b06d8d9c1" },
+      "after": { "path": "installation/after.webp", "sha256": "efcabd5a4e7499801ac09b1c6d9a17adebe7968d29d7b48e617f92c39f87054b" }
+    }
+  }
+}

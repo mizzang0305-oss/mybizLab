@@ -18,14 +18,15 @@ const DARK_FOOTER_PATHS = [
 
 export function AppFooter() {
   const location = useLocation();
+  const isLandingPage = location.pathname === '/';
   const isDiagnosisShell = isDiagnosisShellPath(location.pathname);
   const isDarkSurface =
     DARK_FOOTER_PATHS.some((p) => location.pathname === p || location.pathname.startsWith(p + '/'));
-  const dark = isDiagnosisShell || isDarkSurface;
+  const dark = isDiagnosisShell || isDarkSurface || isLandingPage;
   const settingsQuery = useQuery({
     queryKey: queryKeys.publicPlatformHomepage,
     queryFn: getPublicPlatformHomepageContent,
-    enabled: !dark,
+    enabled: !isDiagnosisShell,
   });
   const settings = settingsQuery.data?.settings;
   const footerLinks = settings?.footer_links?.length ? settings.footer_links : [
@@ -40,7 +41,7 @@ export function AppFooter() {
   return (
     <footer
       className={[
-        'mt-16 border-t',
+        isLandingPage ? 'mt-0 border-t' : 'mt-16 border-t',
         dark ? 'border-white/10 bg-[#04070d]' : 'border-slate-200/70 bg-white/75',
       ].join(' ')}
     >

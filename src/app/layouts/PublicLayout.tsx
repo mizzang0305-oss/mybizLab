@@ -19,6 +19,13 @@ const primaryNavigationLinks = [
   { label: '고객 사례', to: '/cases' },
 ] as const;
 
+const homepageNavigationLinks = [
+  { label: '서비스 소개', to: '#services' },
+  { label: '업종별 활용', to: '#experience' },
+  { label: '홈페이지 옵션', to: '#website-builder' },
+  { label: '이용 안내', to: '#resources' },
+] as const;
+
 const resourceLinks = [
   { label: '공지사항', to: '/notices' },
   { label: '업데이트', to: '/updates' },
@@ -164,8 +171,14 @@ export function PublicLayout() {
                       className={`hidden flex-wrap items-center gap-2 text-sm font-semibold lg:flex ${isDarkSurface ? 'text-white/55' : 'text-slate-600'}`}
                       data-homepage-nav={isLandingPage ? 'primary' : undefined}
                     >
-                      {primaryNavigationLinks.map((item) => (
-                        <NavLink
+                      {(isLandingPage ? homepageNavigationLinks : primaryNavigationLinks).map((item) => (
+                        isLandingPage ? <a
+                          key={item.to}
+                          className="rounded-full px-3 py-2 transition hover:bg-white/[0.08] hover:text-white"
+                          href={item.to}
+                        >
+                          {item.label}
+                        </a> : <NavLink
                           key={item.to}
                           className={({ isActive }) =>
                             isDarkSurface
@@ -212,7 +225,7 @@ export function PublicLayout() {
                           isDarkSurface ? 'border-white/10 bg-[#0d1525]' : 'border-slate-200 bg-white'
                         }`}
                       >
-                        {mobileNavigationLinks.map((item) => (
+                        {(isLandingPage ? homepageNavigationLinks : mobileNavigationLinks).map((item) => (
                           <Link
                             key={item.to}
                             className={`block rounded-xl px-3 py-2 text-sm font-bold ${

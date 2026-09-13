@@ -104,22 +104,22 @@ describe('public marketing/runtime surfaces', () => {
   it('renders Korean-first landing content with public admin fallback sections', () => {
     const html = renderRoute('/');
 
-    expect(html).toContain('data-landing-mode="hero-engine"');
+    expect(html).toContain('data-landing-mode="cinematic-industry-video"');
     expect(html).toContain('data-cinematic-home="true"');
     expect(html).toContain('data-service-orbit-world="hero"');
     expect(html).toContain('data-cinematic-world="service-memory"');
-    expect(html).toContain('data-service-os-home="stage2"');
-    expect(html).toContain('MyBiz Service OS');
+    expect(html).toContain('data-service-os-home="stage2-r2-2"');
+    expect(html).toContain('MyBiz');
     expect(html).toContain('작업한 만큼,');
-    expect(html).toContain('증거와 다음 매출이');
-    expect(html).toContain('청소, 미용, 설치·수리처럼 완료 결과가 중요한 서비스업');
+    expect(html).toContain('증거와 다음');
+    expect(html).toContain('청소·미용실·설치업');
     expect(html).toContain('무료로 시작하기');
     expect(html).toContain('직접 체험하기');
-    expect(html).toContain('Service OS 데모 열기');
-    expect(html).toContain('한 건의 서비스, 하나의 흐름');
+    expect(html).toContain('Service OS 데모');
+    expect(html).toContain('보여줄 수 있는 결과가');
     expect(html).toContain('Before / After');
     expect(html).toContain('고객 확인');
-    expect(html).toContain('My MyBiz 구성');
+    expect(html).toContain('선택형 홈페이지 패키지');
     expect(html).toContain('이용약관');
     expect(html).toContain('개인정보처리방침');
     expectNoMybiCompanion(html);
@@ -132,13 +132,11 @@ describe('public marketing/runtime surfaces', () => {
 
     expect(html).toContain('data-homepage-nav="primary"');
     expect(html).toContain('href="/"');
-    expect(html).toContain('href="/features"');
-    expect(html).toContain('href="/cases"');
+    expect(html).toContain('href="#services"');
+    expect(html).toContain('href="#experience"');
+    expect(html).toContain('href="#website-builder"');
     expect(html).toContain('href="/pricing"');
-    expect(html).toContain('href="/notices"');
-    expect(html).toContain('href="/updates"');
-    expect(html).toContain('href="/faq"');
-    expect(html).toContain('href="/trust"');
+    expect(html).toContain('href="#resources"');
     expect(html).toContain('href="/contact"');
     expect(html).toContain('href="/login?next=/dashboard"');
     expect(html).toContain('href="/onboarding?plan=free"');
@@ -153,6 +151,8 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('id="features"');
     expect(html).toContain('id="cases"');
     expect(html).toContain('id="resources"');
+    expect(html).toContain('id="experience"');
+    expect(html).toContain('id="website-builder"');
   });
 
   it('does not duplicate public header actions or demo buttons', () => {
