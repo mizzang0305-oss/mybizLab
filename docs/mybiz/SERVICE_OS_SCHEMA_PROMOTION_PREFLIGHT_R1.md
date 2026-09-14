@@ -1,7 +1,7 @@
 ---
 type: certification-report
 project: MyBiz
-status: in-rehearsal
+status: isolated-certified-live-metadata-blocked
 updated: 2026-09-14
 tags: [mybiz, service-os, schema, rls, preflight]
 ---
@@ -53,6 +53,24 @@ R3 exact head `130b65d350e65dd89e0af9c8af91138885df98eb` 위에서 Stage 2 draft
 - Window A reverse-order down 후 Stage 2 relation `0`
 - DB lint, app lint/typecheck/build/focused/full/audit 수행
 - remote link/project ref/DB URL/Production secrets 없음
+
+## Isolated runtime evidence
+
+- GitHub Actions run: `34795627237`
+- certified source SHA: `f8f701db01ba1d4ee12a0b9f778193f09ff811b7`
+- runner: `ubuntu-24.04`, Docker Server `28.0.4`
+- Supabase CLI: `2.117.0`
+- PostgreSQL: `17.6`
+- failed transaction partial objects: `0`
+- rehearsal 1: pgTAP `55/55`, revision contention PASS
+- Window A rollback: PASS, remaining Stage 2 relations `0`
+- rehearsal 2: pgTAP `55/55`, revision contention PASS
+- DB lint: PASS, `No schema errors found`
+- app focused: `85/85`
+- app full regression: `915/915`
+- npm audit (production dependencies): `0 vulnerabilities`
+
+pgTAP setup 중 Supabase가 소유한 `grant_pg_cron_access`, `grant_pg_net_access`에 대한 harmless grant warning 두 건이 각 rehearsal에서 출력됐으나 테스트·RLS·grant 검사·DB lint는 모두 PASS했다. 외부 provider 또는 Production 연결은 없었다.
 
 ## 도메인 불변식
 
