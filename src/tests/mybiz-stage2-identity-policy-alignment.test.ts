@@ -6,6 +6,7 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8'
 const alignment = read('supabase/migration_drafts/20260914091951_mybiz_service_os_stage2_identity_policy_alignment.sql');
 const rollback = read('supabase/tests/fixtures/mybiz_service_os_stage2_identity_policy_alignment_down.sql');
 const pgTap = read('supabase/tests/mybiz_service_os_stage2_identity_policy_alignment_rls.sql');
+const globalPolicyShape = read('supabase/tests/fixtures/mybiz_service_os_policy_alignment_global_dependency_shape.sql');
 
 describe('MyBiz Stage 2 Identity Policy Alignment', () => {
   it('guards precisely against rerun or drift instead of substring matching', () => {
@@ -32,6 +33,12 @@ describe('MyBiz Stage 2 Identity Policy Alignment', () => {
     expect(rollback.match(/^create policy .*_member_select/mg)).toHaveLength(9);
     expect(rollback.match(/public\.is_store_member\(store_id\)/g)).toHaveLength(9);
     expect(rollback).not.toMatch(/profile_auth_bindings|drop function|drop schema|grant |revoke /i);
+  });
+
+  it('mirrors the 21 non-Stage-2 global policy dependencies required for the exact 42-to-33 rehearsal', () => {
+    expect(globalPolicyShape.match(/^create policy /mg)).toHaveLength(21);
+    expect(globalPolicyShape.match(/public\.is_store_member\(store_id\)/g)?.length).toBeGreaterThanOrEqual(21);
+    expect(globalPolicyShape).toContain('It is never copied to, linked to, or applied against Production.');
   });
 
   it('covers exact-bound, wrong-store, non-member, legacy-unbound, and revoked access', () => {

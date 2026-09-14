@@ -37,6 +37,7 @@ jobs:
       EXPECTED_CLI_VERSION: 2.117.0
       PGPASSWORD: postgres
       FOUNDATION_DRAFT: supabase/migration_drafts/20260914005630_mybiz_service_os_foundation.sql
+      GLOBAL_POLICY_SHAPE: supabase/tests/fixtures/mybiz_service_os_policy_alignment_global_dependency_shape.sql
       AUTH_SHAPE: supabase/tests/fixtures/mybiz_service_os_auth_identity_production_shape.sql
       AUTH_FOUNDATION_DRAFT: supabase/migration_drafts/20260914091947_mybiz_service_os_auth_identity_foundation.sql
       POLICY_ALIGNMENT_DRAFT: supabase/migration_drafts/20260914091951_mybiz_service_os_stage2_identity_policy_alignment.sql
@@ -94,6 +95,7 @@ jobs:
           supabase init --workdir "$CI_SUPABASE_ROOT" --yes
           mkdir -p "$CI_SUPABASE_ROOT/supabase/migrations" "$CI_SUPABASE_ROOT/supabase/tests"
           cp supabase/tests/fixtures/mybiz_service_os_production_shape.sql "$CI_SUPABASE_ROOT/supabase/migrations/20260613000000_mybiz_service_os_production_shape.sql"
+          cp "$GLOBAL_POLICY_SHAPE" "$CI_SUPABASE_ROOT/supabase/migrations/20260613000001_mybiz_service_os_policy_alignment_global_dependency_shape.sql"
           cp supabase/migrations/*.sql "$CI_SUPABASE_ROOT/supabase/migrations/"
           cp "$FOUNDATION_DRAFT" "$CI_SUPABASE_ROOT/supabase/migrations/20260914005630_mybiz_service_os_foundation.sql"
           cp "$AUTH_SHAPE" "$CI_SUPABASE_ROOT/supabase/migrations/20260914091946_mybiz_service_os_auth_identity_shape.sql"
