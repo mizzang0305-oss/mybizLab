@@ -1,13 +1,6 @@
 name: MyBiz Service OS Stage 2 identity policy alignment
 
 on:
-  push:
-    branches:
-      - codex/mybiz-service-os-stage2-identity-policy-alignment-r1
-    paths:
-      - "supabase/**"
-      - "src/tests/mybiz-stage2-identity-policy-alignment.test.ts"
-      - ".github/workflows/mybiz-service-os-stage2-identity-policy-alignment.yml"
   pull_request:
     branches:
       - codex/mybiz-service-os-auth-identity-readiness-r1
