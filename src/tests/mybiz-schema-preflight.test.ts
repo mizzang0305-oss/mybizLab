@@ -6,7 +6,7 @@ import {
   resolveServiceOsActivation,
 } from '../domain/mybiz/serviceOsActivation';
 
-const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
+const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8').replace(/\r\n/g, '\n');
 const foundation = read('supabase/migration_drafts/20260914005630_mybiz_service_os_foundation.sql');
 const activation = read('supabase/migration_drafts/20260914005632_mybiz_service_os_live_write_activation.sql');
 const legacyDraft = read('supabase/migration_drafts/20260913083614_mybiz_stage2_service_os.sql');

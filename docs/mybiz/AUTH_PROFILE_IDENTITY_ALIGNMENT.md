@@ -13,7 +13,8 @@ tags: [mybiz, service-os, auth, rls, supabase]
 Target: `Mybiz Project` / `plnuyudyogbzwpmdulnw` / `ap-northeast-2`.
 
 ```text
-profiles_count=3
+public_profiles_count=3
+core_profiles_count=3
 auth_users_count=3
 store_members_count=7
 
@@ -22,7 +23,8 @@ auth_users_without_matching_profile=1
 store_members_without_profile=0
 store_members_with_profile_auth_match=1
 
-PROFILE_AUTH_FK_EXISTS=false
+PUBLIC_PROFILE_AUTH_FK_EXISTS=false
+CORE_PROFILE_AUTH_FK_EXISTS=true
 AUTH_USER_MAPPING_COLUMN=ABSENT
 PROFILE_AUTH_EQUALITY_UNIVERSAL=false
 ```
@@ -41,6 +43,10 @@ and store_members.profile_id = auth.uid()
 
 이 함수는 변경하지 않는다. 현재 일부 row에서만 profile/auth ID가 일치하므로 이
 predicate가 universal identity mapping을 증명하지는 않는다.
+
+> 이 문서의 기존 `profiles`와 FK 표기는 `public.profiles`를 뜻한다. Canonical Auth
+> root는 Production catalog로 확인된 `core.profiles`이며 최신 설계와 count는
+> `AUTH_IDENTITY_FOUNDATION_R1.md` 및 `AUTH_IDENTITY_PRODUCTION_EVIDENCE.md`를 따른다.
 
 ## Foundation actor reference domain
 
