@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DashboardLayout } from '@/app/layouts/DashboardLayout';
 import { AdminUsersPage } from '@/modules/admin-users/page';
 import { BillingPage } from '@/modules/billing/page';
-import { DashboardPage } from '@/modules/dashboard/page';
+import { ServiceOsOverviewPage } from '@/modules/dashboard/ServiceOsOverviewPage';
 import { StoreRequestDetailPage } from '@/modules/store-requests/detail-page';
 import { StoreRequestsPage } from '@/modules/store-requests/page';
 import { StoreDetailPage } from '@/modules/stores/detail-page';
@@ -117,7 +117,7 @@ describe('platform dashboard routes', () => {
   });
 
   it('renders the dashboard overview', async () => {
-    const html = await renderDashboardRoute('/dashboard', undefined, createElement(DashboardPage), async (queryClient) => {
+    const html = await renderDashboardRoute('/dashboard', undefined, createElement(ServiceOsOverviewPage), async (queryClient) => {
       await queryClient.prefetchQuery({
         queryKey: [...queryKeys.dashboard('store_golden_coffee'), 'runtime-truth'],
         queryFn: async () => {
@@ -149,11 +149,15 @@ describe('platform dashboard routes', () => {
       });
     });
 
+    expect(html).toContain('작업부터 다음 고객까지.');
     expect(html).toContain('Golden Coffee');
-    expect(html).toContain('href="/dashboard/orders"');
     expect(html).toContain('href="/dashboard/customers"');
+    expect(html).toContain('href="/dashboard/schedules"');
+    expect(html).toContain('href="/dashboard/contracts"');
+    expect(html).toContain('href="/dashboard/content/media"');
     expect(html).toContain('href="/dashboard/brand"');
-    expect(html).toContain('href="/dashboard/table-order"');
+    expect(html).not.toContain('href="/dashboard/orders"');
+    expect(html).not.toContain('href="/dashboard/table-order"');
     expect(html).toContain('href="/golden-coffee"');
   });
 

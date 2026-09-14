@@ -12,6 +12,7 @@ import { StorePublicLayout } from '@/app/layouts/StorePublicLayout';
 import { PublicConsultationPage } from '@/modules/consultation/public-page';
 import { PublicInquiryPage } from '@/modules/inquiries/public-page';
 import { OnboardingPage } from '@/modules/onboarding/page';
+import { ServiceOsOnboardingPage } from '@/modules/onboarding/ServiceOsOnboardingPage';
 import { PublicReservationPage } from '@/modules/reservations/public-page';
 import { PublicSurveyResponsePage } from '@/modules/surveys/public-response-page';
 import { StoreHomePage } from '@/modules/table-order/public-home-page';
@@ -79,6 +80,7 @@ const ContentStatusPage = lazyPage(() => import('@/modules/content/page'), 'Cont
 const ContractsPage = lazyPage(() => import('@/modules/contracts/page'), 'ContractsPage');
 const CustomersPage = lazyPage(() => import('@/modules/customers/page'), 'CustomersPage');
 const DashboardPage = lazyPage(() => import('@/modules/dashboard/page'), 'DashboardPage');
+const ServiceOsOverviewPage = lazyPage(() => import('@/modules/dashboard/ServiceOsOverviewPage'), 'ServiceOsOverviewPage');
 const KitchenPage = lazyPage(() => import('@/modules/kitchen/page'), 'KitchenPage');
 const NotFoundPage = lazyPage(() => import('@/pages/NotFoundPage'), 'NotFoundPage');
 const OrdersPage = lazyPage(() => import('@/modules/orders/page'), 'OrdersPage');
@@ -148,6 +150,11 @@ export const appRoutes: RouteObject[] = [
       },
       {
         path: '/onboarding',
+        ...(publicRouteErrorElement ? { errorElement: publicRouteErrorElement } : {}),
+        element: routeElement(ServiceOsOnboardingPage, { mode: 'public' }),
+      },
+      {
+        path: '/onboarding/legacy-store',
         ...(publicRouteErrorElement ? { errorElement: publicRouteErrorElement } : {}),
         element: routeElement(OnboardingPage, { mode: 'public' }),
       },
@@ -353,6 +360,10 @@ export const appRoutes: RouteObject[] = [
         children: [
           {
             index: true,
+            element: routeElement(ServiceOsOverviewPage),
+          },
+          {
+            path: 'legacy-store-overview',
             element: routeElement(DashboardPage),
           },
           {

@@ -1,6 +1,24 @@
-# MyBizLab MVP
+# MyBiz — Business Service OS
 
-React 19 + Vite + Tailwind 4 based store operations demo app.
+MyBizLab이 만드는 **MyBiz**는 결과와 완료 증빙이 중요한 서비스업을 위한 Business Service OS입니다.
+
+핵심 약속은 **“작업부터 다음 고객까지.”** 입니다. 고객/문의에서 시작한 한 건의 일을 작업, 선택형 계약, 증빙, 고객 확인, 대금 추적, 동의, 업체 검토, 브랜드·콘텐츠 자산, 고객 기억과 다음 고객까지 연결합니다.
+
+```text
+Customer / Lead → Job → optional Contract → Work → Evidence
+→ Customer Confirmation → Payment Tracking → Evidence Package
+→ Channel-specific Consent → Merchant Approval → Brand / Content Asset
+→ Customer Memory → Next Customer
+```
+
+공개 V1 업종은 청소, 미용실, 설치·수리입니다. 가발과 인테리어·시공은 확장 템플릿이며, 의료 업종은 기본 비활성입니다. 업종별 앱을 복제하지 않고 하나의 Service OS 엔진에 `VerticalTemplate` 설정을 적용합니다.
+
+제품 기준 문서:
+
+- [`docs/mybiz/CANONICAL_PRODUCT.md`](docs/mybiz/CANONICAL_PRODUCT.md)
+- [`docs/mybiz/MODULE_CATALOG.md`](docs/mybiz/MODULE_CATALOG.md)
+- [`docs/mybiz/VERTICAL_TEMPLATE_POLICY.md`](docs/mybiz/VERTICAL_TEMPLATE_POLICY.md)
+- [`docs/MYBIZ_STAGE2_PRODUCT_SPEC.md`](docs/MYBIZ_STAGE2_PRODUCT_SPEC.md)
 
 ## Local Development
 
@@ -31,7 +49,9 @@ The app is designed to boot without external services. When env vars are missing
 - Email/password demo login is optional and only appears when `VITE_DEMO_ADMIN_PASSWORD` is configured.
 - Do not hardcode demo passwords in code. Keep them in env only when needed for a controlled demo.
 
-## Demo Scenarios
+## Legacy Restaurant Vertical Demo Scenarios
+
+아래 음식점·카페 데모는 삭제 대상이 아니라 `LEGACY_RESTAURANT_VERTICAL` 호환 자산입니다. MyBiz 전체 제품 정체성이나 기본 온보딩·내비게이션을 정의하지 않습니다.
 
 - `Golden Coffee`
   - Type: cafe
@@ -46,7 +66,7 @@ The app is designed to boot without external services. When env vars are missing
   - Public route: `/seoul-buffet-house`
   - Owner story: survey-first, survey + manual, family feedback to AI insight
 
-## Demo Flow Notes
+## Legacy Demo Flow Notes
 
 - Default demo mode is `VITE_DATA_PROVIDER=local`.
 - If local demo data looks stale after repeated flows, clear browser storage for the app or open a fresh browser profile.
@@ -57,7 +77,7 @@ The app is designed to boot without external services. When env vars are missing
 
 - Firebase-backed production flows still need service credentials and a live project; the local mock remains the primary demo path.
 - Billing and webhook flows are demo-safe, but real payment verification still depends on external provider env and secrets.
-- Dashboard and AI charts are owner-friendly mock visualizations, not a full BI replacement.
+- 일부 기존 Dashboard와 AI 차트는 restaurant vertical용 호환 데모이며 완전한 BI를 의미하지 않습니다.
 - Some platform console screens go broad on coverage and are intentionally lighter than a production back-office.
 - Existing browser storage from older seeds may keep previous demo labels until the storage snapshot is reset.
 

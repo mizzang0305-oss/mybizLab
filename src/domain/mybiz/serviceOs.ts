@@ -23,6 +23,7 @@ export type ContentCandidateState = 'DRAFT' | 'GENERATED' | 'REVIEW_REQUIRED' | 
 
 export interface ServiceJob {
   id: string;
+  /** Legacy-compatible tenant/business/workspace scope identifier. */
   storeId: string;
   vertical: ServiceVertical;
   serviceName: string;
