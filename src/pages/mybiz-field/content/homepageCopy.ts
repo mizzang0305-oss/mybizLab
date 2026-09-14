@@ -4,9 +4,9 @@ export const HOMEPAGE_COPY = {
     company: 'by MyBizLab',
   },
   hero: {
-    eyebrow: '작업부터 다음 고객까지, MyBiz',
+    eyebrow: 'MYBIZ BUSINESS SERVICE OS',
     headline: ['작업한 만큼,', '증거와 다음', '매출이 남습니다.'],
-    body: '작업 전후를 남기고, 고객에게 확인받고, 동의된 기록을 우리 업체의 브랜드 자산으로 연결하세요.\n\n청소·미용·설치부터 가발·인테리어까지, 결과가 중요한 서비스업의 한 건의 일을 MyBiz가 하나의 흐름으로 이어줍니다.',
+    body: 'MyBiz는 결과와 완료 증빙이 중요한 서비스업을 위한 Business Service OS입니다.\n\n한 건의 작업을 증빙하고, 고객에게 확인받고, 계약·대금 상태와 기록을 분리해 관리한 뒤 동의된 결과를 브랜드 자산과 다음 고객으로 연결하세요. 청소·미용·설치부터 가발·인테리어까지 하나의 흐름으로 운영합니다.',
     primaryCta: '직접 체험하기',
     secondaryCta: '도입 상담하기',
     videoCta: '영상 크게 보기',

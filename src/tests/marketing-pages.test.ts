@@ -208,6 +208,10 @@ describe('public marketing/runtime surfaces', () => {
     }).not.toThrow();
 
     expect(html).not.toContain('Unexpected Application Error');
+    expect(html).toContain('업종이 아니라,');
+    expect(html).toContain('Core + Optional');
+    expect(html).toContain('구독 결제, 외부 연동, 데이터베이스 변경은 실행하지 않습니다.');
+    expect(html).not.toContain('스토어 AI 진단');
     expectNoMybiCompanion(html);
   });
 

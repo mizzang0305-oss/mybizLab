@@ -70,7 +70,7 @@
     "vite": "^6.4.3",
     "vitest": "^3.2.4"
   },
-  "description": "React 19 + Vite + Tailwind 4 based store operations demo app.",
+  "description": "MyBiz Business Service OS for service work, evidence, confirmation, payment tracking, memory, and growth.",
   "main": "index.js",
   "repository": {
     "type": "git",

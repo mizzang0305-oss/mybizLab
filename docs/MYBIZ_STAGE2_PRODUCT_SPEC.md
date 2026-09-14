@@ -1,5 +1,11 @@
 # MyBiz Stage 2 Product Contract
 
+> 이 문서는 Stage 2 실행 계약입니다. 제품 전체의 canonical source of truth는
+> [`mybiz/CANONICAL_PRODUCT.md`](mybiz/CANONICAL_PRODUCT.md)이며, 모듈·상업 분류·legacy 정책은
+> [`mybiz/MODULE_CATALOG.md`](mybiz/MODULE_CATALOG.md),
+> [`mybiz/COMMERCIAL_TAXONOMY.md`](mybiz/COMMERCIAL_TAXONOMY.md),
+> [`mybiz/LEGACY_CAPABILITY_MAP.md`](mybiz/LEGACY_CAPABILITY_MAP.md)를 따릅니다.
+
 ## Product identity
 
 MyBizLab is the company brand. MyBiz is its subscription product: a **Business Service OS** for service work with observable before/after or completion evidence.

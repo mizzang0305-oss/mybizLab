@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { StatusBadge } from '@/shared/components/StatusBadge';
-import { adminNavigation, featureDefinitions } from '@/shared/lib/moduleCatalog';
+import { adminNavigation, featureDefinitions, legacyRestaurantNavigation } from '@/shared/lib/moduleCatalog';
 import {
   getMerchantStatusLabel,
   getOrderNextAction,
@@ -41,12 +41,15 @@ describe('merchant UX labels', () => {
     expect(getWaitingNextAction('waiting')?.label).toBe('고객 호출');
   });
 
-  it('uses operational navigation labels that match customer-memory language', () => {
+  it('keeps customer memory as a capability and restaurant routes outside default navigation', () => {
     const customerFeature = featureDefinitions.find((feature) => feature.key === 'customer_management');
-    const waitingNav = adminNavigation.find((item) => item.route === '/dashboard/waiting');
+    const customerNav = adminNavigation.find((item) => item.route === '/dashboard/customers');
+    const waitingNav = legacyRestaurantNavigation.find((item) => item.route === '/dashboard/waiting');
 
     expect(customerFeature?.label).toBe('고객 기억 관리');
     expect(customerFeature?.highlights).toContain('상담 / 문의');
+    expect(customerNav?.label).toBe('고객');
+    expect(adminNavigation.some((item) => item.route === '/dashboard/waiting')).toBe(false);
     expect(waitingNav?.label).toBe('웨이팅 관리');
   });
 });

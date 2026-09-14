@@ -23,6 +23,11 @@ export interface AdminNavigationItem {
   icon: ComponentType<{ className?: string; size?: number }>;
 }
 
+export type ProductCapabilityClassification =
+  | 'CURRENT_CORE'
+  | 'CURRENT_OPTIONAL_MODULE'
+  | 'LEGACY_RESTAURANT_VERTICAL';
+
 export const featureDefinitions: FeatureDefinition[] = [
   {
     key: 'ai_manager',
@@ -150,27 +155,36 @@ export const featureDefinitions: FeatureDefinition[] = [
 export const appExplorerDefinitions = featureDefinitions.filter((feature) => feature.showInExplorer !== false);
 
 export const adminNavigation: AdminNavigationItem[] = [
-  { label: '스토어 현황', route: '/dashboard', icon: Icons.Dashboard },
+  { label: '업무 현황', route: '/dashboard', icon: Icons.Dashboard },
+  { label: '고객', route: '/dashboard/customers', icon: Icons.Users },
+  { label: '일정', route: '/dashboard/schedules', icon: Icons.Calendar },
+  { label: '계약·동의', route: '/dashboard/contracts', icon: Icons.Contract },
+  { label: '증빙·미디어', route: '/dashboard/content/media', icon: Icons.Globe },
+  { label: '브랜드', route: '/dashboard/brand', icon: Icons.Brand },
+  { label: '콘텐츠 상태', route: '/dashboard/content/status', icon: Icons.Chart },
+  { label: 'AI 운영 리포트', route: '/dashboard/ai-reports', icon: Icons.AI },
+];
+
+/** Preserved compatibility routes. They are not the default MyBiz product navigation. */
+export const legacyRestaurantNavigation: AdminNavigationItem[] = [
   { label: 'AI 점장', route: '/dashboard/ai-manager', icon: Icons.AI },
-  { label: '고객 기억 관리', route: '/dashboard/customers', icon: Icons.Users },
   { label: '예약 관리', route: '/dashboard/reservations', icon: Icons.Reservation },
   { label: '주문 관리', route: '/dashboard/orders', icon: Icons.Delivery },
   { label: '웨이팅 관리', route: '/dashboard/waiting', icon: Icons.Waiting },
   { label: '매출 분석', route: '/dashboard/sales', icon: Icons.Chart },
-  { label: 'AI 운영 리포트', route: '/dashboard/ai-reports', icon: Icons.AI },
   { label: '테이블 주문', route: '/dashboard/table-order', icon: Icons.Table },
-  { label: '브랜드 설정', route: '/dashboard/brand', icon: Icons.Brand },
+];
+
+export const optionalContentNavigation: AdminNavigationItem[] = [
   { label: '리뷰 관리', route: '/dashboard/content/reviews', icon: Icons.Message },
   { label: '리뷰 요청 링크', route: '/dashboard/content/review-requests', icon: Icons.Message },
   { label: '블로그/소식', route: '/dashboard/content/blog', icon: Icons.Contract },
-  { label: '사진·영상', route: '/dashboard/content/media', icon: Icons.Globe },
   { label: '이미지 갤러리', route: '/dashboard/content/gallery', icon: Icons.Globe },
   { label: '게시 초안/소셜', route: '/dashboard/content/social', icon: Icons.Zap },
-  { label: '콘텐츠 상태판', route: '/dashboard/content/status', icon: Icons.Chart },
 ];
 
 export function resolveAdminNavigation(pathname: string) {
-  return [...adminNavigation]
+  return [...adminNavigation, ...optionalContentNavigation, ...legacyRestaurantNavigation]
     .sort((left, right) => right.route.length - left.route.length)
     .find((item) => pathname === item.route || pathname.startsWith(`${item.route}/`));
 }

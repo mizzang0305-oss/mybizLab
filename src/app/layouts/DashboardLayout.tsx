@@ -13,50 +13,54 @@ import { buildStorePath } from '@/shared/lib/storeSlug';
 import { useUiStore } from '@/shared/lib/uiStore';
 
 const dashboardNavigationLabelMap: Record<string, string> = {
-  '/dashboard': '운영 대시보드',
+  '/dashboard': '업무 현황',
   '/dashboard/ai-manager': 'AI 점장',
-  '/dashboard/customers': '고객 기억 관리',
+  '/dashboard/customers': '고객',
+  '/dashboard/schedules': '일정',
+  '/dashboard/contracts': '계약·동의',
   '/dashboard/reservations': '예약 관리',
   '/dashboard/orders': '주문 관리',
   '/dashboard/waiting': '웨이팅 관리',
   '/dashboard/sales': '매출 분석',
   '/dashboard/ai-reports': 'AI 운영 리포트',
   '/dashboard/table-order': '테이블 주문',
-  '/dashboard/brand': '브랜드 설정',
+  '/dashboard/brand': '브랜드',
   '/dashboard/store-requests': '스토어 생성 요청',
   '/dashboard/stores': '스토어 목록',
-  '/dashboard/billing': '결제 관리',
+  '/dashboard/billing': '구독 관리',
   '/dashboard/admin-users': '운영 계정',
   '/dashboard/system': '시스템 현황',
   '/dashboard/content/reviews': '리뷰 관리',
   '/dashboard/content/review-requests': '리뷰 요청 링크',
   '/dashboard/content/blog': '블로그/소식',
-  '/dashboard/content/media': '사진·영상',
+  '/dashboard/content/media': '증빙·미디어',
   '/dashboard/content/gallery': '이미지 갤러리',
   '/dashboard/content/social': '게시 초안/소셜',
-  '/dashboard/content/status': '콘텐츠 상태판',
+  '/dashboard/content/status': '콘텐츠 상태',
 };
 
 const dashboardNavigationDescriptionMap: Record<string, string> = {
-  '/dashboard': '오늘 운영 흐름과 핵심 숫자를 가장 먼저 확인하는 화면입니다.',
+  '/dashboard': '고객부터 작업, 증빙, 확인, 기록까지 한 건의 업무 흐름을 확인합니다.',
   '/dashboard/ai-manager': '오늘 주문, 매출, 인기 메뉴를 AI 운영 요약으로 빠르게 읽어보세요.',
-  '/dashboard/customers': '고객, 문의, 상담, 주문 이력을 한 고객 기억 축으로 관리합니다.',
+  '/dashboard/customers': '고객, 문의, 상담과 작업 이력을 연결해 다음 상담을 준비합니다.',
+  '/dashboard/schedules': '작업과 담당자 일정을 선택형 운영 모듈로 관리합니다.',
+  '/dashboard/contracts': '업무에 필요한 계약과 동의 상태를 확인합니다. 전자서명 인증을 의미하지 않습니다.',
   '/dashboard/reservations': '예약 현황과 좌석 운영 흐름을 빠르게 정리할 수 있습니다.',
   '/dashboard/orders': '주문 상태와 채널별 흐름을 바로 확인하고 대응하는 화면입니다.',
   '/dashboard/waiting': '현장 대기 팀, 호출, 입장 처리를 한 번에 파악할 수 있습니다.',
   '/dashboard/sales': '수기 운영지표와 최근 흐름을 함께 보며 운영 메모를 남깁니다.',
   '/dashboard/ai-reports': '문제 TOP3와 실행 액션을 AI 운영 리포트로 바로 확인합니다.',
   '/dashboard/table-order': 'QR 주문 진입과 테이블 설정, 메뉴 동선을 한눈에 관리합니다.',
-  '/dashboard/brand': '공개 스토어 문구와 버튼, 브랜드 톤을 점주 시점에서 정리합니다.',
+  '/dashboard/brand': '업체 소개와 브랜드 톤, 공개 자산의 검토 상태를 정리합니다.',
   '/dashboard/store-requests': '새 스토어 요청 상태와 검토 흐름을 빠르게 확인합니다.',
   '/dashboard/stores': '전체 스토어 운영 현황과 공개 상태를 살펴보는 화면입니다.',
-  '/dashboard/billing': '결제 상태와 구독 흐름을 운영 화면에서 점검합니다.',
+  '/dashboard/billing': 'MyBiz 구독 상태를 관리합니다. 고객이 업체에 지급하는 서비스 대금과는 별개입니다.',
   '/dashboard/admin-users': '운영 계정과 접근 권한 상태를 한 곳에서 관리합니다.',
   '/dashboard/system': '주요 시스템 상태와 운영 경고를 빠르게 확인합니다.',
   '/dashboard/content/reviews': '고객이 남긴 실제 리뷰를 승인하고 블로그 초안으로 확장합니다.',
   '/dashboard/content/review-requests': '방문·주문·예약 이후 보낼 리뷰 요청 링크와 QR을 준비합니다.',
   '/dashboard/content/blog': '매장 소식과 SEO용 글을 초안, 게시, 보관 상태로 관리합니다.',
-  '/dashboard/content/media': '사진과 영상을 URL로 등록하고 캡션·자막 초안을 준비합니다.',
+  '/dashboard/content/media': '작업 사진과 영상을 증빙 자산으로 연결하고 파생 콘텐츠를 준비합니다.',
   '/dashboard/content/social': '외부 채널 게시 초안을 만들되 계정 연동 전에는 자동 게시하지 않습니다.',
   '/dashboard/content/status': '리뷰, 블로그, 미디어, SEO, STT, 소셜 게시 준비 상태를 한눈에 점검합니다.',
 };
@@ -97,7 +101,7 @@ export function DashboardLayout() {
   }, [closeSidebar, location.pathname]);
 
   const currentNav = useMemo(() => resolveAdminNavigation(location.pathname), [location.pathname]);
-  const currentNavLabel = currentNav ? getDashboardNavigationLabel(currentNav.route, currentNav.label) : '운영 대시보드';
+  const currentNavLabel = currentNav ? getDashboardNavigationLabel(currentNav.route, currentNav.label) : '업무 현황';
   const currentNavDescription = currentNav ? getDashboardNavigationDescription(currentNav.route) : '현재 운영 화면에서 필요한 내용을 바로 확인할 수 있습니다.';
   const adminDisplayName = session?.fullName === 'Platform Owner' ? '운영 관리자' : session?.fullName || '운영 관리자';
   const adminDisplayEmail = session?.email || 'admin@mybiz.ai.kr';
@@ -114,7 +118,7 @@ export function DashboardLayout() {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="font-display text-xl font-black">MyBizLab</p>
-          <p className="text-sm leading-6 text-slate-400 [word-break:keep-all]">사장님용 운영 화면</p>
+          <p className="text-sm leading-6 text-slate-400 [word-break:keep-all]">Business Service OS</p>
         </div>
         <button className="btn-ghost sm:hidden" onClick={closeSidebar} type="button">
           닫기
@@ -284,20 +288,18 @@ export function DashboardLayout() {
 
               {[
                 {
-                  heading: '운영',
+                  heading: '업무',
                   items: [
-                    { label: '운영 대시보드', route: '/dashboard', icon: Icons.Dashboard },
-                    { label: 'AI 점장', route: '/dashboard/ai-manager', icon: Icons.AI },
-                    { label: '예약 관리', route: '/dashboard/reservations', icon: Icons.Calendar },
-                    { label: '웨이팅 관리', route: '/dashboard/waiting', icon: Icons.Waiting },
-                    { label: '주문 관리', route: '/dashboard/orders', icon: Icons.Kitchen },
+                    { label: '업무 현황', route: '/dashboard', icon: Icons.Dashboard },
+                    { label: '일정', route: '/dashboard/schedules', icon: Icons.Calendar },
+                    { label: '계약·동의', route: '/dashboard/contracts', icon: Icons.Contract },
                   ],
                 },
                 {
-                  heading: '고객 · 분석',
+                  heading: '고객 · 증빙',
                   items: [
-                    { label: '고객 기억 관리', route: '/dashboard/customers', icon: Icons.Users },
-                    { label: '매출 분석', route: '/dashboard/sales', icon: Icons.Chart },
+                    { label: '고객', route: '/dashboard/customers', icon: Icons.Users },
+                    { label: '증빙·미디어', route: '/dashboard/content/media', icon: Icons.Globe },
                     { label: 'AI 운영 리포트', route: '/dashboard/ai-reports', icon: Icons.AI },
                   ],
                 },
@@ -312,9 +314,8 @@ export function DashboardLayout() {
                 {
                   heading: '설정',
                   items: [
-                    { label: '브랜드 설정', route: '/dashboard/brand', icon: Icons.Brand },
-                    { label: '테이블 주문', route: '/dashboard/table-order', icon: Icons.Mobile },
-                    { label: '결제 관리', route: '/dashboard/billing', icon: Icons.ShieldCheck },
+                    { label: '브랜드', route: '/dashboard/brand', icon: Icons.Brand },
+                    { label: '구독 관리', route: '/dashboard/billing', icon: Icons.ShieldCheck },
                   ],
                 },
               ].map(({ heading, items }) => (
