@@ -6,32 +6,34 @@ begin;
 create extension if not exists pgtap with schema extensions;
 grant usage on schema extensions to anon, authenticated, service_role;
 grant execute on all functions in schema extensions to anon, authenticated, service_role;
-select extensions.plan(55);
+select extensions.plan(59);
 
 set local role postgres;
 
 insert into auth.users(id, email, raw_user_meta_data) values
   ('10000000-0000-0000-0000-000000000001', 'member-a@example.invalid', '{}'::jsonb),
   ('10000000-0000-0000-0000-000000000002', 'member-b@example.invalid', '{}'::jsonb),
-  ('10000000-0000-0000-0000-000000000003', 'non-member@example.invalid', '{}'::jsonb);
+  ('10000000-0000-0000-0000-000000000003', 'non-member@example.invalid', '{}'::jsonb),
+  ('10000000-0000-0000-0000-000000000004', 'unmapped-auth@example.invalid', '{}'::jsonb);
 
 insert into public.profiles(id, full_name, email) values
   ('10000000-0000-0000-0000-000000000001', 'Member A', 'member-a@example.invalid'),
   ('10000000-0000-0000-0000-000000000002', 'Member B', 'member-b@example.invalid'),
-  ('10000000-0000-0000-0000-000000000003', 'Non Member', 'non-member@example.invalid');
+  ('10000000-0000-0000-0000-000000000003', 'Non Member', 'non-member@example.invalid'),
+  ('10000000-0000-0000-0000-000000000005', 'Unmapped Profile', 'unmapped-profile@example.invalid');
 
 insert into public.stores(store_id, name, slug) values
   ('20000000-0000-0000-0000-000000000001', 'Store A', 'foundation-store-a'),
-  ('20000000-0000-0000-0000-000000000002', 'Store B', 'foundation-store-b');
+  ('20000000-0000-0000-0000-000000000002', 'Store B', 'foundation-store-b'),
+  ('20000000-0000-0000-0000-000000000003', 'Store C', 'foundation-store-c');
 
 insert into public.store_members(store_id, profile_id, role) values
   ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'owner'),
-  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'owner');
+  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'owner'),
+  ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000005', 'owner');
 
 insert into public.customers(customer_id, store_id, customer_key) values
   ('25000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'synthetic-customer-a');
-insert into public.contracts(id, store_id, status) values
-  ('26000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'signed');
 
 insert into public.vertical_templates(id, label, public_v1, medical_mode) values
   ('cleaning', 'Cleaning', true, false),
@@ -51,7 +53,8 @@ insert into public.service_jobs(id, store_id, vertical, service_name, requires_c
   ('30000000-0000-0000-0000-000000000020', '20000000-0000-0000-0000-000000000001', 'cleaning', 'Eligible publication', false, 'NOT_REQUIRED', 'WORK_COMPLETED', '10000000-0000-0000-0000-000000000001'),
   ('30000000-0000-0000-0000-000000000021', '20000000-0000-0000-0000-000000000001', 'cleaning', 'Withdrawn publication', false, 'NOT_REQUIRED', 'WORK_COMPLETED', '10000000-0000-0000-0000-000000000001'),
   ('30000000-0000-0000-0000-000000000022', '20000000-0000-0000-0000-000000000001', 'cleaning', 'Stale publication', false, 'NOT_REQUIRED', 'WORK_COMPLETED', '10000000-0000-0000-0000-000000000001'),
-  ('30000000-0000-0000-0000-000000000023', '20000000-0000-0000-0000-000000000001', 'medical', 'Medical publication', false, 'NOT_REQUIRED', 'WORK_COMPLETED', '10000000-0000-0000-0000-000000000001');
+  ('30000000-0000-0000-0000-000000000023', '20000000-0000-0000-0000-000000000001', 'medical', 'Medical publication', false, 'NOT_REQUIRED', 'WORK_COMPLETED', '10000000-0000-0000-0000-000000000001'),
+  ('30000000-0000-0000-0000-000000000024', '20000000-0000-0000-0000-000000000003', 'cleaning', 'Unmapped profile job', false, 'NOT_REQUIRED', 'WORK_COMPLETED', '10000000-0000-0000-0000-000000000005');
 
 insert into public.job_evidence_assets(id, store_id, job_id, uploader_user_id, evidence_type, storage_provider, storage_object_key, original_filename, mime_type, size_bytes, sha256, revision_number)
 values ('40000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'before_photo', 'local', 'stores/20000000-0000-0000-0000-000000000001/jobs/30000000-0000-0000-0000-000000000001/revisions/1/original/40000000-0000-0000-0000-000000000001', 'before.png', 'image/png', 3, repeat('a', 64), 1);
@@ -88,16 +91,18 @@ select extensions.results_eq($$select has_table_privilege('authenticated', 'publ
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
--- 3-7: member visibility and tenant isolation.
+-- 3-8: member visibility, identity mismatch and tenant isolation.
 select extensions.throws_ok($$insert into public.service_jobs(store_id, vertical, service_name, created_by) values ('20000000-0000-0000-0000-000000000001', 'cleaning', 'browser insert', '10000000-0000-0000-0000-000000000001')$$, '42501', null, 'AUTHENTICATED_JOB_INSERT_DENY');
 select extensions.throws_ok($$insert into public.job_evidence_assets(store_id, job_id, uploader_user_id, evidence_type, storage_provider, storage_object_key, original_filename, mime_type, size_bytes, sha256, revision_number) values ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'after_photo', 'local', 'stores/x', 'x.png', 'image/png', 1, repeat('f',64), 1)$$, '42501', null, 'AUTHENTICATED_EVIDENCE_INSERT_DENY');
 select extensions.results_eq($$select count(*)::bigint from public.service_jobs where id='30000000-0000-0000-0000-000000000001'$$, array[1::bigint], 'MEMBER_OWN_JOB_SELECT_ALLOW');
 select extensions.results_eq($$select count(*)::bigint from public.service_jobs where id='30000000-0000-0000-0000-000000000002'$$, array[0::bigint], 'CROSS_TENANT_JOB_SELECT_DENY');
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select extensions.results_eq($$select count(*)::bigint from public.service_jobs$$, array[0::bigint], 'NON_MEMBER_JOB_SELECT_DENY');
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select extensions.results_eq($$select count(*)::bigint from public.service_jobs where id='30000000-0000-0000-0000-000000000024'$$, array[0::bigint], 'UNMAPPED_AUTH_CANNOT_ASSUME_PROFILE_MEMBERSHIP');
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
--- 8-19: table privilege boundaries and public template visibility.
+-- 9-20: table privilege boundaries and public template visibility.
 set local role anon;
 select extensions.throws_ok($$select count(*) from public.service_jobs$$, '42501', null, 'ANON_JOB_SELECT_DENY');
 set local role authenticated;
@@ -119,7 +124,7 @@ select extensions.results_eq($$select string_agg(id, ',' order by id) from publi
 
 set local role service_role;
 
--- 20-32: constraints, revision initialization and contention authorization.
+-- 21-33: constraints, revision initialization and contention authorization.
 select extensions.throws_ok($$insert into public.vertical_templates(id,label,public_v1,medical_mode) values ('medical','Forged medical',true,true)$$, '23514', null, 'MEDICAL_PUBLIC_TEMPLATE_DENY');
 select extensions.throws_ok($$insert into public.service_jobs(store_id,vertical,service_name,requires_contract,contract_state,state,created_by) values ('20000000-0000-0000-0000-000000000001','cleaning','Draft',true,'DRAFT','WORK_READY','10000000-0000-0000-0000-000000000001')$$, '23514', null, 'CONTRACT_DRAFT_WORK_READY_DENY');
 select extensions.throws_ok($$insert into public.service_jobs(store_id,vertical,service_name,requires_contract,contract_state,state,created_by) values ('20000000-0000-0000-0000-000000000001','cleaning','Sent',true,'SENT','WORK_READY','10000000-0000-0000-0000-000000000001')$$, '23514', null, 'CONTRACT_SENT_WORK_READY_DENY');
@@ -134,7 +139,7 @@ select extensions.results_eq($$select count(distinct revision_number)::bigint fr
 select extensions.throws_ok($$select private.create_next_job_evidence_revision('30000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','cross-store')$$, '42501', null, 'REVISION_CROSS_STORE_DENY');
 select extensions.lives_ok($$insert into public.job_payment_requests(store_id,job_id,status,amount) values ('20000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','PAYMENT_PAID',1000)$$, 'SERVICE_ROLE_PAYMENT_TERMINAL_ALLOW');
 
--- 33-39: secure confirmation-link consumption.
+-- 34-40: secure confirmation-link consumption.
 select extensions.lives_ok($$select private.consume_job_confirmation_link(repeat('a',64),'confirmed','Synthetic customer','{}'::jsonb)$$, 'CONFIRMATION_ACTIVE_TOKEN_ALLOW');
 select extensions.results_eq($$select state from public.service_jobs where id='30000000-0000-0000-0000-000000000010'$$, array['CUSTOMER_CONFIRMED'::text], 'CONFIRMATION_UPDATES_JOB_STATE');
 select extensions.results_eq($$select payment_state from public.service_jobs where id='30000000-0000-0000-0000-000000000010'$$, array['PAYMENT_NOT_REQUESTED'::text], 'CONFIRMATION_DOES_NOT_SET_PAYMENT_PAID');
@@ -143,7 +148,7 @@ select extensions.throws_ok($$select private.consume_job_confirmation_link(repea
 select extensions.throws_ok($$select private.consume_job_confirmation_link(repeat('c',64),'confirmed',null,'{}'::jsonb)$$, '22023', null, 'CONFIRMATION_REVOKED_DENY');
 select extensions.throws_ok($$select private.consume_job_confirmation_link(repeat('d',64),'confirmed',null,'{}'::jsonb)$$, '22023', null, 'CONFIRMATION_STALE_REVISION_DENY');
 
--- 40-47: publication and portfolio enforcement.
+-- 41-48: publication and portfolio enforcement.
 select extensions.throws_ok($$insert into public.job_confirmation_links(store_id,job_id,evidence_revision,token_hash,expires_at) values ('20000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000002',1,repeat('e',64),timezone('utc',now())+interval '1 hour')$$, '23503', null, 'CONFIRMATION_LINK_CROSS_STORE_DENY');
 select extensions.lives_ok($$insert into public.content_candidates(id,store_id,job_id,evidence_revision,channel,status,merchant_approved_at) values ('60000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000020',1,'website','APPROVED',timezone('utc',now()))$$, 'CONTENT_ELIGIBLE_APPROVED_ALLOW');
 select extensions.throws_ok($$update public.content_candidates set status='PUBLISHED' where id='60000000-0000-0000-0000-000000000001'$$, '23514', null, 'CONTENT_PUBLISHED_REQUIRES_PROVIDER_RECEIPT');
@@ -154,7 +159,10 @@ select extensions.throws_ok($$insert into public.content_candidates(store_id,job
 select extensions.throws_ok($$insert into public.brand_site_portfolio_items(store_id,brand_site_id,job_id,evidence_revision,content_candidate_id,title,summary,status,published_at) values ('20000000-0000-0000-0000-000000000002','70000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000020',1,'60000000-0000-0000-0000-000000000001','Cross','Cross','published',timezone('utc',now()))$$, '23514', null, 'PORTFOLIO_CROSS_STORE_DENY');
 select extensions.lives_ok($$insert into public.brand_site_portfolio_items(store_id,brand_site_id,job_id,evidence_revision,content_candidate_id,title,summary,status,published_at) values ('20000000-0000-0000-0000-000000000001','70000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000020',1,'60000000-0000-0000-0000-000000000001','Eligible','Eligible','published',timezone('utc',now()))$$, 'PORTFOLIO_ELIGIBLE_PUBLISHED_ALLOW');
 
--- 48-55: catalog-level RLS/grant/secret-column matrix.
+-- 49-59: live-shape contract/auth facts and catalog-level security matrix.
+select extensions.results_eq($$select to_regclass('public.contracts') is null$$, array[true], 'FOUNDATION_CONTRACT_RELATION_NOT_REQUIRED');
+select extensions.results_eq($$select count(*)::bigint from information_schema.columns where table_schema='public' and table_name='service_jobs' and column_name='contract_id'$$, array[0::bigint], 'FOUNDATION_CONTRACT_ID_COLUMN_ABSENT');
+select extensions.results_eq($$select count(*)::bigint from pg_constraint c where c.contype='f' and c.conrelid='public.profiles'::regclass and c.confrelid='auth.users'::regclass$$, array[0::bigint], 'PROFILE_AUTH_FK_ABSENT_LIVE_SHAPE');
 select extensions.results_eq($$select state from public.service_jobs where id='30000000-0000-0000-0000-000000000022'$$, array['CONFIRMATION_OUTDATED'::text], 'REVISION_AFTER_CONFIRMATION_MARKS_OUTDATED');
 select extensions.results_eq($$select count(*)::bigint from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=any(array['service_jobs','job_evidence_assets','job_evidence_revisions','job_confirmations','job_confirmation_links','consent_records','job_payment_requests','content_candidates','brand_sites','brand_site_portfolio_items','vertical_templates']) and c.relrowsecurity$$, array[11::bigint], 'ALL_STAGE2_TABLES_RLS_ENABLED');
 select extensions.results_eq($$select count(*)::bigint from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=any(array['service_jobs','job_evidence_assets','job_evidence_revisions','job_confirmations','job_confirmation_links','consent_records','job_payment_requests','content_candidates','brand_sites','brand_site_portfolio_items','vertical_templates']) and c.relforcerowsecurity$$, array[11::bigint], 'ALL_STAGE2_TABLES_RLS_FORCED');

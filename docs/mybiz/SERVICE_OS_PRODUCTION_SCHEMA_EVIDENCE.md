@@ -1,7 +1,7 @@
 ---
 type: schema-preflight-evidence
 project: MyBiz
-status: blocked-live-identity
+status: live-metadata-bound-foundation-only
 updated: 2026-09-14
 tags: [mybiz, service-os, supabase, schema, preflight]
 ---
@@ -10,7 +10,18 @@ tags: [mybiz, service-os, supabase, schema, preflight]
 
 ## 현재 판정
 
-`LIVE_PROJECT_ID=NOT_VERIFIED`이며 Production metadata gate는 닫혀 있다. 현재 인증된 Supabase 연결에서 MyBiz 프로젝트가 식별되지 않았고, 공개 Production bundle에도 프로젝트 참조가 없었다. 프로젝트를 추측하거나 Vercel 환경변수 값을 읽지 않았다. 따라서 이번 작업에서 Production SQL은 읽기와 쓰기 모두 `0`이다.
+```text
+PROJECT_NAME=Mybiz Project
+PROJECT_REF=plnuyudyogbzwpmdulnw
+REGION=ap-northeast-2
+PROJECT_STATUS=ACTIVE_HEALTHY
+POSTGRES_VERSION=17.6.1.063
+POSTGRES_ENGINE=17
+```
+
+Owner가 지정한 exact project만 catalog/aggregate read-only로 확인했다. Production
+SQL write, DDL, migration apply/history repair는 모두 `0`이다. credential, connection
+string, 개별 user/customer identifier는 조회하거나 기록하지 않았다.
 
 ## 허용된 metadata 범위
 
@@ -25,27 +36,43 @@ tags: [mybiz, service-os, supabase, schema, preflight]
 
 애플리케이션 행, 고객 데이터, 토큰, credential, 환경변수 값은 읽지 않는다.
 
-## 과거 sanitized evidence — 최신성 미보장
+## Exact schema identity
 
-기존 저장소 문서에는 다음 형태가 기록되어 있으나 현재 Production 재조회 결과가 아니다.
+| Object | Verified Production truth |
+| --- | --- |
+| `stores` PK | `store_id uuid` |
+| `customers` PK | `customer_id uuid` |
+| `profiles` PK | `id uuid` |
+| `auth.users` PK | `id uuid` |
+| `store_members.store_id` | FK → `stores.store_id` |
+| `store_members.profile_id` | FK → `profiles.id` |
+| `store_subscriptions.store_id` | FK → `stores.store_id` |
+| `customers.store_id` | FK → `stores.store_id` |
+| `contracts` | ABSENT |
+| `private` schema | ABSENT |
+| all 11 Stage 2 target tables | ABSENT |
+| six Stage 2 private function names | ABSENT |
+| checked Stage 2 migration identifiers/names | 0 matches |
 
-- `stores.store_id` primary key
-- `store_members.store_id → stores.store_id`
-- `store_members.profile_id → profiles.id`
-- `store_subscriptions.store_id → stores.store_id`
-- `customers.customer_id` primary key
-- `profiles.id` primary key
+## Sanitized auth aggregates
 
-## P0 미확인 항목
+```text
+profiles_count=3
+auth_users_count=3
+store_members_count=7
+profiles_without_matching_auth_user=1
+auth_users_without_matching_profile=1
+store_members_without_profile=0
+store_members_with_profile_auth_match=1
+```
 
-| 항목 | 현재 상태 | 승격 영향 |
-| --- | --- | --- |
-| exact MyBiz Supabase project | NOT_VERIFIED | apply 대상 특정 불가 |
-| PostgreSQL major version | NOT_VERIFIED | 호환성 입증 불가 |
-| `contracts.id` uniqueness 및 `contracts.store_id` | NOT_VERIFIED | service job FK/tenant relation 차단 |
-| `profiles.id → auth.users.id` FK | NOT_VERIFIED | browser write activation 차단 |
-| Stage 2 table/function/policy collision | NOT_VERIFIED | 충돌/부분 설치 위험 |
-| live migration history | NOT_VERIFIED | 적용 순서 및 중복 여부 판정 불가 |
-| `private` schema 기존 권한/객체 | NOT_VERIFIED | broad revoke 금지, 개별 객체 검토 필요 |
+`profiles.auth_user_id`/`profiles.user_id`는 없고 `profiles → auth.users` FK도 없다.
+따라서 `profiles.id == auth.uid()`는 universal invariant가 아니다.
 
-결론: isolated rehearsal이 성공해도 이 표가 해소되기 전에는 `PROMOTION_READY=false`이다.
+## Foundation/activation disposition
+
+- Foundation: invalid `contracts` dependency를 제거한 candidate만 검토 가능하다.
+- Foundation authenticated INSERT/UPDATE/DELETE: DENY.
+- Activation: `BLOCKED_AUTH_IDENTITY_MODEL`; draft-only, apply/promotion 금지.
+- `public.is_store_member(uuid)`: 기존 함수 유지. `store_members.profile_id = auth.uid()`
+  predicate를 사용하지만 전체 identity normalization을 증명하지 않는다.

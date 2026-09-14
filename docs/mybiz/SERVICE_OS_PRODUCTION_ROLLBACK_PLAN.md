@@ -24,17 +24,18 @@ tags: [mybiz, service-os, rollback, supabase]
 1. portfolio/content triggers 제거
 2. job revision trigger 제거
 3. Stage 2 전용 private functions 제거
-4. `vertical_templates`
-5. `brand_site_portfolio_items`
-6. `brand_sites`
-7. `content_candidates`
-8. `job_payment_requests`
-9. `consent_records`
-10. `job_confirmation_links`
-11. `job_confirmations`
-12. `job_evidence_assets`
-13. `job_evidence_revisions`
-14. `service_jobs`
+4. 기존에 없었던 빈 `private` schema 제거
+5. `vertical_templates`
+6. `brand_site_portfolio_items`
+7. `brand_sites`
+8. `content_candidates`
+9. `job_payment_requests`
+10. `consent_records`
+11. `job_confirmation_links`
+12. `job_confirmations`
+13. `job_evidence_assets`
+14. `job_evidence_revisions`
+15. `service_jobs`
 
 격리 rehearsal용 정확한 SQL은 [foundation down fixture](../../supabase/tests/fixtures/mybiz_service_os_foundation_down.sql)에 있다. 이 파일은 Production 자동 실행 스크립트가 아니다.
 

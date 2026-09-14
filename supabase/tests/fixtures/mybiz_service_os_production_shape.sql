@@ -6,7 +6,8 @@ begin;
 create extension if not exists pgcrypto;
 
 create table public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+  -- Production has no profiles.id -> auth.users.id FK.
+  id uuid primary key,
   full_name text not null,
   email text not null unique,
   created_at timestamptz not null default timezone('utc', now())
@@ -68,12 +69,6 @@ create table public.customer_timeline_events (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create table public.contracts (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid not null references public.stores(store_id) on delete cascade,
-  status text not null default 'draft'
-);
-
 create table public.platform_admin_members (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null unique references public.profiles(id) on delete cascade,
@@ -85,7 +80,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public
 as $$
   select exists (
     select 1 from public.store_members sm

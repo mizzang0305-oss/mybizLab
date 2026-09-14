@@ -6,6 +6,11 @@
 -- This foundation intentionally exposes no browser write surface.
 -- Authenticated service-job/evidence INSERT belongs to the separately gated
 -- 20260914005632_mybiz_service_os_live_write_activation.sql draft.
+--
+-- Production metadata binding (2026-09-14): public.contracts is absent.
+-- Contract remains an optional module represented here only by
+-- requires_contract / contract_state. A future canonical contract relation
+-- requires an additive migration and a separate exact Owner Gate.
 
 begin;
 
@@ -21,8 +26,7 @@ begin
     select * from (values
       ('stores', 'store_id'),
       ('profiles', 'id'),
-      ('customers', 'customer_id'),
-      ('contracts', 'id')
+      ('customers', 'customer_id')
     ) as required_key(table_name, column_name)
   loop
     if to_regclass(format('public.%I', v_required.table_name)) is null then
@@ -124,7 +128,6 @@ create table public.service_jobs (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(store_id) on delete cascade,
   customer_id uuid references public.customers(customer_id) on delete set null,
-  contract_id uuid references public.contracts(id) on delete set null,
   vertical text not null check (vertical in ('cleaning', 'hair', 'installation', 'wig', 'interior', 'medical')),
   service_name text not null,
   requires_contract boolean not null default false,

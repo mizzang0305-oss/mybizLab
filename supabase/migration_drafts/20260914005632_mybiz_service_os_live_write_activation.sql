@@ -1,6 +1,9 @@
 -- DRAFT ONLY: MyBiz Service OS browser write activation candidate.
+-- LIVE_WRITE_ACTIVATION_STATUS=BLOCKED_AUTH_IDENTITY_MODEL
 -- This migration MUST NOT be applied with the foundation migration.
 -- It requires post-foundation certification and a separate exact Owner Gate.
+-- Production currently has no profiles -> auth.users FK and profile/auth id
+-- equality is not universal. The catalog guard below therefore fails closed.
 
 begin;
 
@@ -55,10 +58,6 @@ create policy service_jobs_member_insert on public.service_jobs for insert to au
   and (customer_id is null or exists (
     select 1 from public.customers c
     where c.customer_id = service_jobs.customer_id and c.store_id = service_jobs.store_id
-  ))
-  and (contract_id is null or exists (
-    select 1 from public.contracts c
-    where c.id = service_jobs.contract_id and c.store_id = service_jobs.store_id
   ))
 );
 

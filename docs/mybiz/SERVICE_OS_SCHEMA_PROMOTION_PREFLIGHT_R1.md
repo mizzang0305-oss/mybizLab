@@ -8,6 +8,11 @@ tags: [mybiz, service-os, schema, rls, preflight]
 
 # Service OS Schema Promotion Preflight R1
 
+> R2 update: exact Production metadata가 확인되어 `contracts` dependency와 auth
+> identity drift가 분리됐다. R1 candidate SHA `7151C23...`는 lineage evidence로
+> 보존하며, repaired Foundation 결과는
+> `SERVICE_OS_FOUNDATION_PRODUCTION_READINESS_R2.md`를 따른다.
+
 ## 목적과 안전 경계
 
 R3 exact head `130b65d350e65dd89e0af9c8af91138885df98eb` 위에서 Stage 2 draft를 Production-shaped fixture에 맞게 복구하고, foundation과 browser write activation을 분리한다. Production DB apply, migration promotion, remote SQL, Production deploy, main/R3 merge는 수행하지 않는다.
@@ -26,7 +31,7 @@ R3 exact head `130b65d350e65dd89e0af9c8af91138885df98eb` 위에서 Stage 2 draft
 | --- | --- | --- |
 | all Stage 2 tenant keys | `stores.store_id` | unique/PK 필수 |
 | `service_jobs.customer_id` | `customers.customer_id` | unique/PK 필수 |
-| `service_jobs.contract_id` | `contracts.id` | unique/PK 필수 |
+| contract workflow | relation FK 없음 | optional module binding deferred |
 | actor/uploader/revision creator | `profiles.id` | unique/PK 필수 |
 | all job children | `(service_jobs.id, service_jobs.store_id)` | composite FK |
 | revision-bound children | `(job_id, revision_number, store_id)` | exact revision FK |
@@ -49,7 +54,8 @@ R3 exact head `130b65d350e65dd89e0af9c8af91138885df98eb` 위에서 Stage 2 draft
 - Production-shaped baseline → active migrations → foundation candidate
 - known-failure transaction이 partial Stage 2 object `0`임을 증명
 - clean reset 기반 동일 rehearsal 2회
-- pgTAP 55 assertions 및 concurrent revision test를 매회 실행
+- R1 당시 pgTAP 55 assertions 및 concurrent revision test를 매회 실행
+- R2 repaired candidate는 live-shape regression을 추가한 59 assertions를 사용
 - Window A reverse-order down 후 Stage 2 relation `0`
 - DB lint, app lint/typecheck/build/focused/full/audit 수행
 - remote link/project ref/DB URL/Production secrets 없음
@@ -87,6 +93,9 @@ pgTAP setup 중 Supabase가 소유한 `grant_pg_cron_access`, `grant_pg_net_acce
 
 foundation은 metadata와 object key integrity만 정의한다. Production object storage provider, Google Drive, payment, signature, SNS는 연결하지 않으며 activation default는 모두 `false`다.
 
-## 현재 blocker
+## R2 disposition
 
-[Production schema evidence](./SERVICE_OS_PRODUCTION_SCHEMA_EVIDENCE.md)의 P0 live metadata가 아직 확인되지 않았다. isolated rehearsal 결과와 무관하게 exact project/PK/FK/auth mapping/collision/migration history가 모두 live-verified되기 전에는 Promotion PASS를 선언하지 않는다.
+Exact Production project/PK/FK/collision/history metadata는 확인됐다. `contracts`는
+ABSENT이므로 Foundation의 FK/column을 제거했다. `profiles.id == auth.uid()`는
+universal하지 않아 Foundation-only readiness와 무관하게 live-write activation은
+계속 차단한다.

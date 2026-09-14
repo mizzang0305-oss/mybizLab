@@ -34,6 +34,8 @@ drop function private.consume_job_confirmation_link(text, text, text, jsonb);
 drop function private.create_next_job_evidence_revision(uuid, uuid, text);
 drop function private.initialize_job_evidence_revision();
 
+drop schema private;
+
 drop table public.brand_site_portfolio_items;
 drop table public.brand_sites;
 drop table public.content_candidates;
