@@ -1,7 +1,7 @@
 ---
 type: certification-report
 project: MyBiz
-status: rehearsal-pending
+status: certified-owner-gate
 updated: 2026-09-14
 tags: [mybiz, service-os, foundation, supabase, owner-gate]
 ---
@@ -51,10 +51,45 @@ LIVE_WRITE_ACTIVATION_STATUS=BLOCKED_AUTH_IDENTITY_MODEL
 LIVE_WRITE_ACTIVATION_READY=false
 ```
 
-## Rehearsal status
+## Rehearsal certification
 
-Source 변경 직후 상태는 `PENDING_CI`. Exact-head GitHub Actions evidence를 얻기
-전에는 Foundation readiness certification을 발행하지 않는다.
+GitHub-hosted `ubuntu-24.04`의 ephemeral Docker/Supabase stack에서 repaired
+Foundation candidate를 Production-shape fixture에 두 번 적용했다. 이 evidence run은
+candidate code SHA `086d6f1d204aa5b49a1ba1b7e966cdf73045d774`를 checkout했고,
+Production project에 link하거나 SQL write를 실행하지 않았다.
+
+```text
+EVIDENCE_RUN_ID=34798638905
+EVIDENCE_RUN_URL=https://github.com/mizzang0305-oss/mybizLab/actions/runs/34798638905
+EVIDENCE_HEAD_SHA=086d6f1d204aa5b49a1ba1b7e966cdf73045d774
+
+RUNNER=ubuntu-24.04
+DOCKER_SERVER_VERSION=28.0.4
+SUPABASE_CLI_VERSION=2.117.0
+EPHEMERAL_POSTGRES_VERSION=17.6
+
+REHEARSAL_R2_RUN_1=PASS
+REHEARSAL_R2_RUN_2=PASS
+PGTAP_RUN_1=59/59 PASS
+PGTAP_RUN_2=59/59 PASS
+REVISION_CONCURRENT_NO_DUPLICATE=PASS
+FAILED_TRANSACTION_PARTIAL_OBJECTS=0
+PRE_WRITE_ROLLBACK_READY=PASS
+DB_LINT=PASS
+
+FOCUSED_TESTS=87/87 PASS
+FULL_TESTS=917/917 PASS
+PRODUCTION_DEPENDENCY_VULNERABILITIES=0
+```
+
+The first direct local full-suite invocation observed one unrelated transient
+`spawnSync` failure (`916/917`); its isolated rerun passed `9/9`. The clean GitHub
+runner then passed the complete suite `917/917`, which is the authoritative
+reproducible regression result for this candidate.
+
+Foundation readiness is certified only for the reviewed DDL package. Production
+apply remains an explicit Owner Gate, and live-write activation remains blocked by
+the unresolved auth/profile identity model.
 
 ## Safety
 
