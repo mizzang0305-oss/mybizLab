@@ -1,7 +1,5 @@
--- DRAFT ONLY: Stage 2 read-policy alignment after Auth Identity Foundation apply.
--- This switches exactly nine Service OS SELECT policies and nothing else.
--- It is rehearsed in isolation and is not part of live-write activation.
--- Guard version: exact old-policy state only; a rerun against aligned policies aborts.
+-- CI-ONLY rollback rehearsal for Stage 2 Identity Policy Alignment.
+-- Restores exactly nine SELECT predicates to the global helper and nothing else.
 
 begin;
 
@@ -11,10 +9,6 @@ declare
   v_old_policy_count integer;
   v_new_policy_count integer;
 begin
-  if to_regprocedure('private.is_service_os_store_member(uuid)') is null then
-    raise exception 'AUTH_IDENTITY_FOUNDATION_REQUIRED' using errcode = '42883';
-  end if;
-
   with expected(policyname, tablename) as (
     values
       ('service_jobs_member_select', 'service_jobs'),
@@ -50,10 +44,10 @@ begin
   from target_policies;
 
   if v_target_policy_count <> 9
-     or v_old_policy_count <> 9
-     or v_new_policy_count <> 0 then
+     or v_old_policy_count <> 0
+     or v_new_policy_count <> 9 then
     raise exception
-      'STAGE2_IDENTITY_POLICY_ALIGNMENT_EXACT_OLD_STATE_REQUIRED: targets=% old=% new=%',
+      'STAGE2_IDENTITY_POLICY_ALIGNMENT_EXACT_NEW_STATE_REQUIRED: targets=% old=% new=%',
       v_target_policy_count, v_old_policy_count, v_new_policy_count
       using errcode = '55000';
   end if;
@@ -70,14 +64,14 @@ drop policy content_candidates_member_select on public.content_candidates;
 drop policy brand_sites_member_select on public.brand_sites;
 drop policy portfolio_items_member_select on public.brand_site_portfolio_items;
 
-create policy service_jobs_member_select on public.service_jobs for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy evidence_assets_member_select on public.job_evidence_assets for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy evidence_revisions_member_select on public.job_evidence_revisions for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy confirmations_member_select on public.job_confirmations for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy consent_records_member_select on public.consent_records for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy payment_requests_member_select on public.job_payment_requests for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy content_candidates_member_select on public.content_candidates for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy brand_sites_member_select on public.brand_sites for select to authenticated using (private.is_service_os_store_member(store_id));
-create policy portfolio_items_member_select on public.brand_site_portfolio_items for select to authenticated using (private.is_service_os_store_member(store_id));
+create policy service_jobs_member_select on public.service_jobs for select to authenticated using (public.is_store_member(store_id));
+create policy evidence_assets_member_select on public.job_evidence_assets for select to authenticated using (public.is_store_member(store_id));
+create policy evidence_revisions_member_select on public.job_evidence_revisions for select to authenticated using (public.is_store_member(store_id));
+create policy confirmations_member_select on public.job_confirmations for select to authenticated using (public.is_store_member(store_id));
+create policy consent_records_member_select on public.consent_records for select to authenticated using (public.is_store_member(store_id));
+create policy payment_requests_member_select on public.job_payment_requests for select to authenticated using (public.is_store_member(store_id));
+create policy content_candidates_member_select on public.content_candidates for select to authenticated using (public.is_store_member(store_id));
+create policy brand_sites_member_select on public.brand_sites for select to authenticated using (public.is_store_member(store_id));
+create policy portfolio_items_member_select on public.brand_site_portfolio_items for select to authenticated using (public.is_store_member(store_id));
 
 commit;
