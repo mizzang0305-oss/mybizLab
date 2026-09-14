@@ -108,6 +108,9 @@ jobs:
           old_count="$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select count(*) from pg_policies where schemaname='public' and policyname=any(array['service_jobs_member_select','evidence_assets_member_select','evidence_revisions_member_select','confirmations_member_select','consent_records_member_select','payment_requests_member_select','content_candidates_member_select','brand_sites_member_select','portfolio_items_member_select']) and regexp_replace(coalesce(qual,''),'[[:space:]()]','','g')=any(array['is_store_memberstore_id','public.is_store_memberstore_id']);")"
           new_count="$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select count(*) from pg_policies where schemaname='public' and policyname=any(array['service_jobs_member_select','evidence_assets_member_select','evidence_revisions_member_select','confirmations_member_select','consent_records_member_select','payment_requests_member_select','content_candidates_member_select','brand_sites_member_select','portfolio_items_member_select']) and regexp_replace(coalesce(qual,''),'[[:space:]()]','','g')=any(array['is_service_os_store_memberstore_id','private.is_service_os_store_memberstore_id']);")"
           global_dependencies="$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select count(*) from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and (position('is_store_member' in coalesce(pg_get_expr(p.polqual,p.polrelid),''))>0 or position('is_store_member' in coalesce(pg_get_expr(p.polwithcheck,p.polrelid),''))>0);")"
+          echo "OLD_RESOLVER_POLICY_COUNT=$old_count"
+          echo "NEW_RESOLVER_POLICY_COUNT=$new_count"
+          echo "GLOBAL_IS_STORE_MEMBER_DEPENDENCIES=$global_dependencies"
           test "$old_count" = 9
           test "$new_count" = 0
           test "$global_dependencies" = 42
