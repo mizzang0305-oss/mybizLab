@@ -4,6 +4,7 @@
  */
 
 import { readServerEnv } from '../src/server/serverEnv.js';
+import { sendNodeResponse, type NodeResponseLike } from '../src/server/nodeResponse.js';
 
 const HEALTHCHECK_TIMEOUT_MS = 5000;
 
@@ -12,6 +13,15 @@ function json(body: unknown, status = 200) {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
+}
+
+async function respond(result: Response, response?: NodeResponseLike): Promise<Response | void> {
+  if (response) {
+    await sendNodeResponse(result, response);
+    return;
+  }
+
+  return result;
 }
 
 async function checkSupabase() {
@@ -105,15 +115,17 @@ async function checkGemini() {
   return { ok: true };
 }
 
-export default async function handler(request: Request) {
+async function handler(request: Request): Promise<Response>;
+async function handler(request: Request, response: NodeResponseLike): Promise<void>;
+async function handler(request: Request, response?: NodeResponseLike): Promise<Response | void> {
   if (request.method !== 'GET') {
-    return json({ error: 'GET only' }, 405);
+    return respond(json({ error: 'GET only' }, 405), response);
   }
 
   const [supabase, openai, gemini] = await Promise.all([checkSupabase(), checkOpenAI(), checkGemini()]);
   const allOk = supabase.ok;
 
-  return json(
+  const result = json(
     {
       ok: allOk,
       timestamp: new Date().toISOString(),
@@ -129,4 +141,7 @@ export default async function handler(request: Request) {
     },
     allOk ? 200 : 503,
   );
+  return respond(result, response);
 }
+
+export default handler;
