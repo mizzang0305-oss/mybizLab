@@ -16,6 +16,8 @@ import { MakeItYours } from './showroom/MakeItYours';
 import { PortfolioProof } from './showroom/PortfolioProof';
 import { DevelopmentInquiry } from './showroom/DevelopmentInquiry';
 import type { ShowroomTemplateId } from './showroom/showroomData';
+import { MotionShowroom } from './showroom/motion/MotionShowroom';
+import { getMotionSelectionSummary } from './showroom/motion/motionRegistry';
 
 const evidenceItems = [
   ['Original', '원본과 편집본을 구분하고 파일 변경 감지를 위한 무결성 정보를 연결합니다.'],
@@ -36,6 +38,7 @@ const showroomStructuredData = {
 export function MyBizFieldLandingPage() {
   const [activeIndustry, setActiveIndustry] = useState<ServiceIndustry>('cleaning');
   const [consultationTemplate, setConsultationTemplate] = useState<ShowroomTemplateId>();
+  const [selectedMotionId, setSelectedMotionId] = useState<string>();
   const media = getIndustryMedia(activeIndustry);
 
   usePageMeta('MyBizLab 맞춤형 웹 시스템·업무자동화 개발', '계약·결제, 고객관리, ERP·WMS, API 자동화와 AI 업무 도구를 사업 흐름에 맞게 설계하고 구축하는 MyBizLab 개발 쇼룸입니다.', {
@@ -48,13 +51,14 @@ export function MyBizFieldLandingPage() {
       <ShowroomHero />
       <SystemStory />
       <TemplateShowroom onConsult={setConsultationTemplate} />
+      <MotionShowroom onSelect={setSelectedMotionId} selectedMotionId={selectedMotionId} />
       <MakeItYours />
       <PortfolioProof />
       <CinematicHero activeIndustry={activeIndustry} />
       <IndustryVisualSelector activeIndustry={activeIndustry} onChange={setActiveIndustry} />
       <ServiceExperience activeIndustry={activeIndustry} />
       <WebsitePackageShowcase media={media} />
-      <DevelopmentInquiry initialSystemType={consultationTemplate} />
+      <DevelopmentInquiry initialSystemType={consultationTemplate} selectionSummary={getMotionSelectionSummary(selectedMotionId)} />
 
       <section className="border-y border-[#e5ddd2] bg-white px-4 py-12 text-[#172431] sm:px-8" id="features">
         <div className="mx-auto max-w-[84rem]">
