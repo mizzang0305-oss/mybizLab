@@ -1,15 +1,22 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { CircleAlert, LockKeyhole } from 'lucide-react';
 import { BUSINESS_INFO } from '@/shared/lib/siteConfig';
+import {
+  DEVELOPMENT_INQUIRY_TYPES,
+  HOMEPAGE_FEATURE_OPTIONS,
+  HOMEPAGE_INQUIRY_TYPE,
+  SYSTEM_FEATURE_OPTIONS,
+  getDevelopmentInquiryTypeLabel,
+  isHomepageInquiry,
+  type DevelopmentInquirySystemType,
+} from './inquiryOptions';
 import { InquiryHandoffPanel } from './InquiryHandoffPanel';
 import { buildInquiryHandoff, type InquiryHandoffDraft } from './inquiryHandoff';
 
-import { SHOWROOM_TEMPLATES, type ShowroomTemplateId } from './showroomData';
+import type { ShowroomTemplateId } from './showroomData';
 import { validateDevelopmentInquiry, type DevelopmentInquiryErrors, type DevelopmentInquiryInput } from './showroomState';
 
-const featureOptions = ['고객관리', '계약 관리', '결제 상태', 'ERP·WMS', 'API 연동', '콘텐츠 승인', 'AI 리포트', 'Owner 승인'] as const;
-
-function createInitialInquiry(systemType: ShowroomTemplateId | '' = ''): DevelopmentInquiryInput {
+function createInitialInquiry(systemType: DevelopmentInquirySystemType | '' = ''): DevelopmentInquiryInput {
   return { budget: '', companyName: '', consent: false, contactName: '', coreFeatures: [], currentProblem: '', email: '', phone: '', reference: '', systemType, timeline: '', userScale: '' };
 }
 
@@ -20,23 +27,55 @@ export function DevelopmentInquiry({ initialSystemType, selectionSummary = '' }:
 
   useEffect(() => {
     if (initialSystemType) {
-      setForm((current) => ({ ...current, systemType: initialSystemType }));
+      setForm((current) => ({
+        ...current,
+        coreFeatures: current.systemType === initialSystemType ? current.coreFeatures : [],
+        systemType: initialSystemType,
+      }));
       setHandoff(null);
     }
   }, [initialSystemType]);
 
   useEffect(() => {
+    if (selectionSummary) {
+      setForm((current) => ({
+        ...current,
+        coreFeatures: isHomepageInquiry(current.systemType) ? current.coreFeatures : [],
+        systemType: HOMEPAGE_INQUIRY_TYPE,
+      }));
+      setErrors((current) => {
+        const next = { ...current };
+        delete next.coreFeatures;
+        delete next.systemType;
+        return next;
+      });
+    }
     setHandoff(null);
   }, [selectionSummary]);
 
   function update<K extends keyof DevelopmentInquiryInput>(key: K, value: DevelopmentInquiryInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
-    setErrors((current) => ({ ...current, [key]: undefined }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
     setHandoff(null);
   }
 
   function toggleFeature(feature: string) {
     update('coreFeatures', form.coreFeatures.includes(feature) ? form.coreFeatures.filter((item) => item !== feature) : [...form.coreFeatures, feature]);
+  }
+
+  function updateSystemType(systemType: DevelopmentInquirySystemType | '') {
+    setForm((current) => ({ ...current, coreFeatures: [], systemType }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.coreFeatures;
+      delete next.systemType;
+      return next;
+    });
+    setHandoff(null);
   }
 
   function handleReview(event: FormEvent<HTMLFormElement>) {
@@ -50,10 +89,12 @@ export function DevelopmentInquiry({ initialSystemType, selectionSummary = '' }:
     setHandoff(buildInquiryHandoff(form, {
       recipient: BUSINESS_INFO.email,
       selectionSummary,
-      systemLabel: SHOWROOM_TEMPLATES.find((template) => template.id === form.systemType)?.label ?? form.systemType,
+      systemLabel: getDevelopmentInquiryTypeLabel(form.systemType),
     }));
   }
 
+  const homepageInquiry = isHomepageInquiry(form.systemType);
+  const featureOptions = homepageInquiry ? HOMEPAGE_FEATURE_OPTIONS : SYSTEM_FEATURE_OPTIONS;
   const inputClass = 'mt-2 min-h-12 w-full rounded-xl border border-[#102a2e]/15 bg-white px-4 text-sm text-[#071019] outline-none transition placeholder:text-[#738082] focus:border-[#ec5b13]';
 
   return (
@@ -66,11 +107,11 @@ export function DevelopmentInquiry({ initialSystemType, selectionSummary = '' }:
             {selectionSummary ? <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold leading-6" data-inquiry-selection>{selectionSummary}</p> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field error={errors.companyName} label="회사 / 브랜드명"><input className={inputClass} data-inquiry-field="companyName" onChange={(event) => update('companyName', event.target.value)} placeholder="예: ABC 학원" value={form.companyName} /></Field>
-              <Field error={errors.systemType} label="원하는 시스템"><select className={inputClass} data-inquiry-field="systemType" onChange={(event) => update('systemType', event.target.value as ShowroomTemplateId | '')} value={form.systemType}><option value="">선택해 주세요</option>{SHOWROOM_TEMPLATES.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}</select></Field>
+              <Field error={errors.systemType} label="원하는 제작 유형"><select className={inputClass} data-inquiry-field="systemType" onChange={(event) => updateSystemType(event.target.value as DevelopmentInquirySystemType | '')} value={form.systemType}><option value="">선택해 주세요</option>{DEVELOPMENT_INQUIRY_TYPES.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
               <Field className="sm:col-span-2" error={errors.currentProblem} label="현재 문제"><textarea className={`${inputClass} min-h-28 py-3`} data-inquiry-field="currentProblem" onChange={(event) => update('currentProblem', event.target.value)} placeholder="지금 어떤 업무가 반복되거나 놓치기 쉬운지 알려 주세요." value={form.currentProblem} /></Field>
             </div>
 
-            <fieldset className="mt-5"><legend className="text-xs font-black">필요한 핵심 기능</legend><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{featureOptions.map((feature) => <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#102a2e]/12 bg-white px-3 text-xs font-bold" key={feature}><input checked={form.coreFeatures.includes(feature)} className="size-4 accent-[#ec5b13]" onChange={() => toggleFeature(feature)} type="checkbox" />{feature}</label>)}</div>{errors.coreFeatures ? <p className="mt-2 text-xs font-bold text-red-700">{errors.coreFeatures}</p> : null}</fieldset>
+            <fieldset className="mt-5"><legend className="text-xs font-black">{homepageInquiry ? '홈페이지에 필요한 구성 (선택)' : '필요한 핵심 기능'}</legend><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{featureOptions.map((feature) => <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#102a2e]/12 bg-white px-3 text-xs font-bold" key={feature}><input checked={form.coreFeatures.includes(feature)} className="size-4 accent-[#ec5b13]" onChange={() => toggleFeature(feature)} type="checkbox" />{feature}</label>)}</div>{errors.coreFeatures ? <p className="mt-2 text-xs font-bold text-red-700">{errors.coreFeatures}</p> : null}</fieldset>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
               <Field error={errors.userScale} label="사용자 규모"><select className={inputClass} onChange={(event) => update('userScale', event.target.value)} value={form.userScale}><option value="">선택</option><option>1~5명</option><option>6~20명</option><option>21~50명</option><option>51명 이상</option></select></Field>

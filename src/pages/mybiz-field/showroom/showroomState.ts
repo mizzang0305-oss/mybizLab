@@ -1,4 +1,7 @@
-import type { ShowroomTemplateId } from './showroomData';
+import {
+  isHomepageInquiry,
+  type DevelopmentInquirySystemType,
+} from './inquiryOptions';
 
 const DEFAULT_BRAND_NAME = '우리 회사';
 const DEFAULT_PRIMARY_COLOR = '#EC5B13';
@@ -22,7 +25,7 @@ export interface DevelopmentInquiryInput {
   email: string;
   phone: string;
   reference: string;
-  systemType: ShowroomTemplateId | '';
+  systemType: DevelopmentInquirySystemType | '';
   timeline: string;
   userScale: string;
 }
@@ -57,9 +60,9 @@ export function validateDevelopmentInquiry(input: DevelopmentInquiryInput): Deve
   const errors: DevelopmentInquiryErrors = {};
 
   if (normalizeText(input.companyName, 80).length < 2) errors.companyName = '회사 또는 브랜드명을 2자 이상 입력해 주세요.';
-  if (!input.systemType) errors.systemType = '원하는 시스템을 선택해 주세요.';
+  if (!input.systemType) errors.systemType = '원하는 제작 유형을 선택해 주세요.';
   if (normalizeText(input.currentProblem, 500).length < 12) errors.currentProblem = '현재 문제를 12자 이상 알려 주세요.';
-  if (input.coreFeatures.length === 0) errors.coreFeatures = '필요한 핵심 기능을 하나 이상 선택해 주세요.';
+  if (!isHomepageInquiry(input.systemType) && input.coreFeatures.length === 0) errors.coreFeatures = '필요한 핵심 기능을 하나 이상 선택해 주세요.';
   if (!input.userScale) errors.userScale = '예상 사용자 규모를 선택해 주세요.';
   if (!input.timeline) errors.timeline = '예상 일정을 선택해 주세요.';
   if (!input.budget) errors.budget = '예상 예산 범위를 선택해 주세요.';
