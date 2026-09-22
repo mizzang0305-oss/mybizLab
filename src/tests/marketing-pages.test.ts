@@ -104,6 +104,29 @@ describe('public marketing/runtime surfaces', () => {
   it('renders Korean-first landing content with public admin fallback sections', () => {
     const html = renderRoute('/');
 
+    expect(html).toContain('data-commercial-showroom="v1"');
+    expect(html).toContain('data-showroom-hero="true"');
+    expect(html).toContain('원하는 시스템을,');
+    expect(html).toContain('실제로 작동하게.');
+    expect(html).toContain('내가 원하는 시스템 상담하기');
+    expect(html).toContain('만들 수 있는 것 보기');
+    expect(html).toContain('data-system-story="8-scenes"');
+    expect(html).toContain('Owner Control Center');
+    expect(html).toContain('data-template-showroom="6-templates"');
+    expect(html).toContain('data-template-demo="contract-payment"');
+    expect(html).toContain('계약·결제 자동화 패키지');
+    expect(html).toContain('SNS·콘텐츠 운영 패키지');
+    expect(html).toContain('고객·업무관리 패키지');
+    expect(html).toContain('ERP·WMS 내부 시스템');
+    expect(html).toContain('API·업무 자동화 패키지');
+    expect(html).toContain('AI 업무 도구·Agent');
+    expect(html).toContain('data-brand-preview="live"');
+    expect(html).toContain('우리 회사 Admin');
+    expect(html).toContain('data-anonymized-portfolio="3-cases"');
+    expect(html).toContain('문제 → 만든 시스템 → 결과');
+    expect(html).toContain('data-development-inquiry="structured-review"');
+    expect(html).toContain('아직 접수되지 않음');
+    expect(html).not.toContain('접수 완료');
     expect(html).toContain('data-landing-mode="cinematic-industry-video"');
     expect(html).toContain('data-cinematic-home="true"');
     expect(html).toContain('data-service-orbit-world="hero"');
@@ -115,7 +138,7 @@ describe('public marketing/runtime surfaces', () => {
     expect(html).toContain('청소·미용·설치부터 가발·인테리어까지');
     expect(html).toContain('가발·두피');
     expect(html).toContain('거실 리뉴얼·부분 인테리어·마감');
-    expect(html).toContain('무료로 시작하기');
+    expect(html).toContain('개발 상담하기');
     expect(html).toContain('직접 체험하기');
     expect(html).toContain('Service OS 데모');
     expect(html).toContain('보여줄 수 있는 결과가');
@@ -134,14 +157,14 @@ describe('public marketing/runtime surfaces', () => {
 
     expect(html).toContain('data-homepage-nav="primary"');
     expect(html).toContain('href="/"');
-    expect(html).toContain('href="#services"');
-    expect(html).toContain('href="#experience"');
-    expect(html).toContain('href="#website-builder"');
+    expect(html).toContain('href="#system-story"');
+    expect(html).toContain('href="#templates"');
+    expect(html).toContain('href="#make-it-yours"');
+    expect(html).toContain('href="#project-request"');
     expect(html).toContain('href="/pricing"');
-    expect(html).toContain('href="#resources"');
     expect(html).toContain('href="/contact"');
     expect(html).toContain('href="/login?next=/dashboard"');
-    expect(html).toContain('href="/onboarding?plan=free"');
+    expect(html).toContain('href="#project-request"');
     expect(html).toContain('href="/login?next=/admin"');
     expect(html).toContain('플랫폼 관리자');
     expect(headerHtml).not.toContain('href="/login?next=/admin"');
@@ -163,11 +186,11 @@ describe('public marketing/runtime surfaces', () => {
     const headerHtml = html.slice(headerStart, html.indexOf('</header>', headerStart));
     const demoLinks = html.match(/href="\/demo\/service-os"/g) || [];
     const loginLinks = headerHtml.match(/href="\/login\?next=\/dashboard"/g) || [];
-    const signupLinks = headerHtml.match(/href="\/onboarding\?plan=free"/g) || [];
+    const consultationLinks = headerHtml.match(/href="#project-request"/g) || [];
 
     expect(demoLinks.length).toBeGreaterThanOrEqual(1);
     expect(loginLinks).toHaveLength(1);
-    expect(signupLinks).toHaveLength(1);
+    expect(consultationLinks).toHaveLength(3);
     expect(html).not.toContain('data-demo-trigger="homepage-nav"');
   });
 

@@ -20,10 +20,10 @@ const primaryNavigationLinks = [
 ] as const;
 
 const homepageNavigationLinks = [
-  { label: '서비스 소개', to: '#services' },
-  { label: '업종별 활용', to: '#experience' },
-  { label: '홈페이지 옵션', to: '#website-builder' },
-  { label: '이용 안내', to: '#resources' },
+  { label: '만드는 방식', to: '#system-story' },
+  { label: '개발 템플릿', to: '#templates' },
+  { label: '우리 회사 미리보기', to: '#make-it-yours' },
+  { label: '프로젝트 상담', to: '#project-request' },
 ] as const;
 
 const resourceLinks = [
@@ -226,7 +226,17 @@ export function PublicLayout() {
                         }`}
                       >
                         {(isLandingPage ? homepageNavigationLinks : mobileNavigationLinks).map((item) => (
-                          <Link
+                          isLandingPage ? <a
+                            key={item.to}
+                            className={`block rounded-xl px-3 py-2 text-sm font-bold ${
+                              isDarkSurface
+                                ? 'text-white/65 hover:bg-white/[0.07] hover:text-white'
+                                : 'text-slate-600 hover:bg-orange-50 hover:text-orange-700'
+                            }`}
+                            href={item.to}
+                          >
+                            {item.label}
+                          </a> : <Link
                             key={item.to}
                             className={`block rounded-xl px-3 py-2 text-sm font-bold ${
                               isDarkSurface
@@ -251,9 +261,15 @@ export function PublicLayout() {
                         로그인
                       </Link>
 
-                      <Link className="btn-primary !min-h-10 shrink-0 !rounded-2xl !px-3 !py-2 text-xs sm:!min-h-[2.75rem] sm:!px-4 sm:!py-2.5 sm:text-sm" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
-                        무료로 시작하기
-                      </Link>
+                      {isLandingPage ? (
+                        <a className="btn-primary !min-h-10 shrink-0 !rounded-2xl !px-3 !py-2 text-xs sm:!min-h-[2.75rem] sm:!px-4 sm:!py-2.5 sm:text-sm" href="#project-request">
+                          개발 상담하기
+                        </a>
+                      ) : (
+                        <Link className="btn-primary !min-h-10 shrink-0 !rounded-2xl !px-3 !py-2 text-xs sm:!min-h-[2.75rem] sm:!px-4 sm:!py-2.5 sm:text-sm" state={DIAGNOSIS_CORRIDOR_LINK_STATE} to={SUBSCRIPTION_START_PATH}>
+                          무료로 시작하기
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>

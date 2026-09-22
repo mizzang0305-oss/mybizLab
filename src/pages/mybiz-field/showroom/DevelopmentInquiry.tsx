@@ -1,0 +1,86 @@
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowRight, CircleAlert, ClipboardCheck, LockKeyhole } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+import { SHOWROOM_TEMPLATES, type ShowroomTemplateId } from './showroomData';
+import { buildDevelopmentInquiryPayload, validateDevelopmentInquiry, type DevelopmentInquiryErrors, type DevelopmentInquiryInput } from './showroomState';
+
+const featureOptions = ['고객관리', '계약 관리', '결제 상태', 'ERP·WMS', 'API 연동', '콘텐츠 승인', 'AI 리포트', 'Owner 승인'] as const;
+
+function createInitialInquiry(systemType: ShowroomTemplateId | '' = ''): DevelopmentInquiryInput {
+  return { budget: '', companyName: '', consent: false, contactName: '', coreFeatures: [], currentProblem: '', email: '', phone: '', reference: '', systemType, timeline: '', userScale: '' };
+}
+
+export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: ShowroomTemplateId }) {
+  const [form, setForm] = useState<DevelopmentInquiryInput>(() => createInitialInquiry(initialSystemType));
+  const [errors, setErrors] = useState<DevelopmentInquiryErrors>({});
+  const [reviewReady, setReviewReady] = useState(false);
+
+  useEffect(() => {
+    if (initialSystemType) setForm((current) => ({ ...current, systemType: initialSystemType }));
+  }, [initialSystemType]);
+
+  function update<K extends keyof DevelopmentInquiryInput>(key: K, value: DevelopmentInquiryInput[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+    setErrors((current) => ({ ...current, [key]: undefined }));
+    setReviewReady(false);
+  }
+
+  function toggleFeature(feature: string) {
+    update('coreFeatures', form.coreFeatures.includes(feature) ? form.coreFeatures.filter((item) => item !== feature) : [...form.coreFeatures, feature]);
+  }
+
+  function handleReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextErrors = validateDevelopmentInquiry(form);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setReviewReady(false);
+      return;
+    }
+    buildDevelopmentInquiryPayload(form);
+    setReviewReady(true);
+  }
+
+  const inputClass = 'mt-2 min-h-12 w-full rounded-xl border border-[#102a2e]/15 bg-white px-4 text-sm text-[#071019] outline-none transition placeholder:text-[#738082] focus:border-[#ec5b13]';
+
+  return (
+    <section className="scroll-mt-24 bg-[#071019] px-4 py-16 text-white sm:px-8 sm:py-20" data-development-inquiry="structured-review" id="project-request">
+      <div className="mx-auto max-w-[84rem]">
+        <div className="grid gap-8 lg:grid-cols-[.62fr_1.38fr]">
+          <div><p className="text-xs font-black tracking-[0.16em] text-[#dfa758]">REQUEST A BUILD</p><h2 className="mt-3 break-keep font-display text-4xl font-black leading-[1.02] tracking-[-0.05em] sm:text-5xl">원하는 시스템을,<br />구체적인 요청서로.</h2><p className="mt-5 text-sm leading-7 text-white/58">현재 문제와 필요한 범위를 먼저 정리하면 상담에서 바로 핵심을 논의할 수 있습니다.</p><div className="mt-7 rounded-2xl border border-amber-200/20 bg-amber-200/[0.06] p-5"><p className="flex items-center gap-2 text-sm font-black text-amber-100"><LockKeyhole size={17} /> 현재 접수 경계</p><p className="mt-2 text-xs leading-6 text-white/52">요청서는 이 화면에서만 구성되며 아직 접수되지 않음 상태입니다. Production lead write gate를 임의로 열지 않았습니다. 검토 후 기존 문의 채널에서 접수를 계속할 수 있습니다.</p></div></div>
+
+          <form className="rounded-[1.6rem] bg-[#f6f2ea] p-5 text-[#071019] sm:p-7" noValidate onSubmit={handleReview}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field error={errors.companyName} label="회사 / 브랜드명"><input className={inputClass} data-inquiry-field="companyName" onChange={(event) => update('companyName', event.target.value)} placeholder="예: ABC 학원" value={form.companyName} /></Field>
+              <Field error={errors.systemType} label="원하는 시스템"><select className={inputClass} data-inquiry-field="systemType" onChange={(event) => update('systemType', event.target.value as ShowroomTemplateId | '')} value={form.systemType}><option value="">선택해 주세요</option>{SHOWROOM_TEMPLATES.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}</select></Field>
+              <Field className="sm:col-span-2" error={errors.currentProblem} label="현재 문제"><textarea className={`${inputClass} min-h-28 py-3`} data-inquiry-field="currentProblem" onChange={(event) => update('currentProblem', event.target.value)} placeholder="지금 어떤 업무가 반복되거나 놓치기 쉬운지 알려 주세요." value={form.currentProblem} /></Field>
+            </div>
+
+            <fieldset className="mt-5"><legend className="text-xs font-black">필요한 핵심 기능</legend><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{featureOptions.map((feature) => <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#102a2e]/12 bg-white px-3 text-xs font-bold" key={feature}><input checked={form.coreFeatures.includes(feature)} className="size-4 accent-[#ec5b13]" onChange={() => toggleFeature(feature)} type="checkbox" />{feature}</label>)}</div>{errors.coreFeatures ? <p className="mt-2 text-xs font-bold text-red-700">{errors.coreFeatures}</p> : null}</fieldset>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              <Field error={errors.userScale} label="사용자 규모"><select className={inputClass} onChange={(event) => update('userScale', event.target.value)} value={form.userScale}><option value="">선택</option><option>1~5명</option><option>6~20명</option><option>21~50명</option><option>51명 이상</option></select></Field>
+              <Field error={errors.timeline} label="예상 일정"><select className={inputClass} onChange={(event) => update('timeline', event.target.value)} value={form.timeline}><option value="">선택</option><option>1개월 이내</option><option>3개월 이내</option><option>6개월 이내</option><option>협의 필요</option></select></Field>
+              <Field error={errors.budget} label="예상 예산"><select className={inputClass} onChange={(event) => update('budget', event.target.value)} value={form.budget}><option value="">선택</option><option>견적 상담 후 결정</option><option>1천만원 미만</option><option>1천만~3천만원</option><option>3천만원 이상</option></select></Field>
+            </div>
+
+            <Field className="mt-5" label="참고 사이트 / 서비스 (선택)"><input className={inputClass} onChange={(event) => update('reference', event.target.value)} placeholder="URL 또는 참고 설명" value={form.reference} /></Field>
+            <div className="mt-5 grid gap-4 sm:grid-cols-3"><Field error={errors.contactName} label="담당자명"><input className={inputClass} onChange={(event) => update('contactName', event.target.value)} value={form.contactName} /></Field><Field error={errors.email} label="이메일"><input className={inputClass} onChange={(event) => update('email', event.target.value)} placeholder="owner@example.com" type="email" value={form.email} /></Field><Field error={errors.phone} label="연락처"><input className={inputClass} onChange={(event) => update('phone', event.target.value)} placeholder="010-0000-0000" type="tel" value={form.phone} /></Field></div>
+
+            <label className="mt-5 flex items-start gap-3 rounded-xl border border-[#102a2e]/12 bg-white p-4 text-xs leading-5"><input checked={form.consent} className="mt-0.5 size-4 accent-[#ec5b13]" onChange={(event) => update('consent', event.target.checked)} type="checkbox" /><span>상담 요청에 필요한 연락처 처리 안내를 확인했습니다. 마케팅 수신 동의는 포함되지 않습니다.</span></label>{errors.consent ? <p className="mt-2 text-xs font-bold text-red-700">{errors.consent}</p> : null}
+
+            {Object.keys(errors).length > 0 ? <div className="mt-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-800" data-inquiry-status="invalid"><CircleAlert className="shrink-0" size={16} />입력하지 않은 항목을 확인해 주세요. 요청서는 전송되지 않았습니다.</div> : null}
+            {reviewReady ? <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4" data-inquiry-status="review-ready"><p className="flex items-center gap-2 text-sm font-black text-emerald-900"><ClipboardCheck size={17} />요청서 구성이 완료되었습니다.</p><p className="mt-2 text-xs leading-5 text-emerald-800">현재 상태: 아직 접수되지 않음 · DB 저장 없음 · 아래 기존 문의 채널에서 접수를 계속해 주세요.</p><Link className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-[#102a2e] px-5 text-xs font-black text-white" to="/contact">문의 채널에서 접수 계속하기<ArrowRight size={14} /></Link></div> : null}
+
+            <div className="mt-6 flex flex-wrap items-center gap-3"><button className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#ec5b13] px-6 text-sm font-black text-white focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#102a2e]" data-inquiry-action="review" type="submit">요청 내용 검토하기</button><span className="text-xs text-[#5e6c6e]">실제 접수 성공으로 표시하지 않습니다.</span></div>
+          </form>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Field({ children, className = '', error, label }: { children: ReactNode; className?: string; error?: string; label: string }) {
+  return <label className={className}><span className="block text-xs font-black">{label}</span>{children}{error ? <span className="mt-2 block text-xs font-bold text-red-700">{error}</span> : null}</label>;
+}
