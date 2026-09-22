@@ -9,6 +9,13 @@ import { WebsitePackageShowcase } from './WebsitePackageShowcase';
 import { HOMEPAGE_COPY, HOMEPAGE_FAQ } from './content/homepageCopy';
 import { CinematicHero } from './hero/CinematicHero';
 import { getIndustryMedia, type ServiceIndustry } from './media/mediaManifest';
+import { ShowroomHero } from './showroom/ShowroomHero';
+import { SystemStory } from './showroom/SystemStory';
+import { TemplateShowroom } from './showroom/TemplateShowroom';
+import { MakeItYours } from './showroom/MakeItYours';
+import { PortfolioProof } from './showroom/PortfolioProof';
+import { DevelopmentInquiry } from './showroom/DevelopmentInquiry';
+import type { ShowroomTemplateId } from './showroom/showroomData';
 
 const evidenceItems = [
   ['Original', '원본과 편집본을 구분하고 파일 변경 감지를 위한 무결성 정보를 연결합니다.'],
@@ -16,18 +23,38 @@ const evidenceItems = [
   ['Audit', '완료 확인·보완·동의·철회·업체 검토를 서로 다른 이벤트로 다룹니다.'],
 ] as const;
 
+const showroomStructuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfessionalService',
+  areaServed: 'KR',
+  description: '맞춤형 웹 시스템, 업무자동화, ERP·WMS, 고객관리와 AI 업무 도구를 설계하고 구축합니다.',
+  name: 'MyBizLab',
+  serviceType: ['맞춤형 웹 시스템 개발', '업무자동화 개발', 'ERP·WMS 개발', 'AI 업무 도구 개발'],
+  url: 'https://mybiz.ai.kr',
+};
+
 export function MyBizFieldLandingPage() {
   const [activeIndustry, setActiveIndustry] = useState<ServiceIndustry>('cleaning');
+  const [consultationTemplate, setConsultationTemplate] = useState<ShowroomTemplateId>();
   const media = getIndustryMedia(activeIndustry);
 
-  usePageMeta('작업부터 다음 고객까지 연결하는 MyBiz Service OS', '청소·미용실·설치·수리·가발·인테리어의 작업 전후 기록, 고객 확인, 브랜드 홈페이지 확장을 한 흐름으로 체험하세요.');
+  usePageMeta('MyBizLab 맞춤형 웹 시스템·업무자동화 개발', '계약·결제, 고객관리, ERP·WMS, API 자동화와 AI 업무 도구를 사업 흐름에 맞게 설계하고 구축하는 MyBizLab 개발 쇼룸입니다.', {
+    canonicalUrl: 'https://mybiz.ai.kr',
+    jsonLd: showroomStructuredData,
+  });
 
   return (
-    <main className="overflow-x-hidden bg-[#0b111a] text-white" data-active-industry={activeIndustry} data-cinematic-home="true" data-landing-mode="cinematic-industry-video" data-service-os-home="stage2-r2-2">
+    <main className="overflow-x-hidden bg-[#0b111a] text-white" data-active-industry={activeIndustry} data-cinematic-home="true" data-commercial-showroom="v1" data-landing-mode="cinematic-industry-video" data-service-os-home="stage2-r2-2">
+      <ShowroomHero />
+      <SystemStory />
+      <TemplateShowroom onConsult={setConsultationTemplate} />
+      <MakeItYours />
+      <PortfolioProof />
       <CinematicHero activeIndustry={activeIndustry} />
       <IndustryVisualSelector activeIndustry={activeIndustry} onChange={setActiveIndustry} />
       <ServiceExperience activeIndustry={activeIndustry} />
       <WebsitePackageShowcase media={media} />
+      <DevelopmentInquiry initialSystemType={consultationTemplate} />
 
       <section className="border-y border-[#e5ddd2] bg-white px-4 py-12 text-[#172431] sm:px-8" id="features">
         <div className="mx-auto max-w-[84rem]">
