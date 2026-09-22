@@ -116,16 +116,18 @@ try {
   await firstMotionChoice.focus();
   await page.keyboard.press('Enter');
   assert(await page.locator('[data-inquiry-selection]').getByText('soft-spotlight@0.1.0', { exact: false }).isVisible(), 'motion choice did not reach the inquiry');
+  assert(await page.locator('[data-inquiry-field="systemType"]').inputValue() === 'homepage-build', 'motion choice did not select the homepage inquiry type');
+  assert(await page.locator('#project-request form').getByText('홈페이지에 필요한 구성 (선택)', { exact: true }).isVisible(), 'homepage-specific inquiry choices did not render');
+  assert(await page.locator('#project-request form').getByText('ERP·WMS', { exact: true }).count() === 0, 'homepage inquiry exposed an unrelated ERP choice');
   report.interactions.push({ action: 'motion-runtime-media-keyboard', cards: 3, pass: true, videosInitiallyLoaded: 0 });
 
   const form = page.locator('#project-request form');
   await form.getByRole('button', { name: '요청 내용 검토하기' }).click();
   assert(await form.locator('[data-inquiry-status="invalid"]').isVisible(), 'empty inquiry validation did not fail closed');
+  assert(await form.getByText('필요한 핵심 기능을 하나 이상 선택해 주세요.', { exact: true }).count() === 0, 'homepage inquiry incorrectly required a CRM or ERP feature');
   await form.locator('[data-inquiry-field="companyName"]').fill('ABC 학원');
-  await form.locator('[data-inquiry-field="systemType"]').selectOption('crm-workflow');
   const originalProblem = '문의와 계약 진행 상태가 여러 문서에 흩어져 담당자가 놓칩니다.\n계약 정보도 함께 보고 싶습니다. 🧪';
   await form.locator('[data-inquiry-field="currentProblem"]').fill(originalProblem);
-  await form.locator('input[type="checkbox"]').first().check();
   await form.getByLabel('사용자 규모').selectOption({ label: '6~20명' });
   await form.getByLabel('예상 일정').selectOption({ label: '3개월 이내' });
   await form.getByLabel('예상 예산').selectOption({ label: '견적 상담 후 결정' });
@@ -139,7 +141,7 @@ try {
   assert(await handoff.isVisible(), 'valid inquiry did not reach review-ready state');
   assert(await form.getByText('아직 접수되지 않음', { exact: false }).isVisible(), 'inquiry truthfulness status missing');
   const handoffBody = await handoff.locator('[data-inquiry-handoff-body]').inputValue();
-  for (const value of ['ABC 학원', originalProblem, '고객관리', '6~20명', '3개월 이내', '견적 상담 후 결정', 'https://example.com/?a=1&b=2#demo', '테스트 담당', 'owner@example.com', '010-0000-0000', 'soft-spotlight@0.1.0']) {
+  for (const value of ['ABC 학원', originalProblem, '홈페이지·랜딩 제작', '(상담 후 결정)', '6~20명', '3개월 이내', '견적 상담 후 결정', 'https://example.com/?a=1&b=2#demo', '테스트 담당', 'owner@example.com', '010-0000-0000', 'soft-spotlight@0.1.0']) {
     assert(handoffBody.includes(value), `inquiry handoff lost field: ${value}`);
   }
   const recipient = await handoff.getAttribute('data-inquiry-recipient');

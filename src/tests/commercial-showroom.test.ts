@@ -9,6 +9,10 @@ import {
   validateDevelopmentInquiry,
   type DevelopmentInquiryInput,
 } from '@/pages/mybiz-field/showroom/showroomState';
+import {
+  DEVELOPMENT_INQUIRY_TYPES,
+  HOMEPAGE_INQUIRY_TYPE,
+} from '@/pages/mybiz-field/showroom/inquiryOptions';
 
 const validInquiry: DevelopmentInquiryInput = {
   budget: '견적 상담 후 결정',
@@ -102,6 +106,30 @@ describe('commercial showroom product contract', () => {
       email: expect.any(String),
       phone: expect.any(String),
     });
+  });
+
+  it('accepts a homepage build inquiry without forcing CRM or ERP features', () => {
+    expect(DEVELOPMENT_INQUIRY_TYPES).toHaveLength(7);
+    expect(DEVELOPMENT_INQUIRY_TYPES[0]).toMatchObject({
+      id: HOMEPAGE_INQUIRY_TYPE,
+      label: '홈페이지·랜딩 제작',
+    });
+
+    const homepageInquiry: DevelopmentInquiryInput = {
+      ...validInquiry,
+      coreFeatures: [],
+      systemType: HOMEPAGE_INQUIRY_TYPE,
+    };
+
+    expect(validateDevelopmentInquiry(homepageInquiry)).toEqual({});
+    expect(buildDevelopmentInquiryPayload(homepageInquiry)).toMatchObject({
+      coreFeatures: [],
+      systemType: HOMEPAGE_INQUIRY_TYPE,
+    });
+    expect(validateDevelopmentInquiry({
+      ...homepageInquiry,
+      systemType: 'crm-workflow',
+    })).toMatchObject({ coreFeatures: expect.any(String) });
   });
 
   it('builds a structured but explicitly non-persisted inquiry payload', () => {

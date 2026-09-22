@@ -32,9 +32,9 @@ export function buildInquiryHandoff(input: InquiryHandoffInput, options: Inquiry
   const body = crlf([
     'MyBizLab 개발 상담 요청서', '',
     `회사 / 브랜드명: ${input.companyName}`,
-    `원하는 시스템: ${options.systemLabel || input.systemType}`,
+    `원하는 제작 유형: ${options.systemLabel || input.systemType}`,
     ...(options.selectionSummary ? [`선택한 서비스 / 모션: ${options.selectionSummary}`] : []),
-    `필요한 핵심 기능: ${input.coreFeatures.join(' / ')}`,
+    `선택한 구성 / 기능: ${input.coreFeatures.length > 0 ? input.coreFeatures.join(' / ') : '(상담 후 결정)'}`,
     `사용자 규모: ${input.userScale}`, `예상 일정: ${input.timeline}`, `예상 예산: ${input.budget}`,
     '', '현재 문제:', input.currentProblem,
     '', `참고 사이트 / 서비스: ${input.reference || '(미입력)'}`,
