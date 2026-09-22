@@ -1,4 +1,4 @@
-/* global process, document, window, console, URLSearchParams, localStorage, sessionStorage, location, navigator */
+/* global process, document, window, console, Event, URLSearchParams, localStorage, sessionStorage, location, navigator */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -34,10 +34,12 @@ try {
       bodyWidth: document.body.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
       heroHeight: document.querySelector('[data-showroom-hero="true"]')?.getBoundingClientRect().height ?? 0,
+      motionCards: document.querySelectorAll('[data-motion-card]').length,
       templates: document.querySelectorAll('#templates [role="tab"]').length,
     }));
     assert(geometry.bodyWidth <= geometry.clientWidth + 1, `${name}: horizontal overflow ${geometry.bodyWidth}/${geometry.clientWidth}`);
     assert(geometry.heroHeight > 300, `${name}: showroom hero did not render`);
+    assert(geometry.motionCards === 3, `${name}: expected 3 motion cards, got ${geometry.motionCards}`);
     assert(geometry.templates === 6, `${name}: expected 6 template tabs, got ${geometry.templates}`);
     if (name === 'mobile-390' || name === 'desktop-1440') await page.screenshot({ path: resolve(evidenceDir, `${name}-hero.png`) });
     report.viewports.push({ ...geometry, height, name, pass: true, width });
@@ -92,6 +94,30 @@ try {
   assert(await page.locator('#system-story').getByText('SYSTEM BUILD · 01/08', { exact: true }).isVisible(), 'reverse scroll story did not restore scene 1');
   report.interactions.push({ action: 'scroll-story-forward-reverse', pass: true });
 
+  const motionCards = page.locator('[data-motion-card]');
+  assert(await motionCards.count() === 3, 'motion showroom did not render exactly three cards');
+  assert(await page.locator('[data-motion-ready="true"]').count() === 3, 'motion runtimes were not mounted');
+  assert(await page.locator('#motion-showroom video').count() === 0, 'motion videos loaded before an explicit user request');
+  const firstMediaToggle = motionCards.first().getByRole('button', { name: '실제 코드 촬영 영상 보기' });
+  await firstMediaToggle.click();
+  const requestedVideo = motionCards.first().locator('video');
+  assert(await requestedVideo.count() === 1, 'requested motion video did not mount');
+  const videoPolicy = await requestedVideo.evaluate((video) => ({ autoplay: video.autoplay, preload: video.preload, src: video.getAttribute('src') }));
+  assert(videoPolicy.autoplay === false && videoPolicy.preload === 'none', 'motion video violated explicit-load playback policy');
+  assert(videoPolicy.src === '/media/motion/soft-spotlight.mp4', `unexpected motion video source: ${videoPolicy.src}`);
+  await requestedVideo.evaluate((video) => video.dispatchEvent(new Event('error')));
+  assert(await motionCards.first().getByText('영상을 재생할 수 없습니다.', { exact: false }).isVisible(), 'motion video error fallback did not render');
+  assert(await motionCards.first().locator('img[src="/media/motion/soft-spotlight.webp"]').count() === 1, 'motion video fallback poster is missing');
+  const magneticDemo = motionCards.nth(1).getByRole('button', { name: '프로젝트 시작하기' });
+  await magneticDemo.focus();
+  await page.keyboard.press('Enter');
+  assert(await motionCards.nth(1).getByText('버튼 동작 체험 완료', { exact: false }).isVisible(), 'keyboard motion interaction failed');
+  const firstMotionChoice = motionCards.first().getByRole('button', { name: '이 모션으로 홈페이지 상담' });
+  await firstMotionChoice.focus();
+  await page.keyboard.press('Enter');
+  assert(await page.locator('[data-inquiry-selection]').getByText('soft-spotlight@0.1.0', { exact: false }).isVisible(), 'motion choice did not reach the inquiry');
+  report.interactions.push({ action: 'motion-runtime-media-keyboard', cards: 3, pass: true, videosInitiallyLoaded: 0 });
+
   const form = page.locator('#project-request form');
   await form.getByRole('button', { name: '요청 내용 검토하기' }).click();
   assert(await form.locator('[data-inquiry-status="invalid"]').isVisible(), 'empty inquiry validation did not fail closed');
@@ -113,7 +139,7 @@ try {
   assert(await handoff.isVisible(), 'valid inquiry did not reach review-ready state');
   assert(await form.getByText('아직 접수되지 않음', { exact: false }).isVisible(), 'inquiry truthfulness status missing');
   const handoffBody = await handoff.locator('[data-inquiry-handoff-body]').inputValue();
-  for (const value of ['ABC 학원', originalProblem, '고객관리', '6~20명', '3개월 이내', '견적 상담 후 결정', 'https://example.com/?a=1&b=2#demo', '테스트 담당', 'owner@example.com', '010-0000-0000']) {
+  for (const value of ['ABC 학원', originalProblem, '고객관리', '6~20명', '3개월 이내', '견적 상담 후 결정', 'https://example.com/?a=1&b=2#demo', '테스트 담당', 'owner@example.com', '010-0000-0000', 'soft-spotlight@0.1.0']) {
     assert(handoffBody.includes(value), `inquiry handoff lost field: ${value}`);
   }
   const recipient = await handoff.getAttribute('data-inquiry-recipient');
@@ -133,6 +159,17 @@ try {
   assert(!JSON.stringify(browserPersistence).includes('owner@example.com'), 'inquiry PII leaked into URL or browser storage');
   assert(inquiryNetworkRequests.length === 0, `inquiry PII appeared in a network request: ${inquiryNetworkRequests[0]}`);
   assert(!consoleMessages.some((message) => message.includes('owner@example.com') || message.includes('010-0000-0000')), 'inquiry PII appeared in console output');
+
+  await motionCards.nth(1).getByRole('button', { name: '이 모션으로 홈페이지 상담' }).click();
+  await form.locator('[data-inquiry-status="review-ready"]').waitFor({ state: 'detached' });
+  assert(await form.locator('[data-inquiry-status="review-ready"]').count() === 0, 'changing the motion did not invalidate the prior review snapshot');
+  assert(await form.locator('[data-inquiry-field="companyName"]').inputValue() === 'ABC 학원', 'changing the motion remounted or reset the inquiry form');
+  assert(await form.locator('[data-inquiry-selection]').getByText('magnetic-cta@0.1.0', { exact: false }).isVisible(), 'changed motion did not update the inquiry summary');
+  const beforeAnchorNavigation = page.url();
+  await page.locator('#motion-showroom a[href="#project-request"]').click();
+  await page.goBack();
+  assert(page.url() === beforeAnchorNavigation, 'browser back did not restore the pre-anchor URL');
+  assert(await form.locator('[data-inquiry-field="companyName"]').inputValue() === 'ABC 학원', 'browser back reset the in-progress inquiry');
 
   await form.locator('[data-inquiry-field="companyName"]').fill('ABC 학원 수정');
   assert(await form.locator('[data-inquiry-status="review-ready"]').count() === 0, 'editing the form did not invalidate the prior review snapshot');
@@ -174,6 +211,13 @@ try {
   assert(report.seo.description?.includes('ERP·WMS'), 'SEO description mismatch');
   assert(report.seo.canonical === 'https://mybiz.ai.kr', `canonical mismatch: ${report.seo.canonical}`);
   assert(report.seo.jsonLd, 'structured metadata missing');
+
+  for (let cycle = 1; cycle <= 20; cycle += 1) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    assert(await page.locator('[data-motion-card]').count() === 3, `motion remount cycle ${cycle}: card count drifted`);
+    assert(await page.locator('[data-motion-ready="true"]').count() === 3, `motion remount cycle ${cycle}: runtime did not mount cleanly`);
+  }
+  report.interactions.push({ action: 'motion-react-remount', cycles: 20, pass: true });
   await context.close();
 
   const reducedContext = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 1440, height: 900 } });
@@ -181,7 +225,9 @@ try {
   await reducedPage.goto(baseUrl, { waitUntil: 'networkidle' });
   const reduced = await reducedPage.locator('[data-story-sticky="true"]').evaluate((element) => ({ position: window.getComputedStyle(element).position }));
   assert(reduced.position === 'static', `reduced-motion story position is ${reduced.position}`);
-  report.reducedMotion = { ...reduced, pass: true };
+  const reducedMotionStages = await reducedPage.locator('[data-motion-kind]').evaluateAll((elements) => elements.map((element) => element.getAttribute('data-reduced-motion')));
+  assert(reducedMotionStages.length === 3 && reducedMotionStages.every((value) => value === 'true'), `motion reduced-motion state mismatch: ${reducedMotionStages.join(',')}`);
+  report.reducedMotion = { ...reduced, motionStages: reducedMotionStages.length, pass: true };
   await reducedContext.close();
 
   report.pass = true;

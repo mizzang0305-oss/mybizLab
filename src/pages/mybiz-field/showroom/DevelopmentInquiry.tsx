@@ -13,7 +13,7 @@ function createInitialInquiry(systemType: ShowroomTemplateId | '' = ''): Develop
   return { budget: '', companyName: '', consent: false, contactName: '', coreFeatures: [], currentProblem: '', email: '', phone: '', reference: '', systemType, timeline: '', userScale: '' };
 }
 
-export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: ShowroomTemplateId }) {
+export function DevelopmentInquiry({ initialSystemType, selectionSummary = '' }: { initialSystemType?: ShowroomTemplateId; selectionSummary?: string }) {
   const [form, setForm] = useState<DevelopmentInquiryInput>(() => createInitialInquiry(initialSystemType));
   const [errors, setErrors] = useState<DevelopmentInquiryErrors>({});
   const [handoff, setHandoff] = useState<InquiryHandoffDraft | null>(null);
@@ -24,6 +24,10 @@ export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: 
       setHandoff(null);
     }
   }, [initialSystemType]);
+
+  useEffect(() => {
+    setHandoff(null);
+  }, [selectionSummary]);
 
   function update<K extends keyof DevelopmentInquiryInput>(key: K, value: DevelopmentInquiryInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -45,6 +49,7 @@ export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: 
     }
     setHandoff(buildInquiryHandoff(form, {
       recipient: BUSINESS_INFO.email,
+      selectionSummary,
       systemLabel: SHOWROOM_TEMPLATES.find((template) => template.id === form.systemType)?.label ?? form.systemType,
     }));
   }
@@ -58,6 +63,7 @@ export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: 
           <div><p className="text-xs font-black tracking-[0.16em] text-[#dfa758]">REQUEST A BUILD</p><h2 className="mt-3 break-keep font-display text-4xl font-black leading-[1.02] tracking-[-0.05em] sm:text-5xl">원하는 시스템을,<br />구체적인 요청서로.</h2><p className="mt-5 text-sm leading-7 text-white/58">현재 문제와 필요한 범위를 먼저 정리하면 상담에서 바로 핵심을 논의할 수 있습니다.</p><div className="mt-7 rounded-2xl border border-amber-200/20 bg-amber-200/[0.06] p-5"><p className="flex items-center gap-2 text-sm font-black text-amber-100"><LockKeyhole size={17} /> 현재 접수 경계</p><p className="mt-2 text-xs leading-6 text-white/52">요청서는 아직 접수되지 않음 상태이며 웹사이트 서버에 저장되지 않습니다. 검토 후 전체 내용을 메일로 전달할 수 있습니다. 발송은 메일 앱에서 직접 완료해 주세요.</p></div></div>
 
           <form className="rounded-[1.6rem] bg-[#f6f2ea] p-5 text-[#071019] sm:p-7" noValidate onSubmit={handleReview}>
+            {selectionSummary ? <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold leading-6" data-inquiry-selection>{selectionSummary}</p> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field error={errors.companyName} label="회사 / 브랜드명"><input className={inputClass} data-inquiry-field="companyName" onChange={(event) => update('companyName', event.target.value)} placeholder="예: ABC 학원" value={form.companyName} /></Field>
               <Field error={errors.systemType} label="원하는 시스템"><select className={inputClass} data-inquiry-field="systemType" onChange={(event) => update('systemType', event.target.value as ShowroomTemplateId | '')} value={form.systemType}><option value="">선택해 주세요</option>{SHOWROOM_TEMPLATES.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}</select></Field>
