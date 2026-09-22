@@ -1,6 +1,6 @@
-/* global process, document, window, console */
+/* global process, document, window, console, URLSearchParams, localStorage, sessionStorage, location, navigator */
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
@@ -46,6 +46,12 @@ try {
 
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
+  const consoleMessages = [];
+  const inquiryNetworkRequests = [];
+  page.on('console', (message) => consoleMessages.push(message.text()));
+  page.on('request', (request) => {
+    if (/owner(?:%40|@)example\.com|010-0000-0000/i.test(request.url())) inquiryNetworkRequests.push(request.url());
+  });
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
 
   const templateTabs = page.locator('#templates [role="tab"]');
@@ -91,19 +97,65 @@ try {
   assert(await form.locator('[data-inquiry-status="invalid"]').isVisible(), 'empty inquiry validation did not fail closed');
   await form.locator('[data-inquiry-field="companyName"]').fill('ABC 학원');
   await form.locator('[data-inquiry-field="systemType"]').selectOption('crm-workflow');
-  await form.locator('[data-inquiry-field="currentProblem"]').fill('문의와 계약 진행 상태가 여러 문서에 흩어져 담당자가 놓칩니다.');
+  const originalProblem = '문의와 계약 진행 상태가 여러 문서에 흩어져 담당자가 놓칩니다.\n계약 정보도 함께 보고 싶습니다. 🧪';
+  await form.locator('[data-inquiry-field="currentProblem"]').fill(originalProblem);
   await form.locator('input[type="checkbox"]').first().check();
   await form.getByLabel('사용자 규모').selectOption({ label: '6~20명' });
   await form.getByLabel('예상 일정').selectOption({ label: '3개월 이내' });
   await form.getByLabel('예상 예산').selectOption({ label: '견적 상담 후 결정' });
+  await form.getByLabel('참고 사이트 / 서비스 (선택)').fill('https://example.com/?a=1&b=2#demo');
   await form.getByLabel('담당자명').fill('테스트 담당');
   await form.getByLabel('이메일').fill('owner@example.com');
   await form.getByRole('textbox', { name: /^연락처/ }).fill('010-0000-0000');
   await form.locator('input[type="checkbox"]').last().check();
   await form.getByRole('button', { name: '요청 내용 검토하기' }).click();
-  assert(await form.locator('[data-inquiry-status="review-ready"]').isVisible(), 'valid inquiry did not reach review-ready state');
+  const handoff = form.locator('[data-inquiry-status="review-ready"]');
+  assert(await handoff.isVisible(), 'valid inquiry did not reach review-ready state');
   assert(await form.getByText('아직 접수되지 않음', { exact: false }).isVisible(), 'inquiry truthfulness status missing');
-  report.interactions.push({ action: 'inquiry-validation-and-review', pass: true, persisted: false });
+  const handoffBody = await handoff.locator('[data-inquiry-handoff-body]').inputValue();
+  for (const value of ['ABC 학원', originalProblem, '고객관리', '6~20명', '3개월 이내', '견적 상담 후 결정', 'https://example.com/?a=1&b=2#demo', '테스트 담당', 'owner@example.com', '010-0000-0000']) {
+    assert(handoffBody.includes(value), `inquiry handoff lost field: ${value}`);
+  }
+  const recipient = await handoff.getAttribute('data-inquiry-recipient');
+  assert(Boolean(recipient), 'business recipient was not exposed for verification');
+  const emailLink = handoff.locator('[data-inquiry-action="email"]');
+  const emailHref = await emailLink.getAttribute('href');
+  assert(emailHref?.startsWith(`mailto:${recipient}?`), 'mailto recipient does not match the rendered business inbox');
+  const mailtoParams = new URLSearchParams(emailHref.split('?')[1]);
+  assert(JSON.stringify([...mailtoParams.keys()]) === JSON.stringify(['subject', 'body']), 'mailto contains unexpected recipient-control parameters');
+  assert(mailtoParams.get('body')?.includes(originalProblem.replace(/\n/g, '\r\n')), 'mailto body did not preserve UTF-8/CRLF request text');
+  const urlBeforeEmail = page.url();
+  await emailLink.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault(), { once: true }));
+  await emailLink.click();
+  assert(page.url() === urlBeforeEmail, 'email verification navigated away from the request');
+  assert(await handoff.getByText('실제 발송·수신 여부는 이 화면에서 확인할 수 없습니다.', { exact: false }).isVisible(), 'email action claimed an unsupported submission result');
+  const browserPersistence = await page.evaluate(() => ({ local: JSON.stringify(localStorage), session: JSON.stringify(sessionStorage), url: location.href }));
+  assert(!JSON.stringify(browserPersistence).includes('owner@example.com'), 'inquiry PII leaked into URL or browser storage');
+  assert(inquiryNetworkRequests.length === 0, `inquiry PII appeared in a network request: ${inquiryNetworkRequests[0]}`);
+  assert(!consoleMessages.some((message) => message.includes('owner@example.com') || message.includes('010-0000-0000')), 'inquiry PII appeared in console output');
+
+  await form.locator('[data-inquiry-field="companyName"]').fill('ABC 학원 수정');
+  assert(await form.locator('[data-inquiry-status="review-ready"]').count() === 0, 'editing the form did not invalidate the prior review snapshot');
+  const longProblem = '매우 긴 요청서 원문입니다. 🧪\n'.repeat(700);
+  await form.locator('[data-inquiry-field="currentProblem"]').fill(longProblem);
+  await form.getByRole('button', { name: '요청 내용 검토하기' }).click();
+  const longHandoff = form.locator('[data-inquiry-status="review-ready"]');
+  assert(await longHandoff.getAttribute('data-handoff-mode') === 'copy_then_email', 'long request did not use the safe manual fallback');
+  const longBody = await longHandoff.locator('[data-inquiry-handoff-body]').inputValue();
+  assert(longBody.includes(longProblem.trim()), 'long request was truncated in the on-screen fallback');
+  const longEmailHref = await longHandoff.locator('[data-inquiry-action="email"]').getAttribute('href');
+  assert(longEmailHref && !new URLSearchParams(longEmailHref.split('?')[1]).has('body'), 'long mailto unexpectedly included an overlong body');
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined }));
+  await longHandoff.locator('[data-inquiry-action="copy"]').click();
+  assert(await longHandoff.getByText('자동 복사를 사용할 수 없습니다.', { exact: false }).isVisible(), 'clipboard denial did not retain a manual-copy path');
+  const selection = await longHandoff.locator('[data-inquiry-handoff-body]').evaluate((element) => ({ end: element.selectionEnd, length: element.value.length, start: element.selectionStart }));
+  assert(selection.start === 0 && selection.end === selection.length, 'clipboard denial did not select the complete fallback body');
+  const [download] = await Promise.all([page.waitForEvent('download'), longHandoff.locator('[data-inquiry-action="download"]').click()]);
+  const downloadPath = await download.path();
+  assert(download.suggestedFilename() === 'mybizlab-development-inquiry.txt' && downloadPath, 'request text download was not created');
+  const downloadedDraft = await readFile(downloadPath, 'utf8');
+  assert(downloadedDraft.replace(/\r\n/g, '\n').includes(longProblem.trim()), 'downloaded request text was truncated');
+  report.interactions.push({ action: 'inquiry-handoff-preservation', emailOpened: false, longFallback: true, pass: true, persisted: false, recipient });
 
   const focusStyles = await page.locator('[data-inquiry-action="review"]').evaluate((element) => {
     element.focus();

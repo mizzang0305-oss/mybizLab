@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowRight, CircleAlert, ClipboardCheck, LockKeyhole } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { CircleAlert, LockKeyhole } from 'lucide-react';
+import { BUSINESS_INFO } from '@/shared/lib/siteConfig';
+import { InquiryHandoffPanel } from './InquiryHandoffPanel';
+import { buildInquiryHandoff, type InquiryHandoffDraft } from './inquiryHandoff';
 
 import { SHOWROOM_TEMPLATES, type ShowroomTemplateId } from './showroomData';
-import { buildDevelopmentInquiryPayload, validateDevelopmentInquiry, type DevelopmentInquiryErrors, type DevelopmentInquiryInput } from './showroomState';
+import { validateDevelopmentInquiry, type DevelopmentInquiryErrors, type DevelopmentInquiryInput } from './showroomState';
 
 const featureOptions = ['고객관리', '계약 관리', '결제 상태', 'ERP·WMS', 'API 연동', '콘텐츠 승인', 'AI 리포트', 'Owner 승인'] as const;
 
@@ -14,16 +16,19 @@ function createInitialInquiry(systemType: ShowroomTemplateId | '' = ''): Develop
 export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: ShowroomTemplateId }) {
   const [form, setForm] = useState<DevelopmentInquiryInput>(() => createInitialInquiry(initialSystemType));
   const [errors, setErrors] = useState<DevelopmentInquiryErrors>({});
-  const [reviewReady, setReviewReady] = useState(false);
+  const [handoff, setHandoff] = useState<InquiryHandoffDraft | null>(null);
 
   useEffect(() => {
-    if (initialSystemType) setForm((current) => ({ ...current, systemType: initialSystemType }));
+    if (initialSystemType) {
+      setForm((current) => ({ ...current, systemType: initialSystemType }));
+      setHandoff(null);
+    }
   }, [initialSystemType]);
 
   function update<K extends keyof DevelopmentInquiryInput>(key: K, value: DevelopmentInquiryInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
-    setReviewReady(false);
+    setHandoff(null);
   }
 
   function toggleFeature(feature: string) {
@@ -35,11 +40,13 @@ export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: 
     const nextErrors = validateDevelopmentInquiry(form);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
-      setReviewReady(false);
+      setHandoff(null);
       return;
     }
-    buildDevelopmentInquiryPayload(form);
-    setReviewReady(true);
+    setHandoff(buildInquiryHandoff(form, {
+      recipient: BUSINESS_INFO.email,
+      systemLabel: SHOWROOM_TEMPLATES.find((template) => template.id === form.systemType)?.label ?? form.systemType,
+    }));
   }
 
   const inputClass = 'mt-2 min-h-12 w-full rounded-xl border border-[#102a2e]/15 bg-white px-4 text-sm text-[#071019] outline-none transition placeholder:text-[#738082] focus:border-[#ec5b13]';
@@ -48,7 +55,7 @@ export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: 
     <section className="scroll-mt-24 bg-[#071019] px-4 py-16 text-white sm:px-8 sm:py-20" data-development-inquiry="structured-review" id="project-request">
       <div className="mx-auto max-w-[84rem]">
         <div className="grid gap-8 lg:grid-cols-[.62fr_1.38fr]">
-          <div><p className="text-xs font-black tracking-[0.16em] text-[#dfa758]">REQUEST A BUILD</p><h2 className="mt-3 break-keep font-display text-4xl font-black leading-[1.02] tracking-[-0.05em] sm:text-5xl">원하는 시스템을,<br />구체적인 요청서로.</h2><p className="mt-5 text-sm leading-7 text-white/58">현재 문제와 필요한 범위를 먼저 정리하면 상담에서 바로 핵심을 논의할 수 있습니다.</p><div className="mt-7 rounded-2xl border border-amber-200/20 bg-amber-200/[0.06] p-5"><p className="flex items-center gap-2 text-sm font-black text-amber-100"><LockKeyhole size={17} /> 현재 접수 경계</p><p className="mt-2 text-xs leading-6 text-white/52">요청서는 이 화면에서만 구성되며 아직 접수되지 않음 상태입니다. Production lead write gate를 임의로 열지 않았습니다. 검토 후 기존 문의 채널에서 접수를 계속할 수 있습니다.</p></div></div>
+          <div><p className="text-xs font-black tracking-[0.16em] text-[#dfa758]">REQUEST A BUILD</p><h2 className="mt-3 break-keep font-display text-4xl font-black leading-[1.02] tracking-[-0.05em] sm:text-5xl">원하는 시스템을,<br />구체적인 요청서로.</h2><p className="mt-5 text-sm leading-7 text-white/58">현재 문제와 필요한 범위를 먼저 정리하면 상담에서 바로 핵심을 논의할 수 있습니다.</p><div className="mt-7 rounded-2xl border border-amber-200/20 bg-amber-200/[0.06] p-5"><p className="flex items-center gap-2 text-sm font-black text-amber-100"><LockKeyhole size={17} /> 현재 접수 경계</p><p className="mt-2 text-xs leading-6 text-white/52">요청서는 아직 접수되지 않음 상태이며 웹사이트 서버에 저장되지 않습니다. 검토 후 전체 내용을 메일로 전달할 수 있습니다. 발송은 메일 앱에서 직접 완료해 주세요.</p></div></div>
 
           <form className="rounded-[1.6rem] bg-[#f6f2ea] p-5 text-[#071019] sm:p-7" noValidate onSubmit={handleReview}>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -71,7 +78,7 @@ export function DevelopmentInquiry({ initialSystemType }: { initialSystemType?: 
             <label className="mt-5 flex items-start gap-3 rounded-xl border border-[#102a2e]/12 bg-white p-4 text-xs leading-5"><input checked={form.consent} className="mt-0.5 size-4 accent-[#ec5b13]" onChange={(event) => update('consent', event.target.checked)} type="checkbox" /><span>상담 요청에 필요한 연락처 처리 안내를 확인했습니다. 마케팅 수신 동의는 포함되지 않습니다.</span></label>{errors.consent ? <p className="mt-2 text-xs font-bold text-red-700">{errors.consent}</p> : null}
 
             {Object.keys(errors).length > 0 ? <div className="mt-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-800" data-inquiry-status="invalid"><CircleAlert className="shrink-0" size={16} />입력하지 않은 항목을 확인해 주세요. 요청서는 전송되지 않았습니다.</div> : null}
-            {reviewReady ? <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4" data-inquiry-status="review-ready"><p className="flex items-center gap-2 text-sm font-black text-emerald-900"><ClipboardCheck size={17} />요청서 구성이 완료되었습니다.</p><p className="mt-2 text-xs leading-5 text-emerald-800">현재 상태: 아직 접수되지 않음 · DB 저장 없음 · 아래 기존 문의 채널에서 접수를 계속해 주세요.</p><Link className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-[#102a2e] px-5 text-xs font-black text-white" to="/contact">문의 채널에서 접수 계속하기<ArrowRight size={14} /></Link></div> : null}
+            {handoff ? <InquiryHandoffPanel draft={handoff} key={handoff.draftText} /> : null}
 
             <div className="mt-6 flex flex-wrap items-center gap-3"><button className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#ec5b13] px-6 text-sm font-black text-white focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#102a2e]" data-inquiry-action="review" type="submit">요청 내용 검토하기</button><span className="text-xs text-[#5e6c6e]">실제 접수 성공으로 표시하지 않습니다.</span></div>
           </form>
