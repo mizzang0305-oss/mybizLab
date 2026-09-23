@@ -230,6 +230,23 @@ try {
   report.interactions.push({ action: 'motion-react-remount', cycles: 20, pass: true });
   await context.close();
 
+  const selectionContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const selectionPage = await selectionContext.newPage();
+  await selectionPage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await selectionPage.locator('[data-style-direction="ops-precision"]').click();
+  assert(await selectionPage.locator('[data-inquiry-field="systemType"]').inputValue() === '', 'style alone changed the inquiry type');
+  await selectionPage.getByRole('tab', { name: '고객·업무관리 패키지' }).click();
+  await selectionPage.locator('#template-detail').getByRole('link', { name: '이 템플릿으로 상담하기' }).click();
+  assert(await selectionPage.locator('[data-inquiry-field="systemType"]').inputValue() === 'crm-workflow', 'template did not select its system inquiry type');
+  assert(await selectionPage.locator('[data-inquiry-selection]').getByText('crm-workflow@showroom-v1', { exact: false }).isVisible(), 'template identity did not reach inquiry');
+  assert(await selectionPage.locator('[data-inquiry-selection]').getByText('ops-precision@0.1.0', { exact: false }).isVisible(), 'template choice lost the style direction');
+  await selectionPage.locator('[data-motion-card]').first().getByRole('button', { name: '이 모션으로 홈페이지 상담' }).click();
+  assert(await selectionPage.locator('[data-inquiry-field="systemType"]').inputValue() === 'homepage-build', 'motion did not switch to homepage inquiry after template selection');
+  assert(await selectionPage.locator('[data-inquiry-selection]').getByText('crm-workflow@showroom-v1', { exact: false }).isVisible(), 'motion choice lost the template identity');
+  assert(await selectionPage.locator('[data-inquiry-selection]').getByText('ops-precision@0.1.0', { exact: false }).isVisible(), 'motion choice lost the style direction');
+  report.interactions.push({ action: 'template-style-motion-selection', pass: true, preserved: true });
+  await selectionContext.close();
+
   const reducedContext = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 1440, height: 900 } });
   const reducedPage = await reducedContext.newPage();
   await reducedPage.goto(baseUrl, { waitUntil: 'networkidle' });

@@ -20,7 +20,7 @@ function createInitialInquiry(systemType: DevelopmentInquirySystemType | '' = ''
   return { budget: '', companyName: '', consent: false, contactName: '', coreFeatures: [], currentProblem: '', email: '', phone: '', reference: '', systemType, timeline: '', userScale: '' };
 }
 
-export function DevelopmentInquiry({ initialSystemType, selectionSummary = '' }: { initialSystemType?: ShowroomTemplateId; selectionSummary?: string }) {
+export function DevelopmentInquiry({ initialSystemType, selectedHomepageMotionId, selectionSummary = '' }: { initialSystemType?: ShowroomTemplateId; selectedHomepageMotionId?: string; selectionSummary?: string }) {
   const [form, setForm] = useState<DevelopmentInquiryInput>(() => createInitialInquiry(initialSystemType));
   const [errors, setErrors] = useState<DevelopmentInquiryErrors>({});
   const [handoff, setHandoff] = useState<InquiryHandoffDraft | null>(null);
@@ -37,7 +37,7 @@ export function DevelopmentInquiry({ initialSystemType, selectionSummary = '' }:
   }, [initialSystemType]);
 
   useEffect(() => {
-    if (selectionSummary) {
+    if (selectedHomepageMotionId) {
       setForm((current) => ({
         ...current,
         coreFeatures: isHomepageInquiry(current.systemType) ? current.coreFeatures : [],
@@ -49,7 +49,11 @@ export function DevelopmentInquiry({ initialSystemType, selectionSummary = '' }:
         delete next.systemType;
         return next;
       });
+      setHandoff(null);
     }
+  }, [selectedHomepageMotionId]);
+
+  useEffect(() => {
     setHandoff(null);
   }, [selectionSummary]);
 

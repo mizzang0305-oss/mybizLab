@@ -15,7 +15,7 @@ import { TemplateShowroom } from './showroom/TemplateShowroom';
 import { MakeItYours } from './showroom/MakeItYours';
 import { PortfolioProof } from './showroom/PortfolioProof';
 import { DevelopmentInquiry } from './showroom/DevelopmentInquiry';
-import type { ShowroomTemplateId } from './showroom/showroomData';
+import { getTemplateSelectionSummary, type ShowroomTemplateId } from './showroom/showroomData';
 import { MotionShowroom } from './showroom/motion/MotionShowroom';
 import { getMotionSelectionSummary } from './showroom/motion/motionRegistry';
 import { StyleDirectionPicker } from './showroom/StyleDirectionPicker';
@@ -44,6 +44,7 @@ export function MyBizFieldLandingPage() {
   const [selectedStyleId, setSelectedStyleId] = useState<StyleDirectionId>();
   const media = getIndustryMedia(activeIndustry);
   const selectionSummary = [
+    getTemplateSelectionSummary(consultationTemplate),
     getMotionSelectionSummary(selectedMotionId), getStyleDirectionSummary(selectedStyleId),
   ].filter(Boolean).join('\n');
 
@@ -57,8 +58,6 @@ export function MyBizFieldLandingPage() {
       <ShowroomHero />
       <SystemStory />
       <TemplateShowroom onConsult={(templateId) => {
-        setSelectedMotionId(undefined);
-        setSelectedStyleId(undefined);
         setConsultationTemplate(templateId);
       }} />
       <MotionShowroom onSelect={setSelectedMotionId} selectedMotionId={selectedMotionId} />
@@ -69,7 +68,7 @@ export function MyBizFieldLandingPage() {
       <IndustryVisualSelector activeIndustry={activeIndustry} onChange={setActiveIndustry} />
       <ServiceExperience activeIndustry={activeIndustry} />
       <WebsitePackageShowcase media={media} />
-      <DevelopmentInquiry initialSystemType={consultationTemplate} selectionSummary={selectionSummary} />
+      <DevelopmentInquiry initialSystemType={consultationTemplate} selectedHomepageMotionId={selectedMotionId} selectionSummary={selectionSummary} />
 
       <section className="border-y border-[#e5ddd2] bg-white px-4 py-12 text-[#172431] sm:px-8" id="features">
         <div className="mx-auto max-w-[84rem]">

@@ -145,6 +145,16 @@ export const SHOWROOM_TEMPLATES: readonly ShowroomTemplate[] = [
   },
 ] as const;
 
+// Version labels this MyBiz showroom selection contract, not a Factory export.
+export const SHOWROOM_TEMPLATE_SELECTION_VERSION = 'showroom-v1';
+
+export function getTemplateSelectionSummary(id: ShowroomTemplateId | undefined): string {
+  const template = SHOWROOM_TEMPLATES.find((item) => item.id === id);
+  return template
+    ? `개발 템플릿 / ${template.label} / ${template.id}@${SHOWROOM_TEMPLATE_SELECTION_VERSION}`
+    : '';
+}
+
 export const SYSTEM_STORY = [
   { detail: '웹, 전화, 소개로 들어온 요구를 한 구조로 정리합니다.', icon: MessageSquareText, id: 'inquiry', title: '고객 문의' },
   { detail: '범위와 조건을 확인 가능한 계약 단계로 연결합니다.', icon: ClipboardSignature, id: 'contract', title: '전자계약' },

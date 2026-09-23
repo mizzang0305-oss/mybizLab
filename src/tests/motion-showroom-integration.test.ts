@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MOTION_CATALOG, getMotionSelectionSummary } from '../pages/mybiz-field/showroom/motion/motionRegistry';
 import { STYLE_DIRECTIONS, getStyleDirectionSummary } from '../pages/mybiz-field/showroom/styleDirections';
+import { SHOWROOM_TEMPLATES, getTemplateSelectionSummary } from '../pages/mybiz-field/showroom/showroomData';
 
 describe('motion showroom integration', () => {
   it('publishes exactly three original consultation candidates with real media', () => {
@@ -53,10 +54,22 @@ describe('motion showroom integration', () => {
     expect(landing).toContain('<StyleDirectionPicker');
     expect(landing).toContain('getMotionSelectionSummary(selectedMotionId)');
     expect(landing).toContain('getStyleDirectionSummary(selectedStyleId)');
+    expect(landing).toContain('getTemplateSelectionSummary(consultationTemplate)');
+    expect(landing).toContain('selectedHomepageMotionId={selectedMotionId}');
     expect(landing).toContain('selectionSummary={selectionSummary}');
     expect(inquiry).toContain('selectionSummary');
     expect(inquiry).toContain('setHandoff(null)');
     expect(landing).not.toContain('key={selectedMotionId}');
+    expect(landing).not.toContain('setSelectedStyleId(undefined)');
+    expect(landing).not.toContain('setSelectedMotionId(undefined)');
+  });
+
+  it('preserves the six template identities in the review summary', () => {
+    expect(SHOWROOM_TEMPLATES).toHaveLength(6);
+    for (const template of SHOWROOM_TEMPLATES) {
+      expect(getTemplateSelectionSummary(template.id)).toContain(`${template.id}@showroom-v1`);
+    }
+    expect(getTemplateSelectionSummary(undefined)).toBe('');
   });
 
   it('keeps Factory references internal-only and serializes style id@version without replacing local motions', () => {
