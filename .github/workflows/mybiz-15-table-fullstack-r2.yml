@@ -6,6 +6,7 @@ on:
       - .github/workflows/mybiz-15-table-fullstack-r2.yml
       - scripts/security/mybiz-15-table-data-api.mjs
       - scripts/security/run-mybiz-15-table-fullstack.sh
+      - src/tests/mybiz-15-table-fullstack-routes.test.ts
       - supabase/tests/mybiz_15_table_exact_shape_fixture.sql
       - supabase/tests/mybiz_15_table_fullstack_support.sql
       - supabase/live_patches/20260318_fix_create_store_with_owner_live.sql

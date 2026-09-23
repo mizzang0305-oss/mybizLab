@@ -22,6 +22,45 @@ CREATE TABLE public.store_analytics_profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Minimal non-target dependencies required by the real public route. They
+-- isolate the 15 target-table permission contract, not a full Production dump.
+CREATE TABLE public.store_subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id uuid NOT NULL REFERENCES public.stores(store_id),
+  plan text NOT NULL,
+  status text NOT NULL DEFAULT 'active',
+  billing_provider text,
+  trial_ends_at timestamptz,
+  current_period_starts_at timestamptz,
+  current_period_ends_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.inquiries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id uuid NOT NULL REFERENCES public.stores(store_id),
+  customer_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.payment_events (
+  event_id text PRIMARY KEY,
+  order_id text NOT NULL,
+  provider text NOT NULL,
+  user_id uuid,
+  status text NOT NULL,
+  amount numeric NOT NULL,
+  raw jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+GRANT SELECT ON public.store_subscriptions, public.inquiries, public.customers TO service_role;
+GRANT INSERT ON public.customers TO service_role;
+GRANT SELECT, INSERT ON public.payment_events TO service_role;
+UPDATE public.stores SET slug = 'fixture-a' WHERE store_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+UPDATE public.stores SET slug = 'fixture-b' WHERE store_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+INSERT INTO public.store_subscriptions (store_id, plan) VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'pro'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'pro');
+
 -- The current Production ACL/function signature are checked independently.
 -- This helper is a synthetic slug dependency, not a claim of byte parity.
 CREATE FUNCTION public.generate_unique_store_slug(base_name text)

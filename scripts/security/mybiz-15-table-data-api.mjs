@@ -1,3 +1,4 @@
+/* global console, fetch, process */
 import { readFileSync } from 'node:fs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';

@@ -28,6 +28,9 @@ sql_file() {
 refresh_schema() {
   psql "$local_db_url" -X -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';" >/dev/null
 }
+run_app_routes() {
+  (cd "$repo_root" && npx vitest run src/tests/mybiz-15-table-fullstack-routes.test.ts --reporter=dot)
+}
 
 echo "SUPABASE_CLI_VERSION=$(supabase --version)"
 echo "NODE_VERSION=$(node --version)"
@@ -62,11 +65,14 @@ for run in 1 2; do
   sql_file supabase/live_patches/20260318_fix_create_store_with_owner_live.sql
   refresh_schema
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" baseline
+  run_app_routes
+  echo "APP_HTTP_BASELINE_${run}=PASS"
 
   sql_file supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
   refresh_schema
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" candidate
-  echo "HTTP_REHEARSAL_RUN_${run}=DATA_API_ONLY"
+  run_app_routes
+  echo "HTTP_REHEARSAL_RUN_${run}=PASS"
 
   # Advisors are diagnostic: existing unrelated warnings are reported, while
   # SQL assertions and HTTP probes are the mandatory pass/fail gates.
