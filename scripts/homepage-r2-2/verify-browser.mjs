@@ -43,7 +43,9 @@ try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
 
   const initialVideo = page.locator('[data-hero-media="cleaning"]');
+  await initialVideo.scrollIntoViewIfNeeded();
   await page.waitForFunction(() => { const el = document.querySelector('[data-hero-media="cleaning"]'); return el instanceof HTMLVideoElement && el.readyState >= 2; });
+  await page.waitForTimeout(350);
   const initialStart = await initialVideo.evaluate((element) => element.currentTime);
   await page.waitForTimeout(850);
   const initialEnd = await initialVideo.evaluate((element) => element.currentTime);
