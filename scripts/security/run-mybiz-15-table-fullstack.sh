@@ -85,8 +85,10 @@ for run in 1 2; do
   fi
 
   sql_file supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql
+  sql_file supabase/tests/mybiz_15_table_rollback_assertions.sql
   refresh_schema
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" rollback
+  run_app_routes
   echo "FULL_STACK_ROLLBACK_${run}=PASS"
   supabase stop --no-backup >/dev/null
   test ! -e supabase/.temp/project-ref

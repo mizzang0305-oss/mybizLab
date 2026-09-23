@@ -100,6 +100,23 @@ describe.runIf(Boolean(statusFile))('15-table local Supabase application HTTP ha
     expect(body.code).toBe('PAYMENT_VERIFICATION_REQUIRED');
   });
 
+  it('reports the current free server provisioning Auth UID incompatibility', async () => {
+    const response = await fetch(`${baseUrl}/api/stores/provision`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        business_name: 'Synthetic free', owner_name: 'Synthetic',
+        business_number: 'SYN-0002', phone: '0000000000',
+        email: 'synthetic@example.test', address: 'Synthetic address',
+        business_type: 'Synthetic', requested_slug: `synthetic-${randomUUID()}`,
+        plan: 'free',
+      }),
+    });
+    const body = await response.json();
+    expect(response.status).toBe(500);
+    expect(body.error).toContain('AUTHENTICATION_REQUIRED');
+  });
+
   it('saves one synthetic onboarding setup request through the server role', async () => {
     const nonce = randomUUID();
     const response = await fetch(`${baseUrl}/api/onboarding/setup-request`, {

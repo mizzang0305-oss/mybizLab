@@ -237,7 +237,19 @@ const { data: created, error: createdError } = await admin.from('stores')
   .select('store_id,plan').eq('store_id', provision.data[0].store_id).single();
 assert(!createdError && created?.plan === 'vip', 'direct-rpc-vip-without-server-gate');
 
+// The current server client carries only a service-role token, not a user
+// subject. Record that this is a separate compatibility failure to repair.
+const serviceProvision = await request(service, 'POST', 'rpc/create_store_with_owner', '', {
+  p_store_name: 'Synthetic Server RPC', p_owner_name: 'Synthetic',
+  p_business_number: 'SYNTHETIC', p_phone: '0000000000',
+  p_email: 'synthetic@example.test', p_address: 'Synthetic',
+  p_business_type: 'Synthetic', p_requested_slug: `synthetic-${randomUUID()}`,
+  p_plan: 'free',
+});
+denied(serviceProvision, 'server-service-rpc-has-no-auth-uid');
+
 console.log(`REAL_LOCAL_AUTH_JWT_${runNumber}=PASS`);
 console.log(`POSTGREST_ROLE_MATRIX_${runNumber}=PASS`);
 console.log(`DATA_API_RUN_${runNumber}=PASS checks=${checked}`);
 console.log(`RPC_PROVISIONING_BYPASS_${runNumber}=CONFIRMED_LOCAL`);
+console.log(`SERVICE_ROLE_PROVISION_RPC_${runNumber}=DENIED_AUTH_UID`);
