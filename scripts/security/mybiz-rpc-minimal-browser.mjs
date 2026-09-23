@@ -52,6 +52,11 @@ try {
   await ready;
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
+  page.on('response', (response) => {
+    if (new URL(response.url()).pathname === '/api/stores/provision') {
+      console.log(`BROWSER_PROVISION_HTTP=${response.status()}`);
+    }
+  });
   await page.route('**/*', (route) => {
     const target = new URL(route.request().url());
     return target.hostname === '127.0.0.1' ? route.continue() : route.abort();
@@ -92,7 +97,12 @@ try {
   console.log('BROWSER_PAID_REDIRECT_HOLD=PASS');
   await page.getByRole('button', { name: /FREE.*월 0원/ }).click({ timeout: 20000 });
   await page.getByRole('button', { name: 'FREE 플랜 바로 시작' }).click();
-  await page.getByText('스토어 생성이 완료되었습니다').waitFor({ timeout: 30000 });
+  try {
+    await page.waitForURL((url) => url.pathname.startsWith('/dashboard/stores/'), { timeout: 30000 });
+  } catch (error) {
+    console.log(`BROWSER_RECEIPT_COUNT=${sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${actorId}'`)}`);
+    throw error;
+  }
   const count = Number(sql(`select count(*) from public.store_members where profile_id='${actorId}' and role='owner'`));
   const receipt = Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${actorId}'`));
   if (count !== 1 || receipt !== 1) throw new Error('BROWSER_PROVISIONING_ROWS_MISMATCH');
