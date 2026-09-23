@@ -56,13 +56,24 @@ BEGIN
   IF (SELECT count(*) FROM public.menu_items WHERE store_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') <> 0 THEN
     RAISE EXCEPTION 'CROSS_STORE_READ_ALLOWED';
   END IF;
+  IF private.is_legacy_text_store_member('not-a-uuid') THEN
+    RAISE EXCEPTION 'NON_UUID_TEXT_SCOPE_ALLOWED';
+  END IF;
+  INSERT INTO public.menu_categories(store_id,name)
+    VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Own category');
+  UPDATE public.store_priority_settings SET version=2
+    WHERE store_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  IF (SELECT version FROM public.store_priority_settings
+    WHERE store_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') <> 2 THEN
+    RAISE EXCEPTION 'OWN_STORE_UPDATE_FAILED';
+  END IF;
   BEGIN
     INSERT INTO public.menu_categories(store_id,name) VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Wrong store');
     RAISE EXCEPTION 'CROSS_STORE_INSERT_ALLOWED';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    UPDATE public.store_priority_settings SET store_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    UPDATE public.store_priority_settings SET store_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
     WHERE store_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     RAISE EXCEPTION 'CROSS_STORE_MOVE_ALLOWED';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
@@ -76,6 +87,26 @@ SET LOCAL request.jwt.claim.sub='33333333-3333-4333-8333-333333333333';
 DO $$ BEGIN
   IF (SELECT count(*) FROM public.orders) <> 0 THEN
     RAISE EXCEPTION 'NONMEMBER_ORDER_READ_ALLOWED';
+  END IF;
+END $$;
+ROLLBACK;
+
+BEGIN;
+SET LOCAL ROLE anon;
+DO $$ BEGIN
+  BEGIN
+    PERFORM count(*) FROM public.orders;
+    RAISE EXCEPTION 'ANON_ORDER_READ_ALLOWED';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END $$;
+ROLLBACK;
+
+BEGIN;
+SET LOCAL ROLE service_role;
+DO $$ BEGIN
+  IF (SELECT count(*) FROM public.orders) <> 2 THEN
+    RAISE EXCEPTION 'SERVICE_ROLE_ORDER_READ_FAILED';
   END IF;
 END $$;
 ROLLBACK;

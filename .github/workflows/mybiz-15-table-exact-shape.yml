@@ -6,6 +6,7 @@ on:
       - .github/workflows/mybiz-15-table-exact-shape.yml
       - supabase/tests/mybiz_15_table_exact_shape_fixture.sql
       - supabase/tests/mybiz_15_table_exact_shape_assertions.sql
+      - supabase/tests/mybiz_15_table_rollback_assertions.sql
       - supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
       - supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql
   workflow_dispatch:
@@ -32,25 +33,36 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Boot disposable exact-shape database
+      - name: Rehearse exact-shape candidate and rollback twice
         run: |
+          set -euo pipefail
           docker version
-          docker run --rm --network host -e PGPASSWORD=synthetic-test-only \
-            -v "$PWD:/workspace:ro" postgres:17.6 \
-            psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d rehearsal \
-            -f /workspace/supabase/tests/mybiz_15_table_exact_shape_fixture.sql
-      - name: Confirm security test rejects the unprotected baseline
-        run: |
-          set +e
-          output=$(docker run --rm --network host -e PGPASSWORD=synthetic-test-only \
-            -v "$PWD:/workspace:ro" postgres:17.6 \
-            psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d rehearsal \
-            -f /workspace/supabase/tests/mybiz_15_table_exact_shape_assertions.sql 2>&1)
-          status=$?
-          set -e
-          if [ "$status" -eq 0 ] || ! grep -q 'RLS_NOT_ENABLED' <<< "$output"; then
-            echo "$output"
-            echo 'Expected RLS_NOT_ENABLED baseline rejection.'
-            exit 1
-          fi
-          echo 'RED_BASELINE_TEST=PASS (RLS_NOT_ENABLED)'
+          docker info --format 'Docker server: {{.ServerVersion}}'
+          psql_file() {
+            docker run --rm --network host -e PGPASSWORD=synthetic-test-only \
+              -v "$PWD:/workspace:ro" postgres:17.6 \
+              psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$1" \
+              -f "/workspace/$2"
+          }
+          for run in 1 2; do
+            db="rehearsal_${run}"
+            docker run --rm --network host -e PGPASSWORD=synthetic-test-only postgres:17.6 \
+              psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
+              -c "CREATE DATABASE ${db}"
+            psql_file "$db" supabase/tests/mybiz_15_table_exact_shape_fixture.sql
+            set +e
+            output=$(psql_file "$db" supabase/tests/mybiz_15_table_exact_shape_assertions.sql 2>&1)
+            status=$?
+            set -e
+            if [ "$status" -eq 0 ] || ! grep -q 'RLS_NOT_ENABLED' <<< "$output"; then
+              echo "$output"
+              echo 'Expected RLS_NOT_ENABLED baseline rejection.'
+              exit 1
+            fi
+            echo "RED_BASELINE_TEST_${run}=PASS"
+            psql_file "$db" supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
+            psql_file "$db" supabase/tests/mybiz_15_table_exact_shape_assertions.sql
+            psql_file "$db" supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql
+            psql_file "$db" supabase/tests/mybiz_15_table_rollback_assertions.sql
+            echo "REHEARSAL_RUN_${run}=PASS"
+          done

@@ -1,11 +1,15 @@
 -- Sanitized catalog-shape fixture. No Production rows, identifiers, or credentials.
 -- Target-table columns/types/defaults/constraints/indexes captured from read-only pg_catalog on 2026-09-23.
 -- Dependency tables reproduce relevant key shape; only 15 targets are under test.
-CREATE ROLE anon NOLOGIN;
-CREATE ROLE authenticated NOLOGIN;
-CREATE ROLE service_role NOLOGIN BYPASSRLS;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN BYPASSRLS; END IF;
+END $$;
 CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS private;
 GRANT USAGE ON SCHEMA auth, public TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA private TO authenticated;
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
 $$;
@@ -38,6 +42,14 @@ CREATE TABLE public.store_members (
   role text NOT NULL DEFAULT 'staff'::text,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+CREATE FUNCTION public.is_store_member(target_store_id uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.store_members sm
+    WHERE sm.store_id = target_store_id AND sm.profile_id = auth.uid()
+  );
+$$;
 
 CREATE TABLE public.customers (
   customer_id uuid NOT NULL DEFAULT gen_random_uuid(),
