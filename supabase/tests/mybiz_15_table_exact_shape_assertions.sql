@@ -61,6 +61,11 @@ BEGIN
   END IF;
   INSERT INTO public.menu_categories(store_id,name)
     VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Own category');
+  INSERT INTO public.menu_items(store_id,category_id,name,price)
+    VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1','Own item',300);
+  INSERT INTO public.store_tables(store_id,table_no)
+    VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',2);
   UPDATE public.store_priority_settings SET version=2
     WHERE store_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   IF (SELECT version FROM public.store_priority_settings
@@ -107,6 +112,19 @@ SET LOCAL ROLE service_role;
 DO $$ BEGIN
   IF (SELECT count(*) FROM public.orders) <> 2 THEN
     RAISE EXCEPTION 'SERVICE_ROLE_ORDER_READ_FAILED';
+  END IF;
+  INSERT INTO public.sessions(session_id,store_id,table_id,customer_id)
+    VALUES('99999999-9999-4999-8999-999999999993',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc1');
+  INSERT INTO public.store_setup_requests(business_name,owner_name)
+    VALUES('Server fixture','Synthetic');
+  UPDATE public.orders SET payment_status='paid'
+    WHERE order_id='88888888-8888-4888-8888-888888888882';
+  IF (SELECT payment_status FROM public.orders
+    WHERE order_id='88888888-8888-4888-8888-888888888882') <> 'paid' THEN
+    RAISE EXCEPTION 'SERVICE_ROLE_PAYMENT_UPDATE_FAILED';
   END IF;
 END $$;
 ROLLBACK;
