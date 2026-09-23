@@ -1,5 +1,11 @@
 # 15-table Data API and HTTP compatibility — R2
 
+## R3 integration addendum
+
+The 15-table candidate and rollback remain unchanged, draft-only, and separately Owner-gated. [Exact-code full-stack run 35853542954](https://github.com/mizzang0305-oss/mybizLab/actions/runs/35853542954) passed two clean Auth/JWT/PostgREST rehearsals: **255 Data API assertions per run**, 8 direct RPC ACL assertions per run after R3, and the actual 8-case handler suite per R3 run. Baseline old-RPC bypass remained an expected reproduction before the new draft; after the new draft, browser direct RPC denied and authenticated server free/fake-paid provisioning passed. Each run also passed the existing 15-table rollback assertions. Local Security Advisors were executed twice: baseline `ERROR=3/WARN=1`, candidate `ERROR=1/WARN=1`, **new ERROR=0**. This does **not** turn unexecuted public/admin/webhook/browser paths below into PASS or authorize Production RLS apply.
+
+The R3 UI path now omits the synthetic FREE marker from `payment_id`; a focused serialization test covers the exact UI marker. The public onboarding entry still lacks self-service Auth registration, so anonymous visitor → activation is an explicit hold rather than a claimed successful route. The separately reviewed [R3 release review](MYBIZ_R3_INTEGRATION_RELEASE_REVIEW.md) tracks the remaining route-level cases.
+
 Status: **BLOCKED for Production Apply**. This is Draft PR #185 stacked on preserved Draft PR #184; PR #183 is unchanged. The 15-table candidate and rollback remain in `supabase/migration_drafts/`. No Production permission or data mutation is authorized here.
 
 ## Evidence boundary

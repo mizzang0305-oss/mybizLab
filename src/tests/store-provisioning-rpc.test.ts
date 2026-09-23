@@ -5,7 +5,7 @@ import type { SetupRequestInput } from '@/shared/types/models';
 
 type MaybeSingleResult = { data: unknown; error: null | { message: string } };
 
-const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
+const { getSession, getUser, rpc, from, responseMap } = vi.hoisted(() => {
   const responseMap: Record<string, MaybeSingleResult> = {};
 
   function createQueryBuilder(table: string) {
@@ -25,6 +25,7 @@ const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
   }
 
   return {
+    getSession: vi.fn(),
     getUser: vi.fn(),
     rpc: vi.fn(),
     from: vi.fn((table: string) => ({
@@ -45,6 +46,7 @@ vi.mock('@/shared/lib/appConfig', async () => {
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
+      getSession,
       getUser,
     },
     rpc,
@@ -132,6 +134,8 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
   beforeEach(() => {
     resetDatabase();
     getUser.mockReset();
+    getSession.mockReset();
+    getSession.mockResolvedValue({ data: { session: { access_token: 'synthetic-owner-token' } }, error: null });
     rpc.mockReset();
     from.mockClear();
     getUser.mockResolvedValue({
@@ -191,7 +195,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     expect(requestUrl).toBe('https://mybiz.ai.kr/api/stores/provision');
     expect(requestInit).toMatchObject({
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer synthetic-owner-token' },
       method: 'POST',
     });
     expect(JSON.parse(requestInit.body as string)).toMatchObject({
@@ -218,6 +222,20 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     const database = getDatabase();
     expect(database.store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(true);
+  });
+
+  it('keeps the free activation marker out of the server payment receipt field', async () => {
+    await createStoreFromSetupRequest(requestInput, {
+      plan: 'free',
+      paymentId: 'free_12345',
+      requestId: 'synthetic-free-request',
+    });
+
+    const [, requestInit] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    const body = JSON.parse(requestInit.body as string) as Record<string, unknown>;
+    expect(body.plan).toBe('free');
+    expect(body.request_id).toBe('synthetic-free-request');
+    expect(body).not.toHaveProperty('payment_id');
   });
 
   it('throws if a required provisioning row is missing after RPC creation', async () => {

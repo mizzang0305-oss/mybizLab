@@ -719,6 +719,16 @@ export function OnboardingPage() {
   }
 
   async function startCheckout() {
+    if (!IS_DEMO_RUNTIME) {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data, error } = supabase
+        ? await supabase.auth.getSession()
+        : { data: { session: null }, error: new Error('Auth client unavailable') };
+      if (error || !data.session?.access_token) {
+        setMessage({ tone: 'error', text: '실제 업체 생성과 결제 전에 로그인해야 합니다. 작성 내용은 이 브라우저에 유지됩니다.' });
+        return;
+      }
+    }
     if (flow.selectedPlan === 'free') {
       setFlow((current) => ({ ...current, paymentStatus: 'processing' }));
       setMessage({ tone: 'info', text: 'FREE 플랜은 결제 없이 바로 스토어를 활성화합니다.' });
@@ -1760,6 +1770,7 @@ export function OnboardingPage() {
                   요청 정보 수정
                 </button>
               </div>
+              {!IS_DEMO_RUNTIME ? <p className="mt-3 text-sm leading-6 text-slate-600">실제 업체 생성은 로그인한 계정으로만 진행됩니다. 계정이 없다면 현재 자동 가입은 지원되지 않습니다. <Link className="font-bold underline underline-offset-4" to="/login?next=/onboarding">기존 계정으로 로그인</Link></p> : null}
             </Panel>
           ) : null}
 

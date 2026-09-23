@@ -1,17 +1,24 @@
-name: MyBiz 15-table Supabase HTTP R2 rehearsal
+name: MyBiz 15-table and R3 provisioning local HTTP rehearsal
 
 on:
   pull_request:
     paths:
       - .github/workflows/mybiz-15-table-fullstack-r2.yml
       - scripts/security/mybiz-15-table-data-api.mjs
+      - scripts/security/mybiz-r3-rpc-data-api.mjs
       - scripts/security/run-mybiz-15-table-fullstack.sh
       - src/tests/mybiz-15-table-fullstack-routes.test.ts
       - supabase/tests/mybiz_15_table_exact_shape_fixture.sql
       - supabase/tests/mybiz_15_table_fullstack_support.sql
+      - supabase/tests/mybiz_r3_rpc_acl_assertions.sql
       - supabase/live_patches/20260318_fix_create_store_with_owner_live.sql
       - supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
       - supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql
+      - supabase/migration_drafts/20260923102833_mybiz_r3_provisioning_rpc_boundary.sql
+      - api/stores/provision.ts
+      - src/server/billingCheckout.ts
+      - src/shared/lib/portoneCheckout.ts
+      - src/shared/lib/services/mvpService.ts
       - docs/mybiz/PRODUCTION_15_TABLE_*.md
       - docs/mybiz/PRODUCTION_RPC_EXPOSURE_AUDIT.md
   workflow_dispatch:

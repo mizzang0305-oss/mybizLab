@@ -27,6 +27,22 @@ sql_file() {
 }
 refresh_schema() {
   psql "$local_db_url" -X -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';" >/dev/null
+  # NOTIFY is asynchronous. A newly created local probe can be absent from
+  # PostgREST for a moment even after supabase start reports the stack ready.
+  # Wait only for this disposable loopback schema; never retry an app mutation.
+  local status='000'
+  for _ in {1..30}; do
+    status="$(curl --silent --max-time 2 --output /dev/null --write-out '%{http_code}' \
+      --request POST "$local_api_url/rest/v1/rpc/local_test_current_role" \
+      --header "apikey: $local_anon_key" \
+      --header "authorization: Bearer $local_anon_key" || true)"
+    if [[ "$status" == '200' ]]; then
+      return
+    fi
+    sleep 0.25
+  done
+  echo "LOCAL_POSTGREST_SCHEMA_NOT_READY=$status" >&2
+  exit 1
 }
 run_app_routes() {
   (cd "$repo_root" && npx vitest run src/tests/mybiz-15-table-fullstack-routes.test.ts --reporter=dot)
@@ -53,10 +69,18 @@ for run in 1 2; do
   # The sourced URL is never printed and must resolve to this runner's loopback.
   source "$stack_root/local-status.env"
   local_db_url="${DB_URL:-}"
+  local_api_url="${API_URL:-${SUPABASE_URL:-}}"
+  local_anon_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
   if [[ ! "$local_db_url" =~ ^postgres(ql)?://[^@]+@127\.0\.0\.1:[0-9]+/postgres$ ]]; then
     echo 'Refusing SQL: local loopback DB URL was not established.' >&2
     exit 1
   fi
+  if [[ ! "$local_api_url" =~ ^http://127\.0\.0\.1:[0-9]+$ || -z "$local_anon_key" ]]; then
+    echo 'Refusing local API probe: loopback URL or disposable anon key missing.' >&2
+    exit 1
+  fi
+  echo "POSTGRES_VERSION_${run}=$(psql "$local_db_url" -X -Atc 'show server_version')"
+  docker ps --format '{{.Image}}' | grep -E 'supabase|postgrest|gotrue|kong' | sort -u | sed 's/^/LOCAL_STACK_IMAGE=/'
   export LOCAL_SUPABASE_STATUS_FILE="$stack_root/local-status.env"
   export LOCAL_REHEARSAL_RUN="$run"
 
@@ -67,19 +91,42 @@ for run in 1 2; do
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" baseline
   run_app_routes
   echo "APP_HTTP_BASELINE_${run}=PASS"
+  baseline_advisors="$stack_root/advisors-baseline-${run}.json"
+  if ! supabase db advisors --local --type security --fail-on none --output-format json >"$baseline_advisors" 2>"$stack_root/advisors-baseline-${run}.err"; then
+    echo "LOCAL_SECURITY_ADVISORS_BASELINE_${run}=UNAVAILABLE"
+  fi
 
   sql_file supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
   refresh_schema
   export LOCAL_SYNTHETIC_IDENTITIES_FILE="$stack_root/synthetic-identities-${run}.json"
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" candidate
+  export LOCAL_EXPECT_PROVISIONING_HOLD=1
   run_app_routes
-  unset LOCAL_SYNTHETIC_IDENTITIES_FILE
+  unset LOCAL_EXPECT_PROVISIONING_HOLD
   echo "HTTP_REHEARSAL_RUN_${run}=PASS"
+
+  # R3 is a separate draft-only security repair layered on the same local
+  # candidate. The prior bypass probe above must run before the ACL closes.
+  sql_file supabase/migration_drafts/20260923102833_mybiz_r3_provisioning_rpc_boundary.sql
+  sql_file supabase/tests/mybiz_r3_rpc_acl_assertions.sql
+  refresh_schema
+  export LOCAL_R3_APPLIED=1
+  node "$repo_root/scripts/security/mybiz-r3-rpc-data-api.mjs"
+  run_app_routes
+  unset LOCAL_R3_APPLIED
+  unset LOCAL_SYNTHETIC_IDENTITIES_FILE
+  echo "R3_RPC_HTTP_REHEARSAL_${run}=PASS"
 
   # Advisors are diagnostic: existing unrelated warnings are reported, while
   # SQL assertions and HTTP probes are the mandatory pass/fail gates.
-  if supabase db advisors --local --type security --fail-on none >"$stack_root/advisors-${run}.log" 2>&1; then
+  candidate_advisors="$stack_root/advisors-candidate-${run}.json"
+  if supabase db advisors --local --type security --fail-on none --output-format json >"$candidate_advisors" 2>"$stack_root/advisors-candidate-${run}.err"; then
     echo "LOCAL_SECURITY_ADVISORS_${run}=EXECUTED"
+    if [[ -s "$baseline_advisors" ]]; then
+      node "$repo_root/scripts/security/summarize-local-advisors.mjs" "$baseline_advisors" "$candidate_advisors"
+    else
+      echo "LOCAL_ADVISORS_CLASSIFICATION=BASELINE_UNAVAILABLE"
+    fi
   else
     echo "LOCAL_SECURITY_ADVISORS_${run}=UNAVAILABLE"
   fi

@@ -4,6 +4,12 @@ const { requestPaymentMock } = vi.hoisted(() => ({
   requestPaymentMock: vi.fn(),
 }));
 
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: { auth: { getSession: vi.fn(async () => ({
+    data: { session: { access_token: 'synthetic-checkout-token' } }, error: null,
+  })) } },
+}));
+
 vi.mock('@portone/browser-sdk/v2', () => ({
   Currency: {
     KRW: 'KRW',
@@ -236,6 +242,7 @@ describe('PortOne checkout client helpers', () => {
     });
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(fetchCall?.[1]?.headers).toMatchObject({ authorization: 'Bearer synthetic-checkout-token' });
     const requestBody = JSON.parse(String(fetchCall?.[1]?.body));
 
     expect(requestBody).toMatchObject({

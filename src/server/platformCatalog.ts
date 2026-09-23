@@ -464,6 +464,40 @@ export async function resolveServerCatalogItem(input: { plan?: unknown; productC
   };
 }
 
+// Provisioning is a payment authorization decision. Unlike public catalog
+// rendering, it must never substitute fallback prices after a catalog read
+// error or an unpublished row. The source is bound into checkout customData.
+export async function resolvePublishedProvisionCatalogItem(input: {
+  source: 'plan' | 'product';
+  plan: PlatformPlanCode;
+  productCode: string;
+}) {
+  const client = getSupabaseAdminClient();
+  if (input.source === 'product') {
+    const { data, error } = await client.from('platform_billing_products')
+      .select('*').eq('product_code', input.productCode).maybeSingle();
+    if (error || !data) throw new Error('Published billing product is unavailable.');
+    const product = normalizeBillingProduct(data as Record<string, unknown>);
+    if (product.status !== 'published' || product.product_type !== 'subscription'
+      || !product.grants_entitlement || product.linked_plan_code !== input.plan) {
+      throw new Error('Billing product does not grant the requested subscription.');
+    }
+    return { amount: product.amount, currency: product.currency, productCode: product.product_code };
+  }
+
+  if (input.productCode !== `subscription_${input.plan}`) {
+    throw new Error('Checkout plan product code does not match the requested subscription.');
+  }
+  const { data, error } = await client.from('platform_pricing_plans')
+    .select('*').eq('plan_code', input.plan).maybeSingle();
+  if (error || !data) throw new Error('Published pricing plan is unavailable.');
+  const plan = normalizePricingPlan(data as Record<string, unknown>);
+  if (!plan || plan.status !== 'published' || plan.plan_code !== input.plan || plan.price_amount <= 0) {
+    throw new Error('Pricing plan is not eligible for paid provisioning.');
+  }
+  return { amount: plan.price_amount, currency: plan.currency, productCode: input.productCode };
+}
+
 export async function listPlatformPaymentEventsForServer() {
   const [paymentEvents, webhookEvents] = await Promise.all([
     maybeSelectTable('payment_events'),

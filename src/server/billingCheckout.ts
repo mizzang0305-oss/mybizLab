@@ -5,7 +5,8 @@ import {
 import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData.js';
 import { getLaunchGateStatus } from '../shared/lib/launchGates.js';
 import { BUSINESS_INFO } from '../shared/lib/siteConfig.js';
-import { resolveServerCatalogItem } from './platformCatalog.js';
+import { resolvePublishedProvisionCatalogItem, resolveServerCatalogItem } from './platformCatalog.js';
+import { getSupabaseAdminClient } from './supabaseAdmin.js';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const SERVER_ENV_HINT =
@@ -743,13 +744,16 @@ function buildCheckoutMerchantData(
   plan: BillingPlanCode,
   paymentId: string,
   catalog: Awaited<ReturnType<typeof resolveServerCatalogItem>>,
+  actorId: string | null,
 ) {
   const customData = readCheckoutCustomData(body);
   const requestId = readCheckoutRequestId(customData);
   const slug = readCheckoutSlug(customData);
 
   return sanitizeCheckoutCustomData({
+    catalogSource: readRequestedProductCode(body) ? 'product' : 'plan',
     grantsEntitlement: catalog.grantsEntitlement,
+    ...(actorId ? { actorId } : {}),
     ...(requestId ? { requestId } : {}),
     ...(slug ? { slug } : {}),
     planKey: catalog.plan || plan,
@@ -759,6 +763,37 @@ function buildCheckoutMerchantData(
     requestedPlan: plan,
     sessionId: paymentId,
   });
+}
+
+async function verifiedOnboardingActor(request: CheckoutRequestLike, body: Record<string, unknown>) {
+  if (body.source !== 'onboarding-flow') return null;
+  const headers = request instanceof Request ? request.headers : request.headers;
+  const raw = headers instanceof Headers
+    ? headers.get('authorization')
+    : headers && typeof headers === 'object'
+      ? (headers as Record<string, unknown>).authorization
+      : null;
+  const token = typeof raw === 'string' ? /^Bearer ([^\s]+)$/i.exec(raw.trim())?.[1] : null;
+  if (!token) {
+    throw new CheckoutApiError({
+      code: 'AUTHENTICATION_REQUIRED', message: 'Onboarding checkout requires sign-in.',
+      stage: 'auth', status: 401,
+    });
+  }
+  const { data, error } = await getSupabaseAdminClient().auth.getUser(token);
+  if (error || !data.user?.id) {
+    throw new CheckoutApiError({
+      code: 'INVALID_AUTH_SESSION', message: 'Onboarding checkout session is invalid.',
+      stage: 'auth', status: 401,
+    });
+  }
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(readCheckoutRequestId(readCheckoutCustomData(body)))) {
+    throw new CheckoutApiError({
+      code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Onboarding request identifier is required.',
+      stage: 'auth', status: 400,
+    });
+  }
+  return data.user.id;
 }
 
 export function createCheckoutPaymentId(plan: BillingPlanCode, productCode?: string) {
@@ -856,8 +891,36 @@ export async function handleCheckoutRequest(request: CheckoutRequestLike) {
       status: 400,
     });
   }
+  if (catalog.productType === 'subscription' && catalog.plan !== requestedPlan) {
+    throw new CheckoutApiError({
+      code: 'CATALOG_PLAN_MISMATCH',
+      message: 'The selected subscription product does not match the requested plan.',
+      stage: 'catalog-resolution',
+      status: 400,
+    });
+  }
+  if (body.source === 'onboarding-flow' && catalog.productType === 'subscription') {
+    try {
+      const approved = await resolvePublishedProvisionCatalogItem({
+        source: readRequestedProductCode(body) ? 'product' : 'plan',
+        plan: requestedPlan,
+        productCode: catalog.productCode,
+      });
+      if (approved.amount !== catalog.amount || approved.currency !== catalog.currency) {
+        throw new Error('Checkout catalog changed during authorization.');
+      }
+    } catch {
+      throw new CheckoutApiError({
+        code: 'ONBOARDING_CATALOG_UNAVAILABLE',
+        message: 'A published subscription catalog could not be verified. Checkout is on hold.',
+        stage: 'catalog-resolution',
+        status: 503,
+      });
+    }
+  }
   assertPaymentTestCheckoutAllowed(catalog);
   assertClientAmountMatchesCatalog(body, catalog.amount);
+  const actorId = await verifiedOnboardingActor(request, body);
 
   const paymentId = createCheckoutPaymentId(requestedPlan, catalog.productType === 'test' ? catalog.productCode : undefined);
   const redirectPath = readCheckoutRedirectPath(body);
@@ -867,7 +930,7 @@ export async function handleCheckoutRequest(request: CheckoutRequestLike) {
     checkout: {
       channelKey: env.channelKey,
       currency: 'KRW',
-      customData: buildCheckoutMerchantData(body, requestedPlan, paymentId, catalog),
+      customData: buildCheckoutMerchantData(body, requestedPlan, paymentId, catalog, actorId),
       customer: readCheckoutCustomer(body),
       grantsEntitlement: catalog.grantsEntitlement,
       noticeUrls: [`${env.appBaseUrl}/api/billing/webhook`],

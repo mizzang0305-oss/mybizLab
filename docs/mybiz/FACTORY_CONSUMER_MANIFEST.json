@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "producer": "MINZ_DESIGN_FACTORY",
+  "producerHead": "9542e711e600572a8c06fb57611c107dd8d672e8",
+  "sourceVerified": true,
+  "canonicalRegistryChanged": false,
+  "exportContractVerified": false,
+  "liveSync": "NOT_CONNECTED",
+  "consumerMode": "INTERNAL_PREVIEW_METADATA_REFERENCE",
+  "commercialRelease": "HOLD_LICENSE_AND_EXPORT_CONTRACT",
+  "references": [
+    {
+      "sourcePath": "registry/design-dna/dna_minz_mind_001.json",
+      "id": "dna_minz_mind_001",
+      "sha256": "46aa4a0ed73543d45d175c1355828e3ce65bf42a0bde11c277116757b003f0e4",
+      "upstreamStatus": "APPROVED_INTERNAL",
+      "consumerId": "quiet-editorial@0.1.0",
+      "consumerSurface": "MyBiz style direction picker",
+      "rights": "internal preview only"
+    },
+    {
+      "sourcePath": "registry/design-dna/dna_minz_jarvis_ops_001.json",
+      "id": "dna_minz_jarvis_ops_001",
+      "sha256": "065b4f8778eb8b636abbcf22039bb828dfa40e411d15b702e3cdeb494eda76a7",
+      "upstreamStatus": "APPROVED_INTERNAL",
+      "consumerId": "ops-precision@0.1.0",
+      "consumerSurface": "MyBiz style direction picker",
+      "rights": "internal preview only"
+    }
+  ],
+  "localMotionSource": "docs/motion-factory-export.json",
+  "localMotionIds": ["soft-spotlight@0.1.0", "magnetic-cta@0.1.0", "editorial-reveal@0.1.0"],
+  "factoryCodeCopied": false,
+  "factoryMediaCopied": false,
+  "thirdPartyCodeCopied": false
+}
