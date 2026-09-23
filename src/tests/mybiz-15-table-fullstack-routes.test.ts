@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import publicHandler from '../../api/public';
+import merchantHandler from '../../api/merchant';
+import onboardingHandler from '../../api/onboarding/setup-request';
 import provisionHandler from '../../api/stores/provision';
 import { resetSupabaseAdminClientForTests } from '../server/supabaseAdmin';
 
@@ -39,6 +42,10 @@ describe.runIf(Boolean(statusFile))('15-table local Supabase application HTTP ha
       });
       const response = incoming.url?.startsWith('/api/stores/provision')
         ? await provisionHandler(request)
+        : incoming.url?.startsWith('/api/onboarding/setup-request')
+          ? await onboardingHandler(request)
+          : incoming.url?.startsWith('/api/merchant')
+            ? await merchantHandler(request)
         : await publicHandler(request);
       outgoing.writeHead(response.status, Object.fromEntries(response.headers.entries()));
       outgoing.end(await response.text());
@@ -92,4 +99,43 @@ describe.runIf(Boolean(statusFile))('15-table local Supabase application HTTP ha
     expect(response.status).toBe(400);
     expect(body.code).toBe('PAYMENT_VERIFICATION_REQUIRED');
   });
+
+  it('saves one synthetic onboarding setup request through the server role', async () => {
+    const nonce = randomUUID();
+    const response = await fetch(`${baseUrl}/api/onboarding/setup-request`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        input: {
+          business_name: 'Synthetic Service', owner_name: 'Synthetic',
+          business_number: 'SYN-0001', phone: '0000000000',
+          email: `synthetic-${nonce}@example.test`, address: 'Synthetic address',
+          business_type: 'Synthetic', requested_slug: `synthetic-${nonce}`,
+          selected_features: ['customer_management'],
+        },
+        requestedPlan: 'free',
+      }),
+    });
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(201);
+    expect(body.data.persistence.requestedPlanPersisted).toBe(true);
+  });
+
+  it.runIf(Boolean(process.env.LOCAL_SYNTHETIC_IDENTITIES_FILE))(
+    'authorizes the actual merchant order-event handler before service-role access',
+    async () => {
+      const identities = JSON.parse(readFileSync(process.env.LOCAL_SYNTHETIC_IDENTITIES_FILE!, 'utf8')) as {
+        userA: string;
+      };
+      const post = (storeId: string, orderId: string) => fetch(`${baseUrl}/api/merchant?resource=order-event`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${identities.userA}` },
+        body: JSON.stringify({ storeId, orderId, paymentId: `synthetic-${randomUUID()}`, amount: 1, status: 'pending' }),
+      });
+      const allowed = await post(STORE_A, '88888888-8888-4888-8888-888888888881');
+      expect(allowed.status, JSON.stringify(await allowed.json())).toBe(200);
+      const wrongStore = await post('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '88888888-8888-4888-8888-888888888882');
+      expect(wrongStore.status, JSON.stringify(await wrongStore.json())).toBe(403);
+    },
+  );
 });

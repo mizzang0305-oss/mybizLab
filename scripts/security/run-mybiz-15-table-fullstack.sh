@@ -70,8 +70,10 @@ for run in 1 2; do
 
   sql_file supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
   refresh_schema
+  export LOCAL_SYNTHETIC_IDENTITIES_FILE="$stack_root/synthetic-identities-${run}.json"
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" candidate
   run_app_routes
+  unset LOCAL_SYNTHETIC_IDENTITIES_FILE
   echo "HTTP_REHEARSAL_RUN_${run}=PASS"
 
   # Advisors are diagnostic: existing unrelated warnings are reported, while

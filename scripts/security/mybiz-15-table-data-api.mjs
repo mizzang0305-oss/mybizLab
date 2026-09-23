@@ -1,6 +1,7 @@
 /* global console, fetch, process */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { dirname } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 const statusFile = process.env.LOCAL_SUPABASE_STATUS_FILE;
@@ -110,6 +111,13 @@ const createUser = async (label) => {
 const userA = await createUser('a');
 const userB = await createUser('b');
 const userNone = await createUser('none');
+const identitiesFile = process.env.LOCAL_SYNTHETIC_IDENTITIES_FILE;
+if (identitiesFile) {
+  assert(dirname(identitiesFile) === dirname(statusFile), 'synthetic-jwt-runner-temp-only');
+  writeFileSync(identitiesFile, JSON.stringify({
+    userA: userA.token, userB: userB.token, userNone: userNone.token,
+  }), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+}
 await role(userA, 'authenticated');
 await role(userB, 'authenticated');
 await role(userNone, 'authenticated');
