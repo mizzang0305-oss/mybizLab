@@ -217,7 +217,7 @@ export default async function handler(request: RequestLike, response?: NodeRespo
         return result;
       }
       result = json(
-        { ok: false, error: error.message, code: error.code },
+        { ok: false, error: 'Store provisioning was not completed.', code: error.code },
         error.code === '23505' ? 409 : error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500,
       );
       await sendNodeResponse(result, response);
@@ -248,13 +248,13 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     });
     await sendNodeResponse(result, response);
     return result;
-  } catch (error) {
+  } catch {
     console.error('[provision] request rejected', { code: 'PROVISION_FAILED' });
     result = json(
       {
         ok: false,
         code: 'PROVISION_FAILED',
-        error: error instanceof Error ? error.message : '스토어 생성 중 오류가 발생했습니다.',
+        error: '스토어 생성 중 오류가 발생했습니다.',
       },
       500,
     );

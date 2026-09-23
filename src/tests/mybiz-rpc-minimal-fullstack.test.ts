@@ -179,6 +179,17 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     }
   });
 
+  it.runIf(phase === 'new')('does not issue another FREE store when a legacy subscription row is missing', async () => {
+    const user = await identity();
+    const storeId = randomUUID();
+    sql(`insert into public.stores(store_id,name,slug,plan,brand_config)
+      values ('${storeId}','Synthetic existing','existing-${storeId}','free','{}');
+      insert into public.store_members(store_id,profile_id,role)
+      values ('${storeId}','${user.id}','owner');`);
+    expect((await appPost(requestBody(), user.token)).status).toBe(403);
+    expect(Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${user.id}'`))).toBe(0);
+  });
+
   it.runIf(phase === 'new')('serializes two exact actors requesting the same slug under a unique index', async () => {
     const [a, b] = await Promise.all([identity(), identity()]);
     const slug = `shared-${randomUUID()}`;

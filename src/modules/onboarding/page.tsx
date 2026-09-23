@@ -524,8 +524,8 @@ export function OnboardingPage() {
   async function finalizeActivation(paymentId: string, fallbackUsed: boolean, source: 'browser' | 'demo' | 'redirect' | 'free') {
     setFlow((current) => ({
       ...current,
-      paymentId,
-      paymentStatus: 'paid',
+      paymentId: source === 'free' ? undefined : paymentId,
+      paymentStatus: source === 'free' ? 'idle' : 'paid',
       paymentFallbackUsed: fallbackUsed,
       activationStatus: 'processing',
       step: 'activation',
@@ -546,6 +546,11 @@ export function OnboardingPage() {
   }
 
   async function verifyAndFinalizePaidActivation(paymentId: string, source: 'browser' | 'redirect') {
+    if (!IS_DEMO_RUNTIME) {
+      setFlow((current) => ({ ...current, paymentStatus: 'failed', step: 'payment' }));
+      setMessage({ tone: 'error', text: '유료 업체 생성과 결제는 별도 승인 전까지 지원하지 않습니다.' });
+      return;
+    }
     try {
       setFlow((current) => ({
         ...current,

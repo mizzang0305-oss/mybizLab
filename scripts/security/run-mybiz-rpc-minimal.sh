@@ -23,10 +23,19 @@ refresh_schema() {
   psql "$local_db_url" -X -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';" >/dev/null
   local status='000'
   for _ in {1..40}; do
-    status="$(curl --silent --max-time 2 --output /dev/null --write-out '%{http_code}' \
-      --request POST "$local_api_url/rest/v1/rpc/local_test_current_role" \
-      --header "apikey: $local_anon_key" --header "authorization: Bearer $local_anon_key" || true)"
-    if [[ "$status" == '200' ]]; then return; fi
+    if [[ "${1:-old}" == 'new' ]]; then
+      status="$(curl --silent --max-time 2 --output /dev/null --write-out '%{http_code}' \
+        --request POST "$local_api_url/rest/v1/rpc/provision_store_from_verified_actor" \
+        --header "apikey: $local_service_key" --header "authorization: Bearer $local_service_key" \
+        --header 'content-type: application/json' \
+        --data '{"p_auth_user_id":null,"p_request_key":null,"p_request_hash":null,"p_store_name":null,"p_owner_name":null,"p_business_number":null,"p_phone":null,"p_email":null,"p_address":null,"p_business_type":null,"p_requested_slug":null,"p_plan":null,"p_payment_id":null,"p_payment_amount":null,"p_payment_currency":null}' || true)"
+      if [[ "$status" == '400' ]]; then return; fi
+    else
+      status="$(curl --silent --max-time 2 --output /dev/null --write-out '%{http_code}' \
+        --request POST "$local_api_url/rest/v1/rpc/local_test_current_role" \
+        --header "apikey: $local_anon_key" --header "authorization: Bearer $local_anon_key" || true)"
+      if [[ "$status" == '200' ]]; then return; fi
+    fi
     sleep 0.25
   done
   echo "LOCAL_POSTGREST_SCHEMA_NOT_READY=$status" >&2
@@ -52,8 +61,9 @@ for run in 1 2; do
   local_db_url="${DB_URL:-}"
   local_api_url="${API_URL:-${SUPABASE_URL:-}}"
   local_anon_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+  local_service_key="${SERVICE_ROLE_KEY:-${SECRET_KEY:-}}"
   if [[ ! "$local_db_url" =~ ^postgres(ql)?://[^@]+@127\.0\.0\.1:[0-9]+/postgres$ \
-    || ! "$local_api_url" =~ ^http://127\.0\.0\.1:[0-9]+$ || -z "$local_anon_key" ]]; then
+    || ! "$local_api_url" =~ ^http://127\.0\.0\.1:[0-9]+$ || -z "$local_anon_key" || -z "$local_service_key" ]]; then
     echo 'Local loopback database/API not established.' >&2
     exit 1
   fi
@@ -71,7 +81,7 @@ for run in 1 2; do
   # Apply only the restricted RPC draft; the 15-table RLS candidate is absent.
   sql_file supabase/migration_drafts/20260923102833_mybiz_r3_provisioning_rpc_boundary.sql
   sql_file supabase/tests/mybiz_r3_rpc_acl_assertions.sql
-  refresh_schema
+  refresh_schema new
   test_phase new
   echo "OLD_APP_NEW_DB_${run}=DENIED"
   echo "NEW_APP_NEW_DB_${run}=FREE_ONLY_PASS"

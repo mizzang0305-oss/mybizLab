@@ -61,7 +61,7 @@ try {
   await page.getByLabel('이메일').fill(email);
   await page.getByLabel('비밀번호').fill(password);
   await page.getByRole('button', { name: '이메일로 로그인' }).click();
-  await page.waitForURL('**/onboarding', { timeout: 20000 });
+  await page.waitForURL((url) => url.pathname === '/onboarding', { timeout: 20000 });
   const jwt = await page.evaluate(async () => {
     const { supabase } = await import('/src/integrations/supabase/client.ts');
     return (await supabase.auth.getSession()).data.session?.access_token ?? null;
@@ -80,12 +80,16 @@ try {
   await page.getByLabel('연락처').fill('0000000000');
   await page.getByLabel('이메일').fill(email);
   await page.getByLabel('업종').fill('service');
-  await page.getByLabel('주소').fill('Synthetic Seoul Service District');
+  await page.getByLabel('주소', { exact: true }).fill('Synthetic Seoul Service District');
   await page.getByLabel('스토어 주소').fill(slug);
   for (let step = 0; step < 5; step++) {
     await page.getByRole('button', { name: '다음 단계', exact: true }).click();
   }
   await page.getByRole('button', { name: '스토어 생성 요청 제출' }).click();
+  await page.getByText('스토어 생성 요청이 접수되었습니다.').waitFor({ timeout: 20000 });
+  await page.goto(`${base}/onboarding?portone=redirect&paymentId=forged-local-only`);
+  await page.getByText('유료 업체 생성과 결제는 별도 승인 전까지 지원하지 않습니다.').waitFor({ timeout: 20000 });
+  console.log('BROWSER_PAID_REDIRECT_HOLD=PASS');
   await page.getByRole('button', { name: /FREE.*월 0원/ }).click({ timeout: 20000 });
   await page.getByRole('button', { name: 'FREE 플랜 바로 시작' }).click();
   await page.getByText('스토어 생성이 완료되었습니다').waitFor({ timeout: 30000 });

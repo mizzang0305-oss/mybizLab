@@ -161,8 +161,10 @@ begin
 
   if p_plan = 'free' and exists (
     select 1 from public.store_members sm
-    join public.store_subscriptions ss on ss.store_id = sm.store_id
-    where sm.profile_id = v_profile_id and sm.role = 'owner' and ss.plan = 'free'
+    join public.stores s on s.store_id = sm.store_id
+    left join public.store_subscriptions ss on ss.store_id = sm.store_id
+    where sm.profile_id = v_profile_id and sm.role = 'owner'
+      and (s.plan = 'free' or ss.plan = 'free')
   ) then
     raise exception 'FREE_STORE_LIMIT_REACHED' using errcode = '42501';
   end if;
