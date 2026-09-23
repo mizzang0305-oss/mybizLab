@@ -224,6 +224,20 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     expect(database.store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(true);
   });
 
+  it('keeps the free activation marker out of the server payment receipt field', async () => {
+    await createStoreFromSetupRequest(requestInput, {
+      plan: 'free',
+      paymentId: 'free_12345',
+      requestId: 'synthetic-free-request',
+    });
+
+    const [, requestInit] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    const body = JSON.parse(requestInit.body as string) as Record<string, unknown>;
+    expect(body.plan).toBe('free');
+    expect(body.request_id).toBe('synthetic-free-request');
+    expect(body).not.toHaveProperty('payment_id');
+  });
+
   it('throws if a required provisioning row is missing after RPC creation', async () => {
     setProvisioningRows({ missing: 'store_priority_settings' });
 

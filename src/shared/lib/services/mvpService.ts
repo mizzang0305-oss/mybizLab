@@ -537,7 +537,8 @@ async function createStoreViaSupabaseRpc(
       business_type: input.business_type,
       requested_slug: input.requested_slug || input.business_name,
       plan,
-      ...(options?.paymentId ? { payment_id: options.paymentId } : {}),
+      // The legacy free activation marker is local UI state, never a payment receipt.
+      ...(plan !== 'free' && options?.paymentId ? { payment_id: options.paymentId } : {}),
       ...(options?.requestId ? { request_id: options.requestId } : {}),
     }),
   });
