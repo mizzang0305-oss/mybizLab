@@ -27,6 +27,22 @@ sql_file() {
 }
 refresh_schema() {
   psql "$local_db_url" -X -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';" >/dev/null
+  # NOTIFY is asynchronous. A newly created local probe can be absent from
+  # PostgREST for a moment even after supabase start reports the stack ready.
+  # Wait only for this disposable loopback schema; never retry an app mutation.
+  local status='000'
+  for _ in {1..30}; do
+    status="$(curl --silent --max-time 2 --output /dev/null --write-out '%{http_code}' \
+      --request POST "$local_api_url/rest/v1/rpc/local_test_current_role" \
+      --header "apikey: $local_anon_key" \
+      --header "authorization: Bearer $local_anon_key" || true)"
+    if [[ "$status" == '200' ]]; then
+      return
+    fi
+    sleep 0.25
+  done
+  echo "LOCAL_POSTGREST_SCHEMA_NOT_READY=$status" >&2
+  exit 1
 }
 run_app_routes() {
   (cd "$repo_root" && npx vitest run src/tests/mybiz-15-table-fullstack-routes.test.ts --reporter=dot)
@@ -53,8 +69,14 @@ for run in 1 2; do
   # The sourced URL is never printed and must resolve to this runner's loopback.
   source "$stack_root/local-status.env"
   local_db_url="${DB_URL:-}"
+  local_api_url="${API_URL:-${SUPABASE_URL:-}}"
+  local_anon_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
   if [[ ! "$local_db_url" =~ ^postgres(ql)?://[^@]+@127\.0\.0\.1:[0-9]+/postgres$ ]]; then
     echo 'Refusing SQL: local loopback DB URL was not established.' >&2
+    exit 1
+  fi
+  if [[ ! "$local_api_url" =~ ^http://127\.0\.0\.1:[0-9]+$ || -z "$local_anon_key" ]]; then
+    echo 'Refusing local API probe: loopback URL or disposable anon key missing.' >&2
     exit 1
   fi
   echo "POSTGRES_VERSION_${run}=$(psql "$local_db_url" -X -Atc 'show server_version')"
