@@ -10,6 +10,10 @@ on:
       - supabase/tests/mybiz_15_table_rollback_assertions.sql
       - supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
       - supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql
+      - docs/mybiz/PRODUCTION_15_TABLE_*.md
+      - src/shared/lib/services/mvpService.ts
+      - src/shared/lib/repositories/supabaseRepository.ts
+      - src/tests/public-store-rls-boundary.test.ts
   workflow_dispatch:
 
 permissions:
@@ -34,6 +38,14 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - name: Validate application and production dependency surface
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          npm audit --omit=dev
       - name: Rehearse exact-shape candidate and rollback twice
         run: |
           set -euo pipefail
@@ -44,6 +56,10 @@ jobs:
               -v "$PWD:/workspace:ro" postgres:17.6 \
               psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$1" \
               -f "/workspace/$2"
+          }
+          psql_cmd() {
+            docker run --rm --network host -e PGPASSWORD=synthetic-test-only postgres:17.6 \
+              psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$1" -c "$2"
           }
           for run in 1 2; do
             db="rehearsal_${run}"
@@ -62,8 +78,40 @@ jobs:
               exit 1
             fi
             echo "RED_BASELINE_TEST_${run}=PASS"
+            psql_cmd "$db" "ALTER POLICY setup_requests_select_own ON public.store_setup_requests USING (true)"
+            set +e
+            old_drift=$(psql_file "$db" supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql 2>&1)
+            old_drift_status=$?
+            set -e
+            if [ "$old_drift_status" -eq 0 ] || ! grep -q '15_TABLE_PRECONDITION_POLICY_DRIFT' <<< "$old_drift"; then
+              echo 'Candidate accepted a changed original setup-request policy.'
+              exit 1
+            fi
+            psql_cmd "$db" "ALTER POLICY setup_requests_select_own ON public.store_setup_requests USING (auth.uid() = created_by)"
+            echo "OLD_POLICY_DRIFT_REJECTED_${run}=PASS"
             psql_file "$db" supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
             psql_file "$db" supabase/tests/mybiz_15_table_exact_shape_assertions.sql
+            psql_cmd "$db" "ALTER POLICY orders_member_select ON public.orders USING (true)"
+            set +e
+            policy_drift=$(psql_file "$db" supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql 2>&1)
+            policy_drift_status=$?
+            set -e
+            if [ "$policy_drift_status" -eq 0 ] || ! grep -q '15_TABLE_ROLLBACK_POLICY_DRIFT' <<< "$policy_drift"; then
+              echo 'Rollback accepted a changed candidate policy.'
+              exit 1
+            fi
+            psql_cmd "$db" "ALTER POLICY orders_member_select ON public.orders USING (public.is_store_member(store_id))"
+            psql_cmd "$db" "GRANT DELETE ON public.orders TO authenticated"
+            set +e
+            grant_drift=$(psql_file "$db" supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql 2>&1)
+            grant_drift_status=$?
+            set -e
+            if [ "$grant_drift_status" -eq 0 ] || ! grep -q '15_TABLE_ROLLBACK_GRANT_DRIFT' <<< "$grant_drift"; then
+              echo 'Rollback accepted a changed candidate grant.'
+              exit 1
+            fi
+            psql_cmd "$db" "REVOKE DELETE ON public.orders FROM authenticated"
+            echo "ROLLBACK_DRIFT_REJECTED_${run}=PASS"
             set +e
             replay=$(psql_file "$db" supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql 2>&1)
             replay_status=$?
