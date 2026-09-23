@@ -1,6 +1,6 @@
 # 15-table RLS rollback — Draft and isolated rehearsal only
 
-Rollback candidate: `supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql`. It is **not** an active migration and is not approved for Production. [Two clean isolated rehearsals](https://github.com/mizzang0305-oss/mybizLab/actions/runs/35817773591) restored the prior RLS/grant/policy shape with no row deletion or rewrite.
+Rollback candidate: `supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql`. It is **not** an active migration and is not approved for Production. [Two clean isolated rehearsals](https://github.com/mizzang0305-oss/mybizLab/actions/runs/35819315464) rejected changed candidate policies or grants and restored the prior RLS/grant/policy shape with no row deletion or rewrite.
 
 ## Scope
 

@@ -24,6 +24,7 @@ Read-only Production `pg_catalog`/`has_table_privilege` evidence was captured in
 
 ## Operation-specific invariants
 
+- Design basis: Supabase's [RLS guide](https://supabase.com/docs/guides/database/postgres/row-level-security) and [Data API security guide](https://supabase.com/docs/guides/api/securing-your-api) require both object grants and row policies to be correct; `service_role` bypasses RLS and must remain server-side.
 - `GRANT` and RLS are independent gates. `anon` gets no direct target-table access. Authenticated users receive only the five proven browser read tables; no target DELETE/TRUNCATE/TRIGGER/REFERENCES grants.
 - UUID scope uses existing `public.is_store_member(store_id)` unchanged. TEXT priority scope uses one private fixed-search-path SECURITY DEFINER helper comparing `store_members.store_id::text` with input TEXT. It never casts arbitrary TEXT to UUID. All six TEXT tables were assessed by aggregate-only count/match queries; currently populated values match canonical stores, but no future format constraint is assumed.
 - `orders` has payment status/source/method/timestamp and customer link fields. Browser `SELECT` is scoped to store membership; browser `UPDATE` is denied. Public order creation and payment terminal mutation remain server-side. This is not proof that all server business checks are complete.
