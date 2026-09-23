@@ -35,11 +35,13 @@ try {
       clientWidth: document.documentElement.clientWidth,
       heroHeight: document.querySelector('[data-showroom-hero="true"]')?.getBoundingClientRect().height ?? 0,
       motionCards: document.querySelectorAll('[data-motion-card]').length,
+      styleDirections: document.querySelectorAll('[data-style-direction]').length,
       templates: document.querySelectorAll('#templates [role="tab"]').length,
     }));
     assert(geometry.bodyWidth <= geometry.clientWidth + 1, `${name}: horizontal overflow ${geometry.bodyWidth}/${geometry.clientWidth}`);
     assert(geometry.heroHeight > 300, `${name}: showroom hero did not render`);
     assert(geometry.motionCards === 3, `${name}: expected 3 motion cards, got ${geometry.motionCards}`);
+    assert(geometry.styleDirections === 2, `${name}: expected 2 internal-preview style directions, got ${geometry.styleDirections}`);
     assert(geometry.templates === 6, `${name}: expected 6 template tabs, got ${geometry.templates}`);
     if (name === 'mobile-390' || name === 'desktop-1440') await page.screenshot({ path: resolve(evidenceDir, `${name}-hero.png`) });
     report.viewports.push({ ...geometry, height, name, pass: true, width });
@@ -119,6 +121,12 @@ try {
   assert(await page.locator('[data-inquiry-field="systemType"]').inputValue() === 'homepage-build', 'motion choice did not select the homepage inquiry type');
   assert(await page.locator('#project-request form').getByText('홈페이지에 필요한 구성 (선택)', { exact: true }).isVisible(), 'homepage-specific inquiry choices did not render');
   assert(await page.locator('#project-request form').getByText('ERP·WMS', { exact: true }).count() === 0, 'homepage inquiry exposed an unrelated ERP choice');
+  const quietStyle = page.locator('[data-style-direction="quiet-editorial"]');
+  await quietStyle.focus();
+  await page.keyboard.press('Enter');
+  assert(await quietStyle.getAttribute('aria-pressed') === 'true', 'style direction keyboard selection failed');
+  assert(await page.locator('[data-inquiry-selection]').getByText('quiet-editorial@0.1.0', { exact: false }).isVisible(), 'style direction did not reach inquiry');
+  await page.locator('#style-directions').screenshot({ path: resolve(evidenceDir, 'style-directions-internal-preview.png') });
   report.interactions.push({ action: 'motion-runtime-media-keyboard', cards: 3, pass: true, videosInitiallyLoaded: 0 });
 
   const form = page.locator('#project-request form');
@@ -141,7 +149,7 @@ try {
   assert(await handoff.isVisible(), 'valid inquiry did not reach review-ready state');
   assert(await form.getByText('아직 접수되지 않음', { exact: false }).isVisible(), 'inquiry truthfulness status missing');
   const handoffBody = await handoff.locator('[data-inquiry-handoff-body]').inputValue();
-  for (const value of ['ABC 학원', originalProblem, '홈페이지·랜딩 제작', '(상담 후 결정)', '6~20명', '3개월 이내', '견적 상담 후 결정', 'https://example.com/?a=1&b=2#demo', '테스트 담당', 'owner@example.com', '010-0000-0000', 'soft-spotlight@0.1.0']) {
+  for (const value of ['ABC 학원', originalProblem, '홈페이지·랜딩 제작', '(상담 후 결정)', '6~20명', '3개월 이내', '견적 상담 후 결정', 'https://example.com/?a=1&b=2#demo', '테스트 담당', 'owner@example.com', '010-0000-0000', 'soft-spotlight@0.1.0', 'quiet-editorial@0.1.0']) {
     assert(handoffBody.includes(value), `inquiry handoff lost field: ${value}`);
   }
   const recipient = await handoff.getAttribute('data-inquiry-recipient');

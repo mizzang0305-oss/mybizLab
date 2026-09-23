@@ -50,6 +50,7 @@ export function AdminLoginPage() {
   const activeMode: LoginMode = shouldValidatePlatformAdmin ? 'platform' : 'store';
 
   function switchMode(mode: LoginMode) {
+    if (pendingMethod) return;
     setMessage(null);
     setEmail('');
     setPassword('');
@@ -108,6 +109,7 @@ export function AdminLoginPage() {
 
   async function handleEmailSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pendingMethod) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPassword = password.trim();
@@ -160,7 +162,9 @@ export function AdminLoginPage() {
 
           const nextSession = await refreshAdminSession();
           if (!hasDashboardAccess(nextSession)) {
-            await supabase.auth.signOut();
+            // Keep the verified Auth session for the explicit onboarding flow.
+            // Provisioning still requires a server-verified bearer and a
+            // service-only transaction; no dashboard access is granted here.
             navigate('/onboarding', { replace: true });
             return;
           }
@@ -184,11 +188,11 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="page-shell py-12 sm:py-16">
+    <main className="page-shell py-12 sm:py-16" data-auth-ui-preview="r3">
       <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         {/* 왼쪽: 안내 패널 */}
         <section className="relative overflow-hidden rounded-[36px] bg-slate-950 px-8 py-10 text-white shadow-[0_45px_90px_-40px_rgba(15,23,42,0.85)] sm:px-10 sm:py-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,91,19,0.55),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(251,146,60,0.18),_transparent_25%)]" />
+          <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(236,91,19,0.32),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(251,146,60,0.12),_transparent_25%)]" />
           <div className="relative space-y-6">
             <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-200">
               MyBiz Access
@@ -196,19 +200,19 @@ export function AdminLoginPage() {
 
             <div className="space-y-4">
               <h1 className="font-display text-4xl font-black tracking-tight sm:text-5xl">
-                {activeMode === 'platform' ? '플랫폼 관리자 로그인' : '점주 로그인'}
+                {activeMode === 'platform' ? '플랫폼 관리자 로그인' : '업체 운영 로그인'}
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                점주는 매장 운영과 고객 기억을 관리하고, 플랫폼 관리자는 홈페이지·가격표·공지·결제 테스트를 관리합니다.
+                업체 담당자는 작업과 고객 이력을 관리하고, 플랫폼 관리자는 공개 사이트와 운영 설정을 관리합니다.
                 두 권한은 서버에서 분리해 확인합니다.
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className={`rounded-3xl border p-5 transition-colors ${activeMode === 'store' ? 'border-orange-400/40 bg-orange-500/10' : 'border-white/10 bg-white/5'}`}>
-                <p className="text-sm font-semibold text-orange-300">점주 운영</p>
+                <p className="text-sm font-semibold text-orange-300">업체 운영</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  고객, 문의, 예약, 웨이팅, 주문을 한 매장의 고객 기억 흐름으로 확인합니다.
+                  고객, 작업, 증빙과 다음 상담을 한 업무 흐름으로 확인합니다.
                 </p>
               </div>
               <div className={`rounded-3xl border p-5 transition-colors ${activeMode === 'platform' ? 'border-orange-400/40 bg-orange-500/10' : 'border-white/10 bg-white/5'}`}>
@@ -227,23 +231,25 @@ export function AdminLoginPage() {
             {/* 모드 탭 스위처 */}
             <div className="flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
               <button
-                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all motion-reduce:transition-none focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-orange-600 ${
                   activeMode === 'store'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
                 onClick={() => switchMode('store')}
+                disabled={pendingMethod !== null}
                 type="button"
               >
-                점주 로그인
+                업체 로그인
               </button>
               <button
-                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all motion-reduce:transition-none focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-orange-600 ${
                   activeMode === 'platform'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
                 onClick={() => switchMode('platform')}
+                disabled={pendingMethod !== null}
                 type="button"
               >
                 플랫폼 관리자
@@ -258,13 +264,13 @@ export function AdminLoginPage() {
               <p className="text-sm leading-6 text-slate-500">
                 {activeMode === 'platform'
                   ? '플랫폼 관리자 권한이 있는 계정만 /admin 화면으로 이동합니다.'
-                  : '매장 운영 권한이 있는 계정만 /dashboard 화면으로 이동합니다.'}
+                  : '업체 운영 권한이 있는 계정만 /dashboard 화면으로 이동합니다.'}
               </p>
             </div>
 
-            {message ? <p className={getMessageClassName(message.tone)}>{message.text}</p> : null}
+            {message ? <p aria-live="polite" className={getMessageClassName(message.tone)} role={message.tone === 'error' ? 'alert' : 'status'}>{message.text}</p> : null}
 
-            <form className="rounded-3xl border border-slate-200 bg-white p-5" onSubmit={(event) => void handleEmailSignIn(event)}>
+            <form aria-busy={pendingMethod === 'email'} className="rounded-3xl border border-slate-200 bg-white p-5" onSubmit={(event) => void handleEmailSignIn(event)}>
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
                   <Icons.Message size={20} />
@@ -284,7 +290,7 @@ export function AdminLoginPage() {
                   <span className="field-label">이메일</span>
                   <input
                     autoComplete="username"
-                    className="input-base"
+                    className="input-base focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="mybiz.lab3@gmail.com"
                     type="email"
@@ -295,7 +301,7 @@ export function AdminLoginPage() {
                   <span className="field-label">비밀번호</span>
                   <input
                     autoComplete="current-password"
-                    className="input-base"
+                    className="input-base focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="비밀번호를 입력해 주세요"
                     type="password"
@@ -320,7 +326,7 @@ export function AdminLoginPage() {
                 disabled={pendingMethod !== null}
                 type="submit"
               >
-                이메일로 로그인
+                {pendingMethod === 'email' ? '로그인 확인 중…' : '이메일로 로그인'}
               </button>
             </form>
 

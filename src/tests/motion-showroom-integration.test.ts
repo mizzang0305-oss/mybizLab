@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MOTION_CATALOG, getMotionSelectionSummary } from '../pages/mybiz-field/showroom/motion/motionRegistry';
+import { STYLE_DIRECTIONS, getStyleDirectionSummary } from '../pages/mybiz-field/showroom/styleDirections';
 
 describe('motion showroom integration', () => {
   it('publishes exactly three original consultation candidates with real media', () => {
@@ -47,11 +48,33 @@ describe('motion showroom integration', () => {
     const landing = readFileSync('src/pages/mybiz-field/MyBizFieldLandingPage.tsx', 'utf8');
     const inquiry = readFileSync('src/pages/mybiz-field/showroom/DevelopmentInquiry.tsx', 'utf8');
 
-    expect(landing).toContain('<TemplateShowroom onConsult={setConsultationTemplate} />');
+    expect(landing).toContain('<TemplateShowroom onConsult={(templateId) => {');
     expect(landing).toContain('<MotionShowroom');
-    expect(landing).toContain('selectionSummary={getMotionSelectionSummary(selectedMotionId)}');
+    expect(landing).toContain('<StyleDirectionPicker');
+    expect(landing).toContain('getMotionSelectionSummary(selectedMotionId)');
+    expect(landing).toContain('getStyleDirectionSummary(selectedStyleId)');
+    expect(landing).toContain('selectionSummary={selectionSummary}');
     expect(inquiry).toContain('selectionSummary');
     expect(inquiry).toContain('setHandoff(null)');
     expect(landing).not.toContain('key={selectedMotionId}');
+  });
+
+  it('keeps Factory references internal-only and serializes style id@version without replacing local motions', () => {
+    const manifest = JSON.parse(readFileSync('docs/mybiz/FACTORY_CONSUMER_MANIFEST.json', 'utf8')) as {
+      exportContractVerified: boolean;
+      factoryCodeCopied: boolean;
+      liveSync: string;
+      references: Array<{ consumerId: string; id: string; rights: string; sha256: string }>;
+    };
+    expect(manifest.exportContractVerified).toBe(false);
+    expect(manifest.factoryCodeCopied).toBe(false);
+    expect(manifest.liveSync).toBe('NOT_CONNECTED');
+    expect(STYLE_DIRECTIONS).toHaveLength(2);
+    expect(manifest.references.map(({ consumerId }) => consumerId)).toEqual(
+      STYLE_DIRECTIONS.map(({ id, version }) => `${id}@${version}`),
+    );
+    expect(manifest.references.every(({ rights, sha256 }) => rights === 'internal preview only' && /^[0-9a-f]{64}$/.test(sha256))).toBe(true);
+    expect(getStyleDirectionSummary('quiet-editorial')).toContain('quiet-editorial@0.1.0');
+    expect(getStyleDirectionSummary(undefined)).toBe('');
   });
 });
