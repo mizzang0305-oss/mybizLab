@@ -84,6 +84,9 @@ declare
   v_slug text;
   v_existing private.store_provisioning_receipts%rowtype;
   v_region text;
+  v_identity_active boolean;
+  v_active_bindings uuid[];
+  v_binding_rows bigint;
 begin
   if p_auth_user_id is null
     or p_request_key is null or length(p_request_key) not between 1 and 128
@@ -105,16 +108,51 @@ begin
         or p_payment_currency is distinct from 'KRW')) then
     raise exception 'PAYMENT_CONTEXT_REQUIRED' using errcode = '42501';
   end if;
-  if not exists (
-    select 1 from auth.users au
-    join core.profiles cp on cp.id = au.id and cp.is_active
-    where au.id = p_auth_user_id
-  ) then
+  -- Lock before checking is_active. A revocation committed while this call
+  -- waits for the actor lock must not be missed.
+  select cp.is_active into v_identity_active
+  from core.profiles cp
+  join auth.users au on au.id = cp.id
+  where cp.id = p_auth_user_id
+  for update of cp;
+  if v_identity_active is distinct from true then
     raise exception 'ACTIVE_AUTH_IDENTITY_REQUIRED' using errcode = '42501';
   end if;
-  -- Serialize different request keys from the same actor as well as exact
-  -- retries, so the free-store quota cannot race on separate receipts.
-  perform 1 from core.profiles cp where cp.id = p_auth_user_id for update;
+  -- The actor lock also serializes different request keys from that actor.
+
+  -- Resolve the business actor before returning a replay. Existing binding
+  -- rows are held against revocation until this transaction commits. More
+  -- than one active binding must fail closed, never pick an arbitrary owner.
+  select array_agg(bound.public_profile_id) filter (
+      where bound.status = 'ACTIVE' and bound.revoked_at is null
+    ), count(*)
+  into v_active_bindings, v_binding_rows
+  from (
+    select b.public_profile_id, b.status, b.revoked_at
+    from private.profile_auth_bindings b
+    where b.auth_profile_id = p_auth_user_id
+    for share
+  ) bound;
+  if coalesce(array_length(v_active_bindings, 1), 0) > 1 then
+    raise exception 'IDENTITY_BINDING_AMBIGUOUS' using errcode = '42501';
+  end if;
+  if coalesce(array_length(v_active_bindings, 1), 0) = 1 then
+    v_profile_id := v_active_bindings[1];
+  elsif v_binding_rows > 0 or exists (
+    select 1 from private.profile_auth_bindings b
+    where b.public_profile_id = p_auth_user_id
+  ) then
+    raise exception 'IDENTITY_BINDING_NOT_ACTIVE' using errcode = '42501';
+  else
+    v_profile_id := p_auth_user_id;
+  end if;
+  -- The legacy stores/store_members browser policies still compare auth.uid()
+  -- directly with public.profiles.id. Provisioning a non-exact actor would
+  -- commit an inaccessible workspace. Hold that identity class until a
+  -- separately rehearsed browser resolver path exists.
+  if v_profile_id <> p_auth_user_id then
+    raise exception 'NONEXACT_PROFILE_PROVISIONING_HOLD' using errcode = '42501';
+  end if;
 
   -- The unique key serializes concurrent retries. A different body or reused
   -- paid receipt cannot be replayed as another store or entitlement.
@@ -140,20 +178,9 @@ begin
     return;
   end if;
 
-  -- Existing active binding wins. Revoked or otherwise historical bindings
-  -- block exact-ID fallback; a legacy public profile is never guessed.
-  select b.public_profile_id into v_profile_id
-  from private.profile_auth_bindings b
-  where b.auth_profile_id = p_auth_user_id
-    and b.status = 'ACTIVE' and b.revoked_at is null;
-  if v_profile_id is null then
-    if exists (
-      select 1 from private.profile_auth_bindings b
-      where b.auth_profile_id = p_auth_user_id or b.public_profile_id = p_auth_user_id
-    ) then
-      raise exception 'IDENTITY_BINDING_NOT_ACTIVE' using errcode = '42501';
-    end if;
-    v_profile_id := p_auth_user_id;
+  -- Exact-ID fallback creates a public actor only for a genuinely unbound
+  -- identity, and only on first provision (never during receipt replay).
+  if v_profile_id = p_auth_user_id and v_binding_rows = 0 then
     insert into public.profiles (id, full_name, email, phone)
     values (v_profile_id, trim(p_owner_name), lower(trim(p_email)), trim(p_phone))
     on conflict (id) do nothing;

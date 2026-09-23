@@ -80,6 +80,60 @@ CREATE TABLE public.payment_events (
   raw jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Non-target canonical public-page/visitor-session dependencies are synthetic
+-- route fixtures. Only the 15 target relations use the exact-shape catalog.
+CREATE TABLE public.store_public_pages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id uuid NOT NULL UNIQUE REFERENCES public.stores(store_id),
+  slug text NOT NULL, brand_name text NOT NULL, logo_url text,
+  brand_color text NOT NULL DEFAULT '#ec5b13', tagline text NOT NULL DEFAULT '',
+  description text NOT NULL DEFAULT '', business_type text, phone text NOT NULL DEFAULT '',
+  email text NOT NULL DEFAULT '', address text NOT NULL DEFAULT '', directions text NOT NULL DEFAULT '',
+  opening_hours text, parking_note text, public_status text NOT NULL DEFAULT 'public',
+  homepage_visible boolean NOT NULL DEFAULT true, consultation_enabled boolean NOT NULL DEFAULT true,
+  inquiry_enabled boolean NOT NULL DEFAULT false, reservation_enabled boolean NOT NULL DEFAULT false,
+  order_entry_enabled boolean NOT NULL DEFAULT false, theme_preset text, preview_target text,
+  hero_title text NOT NULL DEFAULT '', hero_subtitle text NOT NULL DEFAULT '',
+  hero_description text NOT NULL DEFAULT '', primary_cta_label text, mobile_cta_label text,
+  cta_config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  content_blocks jsonb NOT NULL DEFAULT '[]'::jsonb,
+  seo_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  media jsonb NOT NULL DEFAULT '[]'::jsonb,
+  notices jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.visitor_sessions (
+  id uuid PRIMARY KEY,
+  store_id uuid NOT NULL REFERENCES public.stores(store_id),
+  public_page_id uuid REFERENCES public.store_public_pages(id),
+  customer_id uuid, inquiry_id uuid, reservation_id uuid, waiting_entry_id uuid,
+  visitor_token text NOT NULL, channel text NOT NULL, entry_path text NOT NULL,
+  last_path text NOT NULL, referrer text, metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  first_seen_at timestamptz NOT NULL DEFAULT now(), last_seen_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+GRANT SELECT, INSERT, UPDATE ON public.store_public_pages, public.visitor_sessions TO service_role;
+CREATE TABLE public.platform_pricing_plans (
+  plan_code text PRIMARY KEY, price_amount integer NOT NULL,
+  status text NOT NULL, display_name text NOT NULL,
+  currency text NOT NULL DEFAULT 'KRW'
+);
+INSERT INTO public.platform_pricing_plans (plan_code, price_amount, status, display_name)
+VALUES ('pro', 79000, 'published', 'PRO'), ('vip', 149000, 'published', 'VIP');
+GRANT SELECT ON public.platform_pricing_plans TO service_role;
+CREATE TABLE public.platform_billing_products (
+  product_code text PRIMARY KEY, product_name text NOT NULL,
+  product_type text NOT NULL, linked_plan_code text,
+  amount integer NOT NULL, currency text NOT NULL DEFAULT 'KRW',
+  grants_entitlement boolean NOT NULL DEFAULT false,
+  status text NOT NULL
+);
+INSERT INTO public.platform_billing_products
+  (product_code, product_name, product_type, linked_plan_code, amount, grants_entitlement, status)
+VALUES
+  ('subscription_pro', 'Synthetic published PRO', 'subscription', 'pro', 82500, true, 'published'),
+  ('archived_pro', 'Synthetic archived PRO', 'subscription', 'pro', 82500, true, 'archived');
+GRANT SELECT ON public.platform_billing_products TO service_role;
 GRANT SELECT ON public.store_subscriptions, public.inquiries, public.customers TO service_role;
 GRANT INSERT ON public.customers TO service_role;
 GRANT SELECT, INSERT ON public.payment_events TO service_role;

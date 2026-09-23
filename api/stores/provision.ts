@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
-import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans.js';
+import { isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans.js';
 import { BillingApiStageError, callPortOneApi, validateBillingEnv } from '../../src/server/billingApiRuntime.js';
+import { resolvePublishedProvisionCatalogItem } from '../../src/server/platformCatalog.js';
 import { isLaunchGateEnabled } from '../../src/shared/lib/launchGates.js';
+import { isReservedSlug, normalizeStoreSlug } from '../../src/shared/lib/storeSlug.js';
 import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../../src/server/supabaseAdmin.js';
 
@@ -98,6 +100,14 @@ function readPaymentCustomData(payment: Record<string, unknown>) {
   return toRecord(payment.customData);
 }
 
+function decodedCheckoutSlug(value: string) {
+  try {
+    return normalizeStoreSlug(decodeURIComponent(value));
+  } catch {
+    return '';
+  }
+}
+
 function bearerToken(request: RequestLike) {
   const header = request instanceof Request
     ? request.headers.get('authorization')
@@ -112,13 +122,15 @@ function bearerToken(request: RequestLike) {
 function provisioningHash(body: ProvisionRequestBody) {
   const fields = [
     body.business_name, body.owner_name, body.business_number, body.phone,
-    body.email?.toLowerCase(), body.address, body.business_type,
+    body.email.toLowerCase(), body.address, body.business_type,
     body.requested_slug || body.business_name, body.plan || 'free', body.payment_id || null,
-  ].map((field) => typeof field === 'string' ? field.trim() : field);
+  ];
   return createHash('sha256').update(JSON.stringify(fields)).digest('hex');
 }
 
-async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, requestId: string, actorId: string) {
+async function verifyProvisionPayment(
+  plan: BillingPlanCode, paymentId: string, requestId: string, actorId: string, requestedSlug: string,
+) {
   const env = validateBillingEnv(['apiSecret', 'storeId'], ENDPOINT, 'payment-verify-env');
   const paymentResponse = await callPortOneApi({
     apiSecret: env.apiSecret!,
@@ -146,34 +158,64 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
     });
   }
 
-  const expectedAmount = getBillingPlan(plan).amount;
-  const actualAmount = readPaymentAmount(payment);
-  if (actualAmount !== expectedAmount || payment.currency !== 'KRW' || payment.id !== paymentId) {
+  const customData = readPaymentCustomData(payment);
+  const planKey = normalizeNonEmptyString(readNestedRecordValue(customData, ['planKey']));
+  const customRequestId = normalizeNonEmptyString(readNestedRecordValue(customData, ['requestId']));
+  const paymentActor = normalizeNonEmptyString(readNestedRecordValue(customData, ['actorId']));
+  const productCode = normalizeNonEmptyString(customData.productCode);
+  const catalogSource = normalizeNonEmptyString(customData.catalogSource);
+  const checkoutSlug = normalizeNonEmptyString(customData.slug);
+  if (planKey !== plan || customRequestId !== requestId || paymentActor !== actorId
+    || customData.grantsEntitlement !== true
+    || customData.productType !== 'subscription'
+    || customData.sessionId !== paymentId
+    || !productCode
+    || !checkoutSlug
+    || decodedCheckoutSlug(checkoutSlug) !== normalizeStoreSlug(requestedSlug)) {
     throw new BillingApiStageError({
-      code: 'PAYMENT_CONTEXT_MISMATCH',
-      details: {
-        actualAmount,
-        expectedAmount,
-        paymentId,
-      },
-      message: 'Payment amount, currency, or identifier does not match the requested subscription.',
+      code: 'PAYMENT_BINDING_MISMATCH',
+      message: 'Payment is not bound to this authenticated applicant, request, and subscription plan.',
+      stage: 'payment-verify',
+      status: 409,
+    });
+  }
+  if (catalogSource !== 'plan' && catalogSource !== 'product') {
+    throw new BillingApiStageError({
+      code: 'PAID_RECEIPT_RECONCILIATION_REQUIRED',
+      message: 'This paid checkout predates the verified catalog-source contract and requires review.',
       stage: 'payment-verify',
       status: 409,
     });
   }
 
-  const customData = readPaymentCustomData(payment);
-  const planKey = normalizeNonEmptyString(readNestedRecordValue(customData, ['planKey']));
-  const customRequestId = normalizeNonEmptyString(readNestedRecordValue(customData, ['requestId']));
-  const paymentActor = normalizeNonEmptyString(readNestedRecordValue(customData, ['actorId']));
-  if (planKey !== plan || customRequestId !== requestId || paymentActor !== actorId
-    || customData.grantsEntitlement !== true
-    || customData.productType !== 'subscription'
-    || customData.sessionId !== paymentId
-    || !normalizeNonEmptyString(customData.productCode)) {
+  let catalog: Awaited<ReturnType<typeof resolvePublishedProvisionCatalogItem>>;
+  try {
+    catalog = await resolvePublishedProvisionCatalogItem({
+      source: catalogSource as 'plan' | 'product', plan, productCode,
+    });
+  } catch {
     throw new BillingApiStageError({
-      code: 'PAYMENT_BINDING_MISMATCH',
-      message: 'Payment is not bound to this authenticated applicant, request, and subscription plan.',
+      code: 'PAYMENT_CATALOG_MISMATCH',
+      message: 'Payment product is not an approved published subscription.',
+      stage: 'payment-verify',
+      status: 409,
+    });
+  }
+  if (catalog.productCode !== productCode) {
+    throw new BillingApiStageError({
+      code: 'PAYMENT_CATALOG_MISMATCH',
+      message: 'Payment product does not grant the requested subscription.',
+      stage: 'payment-verify',
+      status: 409,
+    });
+  }
+  const expectedAmount = catalog.amount;
+  const actualAmount = readPaymentAmount(payment);
+  if (actualAmount !== expectedAmount || payment.currency !== catalog.currency || payment.id !== paymentId) {
+    throw new BillingApiStageError({
+      code: 'PAYMENT_CONTEXT_MISMATCH',
+      details: { actualAmount, expectedAmount, paymentId },
+      message: 'Payment amount, currency, or identifier does not match the requested subscription.',
       stage: 'payment-verify',
       status: 409,
     });
@@ -233,7 +275,19 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       await sendNodeResponse(result, response);
       return result;
     }
-    const body = await readJsonBody(request);
+    let body: ProvisionRequestBody;
+    try {
+      body = await readJsonBody(request);
+    } catch {
+      result = json({ ok: false, code: 'INVALID_JSON', error: 'A JSON request body is required.' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      result = json({ ok: false, code: 'INVALID_REQUEST_BODY', error: 'A JSON object is required.' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
 
     const {
       business_name,
@@ -269,11 +323,36 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     }
 
     const missing = ['business_name', 'owner_name', 'phone', 'email', 'address'].filter(
-      (key) => !body[key as keyof ProvisionRequestBody]?.toString().trim(),
+      (key) => !normalizeNonEmptyString(body[key as keyof ProvisionRequestBody]),
     );
 
     if (missing.length) {
       result = json({ ok: false, error: `Missing required fields: ${missing.join(', ')}` }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    if ([business_number, business_type, requested_slug, payment_id].some(
+      (value) => value !== undefined && typeof value !== 'string',
+    )) {
+      result = json({ ok: false, code: 'INVALID_PROVISIONING_FIELD', error: 'Optional fields must be strings.' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    const normalizedBody: ProvisionRequestBody = {
+      address: address.trim(), business_name: business_name.trim(),
+      business_number: business_number?.trim() || `BIZ-${requestKey}`,
+      business_type: business_type?.trim() || '기타',
+      email: email.trim().toLowerCase(), owner_name: owner_name.trim(),
+      phone: phone.trim(), requested_slug: requested_slug?.trim() || business_name.trim(),
+      plan, payment_id: normalizeNonEmptyString(payment_id) || undefined,
+    };
+    if (Object.values(normalizedBody).some((value) => typeof value === 'string' && value.length > 2048)) {
+      result = json({ ok: false, code: 'PROVISIONING_FIELD_TOO_LONG', error: 'A request field is too long.' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    if (isReservedSlug(normalizedBody.requested_slug)) {
+      result = json({ ok: false, code: 'RESERVED_STORE_SLUG', error: 'The requested store slug is reserved.' }, 400);
       await sendNodeResponse(result, response);
       return result;
     }
@@ -305,7 +384,9 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     let verifiedPaymentStatus: string | undefined;
     let verifiedPaymentAmount: number | null = null;
     if (plan !== 'free') {
-      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), requestKey, authData.user.id);
+      const verification = await verifyProvisionPayment(
+        plan, payment_id!.trim(), requestKey, authData.user.id, normalizedBody.requested_slug,
+      );
       verifiedPaymentStatus = verification.paymentStatus;
       verifiedPaymentAmount = verification.amount;
     }
@@ -313,15 +394,15 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     const { data, error } = await adminClient.rpc('provision_store_from_verified_actor', {
       p_auth_user_id: authData.user.id,
       p_request_key: requestKey,
-      p_request_hash: provisioningHash(body),
-      p_store_name: business_name.trim(),
-      p_owner_name: owner_name.trim(),
-      p_business_number: business_number?.trim() || `BIZ-${Date.now()}`,
-      p_phone: phone.trim(),
-      p_email: email.trim().toLowerCase(),
-      p_address: address.trim(),
-      p_business_type: business_type?.trim() || '기타',
-      p_requested_slug: requested_slug?.trim() || business_name.trim(),
+      p_request_hash: provisioningHash(normalizedBody),
+      p_store_name: normalizedBody.business_name,
+      p_owner_name: normalizedBody.owner_name,
+      p_business_number: normalizedBody.business_number,
+      p_phone: normalizedBody.phone,
+      p_email: normalizedBody.email,
+      p_address: normalizedBody.address,
+      p_business_type: normalizedBody.business_type,
+      p_requested_slug: normalizedBody.requested_slug,
       p_plan: plan,
       p_payment_id: plan === 'free' ? null : payment_id!.trim(),
       p_payment_amount: verifiedPaymentAmount,
@@ -330,6 +411,14 @@ export default async function handler(request: RequestLike, response?: NodeRespo
 
     if (error) {
       console.error('[provision] RPC rejected', { code: error.code, message: error.message });
+      if (error.code === 'PGRST202' || error.code === '42883') {
+        result = json({
+          ok: false, code: 'PROVISIONING_NOT_AVAILABLE',
+          error: 'Store provisioning is on hold until the server-only RPC is available.',
+        }, 503);
+        await sendNodeResponse(result, response);
+        return result;
+      }
       result = json(
         {
           ok: false,

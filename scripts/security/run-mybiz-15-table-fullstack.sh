@@ -78,7 +78,9 @@ for run in 1 2; do
   refresh_schema
   export LOCAL_SYNTHETIC_IDENTITIES_FILE="$stack_root/synthetic-identities-${run}.json"
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" candidate
+  export LOCAL_EXPECT_PROVISIONING_HOLD=1
   run_app_routes
+  unset LOCAL_EXPECT_PROVISIONING_HOLD
   echo "HTTP_REHEARSAL_RUN_${run}=PASS"
 
   # R3 is a separate draft-only security repair layered on the same local

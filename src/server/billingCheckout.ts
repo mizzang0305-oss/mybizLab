@@ -5,7 +5,7 @@ import {
 import { isAsciiSerializableJson, sanitizeCheckoutCustomData } from '../shared/lib/checkoutCustomData.js';
 import { getLaunchGateStatus } from '../shared/lib/launchGates.js';
 import { BUSINESS_INFO } from '../shared/lib/siteConfig.js';
-import { resolveServerCatalogItem } from './platformCatalog.js';
+import { resolvePublishedProvisionCatalogItem, resolveServerCatalogItem } from './platformCatalog.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
@@ -751,6 +751,7 @@ function buildCheckoutMerchantData(
   const slug = readCheckoutSlug(customData);
 
   return sanitizeCheckoutCustomData({
+    catalogSource: readRequestedProductCode(body) ? 'product' : 'plan',
     grantsEntitlement: catalog.grantsEntitlement,
     ...(actorId ? { actorId } : {}),
     ...(requestId ? { requestId } : {}),
@@ -889,6 +890,33 @@ export async function handleCheckoutRequest(request: CheckoutRequestLike) {
       stage: 'catalog-resolution',
       status: 400,
     });
+  }
+  if (catalog.productType === 'subscription' && catalog.plan !== requestedPlan) {
+    throw new CheckoutApiError({
+      code: 'CATALOG_PLAN_MISMATCH',
+      message: 'The selected subscription product does not match the requested plan.',
+      stage: 'catalog-resolution',
+      status: 400,
+    });
+  }
+  if (body.source === 'onboarding-flow' && catalog.productType === 'subscription') {
+    try {
+      const approved = await resolvePublishedProvisionCatalogItem({
+        source: readRequestedProductCode(body) ? 'product' : 'plan',
+        plan: requestedPlan,
+        productCode: catalog.productCode,
+      });
+      if (approved.amount !== catalog.amount || approved.currency !== catalog.currency) {
+        throw new Error('Checkout catalog changed during authorization.');
+      }
+    } catch {
+      throw new CheckoutApiError({
+        code: 'ONBOARDING_CATALOG_UNAVAILABLE',
+        message: 'A published subscription catalog could not be verified. Checkout is on hold.',
+        stage: 'catalog-resolution',
+        status: 503,
+      });
+    }
   }
   assertPaymentTestCheckoutAllowed(catalog);
   assertClientAmountMatchesCatalog(body, catalog.amount);

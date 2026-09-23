@@ -2,12 +2,15 @@
 
 import { vi } from 'vitest';
 
+const { pricingLookup } = vi.hoisted(() => ({ pricingLookup: vi.fn() }));
+
 vi.mock('../../src/server/supabaseAdmin.js', () => ({
   getSupabaseAdminClient: () => ({
     auth: { getUser: async (token: string) => ({
       data: { user: token === 'synthetic-checkout-token' ? { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } : null },
       error: token === 'synthetic-checkout-token' ? null : { message: 'invalid' },
     }) },
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => pricingLookup() }) }) }),
   }),
 }));
 
@@ -90,6 +93,10 @@ describe('/api/billing/checkout', () => {
   const originalVitePortOneEnv = process.env.VITE_PORTONE_ENV;
 
   beforeEach(() => {
+    pricingLookup.mockReset();
+    pricingLookup.mockResolvedValue({
+      data: { plan_code: 'pro', price_amount: 79000, status: 'published' }, error: null,
+    });
     delete process.env.PORTONE_API_SECRET;
     delete process.env.PORTONE_V2_API_SECRET;
     delete process.env.APP_BASE_URL;
@@ -411,6 +418,7 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.paymentId).toMatch(/^mb_pro_[a-f0-9]{16}$/);
     expect(payload.checkout.paymentId.length).toBeLessThanOrEqual(40);
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
+    expect(payload.checkout.customData.catalogSource).toBe('plan');
   });
 
   it('blocks checkout by default when the launch gate is not explicitly enabled', async () => {
@@ -481,6 +489,7 @@ describe('/api/billing/checkout', () => {
     });
     expect(payload.checkout.paymentId).toMatch(/^mb_test_[a-f0-9]{16}$/);
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
+    expect(payload.checkout.customData.catalogSource).toBe('product');
   });
 
   it('rejects the 100 KRW payment test product until sandbox/test channel is confirmed', async () => {
@@ -629,6 +638,7 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.orderName).toBe('\uc131\uc218 \ube0c\ub7f0\uce58 \ud558\uc6b0\uc2a4 PRO \uacb0\uc81c');
     expect(payload.checkout.customData.requestId).toBe('request_123');
     expect(payload.checkout.customData.planKey).toBe('pro');
+    expect(payload.checkout.customData.catalogSource).toBe('plan');
     expect(payload.checkout.customData.actorId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
     expect(payload.checkout.customData.slug).toBe(encodeURIComponent('\uc131\uc218-\ube0c\ub7f0\uce58-\ud558\uc6b0\uc2a4'));
@@ -637,6 +647,19 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.customData.region).toBeUndefined();
     expect(payload.checkout.customData.customerType).toBeUndefined();
     expect(payload.checkout.customData.orderName).toBeUndefined();
+  });
+
+  it('holds onboarding checkout when the published pricing catalog cannot be read', async () => {
+    pricingLookup.mockResolvedValue({ data: null, error: { message: 'catalog unavailable' } });
+    const response = await billingHandler(new Request('https://example.com/api/billing/checkout', {
+      method: 'POST', headers: { authorization: 'Bearer synthetic-checkout-token' },
+      body: JSON.stringify({
+        plan: 'pro', source: 'onboarding-flow',
+        customData: { requestId: 'catalog-hold-1', slug: 'catalog-hold' },
+      }),
+    }));
+    expect(response.status).toBe(503);
+    expect((await response.json()).code).toBe('ONBOARDING_CATALOG_UNAVAILABLE');
   });
 });
 
