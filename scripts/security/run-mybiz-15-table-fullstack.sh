@@ -23,10 +23,10 @@ cleanup() {
 trap cleanup EXIT
 
 sql_file() {
-  supabase db query --local --file "$repo_root/$1" >/dev/null
+  psql "$local_db_url" -X -v ON_ERROR_STOP=1 -q -f "$repo_root/$1" >/dev/null
 }
 refresh_schema() {
-  supabase db query --local "NOTIFY pgrst, 'reload schema';" >/dev/null
+  psql "$local_db_url" -X -v ON_ERROR_STOP=1 -q -c "NOTIFY pgrst, 'reload schema';" >/dev/null
 }
 
 echo "SUPABASE_CLI_VERSION=$(supabase --version)"
@@ -45,6 +45,15 @@ for run in 1 2; do
   }
   supabase status -o env >"$stack_root/local-status.env"
   chmod 600 "$stack_root/local-status.env"
+  # The CLI's query --file accepts only one prepared statement in 2.117.0.
+  # psql is needed for the existing multi-statement fixture/migrations.
+  # The sourced URL is never printed and must resolve to this runner's loopback.
+  source "$stack_root/local-status.env"
+  local_db_url="${DB_URL:-}"
+  if [[ ! "$local_db_url" =~ ^postgres(ql)?://[^@]+@127\.0\.0\.1:[0-9]+/postgres$ ]]; then
+    echo 'Refusing SQL: local loopback DB URL was not established.' >&2
+    exit 1
+  fi
   export LOCAL_SUPABASE_STATUS_FILE="$stack_root/local-status.env"
   export LOCAL_REHEARSAL_RUN="$run"
 

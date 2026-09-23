@@ -34,6 +34,7 @@ jobs:
           supabase start --help >/dev/null
           supabase test db --help >/dev/null
           supabase db advisors --help >/dev/null
+          psql --version
           docker version
           docker info --format 'Docker server {{.ServerVersion}}'
       - name: Install locked application dependencies
