@@ -1,25 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { adminClient, eqMock, fromMock, rpcMock, updateMock } = vi.hoisted(() => {
-  const eqMock = vi.fn(async () => ({ error: null }));
-  const updateMock = vi.fn(() => ({
-    eq: eqMock,
-  }));
-  const fromMock = vi.fn(() => ({
-    update: updateMock,
-  }));
-  const rpcMock = vi.fn();
-
-  return {
-    adminClient: {
-      from: fromMock,
-      rpc: rpcMock,
-    },
-    eqMock,
-    fromMock,
-    rpcMock,
-    updateMock,
-  };
+const { adminClient, getUser, rpc } = vi.hoisted(() => {
+  const getUser = vi.fn();
+  const rpc = vi.fn();
+  return { adminClient: { auth: { getUser }, rpc }, getUser, rpc };
 });
 
 vi.mock('../../src/server/supabaseAdmin.js', () => ({
@@ -28,182 +12,88 @@ vi.mock('../../src/server/supabaseAdmin.js', () => ({
 
 import provisionHandler from '../../api/stores/provision';
 
-describe('/api/stores/provision', () => {
-  const originalApiSecret = process.env.PORTONE_API_SECRET;
-  const originalLegacyApiSecret = process.env.PORTONE_V2_API_SECRET;
-  const originalStoreId = process.env.PORTONE_STORE_ID;
-  const originalFetch = globalThis.fetch;
+const base = {
+  address: 'Synthetic address', business_name: 'Synthetic Studio',
+  business_number: 'SYN-1', business_type: 'service',
+  email: 'synthetic@example.test', owner_name: 'Synthetic Owner',
+  phone: '0000000000', plan: 'free', request_id: 'stable-request-1',
+  requested_slug: 'synthetic-studio',
+};
 
+function post(body: object, token = 'local-jwt') {
+  return provisionHandler(new Request('https://example.test/api/stores/provision', {
+    method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: JSON.stringify(body),
+  }));
+}
+
+describe('restricted FREE provisioning API', () => {
   beforeEach(() => {
-    process.env.PORTONE_API_SECRET = 'ptn_secret_test';
-    delete process.env.PORTONE_V2_API_SECRET;
-    process.env.PORTONE_STORE_ID = 'store-v2-test';
-    rpcMock.mockReset();
-    rpcMock.mockResolvedValue({
-      data: {
-        id: 'live-store-001',
-        slug: 'live-store',
-        store_id: 'live-store-001',
-      },
-      error: null,
-    });
-    fromMock.mockClear();
-    updateMock.mockClear();
-    eqMock.mockClear();
-    globalThis.fetch = originalFetch;
+    getUser.mockReset().mockResolvedValue({ data: { user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } }, error: null });
+    rpc.mockReset().mockResolvedValue({ data: { store_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', slug: 'synthetic-studio' }, error: null });
   });
 
-  afterEach(() => {
-    process.env.PORTONE_API_SECRET = originalApiSecret;
-    process.env.PORTONE_V2_API_SECRET = originalLegacyApiSecret;
-    process.env.PORTONE_STORE_ID = originalStoreId;
-    globalThis.fetch = originalFetch;
-    vi.restoreAllMocks();
+  it('denies missing and invalid sessions before calling the RPC', async () => {
+    expect((await post(base, '')).status).toBe(401);
+    getUser.mockResolvedValue({ data: { user: null }, error: { message: 'invalid' } });
+    expect((await post(base)).status).toBe(401);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('requires payment_id for paid onboarding store provisioning', async () => {
-    const response = await provisionHandler(
-      new Request('https://example.com/api/stores/provision', {
-        body: JSON.stringify({
-          address: 'Seoul Seongsu 123-45',
-          business_name: 'Paid Store',
-          business_number: '123-45-67890',
-          business_type: 'Cafe',
-          email: 'owner@example.com',
-          owner_name: 'Owner Kim',
-          phone: '010-1234-5678',
-          plan: 'pro',
-          request_id: 'request-live-001',
-          requested_slug: 'paid-store',
-        }),
-        method: 'POST',
-      }),
-    );
-
-    const payload = await response.json();
-
-    expect(response.status).toBe(400);
-    expect(payload).toMatchObject({
-      code: 'PAYMENT_VERIFICATION_REQUIRED',
-      ok: false,
-    });
-    expect(rpcMock).not.toHaveBeenCalled();
+  it('holds paid plans before any provider or RPC call', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const response = await post({ ...base, plan: 'pro', payment_id: 'synthetic-payment' });
+    expect(response.status).toBe(403);
+    expect((await response.json()).code).toBe('PAID_PROVISIONING_HOLD');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 
-  it('verifies a paid PortOne payment before provisioning and marks the request converted', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          amount: {
-            total: 79000,
-          },
-          customData: {
-            planKey: 'pro',
-            requestId: 'request-live-001',
-          },
-          id: 'payment-live-001',
-          status: 'PAID',
-        }),
-        {
-          headers: { 'content-type': 'application/json' },
-          status: 200,
-        },
-      ),
-    ) as typeof fetch;
+  it('denies client actor assertions and payment context', async () => {
+    expect((await post({ ...base, owner_profile_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' })).status).toBe(403);
+    expect((await post({ ...base, payment_verified: true })).status).toBe(403);
+    expect((await post({ ...base, payment_id: 'free-marker' })).status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
 
-    const response = await provisionHandler(
-      new Request('https://example.com/api/stores/provision', {
-        body: JSON.stringify({
-          address: 'Seoul Seongsu 123-45',
-          business_name: 'Paid Store',
-          business_number: '123-45-67890',
-          business_type: 'Cafe',
-          email: 'owner@example.com',
-          owner_name: 'Owner Kim',
-          payment_id: 'payment-live-001',
-          phone: '010-1234-5678',
-          plan: 'pro',
-          request_id: 'request-live-001',
-          requested_slug: 'paid-store',
-        }),
-        method: 'POST',
-      }),
-    );
+  it('requires a stable key and valid bounded fields', async () => {
+    expect((await post({ ...base, request_id: undefined })).status).toBe(400);
+    expect((await post({ ...base, business_name: { unsafe: true } })).status).toBe(400);
+    expect((await post({ ...base, address: 'x'.repeat(2049) })).status).toBe(400);
+    expect((await post({ ...base, requested_slug: 'admin' })).status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
 
-    const payload = await response.json();
-
+  it('passes only Auth-verified actor and normalized FREE request to the service-only RPC', async () => {
+    const response = await post(base);
     expect(response.status).toBe(200);
-    expect(payload).toMatchObject({
-      ok: true,
-      payment: {
-        status: 'PAID',
-      },
-      store: {
-        id: 'live-store-001',
-        plan: 'pro',
-      },
-    });
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        href: 'https://api.portone.io/payments/payment-live-001?storeId=store-v2-test',
-      }),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'PortOne ptn_secret_test',
-        }),
-        method: 'GET',
-      }),
-    );
-    expect(rpcMock).toHaveBeenCalledWith(
-      'create_store_with_owner',
-      expect.objectContaining({
-        p_plan: 'pro',
-        p_requested_slug: 'paid-store',
-      }),
-    );
-    expect(fromMock).toHaveBeenCalledWith('store_setup_requests');
-    expect(updateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'converted',
-      }),
-    );
-    expect(eqMock).toHaveBeenCalledWith('id', 'request-live-001');
+    expect((await response.json()).store.plan).toBe('free');
+    expect(rpc).toHaveBeenCalledWith('provision_store_from_verified_actor', expect.objectContaining({
+      p_auth_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      p_request_key: 'stable-request-1', p_plan: 'free',
+      p_payment_id: null, p_payment_amount: null, p_payment_currency: null,
+    }));
+    expect(rpc.mock.calls[0][1].p_request_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('rejects provisioning when PortOne verify returns a non-paid status', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 'payment-live-002', status: 'FAILED' }), {
-        headers: { 'content-type': 'application/json' },
-        status: 200,
-      }),
-    ) as typeof fetch;
+  it('keeps the same idempotency hash across equivalent optional-field input', async () => {
+    expect((await post(base)).status).toBe(200);
+    expect((await post({ ...base, business_number: ' SYN-1 ', requested_slug: ' synthetic-studio ' })).status).toBe(200);
+    expect(rpc.mock.calls[1][1].p_request_hash).toBe(rpc.mock.calls[0][1].p_request_hash);
+  });
 
-    const response = await provisionHandler(
-      new Request('https://example.com/api/stores/provision', {
-        body: JSON.stringify({
-          address: 'Seoul Seongsu 123-45',
-          business_name: 'Paid Store',
-          business_number: '123-45-67890',
-          business_type: 'Cafe',
-          email: 'owner@example.com',
-          owner_name: 'Owner Kim',
-          payment_id: 'payment-live-002',
-          phone: '010-1234-5678',
-          plan: 'pro',
-          request_id: 'request-live-002',
-          requested_slug: 'paid-store',
-        }),
-        method: 'POST',
-      }),
-    );
+  it('holds new app against old DB without calling the old RPC', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'missing' } });
+    const response = await post(base);
+    expect(response.status).toBe(503);
+    expect((await response.json()).code).toBe('PROVISIONING_NOT_AVAILABLE');
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0][0]).not.toBe('create_store_with_owner');
+  });
 
-    const payload = await response.json();
-
-    expect(response.status).toBe(409);
-    expect(payload).toMatchObject({
-      code: 'PAYMENT_NOT_COMPLETED',
-      ok: false,
-    });
-    expect(rpcMock).not.toHaveBeenCalled();
+  it('returns a conflict on unique slug or idempotency violation', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'unique violation' } });
+    expect((await post(base)).status).toBe(409);
   });
 });

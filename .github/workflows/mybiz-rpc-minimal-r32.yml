@@ -1,0 +1,55 @@
+name: MyBiz RPC minimal R3.2 isolated certification
+
+on:
+  push:
+    branches:
+      - codex/mybiz-rpc-minimal-release-r32
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  minimal-rpc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SUPABASE_ACCESS_TOKEN: ''
+      SUPABASE_DB_PASSWORD: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify pinned local tooling and Docker
+        run: |
+          docker version
+          docker info
+          psql --version
+          google-chrome --version
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.117.0
+      - name: Discover CLI commands
+        run: |
+          supabase --version
+          supabase --help >/dev/null
+          supabase init --help >/dev/null
+          supabase start --help >/dev/null
+          supabase status --help >/dev/null
+          supabase stop --help >/dev/null
+      - name: Install and verify exact release head
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm run build
+          npm test
+          npm audit --omit=dev
+      - name: Run two clean local Auth PostgREST RPC rehearsals
+        run: bash scripts/security/run-mybiz-rpc-minimal.sh
+      - name: Record sanitized result
+        if: always()
+        run: |
+          echo "MINIMAL_RELEASE_SHA=${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Production database, Auth, payments, customers, deployment and main were not modified by this job.' >> "$GITHUB_STEP_SUMMARY"

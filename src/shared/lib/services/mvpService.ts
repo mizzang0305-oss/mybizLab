@@ -514,10 +514,18 @@ async function createStoreViaSupabaseRpc(
     requestId?: string;
   },
 ): Promise<CreateStoreWithOwnerRpcRow> {
-  // 서버사이드 API 통해 service_role로 RPC 호출 (클라이언트 Auth 불필요)
+  // The browser supplies only its session; the server verifies the actor.
+  if (!supabase) {
+    throw new Error('인증 연결이 없어 스토어를 생성할 수 없습니다.');
+  }
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (sessionError || !accessToken) {
+    throw new Error('스토어를 생성하려면 먼저 로그인해야 합니다. 작성한 신청 내용은 유지됩니다.');
+  }
   const response = await fetch(resolveServerApiUrl('/api/stores/provision'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({
       business_name: input.business_name,
       owner_name: input.owner_name,
@@ -528,7 +536,8 @@ async function createStoreViaSupabaseRpc(
       business_type: input.business_type,
       requested_slug: input.requested_slug || input.business_name,
       plan,
-      ...(options?.paymentId ? { payment_id: options.paymentId } : {}),
+      // The local free activation marker is not a payment receipt.
+      ...(plan !== 'free' && options?.paymentId ? { payment_id: options.paymentId } : {}),
       ...(options?.requestId ? { request_id: options.requestId } : {}),
     }),
   });
@@ -2600,7 +2609,6 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
-    const timestamp = nowIso();
     const repository = getCanonicalMyBizRepository();
     const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan, {
       paymentId: options?.paymentId,
@@ -2608,27 +2616,6 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     });
     const profileId = await getAuthenticatedSupabaseUserId();
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
-
-    await repository.saveStoreSubscription({
-      id: `subscription_${verified.store.id}`,
-      store_id: verified.store.id,
-      plan: subscriptionPlan,
-      status:
-        options?.subscriptionStatus === 'subscription_cancelled'
-          ? 'cancelled'
-          : options?.subscriptionStatus === 'subscription_past_due'
-            ? 'past_due'
-            : verified.store.trial_ends_at
-              ? 'trialing'
-              : 'active',
-      billing_provider: options?.paymentId ? 'portone' : 'manual',
-      trial_ends_at: verified.store.trial_ends_at,
-      current_period_starts_at: timestamp,
-      current_period_ends_at:
-        subscriptionPlan === 'free' && verified.store.trial_ends_at ? verified.store.trial_ends_at : isoDaysFromNow(30),
-      created_at: timestamp,
-      updated_at: timestamp,
-    });
 
     await repository.saveStorePublicPage(
       buildDefaultStorePublicPage({
