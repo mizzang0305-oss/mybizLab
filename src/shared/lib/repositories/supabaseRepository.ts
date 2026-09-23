@@ -1122,6 +1122,12 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
       return null;
     }
 
+    // Legacy content remains available through the trusted public server route,
+    // not by expanding the browser Data API grant on store_home_content.
+    if (typeof window !== 'undefined') {
+      return null;
+    }
+
     return loadLegacyStorePublicPage(store);
   }
 

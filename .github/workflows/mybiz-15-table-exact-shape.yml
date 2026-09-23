@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/mybiz-15-table-exact-shape.yml
       - supabase/tests/mybiz_15_table_exact_shape_fixture.sql
+      - supabase/tests/mybiz_15_table_catalog_shape_assertions.sql
       - supabase/tests/mybiz_15_table_exact_shape_assertions.sql
       - supabase/tests/mybiz_15_table_rollback_assertions.sql
       - supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
@@ -50,6 +51,7 @@ jobs:
               psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres \
               -c "CREATE DATABASE ${db}"
             psql_file "$db" supabase/tests/mybiz_15_table_exact_shape_fixture.sql
+            psql_file "$db" supabase/tests/mybiz_15_table_catalog_shape_assertions.sql
             set +e
             output=$(psql_file "$db" supabase/tests/mybiz_15_table_exact_shape_assertions.sql 2>&1)
             status=$?
@@ -62,6 +64,16 @@ jobs:
             echo "RED_BASELINE_TEST_${run}=PASS"
             psql_file "$db" supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
             psql_file "$db" supabase/tests/mybiz_15_table_exact_shape_assertions.sql
+            set +e
+            replay=$(psql_file "$db" supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql 2>&1)
+            replay_status=$?
+            set -e
+            if [ "$replay_status" -eq 0 ] || ! grep -q '15_TABLE_PRECONDITION' <<< "$replay"; then
+              echo "$replay"
+              echo 'Expected a guarded replay rejection.'
+              exit 1
+            fi
+            echo "CANDIDATE_REPLAY_REJECTED_${run}=PASS"
             psql_file "$db" supabase/migration_drafts/20260923040858_mybiz_15_table_rls_exact_shape_rollback.sql
             psql_file "$db" supabase/tests/mybiz_15_table_rollback_assertions.sql
             echo "REHEARSAL_RUN_${run}=PASS"
