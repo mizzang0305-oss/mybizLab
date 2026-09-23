@@ -10,9 +10,18 @@ CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS private;
 GRANT USAGE ON SCHEMA auth, public TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA private TO authenticated;
-CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
-$$;
+-- Keep the real GoTrue/PostgREST auth.uid() when this fixture is staged in a
+-- disposable Supabase stack. Standalone PostgreSQL rehearsal still needs it.
+DO $fixture$
+BEGIN
+  IF to_regprocedure('auth.uid()') IS NULL THEN
+    EXECUTE $create$
+      CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $body$
+        SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+      $body$;
+    $create$;
+  END IF;
+END $fixture$;
 GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
 
 CREATE TABLE public.stores (
@@ -50,6 +59,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
     WHERE sm.store_id = target_store_id AND sm.profile_id = auth.uid()
   );
 $$;
+REVOKE ALL ON FUNCTION public.is_store_member(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_store_member(uuid) TO authenticated, service_role;
 
 CREATE TABLE public.customers (
   customer_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -347,6 +358,8 @@ GRANT ALL ON TABLE public.store_modules TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.store_priority_settings TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.store_setup_requests TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.store_staff TO anon, authenticated, service_role;
+-- Synthetic Auth setup uses the local server role on dependency tables only.
+GRANT SELECT, INSERT, UPDATE ON TABLE public.stores, public.profiles, public.store_members TO service_role;
 
 CREATE POLICY setup_requests_select_own ON public.store_setup_requests FOR SELECT TO PUBLIC USING (auth.uid() = created_by);
 CREATE POLICY setup_requests_update_own ON public.store_setup_requests FOR UPDATE TO PUBLIC USING (auth.uid() = created_by) WITH CHECK (auth.uid() = created_by);
