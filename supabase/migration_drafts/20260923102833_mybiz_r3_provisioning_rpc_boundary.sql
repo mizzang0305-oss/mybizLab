@@ -194,6 +194,11 @@ begin
     raise exception 'FREE_STORE_LIMIT_REACHED' using errcode = '42501';
   end if;
 
+  -- The legacy slug helper checks before inserting. Two different actors can
+  -- otherwise observe the same free slug and both commit it (stores.slug is
+  -- not unique in the certified fixture). Serialize this RPC's slug allocation
+  -- through commit; identity locks above still scope receipt/quota replay.
+  perform pg_catalog.pg_advisory_xact_lock(125768499, 1);
   v_store_id := pg_catalog.gen_random_uuid();
   v_slug := public.generate_unique_store_slug(
     coalesce(nullif(trim(p_requested_slug), ''), trim(p_store_name))
