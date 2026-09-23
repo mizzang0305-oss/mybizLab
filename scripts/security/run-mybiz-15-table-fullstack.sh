@@ -76,6 +76,17 @@ for run in 1 2; do
   unset LOCAL_SYNTHETIC_IDENTITIES_FILE
   echo "HTTP_REHEARSAL_RUN_${run}=PASS"
 
+  # R3 is a separate draft-only security repair layered on the same local
+  # candidate. The prior bypass probe above must run before the ACL closes.
+  sql_file supabase/migration_drafts/20260923102833_mybiz_r3_provisioning_rpc_boundary.sql
+  sql_file supabase/tests/mybiz_r3_rpc_acl_assertions.sql
+  refresh_schema
+  export LOCAL_R3_APPLIED=1
+  node "$repo_root/scripts/security/mybiz-r3-rpc-data-api.mjs"
+  run_app_routes
+  unset LOCAL_R3_APPLIED
+  echo "R3_RPC_HTTP_REHEARSAL_${run}=PASS"
+
   # Advisors are diagnostic: existing unrelated warnings are reported, while
   # SQL assertions and HTTP probes are the mandatory pass/fail gates.
   if supabase db advisors --local --type security --fail-on none >"$stack_root/advisors-${run}.log" 2>&1; then

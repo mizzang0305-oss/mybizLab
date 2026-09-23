@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans.js';
 import { BillingApiStageError, callPortOneApi, validateBillingEnv } from '../../src/server/billingApiRuntime.js';
+import { isLaunchGateEnabled } from '../../src/shared/lib/launchGates.js';
 import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../../src/server/supabaseAdmin.js';
 
@@ -17,6 +19,7 @@ interface ProvisionRequestBody {
   email: string;
   owner_name: string;
   owner_profile_id?: string;
+  payment_verified?: boolean;
   payment_id?: string;
   phone: string;
   plan?: 'free' | 'pro' | 'vip';
@@ -95,7 +98,27 @@ function readPaymentCustomData(payment: Record<string, unknown>) {
   return toRecord(payment.customData);
 }
 
-async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, requestId?: string) {
+function bearerToken(request: RequestLike) {
+  const header = request instanceof Request
+    ? request.headers.get('authorization')
+    : request.headers instanceof Headers
+      ? request.headers.get('authorization')
+      : request.headers?.authorization ?? request.headers?.Authorization;
+  const value = Array.isArray(header) ? header[0] : header;
+  const match = typeof value === 'string' ? /^Bearer ([^\s]+)$/i.exec(value.trim()) : null;
+  return match?.[1] ?? null;
+}
+
+function provisioningHash(body: ProvisionRequestBody) {
+  const fields = [
+    body.business_name, body.owner_name, body.business_number, body.phone,
+    body.email?.toLowerCase(), body.address, body.business_type,
+    body.requested_slug || body.business_name, body.plan || 'free', body.payment_id || null,
+  ].map((field) => typeof field === 'string' ? field.trim() : field);
+  return createHash('sha256').update(JSON.stringify(fields)).digest('hex');
+}
+
+async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, requestId: string, actorId: string) {
   const env = validateBillingEnv(['apiSecret', 'storeId'], ENDPOINT, 'payment-verify-env');
   const paymentResponse = await callPortOneApi({
     apiSecret: env.apiSecret!,
@@ -125,15 +148,15 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const expectedAmount = getBillingPlan(plan).amount;
   const actualAmount = readPaymentAmount(payment);
-  if (actualAmount !== null && actualAmount !== expectedAmount) {
+  if (actualAmount !== expectedAmount || payment.currency !== 'KRW' || payment.id !== paymentId) {
     throw new BillingApiStageError({
-      code: 'PAYMENT_AMOUNT_MISMATCH',
+      code: 'PAYMENT_CONTEXT_MISMATCH',
       details: {
         actualAmount,
         expectedAmount,
         paymentId,
       },
-      message: `Payment ${paymentId} amount ${actualAmount} does not match plan ${plan} amount ${expectedAmount}.`,
+      message: 'Payment amount, currency, or identifier does not match the requested subscription.',
       stage: 'payment-verify',
       status: 409,
     });
@@ -141,63 +164,26 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const customData = readPaymentCustomData(payment);
   const planKey = normalizeNonEmptyString(readNestedRecordValue(customData, ['planKey']));
-  if (planKey && planKey !== plan) {
-    throw new BillingApiStageError({
-      code: 'PAYMENT_PLAN_MISMATCH',
-      details: {
-        paymentId,
-        planKey,
-        requestedPlan: plan,
-      },
-      message: `Payment ${paymentId} was created for plan ${planKey}, not ${plan}.`,
-      stage: 'payment-verify',
-      status: 409,
-    });
-  }
-
   const customRequestId = normalizeNonEmptyString(readNestedRecordValue(customData, ['requestId']));
-  if (requestId && customRequestId && customRequestId !== requestId) {
+  const paymentActor = normalizeNonEmptyString(readNestedRecordValue(customData, ['actorId']));
+  if (planKey !== plan || customRequestId !== requestId || paymentActor !== actorId
+    || customData.grantsEntitlement !== true
+    || customData.productType !== 'subscription'
+    || customData.sessionId !== paymentId
+    || !normalizeNonEmptyString(customData.productCode)) {
     throw new BillingApiStageError({
-      code: 'PAYMENT_REQUEST_MISMATCH',
-      details: {
-        customRequestId,
-        paymentId,
-        requestId,
-      },
-      message: `Payment ${paymentId} does not match onboarding request ${requestId}.`,
+      code: 'PAYMENT_BINDING_MISMATCH',
+      message: 'Payment is not bound to this authenticated applicant, request, and subscription plan.',
       stage: 'payment-verify',
       status: 409,
     });
   }
 
   return {
+    amount: actualAmount,
     payment,
     paymentStatus,
   };
-}
-
-async function markSetupRequestConverted(requestId: string | undefined, storeId: string) {
-  const normalizedRequestId = normalizeNonEmptyString(requestId);
-  if (!normalizedRequestId) {
-    return;
-  }
-
-  const adminClient = getSupabaseAdminClient();
-  const { error } = await adminClient
-    .from('store_setup_requests')
-    .update({
-      status: 'converted',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', normalizedRequestId);
-
-  if (error) {
-    console.warn('[provision] request status update skipped', {
-      error: error.message,
-      requestId: normalizedRequestId,
-      storeId,
-    });
-  }
 }
 
 async function readJsonBody(request: RequestLike) {
@@ -234,6 +220,19 @@ export default async function handler(request: RequestLike, response?: NodeRespo
   }
 
   try {
+    const token = bearerToken(request);
+    if (!token) {
+      result = json({ ok: false, code: 'AUTHENTICATION_REQUIRED', error: 'A valid bearer token is required.' }, 401);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    const adminClient = getSupabaseAdminClient();
+    const { data: authData, error: authError } = await adminClient.auth.getUser(token);
+    if (authError || !authData.user?.id) {
+      result = json({ ok: false, code: 'INVALID_AUTH_SESSION', error: 'The authenticated session is invalid.' }, 401);
+      await sendNodeResponse(result, response);
+      return result;
+    }
     const body = await readJsonBody(request);
 
     const {
@@ -247,9 +246,21 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       requested_slug,
       payment_id,
       plan = 'free',
-      owner_profile_id,
       request_id,
     } = body;
+
+    if (body.owner_profile_id !== undefined || body.payment_verified !== undefined) {
+      result = json({ ok: false, code: 'CLIENT_ACTOR_ASSERTION_DENIED', error: 'Actor and payment status are server-verified.' }, 403);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
+    const requestKey = normalizeNonEmptyString(request_id);
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestKey)) {
+      result = json({ ok: false, code: 'IDEMPOTENCY_KEY_REQUIRED', error: 'A stable request identifier is required.' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
 
     if (!isBillingPlanCode(plan)) {
       result = json({ ok: false, error: `Unsupported plan: ${String(plan)}` }, 400);
@@ -263,6 +274,17 @@ export default async function handler(request: RequestLike, response?: NodeRespo
 
     if (missing.length) {
       result = json({ ok: false, error: `Missing required fields: ${missing.join(', ')}` }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
+    if (plan !== 'free' && !isLaunchGateEnabled('selfServePaidLaunchEnabled')) {
+      result = json({ ok: false, code: 'PAID_PROVISIONING_HOLD', error: 'Paid provisioning requires a separate launch approval.' }, 403);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    if (plan === 'free' && normalizeNonEmptyString(payment_id)) {
+      result = json({ ok: false, code: 'FREE_PAYMENT_CONTEXT_DENIED', error: 'Free provisioning cannot consume a payment receipt.' }, 400);
       await sendNodeResponse(result, response);
       return result;
     }
@@ -281,14 +303,17 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     }
 
     let verifiedPaymentStatus: string | undefined;
+    let verifiedPaymentAmount: number | null = null;
     if (plan !== 'free') {
-      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), normalizeNonEmptyString(request_id) || undefined);
+      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), requestKey, authData.user.id);
       verifiedPaymentStatus = verification.paymentStatus;
+      verifiedPaymentAmount = verification.amount;
     }
 
-    const adminClient = getSupabaseAdminClient();
-
-    const { data, error } = await adminClient.rpc('create_store_with_owner', {
+    const { data, error } = await adminClient.rpc('provision_store_from_verified_actor', {
+      p_auth_user_id: authData.user.id,
+      p_request_key: requestKey,
+      p_request_hash: provisioningHash(body),
       p_store_name: business_name.trim(),
       p_owner_name: owner_name.trim(),
       p_business_number: business_number?.trim() || `BIZ-${Date.now()}`,
@@ -298,18 +323,20 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       p_business_type: business_type?.trim() || '기타',
       p_requested_slug: requested_slug?.trim() || business_name.trim(),
       p_plan: plan,
-      ...(owner_profile_id ? { p_owner_profile_id: owner_profile_id } : {}),
+      p_payment_id: plan === 'free' ? null : payment_id!.trim(),
+      p_payment_amount: verifiedPaymentAmount,
+      p_payment_currency: plan === 'free' ? null : 'KRW',
     });
 
     if (error) {
-      console.error('[provision] RPC error:', error);
+      console.error('[provision] RPC rejected', { code: error.code, message: error.message });
       result = json(
         {
           ok: false,
           error: error.message,
           code: error.code,
         },
-        500,
+        error.code === '23505' ? 409 : error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500,
       );
       await sendNodeResponse(result, response);
       return result;
@@ -325,7 +352,8 @@ export default async function handler(request: RequestLike, response?: NodeRespo
 
     const storeId = row.store_id ?? row.id;
     const slug = row.slug ?? requested_slug;
-    await markSetupRequestConverted(request_id, storeId);
+    // The transaction receipt, subscription and membership are committed by
+    // the RPC. A public setup request is not claimed merely from a client ID.
 
     result = json({
       ok: true,
@@ -345,7 +373,9 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     await sendNodeResponse(result, response);
     return result;
   } catch (error) {
-    console.error('[provision] unexpected error:', error);
+    console.error('[provision] request rejected', {
+      code: error instanceof BillingApiStageError ? error.code : 'PROVISION_FAILED',
+    });
     result = json(
       {
         ok: false,

@@ -5,6 +5,7 @@ import { isAsciiSerializableJson } from './checkoutCustomData';
 import { readPublicEnv } from './publicEnv';
 import { resolveServerApiUrl } from './serverApiUrl';
 import { BUSINESS_INFO } from './siteConfig';
+import { supabase } from '@/integrations/supabase/client';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const VERIFY_ENDPOINT = '/api/billing/verify';
@@ -608,10 +609,29 @@ async function readApiResponse<T>(response: Response) {
 
 export async function createCheckoutSession(plan: BillingPlanCode, options?: CheckoutSessionRequestOptions) {
   const body = buildCheckoutSessionRequestBody(plan, options);
+  let authorization: string | undefined;
+  if (options?.source === 'onboarding-flow') {
+    if (!supabase) {
+      throw new PortOneCheckoutError({
+        code: 'AUTH_UNAVAILABLE', message: '인증 연결이 없어 업체 활성화 결제를 시작할 수 없습니다.', stage: 'auth',
+      });
+    }
+    const { data, error } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (error || !token) {
+      throw new PortOneCheckoutError({
+        code: 'AUTHENTICATION_REQUIRED',
+        message: '업체 활성화 결제는 로그인 후 진행할 수 있습니다. 작성 내용은 유지됩니다.',
+        stage: 'auth',
+      });
+    }
+    authorization = `Bearer ${token}`;
+  }
   const response = await fetch(resolveServerApiUrl(CHECKOUT_ENDPOINT), {
     body: JSON.stringify(body),
     headers: {
       'content-type': 'application/json',
+      ...(authorization ? { authorization } : {}),
     },
     method: 'POST',
   });

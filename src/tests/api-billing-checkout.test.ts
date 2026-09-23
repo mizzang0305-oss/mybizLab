@@ -1,5 +1,16 @@
 ﻿import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { vi } from 'vitest';
+
+vi.mock('../../src/server/supabaseAdmin.js', () => ({
+  getSupabaseAdminClient: () => ({
+    auth: { getUser: async (token: string) => ({
+      data: { user: token === 'synthetic-checkout-token' ? { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } : null },
+      error: token === 'synthetic-checkout-token' ? null : { message: 'invalid' },
+    }) },
+  }),
+}));
+
 import billingHandler from '../../api/billing/checkout';
 import {
   createCheckoutPaymentId,
@@ -606,6 +617,7 @@ describe('/api/billing/checkout', () => {
           source: 'onboarding-flow',
           orderName: '\uc131\uc218 \ube0c\ub7f0\uce58 \ud558\uc6b0\uc2a4 PRO \uacb0\uc81c',
         }),
+        headers: { authorization: 'Bearer synthetic-checkout-token' },
         method: 'POST',
       }),
     );
@@ -617,6 +629,7 @@ describe('/api/billing/checkout', () => {
     expect(payload.checkout.orderName).toBe('\uc131\uc218 \ube0c\ub7f0\uce58 \ud558\uc6b0\uc2a4 PRO \uacb0\uc81c');
     expect(payload.checkout.customData.requestId).toBe('request_123');
     expect(payload.checkout.customData.planKey).toBe('pro');
+    expect(payload.checkout.customData.actorId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(payload.checkout.customData.sessionId).toBe(payload.checkout.paymentId);
     expect(payload.checkout.customData.slug).toBe(encodeURIComponent('\uc131\uc218-\ube0c\ub7f0\uce58-\ud558\uc6b0\uc2a4'));
     expect(payload.checkout.customData.source).toBeUndefined();

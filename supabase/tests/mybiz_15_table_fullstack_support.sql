@@ -36,6 +36,34 @@ CREATE TABLE public.store_subscriptions (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Synthetic Auth/Core foundation for the R3 provisioning rehearsal. The
+-- Production Auth bridge remains untouched; this local fixture models only
+-- the exact-ID and revoked-binding boundaries consumed by the new RPC.
+CREATE SCHEMA core;
+CREATE TABLE core.profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id),
+  is_active boolean NOT NULL DEFAULT true
+);
+CREATE FUNCTION core.handle_auth_user_created() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  INSERT INTO core.profiles (id) VALUES (new.id);
+  RETURN new;
+END $$;
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION core.handle_auth_user_created();
+CREATE TABLE private.profile_auth_bindings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  public_profile_id uuid NOT NULL REFERENCES public.profiles(id),
+  auth_profile_id uuid NOT NULL REFERENCES core.profiles(id),
+  binding_source text NOT NULL CHECK (binding_source IN ('EXACT_ID','OWNER_VERIFIED','MIGRATION_VERIFIED','ADMIN_VERIFIED')),
+  status text NOT NULL CHECK (status IN ('ACTIVE','REVOKED')),
+  revoked_at timestamptz,
+  UNIQUE (public_profile_id, auth_profile_id)
+);
+ALTER TABLE private.profile_auth_bindings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON private.profile_auth_bindings FROM PUBLIC, anon, authenticated, service_role;
 CREATE TABLE public.inquiries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   store_id uuid NOT NULL REFERENCES public.stores(store_id),
