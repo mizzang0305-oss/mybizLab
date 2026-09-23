@@ -73,7 +73,6 @@ for run in 1 2; do
   export LOCAL_SYNTHETIC_IDENTITIES_FILE="$stack_root/synthetic-identities-${run}.json"
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" candidate
   run_app_routes
-  unset LOCAL_SYNTHETIC_IDENTITIES_FILE
   echo "HTTP_REHEARSAL_RUN_${run}=PASS"
 
   # R3 is a separate draft-only security repair layered on the same local
@@ -85,6 +84,7 @@ for run in 1 2; do
   node "$repo_root/scripts/security/mybiz-r3-rpc-data-api.mjs"
   run_app_routes
   unset LOCAL_R3_APPLIED
+  unset LOCAL_SYNTHETIC_IDENTITIES_FILE
   echo "R3_RPC_HTTP_REHEARSAL_${run}=PASS"
 
   # Advisors are diagnostic: existing unrelated warnings are reported, while

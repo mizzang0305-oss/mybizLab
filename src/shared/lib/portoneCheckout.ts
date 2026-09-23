@@ -5,7 +5,7 @@ import { isAsciiSerializableJson } from './checkoutCustomData';
 import { readPublicEnv } from './publicEnv';
 import { resolveServerApiUrl } from './serverApiUrl';
 import { BUSINESS_INFO } from './siteConfig';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '../../integrations/supabase/client';
 
 const CHECKOUT_ENDPOINT = '/api/billing/checkout';
 const VERIFY_ENDPOINT = '/api/billing/verify';
