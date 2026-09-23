@@ -527,6 +527,81 @@ describe.runIf(Boolean(statusFile))('15-table local Supabase application HTTP ha
   );
 
   it.runIf(Boolean(process.env.LOCAL_R3_APPLIED))(
+    'allows at most one store when two local actors race the same paid receipt',
+    async () => {
+      const actors = await Promise.all([newSyntheticIdentity('receipt-a'), newSyntheticIdentity('receipt-b')]);
+      const paymentId = `synthetic_${randomUUID().replace(/-/g, '')}`;
+      const provision = (actor: { id: string }, index: number) => admin.rpc('provision_store_from_verified_actor', {
+        p_auth_user_id: actor.id,
+        p_request_key: `race-${randomUUID()}`,
+        p_request_hash: (index ? 'b' : 'a').repeat(64),
+        p_store_name: `Receipt race synthetic ${index}`,
+        p_owner_name: 'Synthetic',
+        p_business_number: 'SYN-RECEIPT',
+        p_phone: '0000000000',
+        p_email: 'synthetic@example.test',
+        p_address: 'Synthetic address',
+        p_business_type: 'Synthetic',
+        p_requested_slug: `receipt-race-${index}-${randomUUID()}`,
+        p_plan: 'pro',
+        p_payment_id: paymentId,
+        p_payment_amount: 79000,
+        p_payment_currency: 'KRW',
+      });
+      const outcomes = await Promise.all(actors.map(provision));
+      expect(outcomes.filter((outcome) => !outcome.error)).toHaveLength(1);
+      expect(outcomes.filter((outcome) => outcome.error).map((outcome) => outcome.error?.code)).toEqual(['23505']);
+      expect(localCount(`select count(*) from private.store_provisioning_receipts where payment_id='${paymentId}'`)).toBe(1);
+      const winnerIndex = outcomes.findIndex((outcome) => !outcome.error);
+      const storeId = outcomes[winnerIndex].data?.[0]?.store_id;
+      expect(storeId).toBeTruthy();
+      expect(localCount(`select count(*) from public.store_members where store_id='${storeId}' and profile_id='${actors[winnerIndex].id}'`)).toBe(1);
+      expect(localCount(`select count(*) from public.store_members where profile_id in ('${actors[0].id}','${actors[1].id}')`)).toBe(1);
+      expect(localCount(`select count(*) from public.store_subscriptions where store_id='${storeId}' and plan='pro'`)).toBe(1);
+    },
+  );
+
+  it.runIf(Boolean(process.env.LOCAL_R3_APPLIED))(
+    'rolls back store, membership, subscription, defaults and receipt after a late local SQL failure',
+    async () => {
+      const actor = await newSyntheticIdentity('atomic-failure');
+      const tables = [
+        'public.stores', 'public.store_members', 'public.store_subscriptions',
+        'public.store_analytics_profiles', 'public.store_priority_settings',
+        'public.store_home_content', 'private.store_provisioning_receipts',
+      ];
+      const before = tables.map((table) => localCount(`select count(*) from ${table}`));
+      localExec(`create function public.local_r3_fail_after_defaults() returns trigger language plpgsql as $$
+        begin
+          if new.hero_title = 'R3_ATOMIC_FAILURE' then
+            raise exception 'SYNTHETIC_LATE_FAILURE';
+          end if;
+          return new;
+        end $$`);
+      localExec(`create trigger local_r3_fail_after_defaults before insert on public.store_home_content
+        for each row execute function public.local_r3_fail_after_defaults()`);
+      try {
+        const response = await fetch(`${baseUrl}/api/stores/provision`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${actor.token}` },
+          body: JSON.stringify({
+            business_name: 'R3_ATOMIC_FAILURE', owner_name: 'Synthetic', business_number: 'SYN-ATOMIC',
+            phone: '0000000000', email: 'synthetic@example.test', address: 'Synthetic',
+            business_type: 'Synthetic', requested_slug: `atomic-${randomUUID()}`,
+            plan: 'free', request_id: `atomic-${randomUUID()}`,
+          }),
+        });
+        expect(response.status).toBe(500);
+        expect(tables.map((table) => localCount(`select count(*) from ${table}`))).toEqual(before);
+        expect(localCount(`select count(*) from public.profiles where id='${actor.id}'`)).toBe(0);
+      } finally {
+        localExec('drop trigger local_r3_fail_after_defaults on public.store_home_content');
+        localExec('drop function public.local_r3_fail_after_defaults()');
+      }
+    },
+  );
+
+  it.runIf(Boolean(process.env.LOCAL_R3_APPLIED))(
     'resolves a colliding published product code through the real local catalog and holds an archived product',
     async () => {
       const identities = JSON.parse(readFileSync(process.env.LOCAL_SYNTHETIC_IDENTITIES_FILE!, 'utf8')) as { userA: string };
