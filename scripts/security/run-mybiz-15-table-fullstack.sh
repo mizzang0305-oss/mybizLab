@@ -57,6 +57,8 @@ for run in 1 2; do
     echo 'Refusing SQL: local loopback DB URL was not established.' >&2
     exit 1
   fi
+  echo "POSTGRES_VERSION_$(printf '%s' "$run")=$(psql "$local_db_url" -X -Atc 'show server_version')"
+  docker ps --format '{{.Image}}' | rg 'supabase|postgrest|gotrue|kong' | sort -u | sed 's/^/LOCAL_STACK_IMAGE=/'
   export LOCAL_SUPABASE_STATUS_FILE="$stack_root/local-status.env"
   export LOCAL_REHEARSAL_RUN="$run"
 
@@ -67,6 +69,10 @@ for run in 1 2; do
   node "$repo_root/scripts/security/mybiz-15-table-data-api.mjs" baseline
   run_app_routes
   echo "APP_HTTP_BASELINE_${run}=PASS"
+  baseline_advisors="$stack_root/advisors-baseline-${run}.json"
+  if ! supabase db advisors --local --type security --fail-on none --output-format json >"$baseline_advisors" 2>"$stack_root/advisors-baseline-${run}.err"; then
+    echo "LOCAL_SECURITY_ADVISORS_BASELINE_${run}=UNAVAILABLE"
+  fi
 
   sql_file supabase/migration_drafts/20260923040856_mybiz_15_table_rls_exact_shape_candidate.sql
   refresh_schema
@@ -89,8 +95,14 @@ for run in 1 2; do
 
   # Advisors are diagnostic: existing unrelated warnings are reported, while
   # SQL assertions and HTTP probes are the mandatory pass/fail gates.
-  if supabase db advisors --local --type security --fail-on none >"$stack_root/advisors-${run}.log" 2>&1; then
+  candidate_advisors="$stack_root/advisors-candidate-${run}.json"
+  if supabase db advisors --local --type security --fail-on none --output-format json >"$candidate_advisors" 2>"$stack_root/advisors-candidate-${run}.err"; then
     echo "LOCAL_SECURITY_ADVISORS_${run}=EXECUTED"
+    if [[ -s "$baseline_advisors" ]]; then
+      node "$repo_root/scripts/security/summarize-local-advisors.mjs" "$baseline_advisors" "$candidate_advisors"
+    else
+      echo "LOCAL_ADVISORS_CLASSIFICATION=BASELINE_UNAVAILABLE"
+    fi
   else
     echo "LOCAL_SECURITY_ADVISORS_${run}=UNAVAILABLE"
   fi
