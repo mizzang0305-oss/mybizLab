@@ -57,8 +57,8 @@ for run in 1 2; do
     echo 'Refusing SQL: local loopback DB URL was not established.' >&2
     exit 1
   fi
-  echo "POSTGRES_VERSION_$(printf '%s' "$run")=$(psql "$local_db_url" -X -Atc 'show server_version')"
-  docker ps --format '{{.Image}}' | rg 'supabase|postgrest|gotrue|kong' | sort -u | sed 's/^/LOCAL_STACK_IMAGE=/'
+  echo "POSTGRES_VERSION_${run}=$(psql "$local_db_url" -X -Atc 'show server_version')"
+  docker ps --format '{{.Image}}' | grep -E 'supabase|postgrest|gotrue|kong' | sort -u | sed 's/^/LOCAL_STACK_IMAGE=/'
   export LOCAL_SUPABASE_STATUS_FILE="$stack_root/local-status.env"
   export LOCAL_REHEARSAL_RUN="$run"
 
