@@ -74,14 +74,14 @@ try {
   await page.getByRole('button', { name: /AI 상권 분석/ }).click();
   await page.getByRole('button', { name: '다음 단계로 계속' }).click({ timeout: 30000 });
   const slug = `browser-${randomUUID().slice(0, 8)}`;
-  await page.getByLabel('스토어명').fill('Synthetic Service');
-  await page.getByLabel('브랜드명').fill('Synthetic Service');
-  await page.getByLabel('대표자명').fill('Synthetic Owner');
-  await page.getByLabel('연락처').fill('0000000000');
-  await page.getByLabel('이메일').fill(email);
-  await page.getByLabel('업종').fill('service');
-  await page.getByLabel('주소', { exact: true }).fill('Synthetic Seoul Service District');
-  await page.getByLabel('스토어 주소').fill(slug);
+  await page.getByRole('textbox', { name: /^스토어명$/ }).fill('Synthetic Service');
+  await page.getByRole('textbox', { name: /^브랜드명$/ }).fill('Synthetic Service');
+  await page.getByRole('textbox', { name: /^대표자명$/ }).fill('Synthetic Owner');
+  await page.getByRole('textbox', { name: /^연락처$/ }).fill('0000000000');
+  await page.getByRole('textbox', { name: /^이메일$/ }).fill(email);
+  await page.getByRole('textbox', { name: /^업종/ }).fill('service');
+  await page.getByRole('textbox', { name: /^주소$/ }).fill('Synthetic Seoul Service District');
+  await page.getByRole('textbox', { name: /^스토어 주소/ }).fill(slug);
   for (let step = 0; step < 5; step++) {
     await page.getByRole('button', { name: '다음 단계', exact: true }).click();
   }
