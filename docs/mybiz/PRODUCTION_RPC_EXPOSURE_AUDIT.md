@@ -1,4 +1,16 @@
-# Production RPC exposure audit — R2
+# Production RPC exposure audit — R2 baseline and R3 draft repair
+
+## R3 integration update (draft only)
+
+Draft PR [#186](https://github.com/mizzang0305-oss/mybizLab/pull/186) adds `20260923102833_mybiz_r3_provisioning_rpc_boundary.sql` in `migration_drafts/` and a matching server change. The draft revokes every `create_store_with_owner` overload from browser roles, exposes a new `provision_store_from_verified_actor` RPC to `service_role` only, and records actor/request/hash/payment uniqueness in one transaction. The server verifies the bearer subject and, for paid plans, the provider result's actor, request, plan, product, amount and currency. No Production RPC ACL or function was changed.
+
+[Disposable Supabase run 35853542954](https://github.com/mizzang0305-oss/mybizLab/actions/runs/35853542954) passed two clean local runs at the latest code SHA: the old direct authenticated VIP bypass was reproduced before the draft, then old/new browser-direct RPC calls were denied after the draft; local authenticated free and fake-provider paid server calls passed with replay and spoof checks. This is **local synthetic evidence**, not Production activation. The existing FREE UI marker is omitted from the payment receipt field; its focused test passed. A docs-only final commit does not alter the tested code tree, but its own exact-head CI remains the final Draft PR check.
+
+Read-only Production catalog on 2026-09-23 confirms `public.stores` has `store_id`, `name`, `timezone`, `created_at`, `brand_config`, `slug`, `trial_ends_at`, and `plan`; the six old scalar owner/contact columns in `supabase/schema.sql` are stale relative to this live shape. All omitted NOT NULL columns in the draft insert have defaults. The synthetic fixture and draft follow the observed live shape, but this is not a substitute for a separately approved Production apply precheck.
+
+Known compatibility holds: first-time public onboarding has no self-registration path; an Auth user must exist before free or paid activation. A future manually bound non-exact public profile can be resolved by the RPC but the existing browser membership postcheck still assumes exact IDs. Current certified bindings are exact-ID only. Do not claim generalized legacy-binding support or enable paid launch from this draft.
+
+## Historical R2 finding
 
 **P0: direct authenticated provisioning bypass was reproduced in a disposable local Supabase stack.** No direct Production RPC call, Auth mutation, or data write was made. Production catalog-only reads confirm the same exposure class, but local synthetic execution is not an exploit attempt against Production.
 

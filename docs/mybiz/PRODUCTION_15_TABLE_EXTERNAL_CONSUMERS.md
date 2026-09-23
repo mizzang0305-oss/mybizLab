@@ -2,6 +2,8 @@
 
 Status: **incomplete / fail closed**. `BLOCKED_UNKNOWN` means no active external consumer was proven absent; it does **not** mean the table is unused. No Production privilege was changed.
 
+R3 terminology: all seven `BLOCKED_UNKNOWN` rows below map to **UNVERIFIED**, not `PROVEN_NO_ACTIVE_CONSUMER`. Repository/workflow, read-only database metadata and Edge Function inventory have coverage; deployed Vercel function inventory and an authoritative separately hosted worker/operator manifest are still unavailable. R3 RPC repair can be reviewed independently, but the blanket 15-table `service_role` revocation cannot be approved on this evidence.
+
 ## Inventory sources checked
 
 - Repository `api/**`, `src/server/**`, `src/shared/**`, `scripts/**`, package scripts, and `.github/workflows/**`: seven formerly unknown target tables have no exact direct PostgreSQL caller in active in-repo paths. `ai_reports` and `store_daily_metrics` appear in demo/in-memory state; `store_analytics_profile` singular differs from active plural `store_analytics_profiles`. Generic `events` references are not proof of the `public.events` relation.
