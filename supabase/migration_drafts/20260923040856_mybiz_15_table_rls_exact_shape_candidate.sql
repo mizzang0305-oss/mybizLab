@@ -27,6 +27,20 @@ BEGIN
       AND policyname IN ('setup_requests_select_own','setup_requests_update_own')) <> 2 THEN
     RAISE EXCEPTION '15_TABLE_PRECONDITION_POLICY_DRIFT';
   END IF;
+  IF EXISTS (
+    SELECT 1 FROM (VALUES
+      ('setup_requests_select_own','SELECT','auth.uid=created_by',''),
+      ('setup_requests_update_own','UPDATE','auth.uid=created_by','auth.uid=created_by')
+    ) AS expected(policyname,cmd,qual,with_check)
+    LEFT JOIN pg_policies p ON p.schemaname='public'
+      AND p.tablename='store_setup_requests' AND p.policyname=expected.policyname
+    WHERE p.policyname IS NULL OR p.cmd <> expected.cmd OR p.permissive <> 'PERMISSIVE'
+      OR p.roles IS DISTINCT FROM ARRAY['public']::name[]
+      OR regexp_replace(coalesce(p.qual,''),'[[:space:]()]','','g') <> expected.qual
+      OR regexp_replace(coalesce(p.with_check,''),'[[:space:]()]','','g') <> expected.with_check
+  ) THEN
+    RAISE EXCEPTION '15_TABLE_PRECONDITION_POLICY_DRIFT';
+  END IF;
 
   FOREACH target IN ARRAY ARRAY[
     'ai_briefing_logs','ai_reports','events','menu_categories','menu_items',
