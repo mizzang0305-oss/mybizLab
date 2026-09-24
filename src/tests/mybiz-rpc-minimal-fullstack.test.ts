@@ -152,12 +152,16 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     }
   });
 
-  it.runIf(phase === 'new')('creates one FREE store and receipt, then replays lost-response retry', async () => {
+  it.runIf(phase === 'new')('serializes concurrent same-key FREE requests and replays a lost-response retry', async () => {
     const user = await identity();
     const body = requestBody();
     const before = Number(sql('select count(*) from public.stores'));
-    const first = await appPost(body, user.token);
+    const [first, concurrent] = await Promise.all([
+      appPost(body, user.token), appPost(body, user.token),
+    ]);
     expect(first.status, JSON.stringify(first.body)).toBe(200);
+    expect(concurrent.status, JSON.stringify(concurrent.body)).toBe(200);
+    expect((concurrent.body.store as Record<string, unknown>).id).toBe((first.body.store as Record<string, unknown>).id);
     const retry = await appPost(body, user.token);
     expect(retry.status, JSON.stringify(retry.body)).toBe(200);
     expect((retry.body.store as Record<string, unknown>).id).toBe((first.body.store as Record<string, unknown>).id);
@@ -216,6 +220,32 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
         child.on('exit', (code) => reject(new Error(`LOCK_SESSION_EXIT_${code}`)));
       });
       child.stdin.write(`BEGIN; UPDATE private.profile_auth_bindings SET status='REVOKED',revoked_at=now() WHERE auth_profile_id='${user.id}'; SELECT 'LOCK_HELD';\n`);
+      await held;
+      const request = appPost(requestBody(), user.token);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      child.stdin.write('COMMIT;\n\\q\n');
+      const denied = await request;
+      expect(denied.status).toBe(403);
+      expect(Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${user.id}'`))).toBe(0);
+    } finally {
+      child.stdin.end();
+      child.kill();
+    }
+  });
+
+  it.runIf(phase === 'new')('denies a provision waiting behind core identity deactivation', async () => {
+    const user = await identity();
+    const child = spawn('psql', [dbUrl, '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    try {
+      const held = new Promise<void>((resolve, reject) => {
+        let output = '';
+        child.stdout.on('data', (chunk: Buffer) => {
+          output += chunk.toString();
+          if (output.includes('LOCK_HELD')) resolve();
+        });
+        child.on('exit', (code) => reject(new Error(`LOCK_SESSION_EXIT_${code}`)));
+      });
+      child.stdin.write(`BEGIN; UPDATE core.profiles SET is_active=false WHERE id='${user.id}'; SELECT 'LOCK_HELD';\n`);
       await held;
       const request = appPost(requestBody(), user.token);
       await new Promise((resolve) => setTimeout(resolve, 150));
