@@ -30,7 +30,7 @@ const admin = createClient(apiUrl, serviceKey, { auth: { persistSession: false, 
 const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
 if (created.error || !created.data.user?.id) throw new Error('SYNTHETIC_AUTH_CREATE_FAILED');
 const actorId = created.data.user.id;
-sql(`insert into public.profiles(id,full_name) values ('${actorId}','Synthetic');
+sql(`insert into public.profiles(id,full_name,email) values ('${actorId}','Synthetic','${email}');
   insert into private.profile_auth_bindings(public_profile_id,auth_profile_id,binding_source,status)
   values ('${actorId}','${actorId}','EXACT_ID','ACTIVE');`);
 
