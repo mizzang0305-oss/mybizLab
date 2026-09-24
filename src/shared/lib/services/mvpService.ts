@@ -2614,11 +2614,16 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       paymentId: options?.paymentId,
       requestId: options?.requestId,
     });
-    const profileId = await getAuthenticatedSupabaseUserId();
-    const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
+    const profileId = await getAuthenticatedSupabaseUserId().catch((error: unknown) => {
+      throw new Error('PROVISION_POST_RPC_ACTOR_READ_FAILED', { cause: error });
+    });
+    const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId).catch((error: unknown) => {
+      throw new Error('PROVISION_POST_RPC_VERIFY_FAILED', { cause: error });
+    });
 
-    await repository.saveStorePublicPage({
-      ...buildDefaultStorePublicPage({
+    let publicPage: ReturnType<typeof buildDefaultStorePublicPage>;
+    try {
+      publicPage = buildDefaultStorePublicPage({
         store: {
           ...verified.store,
           homepage_visible: (input.public_status ?? verified.store.public_status) === 'public',
@@ -2643,10 +2648,17 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
         },
         media: [],
         notices: [],
-      }),
+      });
+    } catch (error) {
+      throw new Error('PROVISION_POST_RPC_PUBLIC_PAGE_BUILD_FAILED', { cause: error });
+    }
+    await repository.saveStorePublicPage({
+      ...publicPage,
       // The live public.store_public_pages primary key is uuid. Reuse the
       // provisioned store UUID so a lost-response retry cannot rotate it.
       id: provisionedStore.store_id,
+    }).catch((error: unknown) => {
+      throw new Error('PROVISION_POST_RPC_PUBLIC_PAGE_SAVE_FAILED', { cause: error });
     });
 
     return {
