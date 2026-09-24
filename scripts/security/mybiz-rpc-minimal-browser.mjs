@@ -1,4 +1,4 @@
-/* global console, process, setTimeout */
+/* global console, fetch, process, setTimeout */
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -215,6 +215,22 @@ try {
   console.log('BROWSER_STORE_MEMBERSHIP=1');
   console.log('BROWSER_PROVISIONING_RECEIPT=1');
   console.log('BROWSER_PUBLIC_PAGE_STABLE_UUID=1');
+  const privateStoreId = sql(`select store_id from private.store_provisioning_receipts where actor_auth_user_id='${actorId}' limit 1`);
+  const privateResponse = await fetch(`http://127.0.0.1:33162/api/public?resource=store&storeId=${privateStoreId}`);
+  if (privateResponse.status !== 404) throw new Error('PRIVATE_STORE_HTTP_EXPOSED');
+  console.log('PRIVATE_STORE_PUBLIC_HTTP=404');
+
+  // A pre-existing, explicitly public synthetic store has no canonical page;
+  // its legacy home content must still be served by the real server route.
+  sql(`update public.stores set slug='r5-legacy-public' where store_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`);
+  const legacyResponse = await fetch('http://127.0.0.1:33162/api/public?resource=store&slug=r5-legacy-public');
+  const legacyBody = await legacyResponse.json();
+  if (legacyResponse.status !== 200 || legacyBody?.ok !== true
+    || legacyBody?.data?.store?.slug !== 'r5-legacy-public'
+    || 'brand_config' in (legacyBody?.data?.store ?? {})) {
+    throw new Error(`LEGACY_HOME_SERVER_FALLBACK_FAILED_${legacyResponse.status}`);
+  }
+  console.log('LEGACY_HOME_SERVER_FALLBACK=PASS');
   sql(`update private.store_provisioning_release_control set mode='HOLD',
     actor_auth_user_id=null,request_key_sha256=null,payload_sha256=null,
     expires_at=null where singleton=true`);

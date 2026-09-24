@@ -28,11 +28,14 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey;
 
 const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
 const { default: provision } = await vite.ssrLoadModule('/api/stores/provision.ts');
+const { default: publicRoute } = await vite.ssrLoadModule('/api/public.ts');
 const { default: setupRequest } = await vite.ssrLoadModule('/api/onboarding/setup-request.ts');
 const { default: authSession } = await vite.ssrLoadModule('/api/auth/session.ts');
 const server = createServer(async (incoming, outgoing) => {
-  const pathname = new URL(incoming.url || '/', `http://127.0.0.1:${port}`).pathname;
+  const requestUrl = new URL(incoming.url || '/', `http://127.0.0.1:${port}`);
+  const pathname = requestUrl.pathname;
   const route = pathname === '/api/stores/provision' ? provision
+    : pathname === '/api/public' && requestUrl.searchParams.get('resource') === 'store' ? publicRoute
     : pathname === '/api/onboarding/setup-request' ? setupRequest
       : pathname === '/api/auth/session' ? authSession : null;
   if (!route) {

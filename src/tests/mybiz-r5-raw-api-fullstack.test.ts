@@ -134,6 +134,9 @@ describe.runIf(Boolean(statusFile) && process.env.LOCAL_R5_PRIVACY === '1')('R5 
     const ownUpdate = await rest('store_priority_settings', 'PATCH', memberToken, anonKey, ownStore, { revenue_weight: 0.4 });
     expect(ownUpdate.status).toBe(200);
     expect(ownUpdate.body).toEqual([expect.objectContaining({ store_id: ownStore, revenue_weight: 0.4 })]);
+    const tenantMove = await rest('store_priority_settings', 'PATCH', memberToken, anonKey, ownStore,
+      { store_id: randomUUID() });
+    expect([401, 403]).toContain(tenantMove.status);
 
     for (const token of [memberToken, nonmemberToken]) {
       const deniedStore = token === memberToken ? otherStore : ownStore;
