@@ -52,6 +52,22 @@ try {
   await ready;
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
+  page.on('pageerror', (error) => {
+    const message = error.message;
+    const failureClass = message.includes('Failed to save store public page') ? 'PUBLIC_PAGE_WRITE'
+      : message.includes('Failed to verify') ? 'POST_RPC_VERIFY_READ'
+        : message.includes('스토어 생성 후') ? 'POST_RPC_VERIFY_ROW'
+          : message.includes('Failed to load') ? 'REPOSITORY_READ'
+            : message.includes('Cannot read') ? 'CLIENT_RUNTIME_TYPE'
+              : 'OTHER';
+    console.log(`BROWSER_PAGE_ERROR_CLASS=${failureClass}`);
+  });
+  page.on('console', (message) => {
+    if (message.type() === 'error' && message.text().includes('[onboarding] activation failed')) {
+      const category = /PUBLIC_PAGE_WRITE|POST_RPC_VERIFY|REPOSITORY_READ|OTHER/.exec(message.text())?.[0] ?? 'OTHER';
+      console.log(`BROWSER_ACTIVATION_FAILURE_CLASS=${category}`);
+    }
+  });
   page.on('response', (response) => {
     const pathname = new URL(response.url()).pathname;
     if (pathname === '/api/stores/provision') {

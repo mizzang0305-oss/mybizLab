@@ -472,7 +472,12 @@ export function OnboardingPage() {
         navigate(`/dashboard/stores/${result.store.id}`, { replace: true });
       }, 900);
     },
-    onError: () => {
+    onError: (error) => {
+      const detail = error instanceof Error ? error.message : '';
+      const category = detail.includes('Failed to save store public page') ? 'PUBLIC_PAGE_WRITE'
+        : detail.includes('Failed to verify') || detail.includes('스토어 생성 후') ? 'POST_RPC_VERIFY'
+          : detail.includes('Failed to load') ? 'REPOSITORY_READ' : 'OTHER';
+      console.error('[onboarding] activation failed', { category });
       setFlow((current) => ({ ...current, activationStatus: 'idle', paymentStatus: 'failed', step: 'payment' }));
       setMessage({ tone: 'error', text: '스토어 생성에 실패했습니다. 요청은 유지되며, 잠시 후 다시 시도할 수 있습니다.' });
     },
