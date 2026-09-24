@@ -88,6 +88,9 @@ for run in 1 2; do
   (cd "$repo_root" && node scripts/security/mybiz-rpc-minimal-browser.mjs)
   echo "REAL_BROWSER_FREE_FLOW_${run}=PASS"
 
+  # R5 RED gate: exercise real local Auth/PostgREST before privacy SQL exists.
+  (cd "$repo_root" && LOCAL_R5_PRIVACY=1 npx vitest run src/tests/mybiz-r5-raw-api-fullstack.test.ts --reporter=dot)
+
   # Containment rollback never restores the unsafe old EXECUTE privilege.
   sql_file supabase/tests/mybiz_rpc_minimal_safe_rollback.sql
   psql "$local_db_url" -X -v ON_ERROR_STOP=1 -Atc \
