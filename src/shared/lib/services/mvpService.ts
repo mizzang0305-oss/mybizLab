@@ -468,28 +468,28 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
   const homeContentResult = { data: true as const };
 
   if (storeResult.error) {
-    throw new Error(`Failed to verify store row: ${storeResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_STORE_READ', { cause: storeResult.error });
   }
   if (membershipResult.error) {
-    throw new Error(`Failed to verify owner membership: ${membershipResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_MEMBER_READ', { cause: membershipResult.error });
   }
   if (analyticsResult.error) {
-    throw new Error(`Failed to verify analytics profile: ${analyticsResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_ANALYTICS_READ', { cause: analyticsResult.error });
   }
   if (priorityResult.error) {
-    throw new Error(`Failed to verify priority settings: ${priorityResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_PRIORITY_READ', { cause: priorityResult.error });
   }
   if (!storeResult.data) {
-    throw new Error('스토어 생성 후 stores row를 찾지 못했습니다.');
+    throw new Error('PROVISION_VERIFY_STORE_MISSING');
   }
   if (!membershipResult.data) {
-    throw new Error('스토어 생성 후 owner membership이 생성되지 않았습니다.');
+    throw new Error('PROVISION_VERIFY_MEMBER_MISSING');
   }
   if (!analyticsResult.data) {
-    throw new Error('스토어 생성 후 analytics profile이 생성되지 않았습니다.');
+    throw new Error('PROVISION_VERIFY_ANALYTICS_MISSING');
   }
   if (!priorityResult.data) {
-    throw new Error('스토어 생성 후 priority settings가 생성되지 않았습니다.');
+    throw new Error('PROVISION_VERIFY_PRIORITY_MISSING');
   }
   if (!homeContentResult.data) {
     throw new Error('스토어 생성 후 home content가 생성되지 않았습니다.');
@@ -497,7 +497,7 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
 
   const store = mapLiveStoreToAppStore(
     storeResult.data as LiveStoreRow,
-    getDatabase().stores.find((item) => item.id === storeId) || null,
+    canUseDemoDatabaseCache() ? getDatabase().stores.find((item) => item.id === storeId) || null : null,
   );
 
   return {
@@ -514,10 +514,18 @@ async function createStoreViaSupabaseRpc(
     requestId?: string;
   },
 ): Promise<CreateStoreWithOwnerRpcRow> {
-  // 서버사이드 API 통해 service_role로 RPC 호출 (클라이언트 Auth 불필요)
+  // The browser supplies only its session; the server verifies the actor.
+  if (!supabase) {
+    throw new Error('인증 연결이 없어 스토어를 생성할 수 없습니다.');
+  }
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (sessionError || !accessToken) {
+    throw new Error('스토어를 생성하려면 먼저 로그인해야 합니다. 작성한 신청 내용은 유지됩니다.');
+  }
   const response = await fetch(resolveServerApiUrl('/api/stores/provision'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({
       business_name: input.business_name,
       owner_name: input.owner_name,
@@ -528,18 +536,23 @@ async function createStoreViaSupabaseRpc(
       business_type: input.business_type,
       requested_slug: input.requested_slug || input.business_name,
       plan,
-      ...(options?.paymentId ? { payment_id: options.paymentId } : {}),
+      // The local free activation marker is not a payment receipt.
+      ...(plan !== 'free' && options?.paymentId ? { payment_id: options.paymentId } : {}),
       ...(options?.requestId ? { request_id: options.requestId } : {}),
     }),
   });
 
   const result = (await response.json()) as {
     ok: boolean;
+    code?: string;
     error?: string;
     store?: { id: string; store_id: string; slug: string; name: string; plan: string };
   };
 
   if (!result.ok || !result.store) {
+    if (result.code === 'PROVISIONING_HOLD' || result.code === 'PROVISIONING_NOT_AVAILABLE') {
+      throw new Error('PROVISIONING_HOLD');
+    }
     throw new Error(result.error || '스토어 생성 API가 실패했습니다.');
   }
 
@@ -2600,45 +2613,34 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
-    const timestamp = nowIso();
     const repository = getCanonicalMyBizRepository();
     const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan, {
       paymentId: options?.paymentId,
       requestId: options?.requestId,
     });
-    const profileId = await getAuthenticatedSupabaseUserId();
-    const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
-
-    await repository.saveStoreSubscription({
-      id: `subscription_${verified.store.id}`,
-      store_id: verified.store.id,
-      plan: subscriptionPlan,
-      status:
-        options?.subscriptionStatus === 'subscription_cancelled'
-          ? 'cancelled'
-          : options?.subscriptionStatus === 'subscription_past_due'
-            ? 'past_due'
-            : verified.store.trial_ends_at
-              ? 'trialing'
-              : 'active',
-      billing_provider: options?.paymentId ? 'portone' : 'manual',
-      trial_ends_at: verified.store.trial_ends_at,
-      current_period_starts_at: timestamp,
-      current_period_ends_at:
-        subscriptionPlan === 'free' && verified.store.trial_ends_at ? verified.store.trial_ends_at : isoDaysFromNow(30),
-      created_at: timestamp,
-      updated_at: timestamp,
+    const profileId = await getAuthenticatedSupabaseUserId().catch((error: unknown) => {
+      throw new Error('PROVISION_POST_RPC_ACTOR_READ_FAILED', { cause: error });
+    });
+    const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId).catch((error: unknown) => {
+      const reason = error instanceof Error && /^PROVISION_VERIFY_[A-Z_]+$/.test(error.message)
+        ? error.message
+        : 'PROVISION_VERIFY_UNKNOWN';
+      throw new Error(`PROVISION_POST_RPC_VERIFY_FAILED_${reason}`, { cause: error });
     });
 
-    await repository.saveStorePublicPage(
-      buildDefaultStorePublicPage({
+    let publicPage: ReturnType<typeof buildDefaultStorePublicPage>;
+    try {
+      publicPage = buildDefaultStorePublicPage({
         store: {
           ...verified.store,
-          homepage_visible: (input.public_status ?? verified.store.public_status) === 'public',
-          public_status: input.public_status ?? verified.store.public_status,
-          consultation_enabled: true,
-          inquiry_enabled: subscriptionPlan !== 'free',
-          reservation_enabled: subscriptionPlan !== 'free',
+          // The FREE canary is created private in the RPC transaction. A
+          // browser-supplied setup choice must not publish it afterwards.
+          homepage_visible: false,
+          public_status: 'private',
+          consultation_enabled: false,
+          inquiry_enabled: false,
+          reservation_enabled: false,
+          order_entry_enabled: false,
           primary_cta_label: input.primary_cta_label?.trim() || verified.store.primary_cta_label,
           mobile_cta_label: input.mobile_cta_label?.trim() || verified.store.mobile_cta_label,
           preview_target: input.preview_target ?? verified.store.preview_target,
@@ -2652,12 +2654,22 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
           address: input.address,
           directions: input.address,
           opening_hours: input.opening_hours?.trim() || '매일 10:00 - 21:00',
-          published: (input.public_status ?? verified.store.public_status) === 'public',
+          published: false,
         },
         media: [],
         notices: [],
-      }),
-    );
+      });
+    } catch (error) {
+      throw new Error('PROVISION_POST_RPC_PUBLIC_PAGE_BUILD_FAILED', { cause: error });
+    }
+    await repository.saveStorePublicPage({
+      ...publicPage,
+      // The live public.store_public_pages primary key is uuid. Reuse the
+      // provisioned store UUID so a lost-response retry cannot rotate it.
+      id: provisionedStore.store_id,
+    }).catch((error: unknown) => {
+      throw new Error('PROVISION_POST_RPC_PUBLIC_PAGE_SAVE_FAILED', { cause: error });
+    });
 
     return {
       store: verified.store,
@@ -6022,13 +6034,11 @@ function buildPublicExperience(store: Store, notices: StoreNotice[]) {
 
 export async function getPublicStore(storeSlug: string) {
   if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
-    try {
-      return await requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
-        searchParams: { slug: normalizeStoreSlug(storeSlug) },
-      });
-    } catch {
-      // API unavailable or store not found — fall through to local mock fallback
-    }
+    // A 404 or transient API failure must not fall back to direct browser
+    // Supabase reads, which could expose a private store under legacy grants.
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
+      searchParams: { slug: normalizeStoreSlug(storeSlug) },
+    });
   }
 
   const store = await getStoreBySlug(storeSlug);

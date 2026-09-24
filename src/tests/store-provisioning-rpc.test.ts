@@ -5,7 +5,7 @@ import type { SetupRequestInput } from '@/shared/types/models';
 
 type MaybeSingleResult = { data: unknown; error: null | { message: string } };
 
-const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
+const { getSession, getUser, rpc, from, responseMap } = vi.hoisted(() => {
   const responseMap: Record<string, MaybeSingleResult> = {};
 
   function createQueryBuilder(table: string) {
@@ -25,6 +25,7 @@ const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
   }
 
   return {
+    getSession: vi.fn(),
     getUser: vi.fn(),
     rpc: vi.fn(),
     from: vi.fn((table: string) => ({
@@ -45,6 +46,7 @@ vi.mock('@/shared/lib/appConfig', async () => {
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
+      getSession,
       getUser,
     },
     rpc,
@@ -86,7 +88,7 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
             },
             slug: 'rpc-provision-store',
             trial_ends_at: null,
-            plan: 'pro',
+            plan: 'free',
           },
     error: null,
   };
@@ -131,6 +133,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
   beforeEach(() => {
     resetDatabase();
+    getSession.mockReset().mockResolvedValue({ data: { session: { access_token: 'synthetic-owner-token' } }, error: null });
     getUser.mockReset();
     rpc.mockReset();
     from.mockClear();
@@ -157,7 +160,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
           store: {
             id: 'live-store-001',
             name: 'RPC Provision Store',
-            plan: 'pro',
+            plan: 'free',
             slug: 'rpc-provision-store',
             store_id: 'live-store-001',
           },
@@ -176,8 +179,8 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
   it('creates the live store through the provisioning API and verifies canonical provisioning rows', async () => {
     const created = await createStoreFromSetupRequest(requestInput, {
-      plan: 'pro',
-      paymentId: 'payment_live_001',
+      plan: 'free',
+      requestId: 'stable-free-request',
       paymentMethodStatus: 'ready',
       requestStatus: 'approved',
       setupEventStatus: 'paid',
@@ -191,7 +194,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     expect(requestUrl).toBe('https://mybiz.ai.kr/api/stores/provision');
     expect(requestInit).toMatchObject({
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer synthetic-owner-token' },
       method: 'POST',
     });
     expect(JSON.parse(requestInit.body as string)).toMatchObject({
@@ -201,9 +204,9 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
       business_type: 'Cafe',
       email: 'owner@rpc.kr',
       owner_name: 'Live Owner',
-      payment_id: 'payment_live_001',
       phone: '010-1234-5678',
-      plan: 'pro',
+      plan: 'free',
+      request_id: 'stable-free-request',
       requested_slug: 'rpc-provision-store',
     });
 
@@ -217,7 +220,13 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     expect(created.publicUrl).toContain('/rpc-provision-store');
 
     const database = getDatabase();
-    expect(database.store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(true);
+    expect(database.store_public_pages.find((page) => page.store_id === 'live-store-001')).toMatchObject({
+      homepage_visible: false,
+      public_status: 'private',
+      consultation_enabled: false,
+      inquiry_enabled: false,
+      reservation_enabled: false,
+    });
   });
 
   it('throws if a required provisioning row is missing after RPC creation', async () => {
@@ -225,8 +234,21 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     await expect(
       createStoreFromSetupRequest(requestInput, {
-        plan: 'pro',
+        plan: 'free',
+        requestId: 'missing-priority-request',
       }),
     ).rejects.toThrow();
+  });
+
+  it('preserves the setup request when the server reports the release HOLD', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ ok: false, code: 'PROVISIONING_HOLD' }),
+      { status: 503, headers: { 'content-type': 'application/json' } },
+    )) as typeof fetch;
+
+    await expect(createStoreFromSetupRequest(requestInput, {
+      plan: 'free', requestId: 'held-request',
+    })).rejects.toThrow('PROVISIONING_HOLD');
+    expect(getDatabase().store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(false);
   });
 });

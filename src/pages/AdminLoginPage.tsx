@@ -160,7 +160,8 @@ export function AdminLoginPage() {
 
           const nextSession = await refreshAdminSession();
           if (!hasDashboardAccess(nextSession)) {
-            await supabase.auth.signOut();
+            // An existing Auth identity may not own a store yet. Keep that
+            // verified session for the restricted FREE onboarding path.
             navigate('/onboarding', { replace: true });
             return;
           }

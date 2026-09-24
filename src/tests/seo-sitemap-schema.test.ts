@@ -11,6 +11,7 @@ import {
   sanitizeSeoText,
 } from '@/shared/lib/seo';
 import { createReviewRequestLink } from '@/shared/lib/services/contentEngineService';
+import { buildGlobalSitemapXml, buildStoreSitemapXml } from '../server/seoRoutes';
 
 const BASE_URL = 'https://mybiz.ai.kr';
 
@@ -91,11 +92,8 @@ describe('SEO sitemap, robots, and schema safety', () => {
       );
     });
 
-    const response = await seoHandler(new Request(`${BASE_URL}/api/public?resource=seo-sitemap`));
-    const xml = await readText(response);
+    const xml = await buildGlobalSitemapXml({ baseUrl: BASE_URL, demo: true });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toContain('application/xml');
     expect(xml).toContain('<loc>https://mybiz.ai.kr/</loc>');
     expect(xml).toContain('<loc>https://mybiz.ai.kr/features</loc>');
     expect(xml).toContain('<loc>https://mybiz.ai.kr/pricing</loc>');
@@ -128,12 +126,9 @@ describe('SEO sitemap, robots, and schema safety', () => {
       { actorProfileId: 'profile_golden_owner' },
     );
 
-    const response = await seoHandler(
-      new Request(`${BASE_URL}/api/public?resource=seo-store-sitemap&storeSlug=golden-coffee`),
-    );
-    const xml = await readText(response);
+    const xml = await buildStoreSitemapXml('golden-coffee', { baseUrl: BASE_URL, demo: true });
 
-    expect(response.status).toBe(200);
+    expect(xml).not.toBeNull();
     expect(xml).toContain('<loc>https://mybiz.ai.kr/golden-coffee</loc>');
     expect(xml).toContain('<loc>https://mybiz.ai.kr/golden-coffee/blog</loc>');
     expect(xml).toContain('<loc>https://mybiz.ai.kr/golden-coffee/blog/golden-weekly-update</loc>');
@@ -142,6 +137,67 @@ describe('SEO sitemap, robots, and schema safety', () => {
     expect(xml).not.toContain('?r=');
     expect(xml).not.toContain('/admin');
     expect(xml).not.toContain('/dashboard');
+  });
+
+  it('indexes only explicitly published rows from the current Production page shape', async () => {
+    const client = {
+      from(table: string) {
+        return {
+          select(columns: string) {
+            const result = table === 'store_public_pages' && columns.includes('homepage_visible')
+              ? { data: null, error: { message: 'column homepage_visible does not exist' } }
+              : table === 'store_public_pages'
+                ? { data: [
+                  { store_id: 'public-id', page_title: 'Public', is_published: true },
+                ], error: null }
+                : table === 'stores'
+                  ? { data: [{ store_id: 'public-id', slug: 'published-store', name: 'Public' }], error: null }
+                  : { data: [], error: null };
+            const query = {
+              eq: () => query,
+              in: () => query,
+              order: () => query,
+              then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
+            };
+            return query;
+          },
+        };
+      },
+    };
+    const xml = await buildGlobalSitemapXml({ client: client as never });
+    expect(xml).toContain('/published-store');
+    expect(xml).not.toContain('/golden-coffee');
+  });
+
+  it('does not fall back to demo store URLs when the live page query fails', async () => {
+    const client = {
+      from: () => ({ select: () => {
+        const query = {
+          eq: () => query,
+          then: (resolve: (value: { data: null; error: { message: string } }) => unknown) =>
+            Promise.resolve({ data: null, error: { message: 'unavailable' } }).then(resolve),
+        };
+        return query;
+      } }),
+    };
+    const xml = await buildGlobalSitemapXml({ client: client as never });
+    expect(xml).toContain('https://mybiz.ai.kr/');
+    expect(xml).not.toContain('/golden-coffee');
+  });
+
+  it('does not index demo stores through the live HTTP route when the admin client is absent', async () => {
+    const global = await seoHandler(new Request(`${BASE_URL}/api/public?resource=seo-sitemap`));
+    const globalXml = await readText(global);
+    expect(global.status).toBe(200);
+    expect(global.headers.get('content-type')).toContain('application/xml');
+    expect(globalXml).toContain('<loc>https://mybiz.ai.kr/</loc>');
+    expect(globalXml).not.toContain('/golden-coffee');
+
+    const store = await seoHandler(
+      new Request(`${BASE_URL}/api/public?resource=seo-store-sitemap&storeSlug=golden-coffee`),
+    );
+    expect(store.status).toBe(404);
+    expect(await readText(store)).not.toContain('/golden-coffee');
   });
 
   it('serves robots.txt with crawl boundaries and a production sitemap URL', async () => {

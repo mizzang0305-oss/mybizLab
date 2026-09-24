@@ -182,7 +182,9 @@ describe('public API node runtime compatibility', () => {
         })),
       })),
     });
-    createSupabaseRepository.mockReturnValue({});
+    createSupabaseRepository.mockReturnValue({
+      getStorePublicPage: vi.fn().mockResolvedValue(createLiveStorePublicPageFixture()),
+    });
     resolvePublicPageCapabilities.mockResolvedValue({
       consultationEnabled: true,
       homepageVisible: true,
@@ -315,7 +317,11 @@ describe('public API node runtime compatibility', () => {
     } as never);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
+    const result = await response.json();
+    expect(result.data.store).not.toHaveProperty('brand_config');
+    expect(result.data.store).not.toHaveProperty('admin_email');
+    expect(result.data.store).not.toHaveProperty('business_number');
+    expect(result).toMatchObject({
       ok: true,
       data: {
         store: {
@@ -331,6 +337,60 @@ describe('public API node runtime compatibility', () => {
         },
       },
     });
+  });
+
+  it.each(['slug=mybiz-live-cafe', 'storeId=store-live'])(
+    'returns 404 for a private store by %s before loading operational rows',
+    async (selector) => {
+      const store = createLiveStoreFixture();
+      const adminClient = createSupabaseListClient({});
+      getSupabaseAdminClient.mockReturnValue(adminClient);
+      createSupabaseRepository.mockReturnValue({
+        findStoreById: vi.fn().mockResolvedValue(store),
+        findStoreBySlug: vi.fn().mockResolvedValue(store),
+        getStorePublicPage: vi.fn().mockResolvedValue({
+          ...createLiveStorePublicPageFixture(),
+          homepage_visible: false,
+          public_status: 'private',
+        }),
+        listInquiries: vi.fn().mockResolvedValue([]),
+      });
+
+      const response = await handlePublicStoreRequest({
+        headers: { host: 'example.com' },
+        method: 'GET',
+        url: `/api/public/store?${selector}`,
+      } as never);
+
+      expect(response.status).toBe(404);
+      expect(adminClient.from).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not create visitor sessions or inquiries for a private store', async () => {
+    createSupabaseRepository.mockReturnValue({
+      getStorePublicPage: vi.fn().mockResolvedValue({
+        ...createLiveStorePublicPageFixture(),
+        homepage_visible: false,
+        public_status: 'private',
+      }),
+    });
+    const session = await handlePublicVisitorSessionRequest({
+      body: { storeId: 'store-live', visitorToken: 'synthetic' },
+      headers: { host: 'example.com' },
+      method: 'POST',
+      url: '/api/public/visitor-session',
+    } as never);
+    const inquiry = await handlePublicInquiryRequest({
+      body: { storeId: 'store-live', customerName: 'Synthetic' },
+      headers: { host: 'example.com' },
+      method: 'POST',
+      url: '/api/public/inquiry',
+    } as never);
+    expect(session.status).toBe(404);
+    expect(inquiry.status).toBe(404);
+    expect(touchVisitorSession).not.toHaveBeenCalled();
+    expect(submitCanonicalPublicInquiry).not.toHaveBeenCalled();
   });
 
   it('returns public review API responses as safe DTOs only', async () => {
@@ -441,7 +501,7 @@ describe('public API node runtime compatibility', () => {
         visitorToken: 'visitor-live',
       }),
       expect.objectContaining({
-        repository: {},
+        repository: expect.objectContaining({ getStorePublicPage: expect.any(Function) }),
       }),
     );
   });
@@ -496,16 +556,13 @@ describe('public API node runtime compatibility', () => {
         storeId: 'store-live',
       }),
       expect.objectContaining({
-        repository: {},
+        repository: expect.objectContaining({ getStorePublicPage: expect.any(Function) }),
       }),
     );
   });
 
   it('accepts raw JSON bodies for reservation writes', async () => {
-    getCanonicalStorePublicPage.mockResolvedValue({
-      id: 'public_page_live',
-      store_id: 'store-live',
-    });
+    getCanonicalStorePublicPage.mockResolvedValue(createLiveStorePublicPageFixture());
     saveStoreReservation.mockResolvedValue({
       id: 'reservation_live',
       reserved_at: '2026-04-20T19:00:00.000Z',
@@ -551,16 +608,13 @@ describe('public API node runtime compatibility', () => {
         visitor_session_id: 'visitor_session_live',
       }),
       expect.objectContaining({
-        repository: {},
+        repository: expect.objectContaining({ getStorePublicPage: expect.any(Function) }),
       }),
     );
   });
 
   it('accepts raw JSON bodies for waiting writes', async () => {
-    getCanonicalStorePublicPage.mockResolvedValue({
-      id: 'public_page_live',
-      store_id: 'store-live',
-    });
+    getCanonicalStorePublicPage.mockResolvedValue(createLiveStorePublicPageFixture());
     saveStoreWaitingEntry.mockResolvedValue({
       id: 'waiting_live',
       status: 'waiting',
@@ -605,7 +659,7 @@ describe('public API node runtime compatibility', () => {
         visitor_session_id: 'visitor_session_live',
       }),
       expect.objectContaining({
-        repository: {},
+        repository: expect.objectContaining({ getStorePublicPage: expect.any(Function) }),
       }),
     );
   });
