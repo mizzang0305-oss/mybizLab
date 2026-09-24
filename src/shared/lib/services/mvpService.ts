@@ -468,28 +468,28 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
   const homeContentResult = { data: true as const };
 
   if (storeResult.error) {
-    throw new Error(`Failed to verify store row: ${storeResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_STORE_READ', { cause: storeResult.error });
   }
   if (membershipResult.error) {
-    throw new Error(`Failed to verify owner membership: ${membershipResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_MEMBER_READ', { cause: membershipResult.error });
   }
   if (analyticsResult.error) {
-    throw new Error(`Failed to verify analytics profile: ${analyticsResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_ANALYTICS_READ', { cause: analyticsResult.error });
   }
   if (priorityResult.error) {
-    throw new Error(`Failed to verify priority settings: ${priorityResult.error.message}`);
+    throw new Error('PROVISION_VERIFY_PRIORITY_READ', { cause: priorityResult.error });
   }
   if (!storeResult.data) {
-    throw new Error('스토어 생성 후 stores row를 찾지 못했습니다.');
+    throw new Error('PROVISION_VERIFY_STORE_MISSING');
   }
   if (!membershipResult.data) {
-    throw new Error('스토어 생성 후 owner membership이 생성되지 않았습니다.');
+    throw new Error('PROVISION_VERIFY_MEMBER_MISSING');
   }
   if (!analyticsResult.data) {
-    throw new Error('스토어 생성 후 analytics profile이 생성되지 않았습니다.');
+    throw new Error('PROVISION_VERIFY_ANALYTICS_MISSING');
   }
   if (!priorityResult.data) {
-    throw new Error('스토어 생성 후 priority settings가 생성되지 않았습니다.');
+    throw new Error('PROVISION_VERIFY_PRIORITY_MISSING');
   }
   if (!homeContentResult.data) {
     throw new Error('스토어 생성 후 home content가 생성되지 않았습니다.');
@@ -2618,7 +2618,10 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       throw new Error('PROVISION_POST_RPC_ACTOR_READ_FAILED', { cause: error });
     });
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId).catch((error: unknown) => {
-      throw new Error('PROVISION_POST_RPC_VERIFY_FAILED', { cause: error });
+      const reason = error instanceof Error && /^PROVISION_VERIFY_[A-Z_]+$/.test(error.message)
+        ? error.message
+        : 'PROVISION_VERIFY_UNKNOWN';
+      throw new Error(`PROVISION_POST_RPC_VERIFY_FAILED_${reason}`, { cause: error });
     });
 
     let publicPage: ReturnType<typeof buildDefaultStorePublicPage>;
