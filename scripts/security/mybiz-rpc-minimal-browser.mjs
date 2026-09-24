@@ -132,10 +132,24 @@ try {
   }
   const count = Number(sql(`select count(*) from public.store_members where profile_id='${actorId}' and role='owner'`));
   const receipt = Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${actorId}'`));
-  if (count !== 1 || receipt !== 1) throw new Error('BROWSER_PROVISIONING_ROWS_MISMATCH');
+  const publicPage = Number(sql(`select count(*) from public.store_public_pages p
+    join private.store_provisioning_receipts r on r.store_id=p.store_id
+    where r.actor_auth_user_id='${actorId}' and p.id=p.store_id`));
+  const ownStoreRead = await page.evaluate(async () => {
+    const { supabase } = await import('/src/integrations/supabase/client.ts');
+    const storeId = globalThis.location.pathname.split('/').at(-1);
+    const { count: visible, error } = await supabase.from('stores')
+      .select('store_id', { count: 'exact', head: true }).eq('store_id', storeId);
+    return !error && visible === 1;
+  });
+  if (count !== 1 || receipt !== 1 || publicPage !== 1 || !ownStoreRead) {
+    throw new Error('BROWSER_PROVISIONING_ROWS_MISMATCH');
+  }
   console.log('BROWSER_FREE_ONBOARDING=PASS');
   console.log('BROWSER_STORE_MEMBERSHIP=1');
   console.log('BROWSER_PROVISIONING_RECEIPT=1');
+  console.log('BROWSER_PUBLIC_PAGE_STABLE_UUID=1');
+  console.log('BROWSER_OWN_STORE_READ=PASS');
 } finally {
   if (browser) await browser.close();
   server.kill('SIGTERM');

@@ -2617,8 +2617,8 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     const profileId = await getAuthenticatedSupabaseUserId();
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
 
-    await repository.saveStorePublicPage(
-      buildDefaultStorePublicPage({
+    await repository.saveStorePublicPage({
+      ...buildDefaultStorePublicPage({
         store: {
           ...verified.store,
           homepage_visible: (input.public_status ?? verified.store.public_status) === 'public',
@@ -2644,7 +2644,10 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
         media: [],
         notices: [],
       }),
-    );
+      // The live public.store_public_pages primary key is uuid. Reuse the
+      // provisioned store UUID so a lost-response retry cannot rotate it.
+      id: provisionedStore.store_id,
+    });
 
     return {
       store: verified.store,
