@@ -472,6 +472,10 @@ export function OnboardingPage() {
         navigate(`/dashboard/stores/${result.store.id}`, { replace: true });
       }, 900);
     },
+    onError: () => {
+      setFlow((current) => ({ ...current, activationStatus: 'idle', paymentStatus: 'failed', step: 'payment' }));
+      setMessage({ tone: 'error', text: '스토어 생성에 실패했습니다. 요청은 유지되며, 잠시 후 다시 시도할 수 있습니다.' });
+    },
   });
 
   const runDiagnosis = useMutation({
