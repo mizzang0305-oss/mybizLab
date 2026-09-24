@@ -109,6 +109,23 @@ try {
   } catch (error) {
     console.log(`BROWSER_RECEIPT_COUNT=${sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${actorId}'`)}`);
     console.log(`BROWSER_MEMBERSHIP_COUNT=${sql(`select count(*) from public.store_members where profile_id='${actorId}' and role='owner'`)}`);
+    const storeId = sql(`select store_id from private.store_provisioning_receipts where actor_auth_user_id='${actorId}' limit 1`);
+    if (storeId) {
+      for (const table of ['stores', 'store_members', 'store_analytics_profiles', 'store_priority_settings', 'store_public_pages']) {
+        console.log(`BROWSER_DB_${table.toUpperCase()}_COUNT=${sql(`select count(*) from public.${table} where store_id='${storeId}'`)}`);
+      }
+      const browserReads = await page.evaluate(async (id) => {
+        const { supabase } = await import('/src/integrations/supabase/client.ts');
+        const tables = ['stores', 'store_members', 'store_analytics_profiles', 'store_priority_settings'];
+        return Promise.all(tables.map(async (table) => {
+          const result = await supabase.from(table).select('*', { count: 'exact', head: true }).eq('store_id', id);
+          return { table, count: result.count, code: result.error?.code ?? null };
+        }));
+      }, storeId);
+      for (const read of browserReads) {
+        console.log(`BROWSER_READ_${read.table.toUpperCase()}=${read.count ?? 'NULL'}:${read.code ?? 'OK'}`);
+      }
+    }
     const failureVisible = await page.getByText('스토어 생성에 실패했습니다.', { exact: false }).isVisible().catch(() => false);
     console.log(`BROWSER_ACTIVATION_ERROR_VISIBLE=${failureVisible}`);
     throw error;
