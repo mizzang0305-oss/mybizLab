@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync, spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -61,6 +61,39 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     };
   }
 
+  function hash(value: string) {
+    return createHash('sha256').update(value).digest('hex');
+  }
+
+  function armCanary(user: Identity, body: ReturnType<typeof requestBody>) {
+    if (phase !== 'new') throw new Error('LOCAL_NEW_DB_ONLY');
+    const fields = [body.business_name, body.owner_name, body.business_number,
+      body.phone, body.email.toLowerCase(), body.address, body.business_type,
+      body.requested_slug, 'free', null];
+    const keyHash = hash(body.request_id);
+    const payloadHash = hash(JSON.stringify(fields));
+    const expiresAt = new Date(Date.now() + 60_000).toISOString();
+    process.env.MYBIZ_PROVISIONING_MODE = 'CANARY';
+    process.env.MYBIZ_PROVISIONING_CANARY_AUTH_USER_ID = user.id;
+    process.env.MYBIZ_PROVISIONING_CANARY_REQUEST_KEY_SHA256 = keyHash;
+    process.env.MYBIZ_PROVISIONING_CANARY_PAYLOAD_SHA256 = payloadHash;
+    process.env.MYBIZ_PROVISIONING_CANARY_EXPIRES_AT = expiresAt;
+    sql(`update private.store_provisioning_release_control set mode='CANARY',
+      actor_auth_user_id='${user.id}', request_key_sha256='${keyHash}',
+      payload_sha256='${payloadHash}', expires_at='${expiresAt}' where singleton=true`);
+  }
+
+  function holdCanary() {
+    process.env.MYBIZ_PROVISIONING_MODE = 'HOLD';
+    for (const key of ['MYBIZ_PROVISIONING_CANARY_AUTH_USER_ID',
+      'MYBIZ_PROVISIONING_CANARY_REQUEST_KEY_SHA256',
+      'MYBIZ_PROVISIONING_CANARY_PAYLOAD_SHA256',
+      'MYBIZ_PROVISIONING_CANARY_EXPIRES_AT']) delete process.env[key];
+    if (phase === 'new') sql(`update private.store_provisioning_release_control
+      set mode='HOLD',actor_auth_user_id=null,request_key_sha256=null,
+      payload_sha256=null,expires_at=null where singleton=true`);
+  }
+
   async function appPost(body: object, token?: string) {
     const response = await fetch(`${baseUrl}/api/stores/provision`, {
       method: 'POST', headers: {
@@ -87,6 +120,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
   }
 
   beforeAll(async () => {
+    process.env.MYBIZ_PROVISIONING_MODE = 'HOLD';
     const vars = Object.fromEntries(readFileSync(statusFile!, 'utf8').split(/\r?\n/)
       .map((line) => line.replace(/^export\s+/, '').match(/^([A-Z_]+)=(.*)$/))
       .filter((match): match is RegExpMatchArray => Boolean(match))
@@ -123,6 +157,8 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   });
 
+  afterEach(() => holdCanary());
+
   it('maps real local Auth token to authenticated in PostgREST', async () => {
     const user = await identity('none');
     expect(await directRpc('local_test_current_role', {}, user.token)).toBe(200);
@@ -138,7 +174,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     const before = Number(sql('select count(*) from public.stores'));
     const result = await appPost(requestBody(), user.token);
     expect(result.status).toBe(503);
-    expect(result.body.code).toBe('PROVISIONING_NOT_AVAILABLE');
+    expect(result.body.code).toBe('PROVISIONING_HOLD');
     expect(Number(sql('select count(*) from public.stores'))).toBe(before);
   });
 
@@ -152,9 +188,23 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     }
   });
 
+  it.runIf(phase === 'new')('blocks service-role provisioning while DB control is HOLD', async () => {
+    const user = await identity();
+    const body = requestBody();
+    armCanary(user, body);
+    sql(`update private.store_provisioning_release_control set mode='HOLD',
+      actor_auth_user_id=null,request_key_sha256=null,payload_sha256=null,
+      expires_at=null where singleton=true`);
+    const denied = await appPost(body, user.token);
+    expect(denied.status).toBe(403);
+    expect(denied.body.code).toBe('42501');
+    expect(Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${user.id}'`))).toBe(0);
+  });
+
   it.runIf(phase === 'new')('serializes concurrent same-key FREE requests and replays a lost-response retry', async () => {
     const user = await identity();
     const body = requestBody();
+    armCanary(user, body);
     const before = Number(sql('select count(*) from public.stores'));
     const [first, concurrent] = await Promise.all([
       appPost(body, user.token), appPost(body, user.token),
@@ -168,6 +218,10 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     expect(Number(sql('select count(*) from public.stores'))).toBe(before + 1);
     expect(Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${user.id}'`))).toBe(1);
     expect(Number(sql(`select count(*) from public.store_subscriptions where store_id='${(first.body.store as Record<string, unknown>).id}' and plan='free'`))).toBe(1);
+    const storeId = (first.body.store as Record<string, unknown>).id;
+    expect(Number(sql(`select count(*) from public.store_public_pages where store_id='${storeId}'
+      and is_published=false and inquiry_enabled=false and reservation_enabled=false`))).toBe(1);
+    expect(() => sql(`update public.store_public_pages set is_published=true where store_id='${storeId}'`)).toThrow();
     expect((await appPost({ ...body, business_name: 'Changed' }, user.token)).status).toBe(409);
   });
 
@@ -178,7 +232,9 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     expect(paid.body.code).toBe('PAID_PROVISIONING_HOLD');
     for (const kind of ['none', 'nonexact', 'revoked'] as const) {
       const user = await identity(kind);
-      expect((await appPost(requestBody(), user.token)).status).toBe(403);
+      const body = requestBody();
+      armCanary(user, body);
+      expect((await appPost(body, user.token)).status).toBe(403);
       expect(Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${user.id}'`))).toBe(0);
     }
   });
@@ -190,25 +246,30 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
       values ('${storeId}','Synthetic existing','existing-${storeId}','free','{}');
       insert into public.store_members(store_id,profile_id,role)
       values ('${storeId}','${user.id}','owner');`);
-    expect((await appPost(requestBody(), user.token)).status).toBe(403);
+    const body = requestBody();
+    armCanary(user, body);
+    expect((await appPost(body, user.token)).status).toBe(403);
     expect(Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${user.id}'`))).toBe(0);
   });
 
-  it.runIf(phase === 'new')('serializes two exact actors requesting the same slug under a unique index', async () => {
+  it.runIf(phase === 'new')('allows only the chosen actor and preserves slug uniqueness', async () => {
     const [a, b] = await Promise.all([identity(), identity()]);
     const slug = `shared-${randomUUID()}`;
+    const body = requestBody({ requested_slug: slug });
+    armCanary(a, body);
     const [ra, rb] = await Promise.all([
-      appPost(requestBody({ requested_slug: slug }), a.token),
-      appPost(requestBody({ requested_slug: slug }), b.token),
+      appPost(body, a.token),
+      appPost(body, b.token),
     ]);
     expect(ra.status, JSON.stringify(ra.body)).toBe(200);
-    expect(rb.status, JSON.stringify(rb.body)).toBe(200);
-    expect((ra.body.store as Record<string, unknown>).slug).not.toBe((rb.body.store as Record<string, unknown>).slug);
+    expect(rb.status).toBe(403);
     expect(Number(sql('select count(*)-count(distinct slug) from public.stores where slug is not null'))).toBe(0);
   });
 
   it.runIf(phase === 'new')('denies a provision waiting behind a binding revocation transaction', async () => {
     const user = await identity();
+    const body = requestBody();
+    armCanary(user, body);
     const child = spawn('psql', [dbUrl, '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1'], { stdio: ['pipe', 'pipe', 'pipe'] });
     try {
       const held = new Promise<void>((resolve, reject) => {
@@ -221,7 +282,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
       });
       child.stdin.write(`BEGIN; UPDATE private.profile_auth_bindings SET status='REVOKED',revoked_at=now() WHERE auth_profile_id='${user.id}'; SELECT 'LOCK_HELD';\n`);
       await held;
-      const request = appPost(requestBody(), user.token);
+      const request = appPost(body, user.token);
       await new Promise((resolve) => setTimeout(resolve, 150));
       child.stdin.write('COMMIT;\n\\q\n');
       const denied = await request;
@@ -235,6 +296,8 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
 
   it.runIf(phase === 'new')('denies a provision waiting behind core identity deactivation', async () => {
     const user = await identity();
+    const body = requestBody();
+    armCanary(user, body);
     const child = spawn('psql', [dbUrl, '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1'], { stdio: ['pipe', 'pipe', 'pipe'] });
     try {
       const held = new Promise<void>((resolve, reject) => {
@@ -247,7 +310,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
       });
       child.stdin.write(`BEGIN; UPDATE core.profiles SET is_active=false WHERE id='${user.id}'; SELECT 'LOCK_HELD';\n`);
       await held;
-      const request = appPost(requestBody(), user.token);
+      const request = appPost(body, user.token);
       await new Promise((resolve) => setTimeout(resolve, 150));
       child.stdin.write('COMMIT;\n\\q\n');
       const denied = await request;

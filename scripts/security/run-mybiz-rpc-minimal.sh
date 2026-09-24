@@ -93,6 +93,12 @@ for run in 1 2; do
   psql "$local_db_url" -X -v ON_ERROR_STOP=1 -Atc \
     "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='create_store_with_owner' and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE'))" \
     | grep -qx '0'
+  psql "$local_db_url" -X -v ON_ERROR_STOP=1 -Atc \
+    "select count(*) from private.store_provisioning_release_control where singleton=true and mode='HOLD'" \
+    | grep -qx '1'
+  psql "$local_db_url" -X -v ON_ERROR_STOP=1 -Atc \
+    "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='provision_store_from_verified_actor'" \
+    | grep -qx '0'
   echo "SAFE_DB_ONLY_ROLLBACK_${run}=PASS_OLD_BYPASS_CLOSED"
   supabase stop --no-backup >/dev/null
   test ! -e supabase/.temp/project-ref

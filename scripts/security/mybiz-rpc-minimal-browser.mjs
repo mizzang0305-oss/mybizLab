@@ -1,6 +1,6 @@
 /* global console, process, setTimeout */
 import { execFileSync, spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { URL } from 'node:url';
 import { chromium } from 'playwright';
@@ -34,13 +34,14 @@ sql(`insert into public.profiles(id,full_name,email) values ('${actorId}','Synth
   insert into private.profile_auth_bindings(public_profile_id,auth_profile_id,binding_source,status)
   values ('${actorId}','${actorId}','EXACT_ID','ACTIVE');`);
 
-const server = spawn('node', ['scripts/security/serve-mybiz-rpc-browser.mjs'], {
-  env: { ...process.env, LOCAL_SUPABASE_STATUS_FILE: statusFile },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-let browser;
-try {
-  const ready = new Promise((resolve, reject) => {
+let server;
+async function startServer(canaryEnv = {}) {
+  server = spawn('node', ['scripts/security/serve-mybiz-rpc-browser.mjs'], {
+    env: { ...process.env, LOCAL_SUPABASE_STATUS_FILE: statusFile,
+      MYBIZ_PROVISIONING_MODE: 'HOLD', ...canaryEnv },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await new Promise((resolve, reject) => {
     let output = '';
     server.stdout.on('data', (chunk) => {
       output += chunk.toString();
@@ -49,7 +50,17 @@ try {
     server.on('exit', (code) => reject(new Error(`LOCAL_BROWSER_SERVER_EXIT_${code}`)));
     setTimeout(() => reject(new Error('LOCAL_BROWSER_SERVER_TIMEOUT')), 20000);
   });
-  await ready;
+}
+async function stopServer() {
+  if (!server || server.exitCode !== null) return;
+  const stopped = new Promise((resolve) => server.once('exit', resolve));
+  server.kill('SIGTERM');
+  await stopped;
+}
+function hash(value) { return createHash('sha256').update(value).digest('hex'); }
+let browser;
+try {
+  await startServer();
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
   page.on('pageerror', (error) => {
@@ -75,6 +86,12 @@ try {
       console.log(`BROWSER_PROVISION_HTTP=${response.status()}`);
     } else if (response.status() >= 400 && (pathname.startsWith('/rest/v1/') || pathname.startsWith('/api/'))) {
       console.log(`BROWSER_API_FAILURE=${pathname}:${response.status()}`);
+    }
+  });
+  let attemptedBody;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/stores/provision') {
+      attemptedBody = request.postDataJSON();
     }
   });
   await page.route('**/*', (route) => {
@@ -116,6 +133,35 @@ try {
   await page.getByText('유료 업체 생성과 결제는 별도 승인 전까지 지원하지 않습니다.').waitFor({ timeout: 20000 });
   console.log('BROWSER_PAID_REDIRECT_HOLD=PASS');
   await page.getByRole('button', { name: /FREE.*월 0원/ }).click({ timeout: 20000 });
+  const heldResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/stores/provision');
+  await page.getByRole('button', { name: 'FREE 플랜 바로 시작' }).click();
+  if ((await heldResponse).status() !== 503 || !attemptedBody?.request_id) {
+    throw new Error('BROWSER_DEFAULT_HOLD_FAILED');
+  }
+  await page.getByText('현재 업체 생성은 보류 중입니다. 작성한 신청 내용은 유지됩니다.').waitFor();
+  if (Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${actorId}'`)) !== 0) {
+    throw new Error('BROWSER_HOLD_CREATED_RECEIPT');
+  }
+  console.log('BROWSER_DEFAULT_HOLD=PASS');
+  const normalized = [attemptedBody.business_name.trim(), attemptedBody.owner_name.trim(),
+    attemptedBody.business_number.trim(), attemptedBody.phone.trim(),
+    attemptedBody.email.trim().toLowerCase(), attemptedBody.address.trim(),
+    attemptedBody.business_type.trim(), attemptedBody.requested_slug.trim(), 'free', null];
+  const requestKeyHash = hash(attemptedBody.request_id);
+  const payloadHash = hash(JSON.stringify(normalized));
+  const expiresAt = new Date(Date.now() + 60_000).toISOString();
+  sql(`update private.store_provisioning_release_control set mode='CANARY',
+    actor_auth_user_id='${actorId}', request_key_sha256='${requestKeyHash}',
+    payload_sha256='${payloadHash}', expires_at='${expiresAt}' where singleton=true`);
+  await stopServer();
+  await startServer({
+    MYBIZ_PROVISIONING_MODE: 'CANARY',
+    MYBIZ_PROVISIONING_CANARY_AUTH_USER_ID: actorId,
+    MYBIZ_PROVISIONING_CANARY_REQUEST_KEY_SHA256: requestKeyHash,
+    MYBIZ_PROVISIONING_CANARY_PAYLOAD_SHA256: payloadHash,
+    MYBIZ_PROVISIONING_CANARY_EXPIRES_AT: expiresAt,
+  });
+  await page.reload();
   await page.getByRole('button', { name: 'FREE 플랜 바로 시작' }).click();
   try {
     await page.waitForFunction(() => globalThis.location.pathname.startsWith('/dashboard/stores/')
@@ -151,7 +197,8 @@ try {
   const receipt = Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${actorId}'`));
   const publicPage = Number(sql(`select count(*) from public.store_public_pages p
     join private.store_provisioning_receipts r on r.store_id=p.store_id
-    where r.actor_auth_user_id='${actorId}' and p.id=p.store_id`));
+    where r.actor_auth_user_id='${actorId}' and p.id=p.store_id and p.is_published=false
+      and p.inquiry_enabled=false and p.reservation_enabled=false and p.waiting_enabled=false`));
   const ownStoreRead = await page.evaluate(async () => {
     const { supabase } = await import('/src/integrations/supabase/client.ts');
     const storeId = globalThis.location.pathname.split('/').at(-1);
@@ -166,8 +213,12 @@ try {
   console.log('BROWSER_STORE_MEMBERSHIP=1');
   console.log('BROWSER_PROVISIONING_RECEIPT=1');
   console.log('BROWSER_PUBLIC_PAGE_STABLE_UUID=1');
+  sql(`update private.store_provisioning_release_control set mode='HOLD',
+    actor_auth_user_id=null,request_key_sha256=null,payload_sha256=null,
+    expires_at=null where singleton=true`);
+  console.log('BROWSER_RETURNED_TO_DB_HOLD=PASS');
   console.log('BROWSER_OWN_STORE_READ=PASS');
 } finally {
   if (browser) await browser.close();
-  server.kill('SIGTERM');
+  await stopServer();
 }

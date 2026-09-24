@@ -27,6 +27,8 @@ const PUBLIC_BLOG_POST_COLUMNS =
 const PUBLIC_REVIEW_COLUMNS = 'review_id,rating,title,body,media_urls,reviewer_display_name,created_at,store_id';
 const PUBLIC_STORE_PAGE_COLUMNS =
   'store_id,slug,brand_name,logo_url,description,business_type,phone,address,homepage_visible,public_status,updated_at';
+const LEGACY_PUBLIC_PAGE_COLUMNS =
+  'store_id,page_title,hero_title,intro_text,is_published,updated_at';
 
 function responseText(body: string, contentType: string, status = 200) {
   return new Response(body, {
@@ -150,14 +152,42 @@ function loadDemoSeoSnapshot(): SeoSnapshot {
 }
 
 async function loadSupabaseSeoSnapshot(client: SupabaseClient): Promise<SeoSnapshot> {
-  const { data: storeRows, error: storeError } = await client
+  const initial = await client
     .from('store_public_pages')
     .select(PUBLIC_STORE_PAGE_COLUMNS)
     .eq('homepage_visible', true)
     .eq('public_status', 'public');
+  let storeRows = initial.data;
+  const storeError = initial.error;
 
+  // Current Production uses the legacy page columns. Query only explicit
+  // is_published=true rows, then join public store identity for slug/name.
   if (storeError) {
-    throw new Error(`Failed to load public store pages for SEO: ${storeError.message}`);
+    const legacy = await client.from('store_public_pages')
+      .select(LEGACY_PUBLIC_PAGE_COLUMNS).eq('is_published', true);
+    if (legacy.error) {
+      throw new Error(`Failed to load published store pages for SEO: ${legacy.error.message}`);
+    }
+    const ids = (legacy.data || []).map((row) => String(row.store_id));
+    const stores = ids.length
+      ? await client.from('stores').select('store_id,slug,name,updated_at').in('store_id', ids)
+      : { data: [], error: null };
+    if (stores.error) {
+      throw new Error(`Failed to load published store identity for SEO: ${stores.error.message}`);
+    }
+    const storesById = new Map((stores.data || []).map((row) => [String(row.store_id), row]));
+    storeRows = (legacy.data || []).flatMap((row) => {
+      const store = storesById.get(String(row.store_id));
+      return store?.slug ? [{
+        store_id: row.store_id,
+        slug: store.slug,
+        brand_name: row.page_title || store.name,
+        description: row.intro_text || '',
+        public_status: 'public',
+        homepage_visible: true,
+        updated_at: row.updated_at || store.updated_at,
+      }] : [];
+    }) as typeof storeRows;
   }
 
   const stores = ((storeRows || []) as Record<string, unknown>[])
@@ -210,7 +240,8 @@ export async function loadSeoSnapshot(options?: { client?: SupabaseClient }) {
     try {
       return await loadSupabaseSeoSnapshot(options.client);
     } catch {
-      return loadDemoSeoSnapshot();
+      // A live catalog/API failure must not index a synthetic or private page.
+      return emptySnapshot();
     }
   }
 

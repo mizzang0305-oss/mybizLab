@@ -220,7 +220,13 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     expect(created.publicUrl).toContain('/rpc-provision-store');
 
     const database = getDatabase();
-    expect(database.store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(true);
+    expect(database.store_public_pages.find((page) => page.store_id === 'live-store-001')).toMatchObject({
+      homepage_visible: false,
+      public_status: 'private',
+      consultation_enabled: false,
+      inquiry_enabled: false,
+      reservation_enabled: false,
+    });
   });
 
   it('throws if a required provisioning row is missing after RPC creation', async () => {
@@ -232,5 +238,17 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
         requestId: 'missing-priority-request',
       }),
     ).rejects.toThrow();
+  });
+
+  it('preserves the setup request when the server reports the release HOLD', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ ok: false, code: 'PROVISIONING_HOLD' }),
+      { status: 503, headers: { 'content-type': 'application/json' } },
+    )) as typeof fetch;
+
+    await expect(createStoreFromSetupRequest(requestInput, {
+      plan: 'free', requestId: 'held-request',
+    })).rejects.toThrow('PROVISIONING_HOLD');
+    expect(getDatabase().store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(false);
   });
 });

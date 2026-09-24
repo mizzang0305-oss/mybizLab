@@ -544,11 +544,15 @@ async function createStoreViaSupabaseRpc(
 
   const result = (await response.json()) as {
     ok: boolean;
+    code?: string;
     error?: string;
     store?: { id: string; store_id: string; slug: string; name: string; plan: string };
   };
 
   if (!result.ok || !result.store) {
+    if (result.code === 'PROVISIONING_HOLD' || result.code === 'PROVISIONING_NOT_AVAILABLE') {
+      throw new Error('PROVISIONING_HOLD');
+    }
     throw new Error(result.error || '스토어 생성 API가 실패했습니다.');
   }
 
@@ -2629,11 +2633,14 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
       publicPage = buildDefaultStorePublicPage({
         store: {
           ...verified.store,
-          homepage_visible: (input.public_status ?? verified.store.public_status) === 'public',
-          public_status: input.public_status ?? verified.store.public_status,
-          consultation_enabled: true,
-          inquiry_enabled: subscriptionPlan !== 'free',
-          reservation_enabled: subscriptionPlan !== 'free',
+          // The FREE canary is created private in the RPC transaction. A
+          // browser-supplied setup choice must not publish it afterwards.
+          homepage_visible: false,
+          public_status: 'private',
+          consultation_enabled: false,
+          inquiry_enabled: false,
+          reservation_enabled: false,
+          order_entry_enabled: false,
           primary_cta_label: input.primary_cta_label?.trim() || verified.store.primary_cta_label,
           mobile_cta_label: input.mobile_cta_label?.trim() || verified.store.mobile_cta_label,
           preview_target: input.preview_target ?? verified.store.preview_target,
@@ -2647,7 +2654,7 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
           address: input.address,
           directions: input.address,
           opening_hours: input.opening_hours?.trim() || '매일 10:00 - 21:00',
-          published: (input.public_status ?? verified.store.public_status) === 'public',
+          published: false,
         },
         media: [],
         notices: [],
@@ -6027,13 +6034,11 @@ function buildPublicExperience(store: Store, notices: StoreNotice[]) {
 
 export async function getPublicStore(storeSlug: string) {
   if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
-    try {
-      return await requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
-        searchParams: { slug: normalizeStoreSlug(storeSlug) },
-      });
-    } catch {
-      // API unavailable or store not found — fall through to local mock fallback
-    }
+    // A 404 or transient API failure must not fall back to direct browser
+    // Supabase reads, which could expose a private store under legacy grants.
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
+      searchParams: { slug: normalizeStoreSlug(storeSlug) },
+    });
   }
 
   const store = await getStoreBySlug(storeSlug);

@@ -64,6 +64,7 @@ const routeMocks = vi.hoisted(() => {
   }
 
   const repository = {
+    getStorePublicPage: vi.fn(async () => ({ public_status: 'public', homepage_visible: true })),
     listCustomerContacts: vi.fn(async () => []),
     listCustomerPreferences: vi.fn(async () => []),
     listCustomers: vi.fn(async () => []),

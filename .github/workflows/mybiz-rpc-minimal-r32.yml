@@ -1,9 +1,10 @@
-name: MyBiz RPC minimal R3.2 isolated certification
+name: MyBiz RPC minimal isolated certification
 
 on:
   push:
     branches:
       - codex/mybiz-rpc-minimal-release-r32
+      - codex/mybiz-minimal-free-release-r4
   workflow_dispatch:
 
 permissions:

@@ -43,6 +43,7 @@ import type {
   StoreLocation,
   StoreMedia,
   StoreNotice,
+  StorePublicPage,
   StoreTable,
   Survey,
   SurveyResponse,
@@ -53,6 +54,7 @@ function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
       ...extraHeaders,
     },
   });
@@ -88,6 +90,17 @@ function normalizeText(value: unknown) {
   }
 
   return '';
+}
+
+function isExplicitlyPublished(page: StorePublicPage | null | undefined): page is StorePublicPage {
+  return page?.public_status === 'public' && page.homepage_visible === true;
+}
+
+async function hasPublishedStorePage(
+  repository: ReturnType<typeof createSupabaseRepository>,
+  storeId: string,
+) {
+  return storeId ? isExplicitlyPublished(await repository.getStorePublicPage(storeId)) : false;
 }
 
 function normalizeInteger(value: unknown, fallback = 0) {
@@ -883,9 +896,13 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     return null;
   }
   const storeId = getStoreRecordId(store);
+  // Resolve publication before service-role reads of operational data.
+  const page = await repository.getStorePublicPage(storeId);
+  if (!isExplicitlyPublished(page)) {
+    return null;
+  }
 
   const [
-    page,
     features,
     locations,
     media,
@@ -899,7 +916,6 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
     orders,
     orderItems,
   ] = await Promise.all([
-    repository.getStorePublicPage(storeId),
     selectOptionalList<StoreFeature>(client, 'store_features', storeId),
     selectOptionalList<StoreLocation>(client, 'store_locations', storeId),
     selectOptionalList<StoreMedia>(client, 'store_media', storeId, { column: 'sort_order', ascending: true }),
@@ -996,9 +1012,35 @@ async function buildPublicStoreSnapshot(input: { slug?: string; storeId?: string
   const surveySummary = buildSurveySummary(activeSurvey, surveyResponses);
   const inquirySummary = buildPublicInquirySummary(inquiries as Inquiry[]);
   const experience = buildPublicExperience(publicStoreRecord, sortNotices(canonicalPage.notices));
+  // Do not serialize the internal Store/brand_config or admin and billing
+  // fields into a public API response. Contact fields come from the page.
+  const publicStoreView = {
+    id: publicStoreRecord.id,
+    store_id: publicStoreRecord.store_id,
+    slug: publicStoreRecord.slug,
+    name: publicStoreRecord.name,
+    logo_url: publicStoreRecord.logo_url,
+    brand_color: publicStoreRecord.brand_color,
+    tagline: publicStoreRecord.tagline,
+    description: publicStoreRecord.description,
+    business_type: publicStoreRecord.business_type,
+    phone: publicStoreRecord.phone,
+    email: publicStoreRecord.email,
+    address: publicStoreRecord.address,
+    public_status: publicStoreRecord.public_status,
+    homepage_visible: publicStoreRecord.homepage_visible,
+    consultation_enabled: publicStoreRecord.consultation_enabled,
+    inquiry_enabled: publicStoreRecord.inquiry_enabled,
+    reservation_enabled: publicStoreRecord.reservation_enabled,
+    order_entry_enabled: publicStoreRecord.order_entry_enabled,
+    primary_cta_label: publicStoreRecord.primary_cta_label,
+    mobile_cta_label: publicStoreRecord.mobile_cta_label,
+    preview_target: publicStoreRecord.preview_target,
+    theme_preset: publicStoreRecord.theme_preset,
+  };
 
   return {
-    store: publicStoreRecord,
+    store: publicStoreView,
     publicPageId: canonicalPage.id,
     menu: {
       categories: repairedMenu.categories,
@@ -1059,6 +1101,9 @@ export async function handlePublicInquiryFormRequest(request: PublicApiRequestLi
     }
 
     const repository = createSupabaseRepository(getSupabaseAdminClient());
+    if (!await hasPublishedStorePage(repository, storeId)) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
     const snapshot = await getPublicInquiryFormSnapshot(storeId, { repository });
     if (!snapshot) {
       return createPublicApiErrorResponse(new Error('Inquiry form could not be found for this store.'), 404);
@@ -1080,6 +1125,9 @@ export async function handlePublicConsultationFormRequest(request: PublicApiRequ
     }
 
     const repository = createSupabaseRepository(getSupabaseAdminClient());
+    if (!await hasPublishedStorePage(repository, storeId)) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
     const snapshot = await getPublicConsultationSnapshot(storeId, { repository });
     return responseJson({ ok: true, data: snapshot });
   } catch (error) {
@@ -1091,6 +1139,9 @@ export async function handlePublicVisitorSessionRequest(request: PublicApiReques
   try {
     const repository = createSupabaseRepository(getSupabaseAdminClient());
     const body = await parseJsonBody<Parameters<typeof touchVisitorSession>[0]>(request);
+    if (!await hasPublishedStorePage(repository, body.storeId)) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
     const session = await touchVisitorSession(body, { repository });
     return responseJson({ ok: true, data: session });
   } catch (error) {
@@ -1102,6 +1153,9 @@ export async function handlePublicInquiryRequest(request: PublicApiRequestLike) 
   try {
     const repository = createSupabaseRepository(getSupabaseAdminClient());
     const body = await parseJsonBody<Parameters<typeof submitCanonicalPublicInquiry>[0]>(request);
+    if (!await hasPublishedStorePage(repository, body.storeId)) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
     const result = await submitCanonicalPublicInquiry(body, { repository });
     return responseJson({ ok: true, data: result });
   } catch (error) {
@@ -1113,6 +1167,9 @@ export async function handlePublicConsultationRequest(request: PublicApiRequestL
   try {
     const repository = createSupabaseRepository(getSupabaseAdminClient());
     const body = await parseJsonBody<Parameters<typeof submitPublicConsultationMessage>[0]>(request);
+    if (!await hasPublishedStorePage(repository, body.storeId)) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
     const result = await submitPublicConsultationMessage(body, { repository });
     return responseJson({ ok: true, data: result });
   } catch (error) {
@@ -1138,7 +1195,7 @@ export async function handlePublicReservationRequest(request: PublicApiRequestLi
     }
 
     const publicPage = await getCanonicalStorePublicPage(body.storeId, { repository });
-    if (!publicPage) {
+    if (!isExplicitlyPublished(publicPage)) {
       return createPublicApiErrorResponse(new Error('Reservation is not available for this store.'), 404);
     }
 
@@ -1190,7 +1247,7 @@ export async function handlePublicWaitingRequest(request: PublicApiRequestLike) 
     }
 
     const publicPage = await getCanonicalStorePublicPage(body.storeId, { repository });
-    if (!publicPage) {
+    if (!isExplicitlyPublished(publicPage)) {
       return createPublicApiErrorResponse(new Error('Waiting is not available for this store.'), 404);
     }
 
@@ -1515,6 +1572,9 @@ export async function handlePublicOrderCustomerRequest(request: PublicApiRequest
 
     const adminClient = getSupabaseAdminClient();
     const repository = createSupabaseRepository(adminClient);
+    if (!await hasPublishedStorePage(repository, storeId)) {
+      return createPublicApiErrorResponse(new Error('Public store could not be found.'), 404);
+    }
     const orderState = await loadPublicOrderState(adminClient, storeId, orderId);
 
     if (!orderState) {

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../../src/server/supabaseAdmin.js';
 import { isReservedSlug } from '../../src/shared/lib/storeSlug.js';
@@ -37,7 +37,7 @@ type RequestLike =
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
   });
 }
 
@@ -62,6 +62,31 @@ function provisioningHash(body: ProvisionRequestBody) {
     body.requested_slug || body.business_name, 'free', null,
   ];
   return createHash('sha256').update(JSON.stringify(fields)).digest('hex');
+}
+
+function equalSha256(left: string, right: string) {
+  if (!/^[0-9a-f]{64}$/.test(left) || !/^[0-9a-f]{64}$/.test(right)) return false;
+  return timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
+}
+
+function releaseDecision(actorId: string, requestKey: string, payloadHash: string): 'ALLOW' | 'HOLD' | 'DENY' {
+  if (process.env.MYBIZ_PROVISIONING_MODE !== 'CANARY') return 'HOLD';
+  const configuredActor = process.env.MYBIZ_PROVISIONING_CANARY_AUTH_USER_ID;
+  const configuredKeyHash = process.env.MYBIZ_PROVISIONING_CANARY_REQUEST_KEY_SHA256;
+  const configuredPayloadHash = process.env.MYBIZ_PROVISIONING_CANARY_PAYLOAD_SHA256;
+  const expiresAt = process.env.MYBIZ_PROVISIONING_CANARY_EXPIRES_AT;
+  if (!configuredActor || !/^[0-9a-f-]{36}$/i.test(configuredActor)
+    || !configuredKeyHash || !/^[0-9a-f]{64}$/.test(configuredKeyHash)
+    || !configuredPayloadHash || !/^[0-9a-f]{64}$/.test(configuredPayloadHash)
+    || !expiresAt || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(expiresAt)
+    || !Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now()) {
+    return 'HOLD';
+  }
+  const requestKeyHash = createHash('sha256').update(requestKey).digest('hex');
+  return actorId.toLowerCase() === configuredActor.toLowerCase()
+    && equalSha256(requestKeyHash, configuredKeyHash)
+    && equalSha256(payloadHash, configuredPayloadHash)
+    ? 'ALLOW' : 'DENY';
 }
 
 async function readJsonBody(request: RequestLike) {
@@ -194,10 +219,19 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       await sendNodeResponse(result, response);
       return result;
     }
+    const requestHash = provisioningHash(normalizedBody);
+    const decision = releaseDecision(authData.user.id, requestKey, requestHash);
+    if (decision !== 'ALLOW') {
+      result = decision === 'HOLD'
+        ? json({ ok: false, code: 'PROVISIONING_HOLD', error: 'Store provisioning is temporarily unavailable.' }, 503)
+        : json({ ok: false, code: 'PROVISIONING_CANARY_DENIED', error: 'Store provisioning is unavailable for this request.' }, 403);
+      await sendNodeResponse(result, response);
+      return result;
+    }
     const { data, error } = await adminClient.rpc('provision_store_from_verified_actor', {
       p_auth_user_id: authData.user.id,
       p_request_key: requestKey,
-      p_request_hash: provisioningHash(normalizedBody),
+      p_request_hash: requestHash,
       p_store_name: normalizedBody.business_name,
       p_owner_name: normalizedBody.owner_name,
       p_business_number: normalizedBody.business_number,

@@ -30,5 +30,16 @@ begin
   if not (select relrowsecurity from pg_class where oid = 'private.store_provisioning_receipts'::regclass) then
     raise exception 'R3_RECEIPT_RLS_DISABLED';
   end if;
+  if (select count(*) from private.store_provisioning_release_control) <> 1
+    or (select mode from private.store_provisioning_release_control where singleton=true) <> 'HOLD'
+    or not (select relrowsecurity from pg_class where oid = 'private.store_provisioning_release_control'::regclass)
+    or has_table_privilege('anon', 'private.store_provisioning_release_control', 'SELECT,INSERT,UPDATE,DELETE')
+    or has_table_privilege('authenticated', 'private.store_provisioning_release_control', 'SELECT,INSERT,UPDATE,DELETE') then
+    raise exception 'R4_RELEASE_CONTROL_BASELINE_FAILED';
+  end if;
+  if not exists (select 1 from pg_trigger where tgrelid='public.store_public_pages'::regclass
+    and tgname='store_public_pages_provisioning_hold' and not tgisinternal) then
+    raise exception 'R4_PRIVATE_PAGE_TRIGGER_MISSING';
+  end if;
 end;
 $assert$;

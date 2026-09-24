@@ -474,13 +474,19 @@ export function OnboardingPage() {
     },
     onError: (error) => {
       const detail = error instanceof Error ? error.message : '';
+      const provisioningHeld = detail === 'PROVISIONING_HOLD';
       const category = detail.startsWith('PROVISION_POST_RPC_') ? detail
         : detail.includes('Failed to save store public page') ? 'PUBLIC_PAGE_WRITE'
           : detail.includes('Failed to verify') || detail.includes('스토어 생성 후') ? 'POST_RPC_VERIFY'
             : detail.includes('Failed to load') ? 'REPOSITORY_READ' : 'OTHER';
       console.error('[onboarding] activation failed', { category });
       setFlow((current) => ({ ...current, activationStatus: 'idle', paymentStatus: 'failed', step: 'payment' }));
-      setMessage({ tone: 'error', text: '스토어 생성에 실패했습니다. 요청은 유지되며, 잠시 후 다시 시도할 수 있습니다.' });
+      setMessage({
+        tone: 'error',
+        text: provisioningHeld
+          ? '현재 업체 생성은 보류 중입니다. 작성한 신청 내용은 유지됩니다.'
+          : '스토어 생성에 실패했습니다. 요청은 유지되며, 잠시 후 다시 시도할 수 있습니다.',
+      });
     },
   });
 

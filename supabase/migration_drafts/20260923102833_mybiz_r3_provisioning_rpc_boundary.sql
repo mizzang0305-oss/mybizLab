@@ -9,10 +9,13 @@ begin
     or to_regclass('public.store_subscriptions') is null
     or to_regclass('public.store_analytics_profiles') is null
     or to_regclass('public.store_home_content') is null
-    or to_regclass('public.store_priority_settings') is null then
+    or to_regclass('public.store_priority_settings') is null
+    or to_regclass('public.store_public_pages') is null then
     raise exception 'R3_PROVISIONING_BASELINE_MISSING';
   end if;
   if to_regclass('private.store_provisioning_receipts') is not null
+    or to_regclass('private.store_provisioning_release_control') is not null
+    or to_regprocedure('private.keep_provisioned_store_private()') is not null
     or to_regprocedure('public.provision_store_from_verified_actor(uuid,text,text,text,text,text,text,text,text,text,text,text,text,numeric,text)') is not null then
     raise exception 'R3_PROVISIONING_OBJECT_COLLISION';
   end if;
@@ -52,6 +55,63 @@ create unique index store_provisioning_receipts_payment_id_unique
 alter table private.store_provisioning_receipts enable row level security;
 revoke all on private.store_provisioning_receipts from public, anon, authenticated, service_role;
 
+-- The single private control row is HOLD by default. Only a separate,
+-- approved operation may set a bounded synthetic CANARY. The RPC locks this
+-- row before any actor, receipt or store lock so older deployed app versions
+-- cannot bypass a server-only environment gate.
+create table private.store_provisioning_release_control (
+  singleton boolean primary key default true check (singleton),
+  mode text not null check (mode in ('HOLD', 'CANARY')),
+  actor_auth_user_id uuid references auth.users(id),
+  request_key_sha256 text,
+  payload_sha256 text,
+  expires_at timestamptz,
+  updated_at timestamptz not null default now(),
+  check (
+    (mode = 'HOLD' and actor_auth_user_id is null and request_key_sha256 is null
+      and payload_sha256 is null and expires_at is null)
+    or
+    (mode = 'CANARY' and actor_auth_user_id is not null
+      and request_key_sha256 ~ '^[0-9a-f]{64}$'
+      and payload_sha256 ~ '^[0-9a-f]{64}$' and expires_at is not null)
+  )
+);
+insert into private.store_provisioning_release_control(singleton,mode) values (true,'HOLD');
+alter table private.store_provisioning_release_control enable row level security;
+revoke all on private.store_provisioning_release_control from public, anon, authenticated, service_role;
+
+-- A member's existing public-page UPDATE policy must not publish a newly
+-- provisioned canary. Existing stores without an R3 receipt are unchanged.
+create function private.keep_provisioned_store_private()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $private_page$
+begin
+  if tg_op = 'DELETE' then
+    if exists (select 1 from private.store_provisioning_receipts r where r.store_id = old.store_id) then
+      raise exception 'PROVISIONED_STORE_PAGE_HOLD' using errcode = '42501';
+    end if;
+    return old;
+  end if;
+  if tg_op = 'UPDATE' and old.store_id is distinct from new.store_id
+    and exists (select 1 from private.store_provisioning_receipts r where r.store_id = old.store_id) then
+    raise exception 'PROVISIONED_STORE_PAGE_HOLD' using errcode = '42501';
+  end if;
+  if new.is_published and exists (
+    select 1 from private.store_provisioning_receipts r where r.store_id = new.store_id
+  ) then
+    raise exception 'PROVISIONED_STORE_PUBLICATION_HOLD' using errcode = '42501';
+  end if;
+  return new;
+end;
+$private_page$;
+revoke all on function private.keep_provisioned_store_private() from public, anon, authenticated, service_role;
+create trigger store_public_pages_provisioning_hold
+before insert or update or delete on public.store_public_pages
+for each row execute function private.keep_provisioned_store_private();
+
 -- This public-schema wrapper is exposed by PostgREST, but only service_role
 -- receives EXECUTE. The actor argument is trustworthy only after the server
 -- verifies a bearer token with Supabase Auth. SECURITY DEFINER is not itself
@@ -87,6 +147,7 @@ declare
   v_identity_active boolean;
   v_active_bindings uuid[];
   v_binding_rows bigint;
+  v_control private.store_provisioning_release_control%rowtype;
 begin
   if p_auth_user_id is null
     or p_request_key is null or length(p_request_key) not between 1 and 128
@@ -103,6 +164,20 @@ begin
   end if;
   if p_payment_id is not null or p_payment_amount is not null or p_payment_currency is not null then
     raise exception 'PAID_PROVISIONING_HOLD' using errcode = '42501';
+  end if;
+  -- First lock in every provisioning transaction. HOLD also prevents a
+  -- previous Preview or server instance with old environment from writing.
+  select c.* into v_control
+  from private.store_provisioning_release_control c
+  where c.singleton = true
+  for update;
+  if not found or v_control.mode <> 'CANARY'
+    or v_control.expires_at <= pg_catalog.now()
+    or v_control.actor_auth_user_id is distinct from p_auth_user_id
+    or v_control.request_key_sha256 is distinct from
+      pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p_request_key, 'UTF8')), 'hex')
+    or v_control.payload_sha256 is distinct from p_request_hash then
+    raise exception 'PROVISIONING_HOLD' using errcode = '42501';
   end if;
   -- Lock before checking is_active. A revocation committed while this call
   -- waits for the actor lock must not be missed.
@@ -209,7 +284,14 @@ begin
     (store_id, hero_title, hero_subtitle, notice_text, contact_enabled,
      consultation_enabled, reservation_enabled, layout_mode)
   values (v_store_id::text, trim(p_store_name), trim(p_business_type) || ' 운영 준비 중',
-    '기본 홈 콘텐츠가 준비되었습니다.', true, true, true, 'default');
+    '기본 홈 콘텐츠가 준비되었습니다.', false, false, false, 'default');
+  -- Establish the canonical nonpublic page in the same transaction as the
+  -- store. Browser continuation may fill copy but may not publish it.
+  insert into public.store_public_pages
+    (id, store_id, page_title, hero_title, hero_subtitle,
+     inquiry_enabled, reservation_enabled, waiting_enabled, is_published)
+  values (v_store_id, v_store_id, trim(p_store_name), trim(p_store_name),
+    '운영 준비 중', false, false, false, false);
   update private.store_provisioning_receipts r
   set store_id = v_store_id
   where r.actor_auth_user_id = p_auth_user_id and r.request_key = p_request_key;

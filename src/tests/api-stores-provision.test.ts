@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 
 const { adminClient, getUser, rpc } = vi.hoisted(() => {
   const getUser = vi.fn();
@@ -20,6 +21,21 @@ const base = {
   requested_slug: 'synthetic-studio',
 };
 
+function sha256(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function enableSyntheticCanary() {
+  process.env.MYBIZ_PROVISIONING_MODE = 'CANARY';
+  process.env.MYBIZ_PROVISIONING_CANARY_AUTH_USER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  process.env.MYBIZ_PROVISIONING_CANARY_REQUEST_KEY_SHA256 = sha256(base.request_id);
+  process.env.MYBIZ_PROVISIONING_CANARY_PAYLOAD_SHA256 = sha256(JSON.stringify([
+    base.business_name, base.owner_name, base.business_number, base.phone,
+    base.email, base.address, base.business_type, base.requested_slug, 'free', null,
+  ]));
+  process.env.MYBIZ_PROVISIONING_CANARY_EXPIRES_AT = new Date(Date.now() + 60_000).toISOString();
+}
+
 function post(body: object, token = 'local-jwt') {
   return provisionHandler(new Request('https://example.test/api/stores/provision', {
     method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -29,8 +45,32 @@ function post(body: object, token = 'local-jwt') {
 
 describe('restricted FREE provisioning API', () => {
   beforeEach(() => {
+    enableSyntheticCanary();
     getUser.mockReset().mockResolvedValue({ data: { user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } }, error: null });
     rpc.mockReset().mockResolvedValue({ data: { store_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', slug: 'synthetic-studio' }, error: null });
+  });
+
+  it('defaults to HOLD with no release configuration and never calls the RPC', async () => {
+    delete process.env.MYBIZ_PROVISIONING_MODE;
+    const response = await post(base);
+    expect(response.status).toBe(503);
+    expect((await response.json()).code).toBe('PROVISIONING_HOLD');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('denies invalid, expired, wrong-actor, wrong-key and wrong-payload canary settings', async () => {
+    process.env.MYBIZ_PROVISIONING_MODE = 'OPEN';
+    expect((await post(base)).status).toBe(503);
+    enableSyntheticCanary();
+    process.env.MYBIZ_PROVISIONING_CANARY_EXPIRES_AT = new Date(Date.now() - 1000).toISOString();
+    expect((await post(base)).status).toBe(503);
+    enableSyntheticCanary();
+    process.env.MYBIZ_PROVISIONING_CANARY_AUTH_USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    expect((await post(base)).status).toBe(403);
+    enableSyntheticCanary();
+    expect((await post({ ...base, request_id: 'different-key' })).status).toBe(403);
+    expect((await post({ ...base, business_name: 'Different' })).status).toBe(403);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('denies missing and invalid sessions before calling the RPC', async () => {

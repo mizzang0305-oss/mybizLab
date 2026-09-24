@@ -94,21 +94,13 @@ CREATE TABLE public.payment_events (
 CREATE TABLE public.store_public_pages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   store_id uuid NOT NULL UNIQUE REFERENCES public.stores(store_id),
-  slug text NOT NULL, brand_name text NOT NULL, logo_url text,
-  brand_color text NOT NULL DEFAULT '#ec5b13', tagline text NOT NULL DEFAULT '',
-  description text NOT NULL DEFAULT '', business_type text, phone text NOT NULL DEFAULT '',
-  email text NOT NULL DEFAULT '', address text NOT NULL DEFAULT '', directions text NOT NULL DEFAULT '',
-  opening_hours text, parking_note text, public_status text NOT NULL DEFAULT 'public',
-  homepage_visible boolean NOT NULL DEFAULT true, consultation_enabled boolean NOT NULL DEFAULT true,
-  inquiry_enabled boolean NOT NULL DEFAULT false, reservation_enabled boolean NOT NULL DEFAULT false,
-  order_entry_enabled boolean NOT NULL DEFAULT false, theme_preset text, preview_target text,
-  hero_title text NOT NULL DEFAULT '', hero_subtitle text NOT NULL DEFAULT '',
-  hero_description text NOT NULL DEFAULT '', primary_cta_label text, mobile_cta_label text,
-  cta_config jsonb NOT NULL DEFAULT '{}'::jsonb,
-  content_blocks jsonb NOT NULL DEFAULT '[]'::jsonb,
-  seo_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  media jsonb NOT NULL DEFAULT '[]'::jsonb,
-  notices jsonb NOT NULL DEFAULT '[]'::jsonb,
+  page_title text, hero_title text, hero_subtitle text, intro_text text,
+  cta_primary_label text, cta_primary_target text,
+  inquiry_enabled boolean NOT NULL DEFAULT true,
+  reservation_enabled boolean NOT NULL DEFAULT false,
+  waiting_enabled boolean NOT NULL DEFAULT false,
+  is_published boolean NOT NULL DEFAULT false,
+  seo_title text, seo_description text,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE public.visitor_sessions (

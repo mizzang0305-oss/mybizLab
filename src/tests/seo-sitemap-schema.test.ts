@@ -11,6 +11,7 @@ import {
   sanitizeSeoText,
 } from '@/shared/lib/seo';
 import { createReviewRequestLink } from '@/shared/lib/services/contentEngineService';
+import { buildGlobalSitemapXml } from '../server/seoRoutes';
 
 const BASE_URL = 'https://mybiz.ai.kr';
 
@@ -142,6 +143,52 @@ describe('SEO sitemap, robots, and schema safety', () => {
     expect(xml).not.toContain('?r=');
     expect(xml).not.toContain('/admin');
     expect(xml).not.toContain('/dashboard');
+  });
+
+  it('indexes only explicitly published rows from the current Production page shape', async () => {
+    const client = {
+      from(table: string) {
+        return {
+          select(columns: string) {
+            const result = table === 'store_public_pages' && columns.includes('homepage_visible')
+              ? { data: null, error: { message: 'column homepage_visible does not exist' } }
+              : table === 'store_public_pages'
+                ? { data: [
+                  { store_id: 'public-id', page_title: 'Public', is_published: true },
+                ], error: null }
+                : table === 'stores'
+                  ? { data: [{ store_id: 'public-id', slug: 'published-store', name: 'Public' }], error: null }
+                  : { data: [], error: null };
+            const query = {
+              eq: () => query,
+              in: () => query,
+              order: () => query,
+              then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
+            };
+            return query;
+          },
+        };
+      },
+    };
+    const xml = await buildGlobalSitemapXml({ client: client as never });
+    expect(xml).toContain('/published-store');
+    expect(xml).not.toContain('/golden-coffee');
+  });
+
+  it('does not fall back to demo store URLs when the live page query fails', async () => {
+    const client = {
+      from: () => ({ select: () => {
+        const query = {
+          eq: () => query,
+          then: (resolve: (value: { data: null; error: { message: string } }) => unknown) =>
+            Promise.resolve({ data: null, error: { message: 'unavailable' } }).then(resolve),
+        };
+        return query;
+      } }),
+    };
+    const xml = await buildGlobalSitemapXml({ client: client as never });
+    expect(xml).toContain('https://mybiz.ai.kr/');
+    expect(xml).not.toContain('/golden-coffee');
   });
 
   it('serves robots.txt with crawl boundaries and a production sitemap URL', async () => {
