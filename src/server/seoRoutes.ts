@@ -235,7 +235,7 @@ async function loadSupabaseSeoSnapshot(client: SupabaseClient): Promise<SeoSnaps
   };
 }
 
-export async function loadSeoSnapshot(options?: { client?: SupabaseClient }) {
+export async function loadSeoSnapshot(options?: { client?: SupabaseClient; demo?: boolean }) {
   if (options?.client) {
     try {
       return await loadSupabaseSeoSnapshot(options.client);
@@ -245,12 +245,13 @@ export async function loadSeoSnapshot(options?: { client?: SupabaseClient }) {
     }
   }
 
-  return loadDemoSeoSnapshot();
+  // The live API must never index demo stores when its admin client is absent.
+  return options?.demo ? loadDemoSeoSnapshot() : emptySnapshot();
 }
 
-export async function buildGlobalSitemapXml(options?: { baseUrl?: string; client?: SupabaseClient }) {
+export async function buildGlobalSitemapXml(options?: { baseUrl?: string; client?: SupabaseClient; demo?: boolean }) {
   const baseUrl = resolvePublicBaseUrl(options?.baseUrl);
-  const snapshot = await loadSeoSnapshot({ client: options?.client });
+  const snapshot = await loadSeoSnapshot({ client: options?.client, demo: options?.demo });
   const entries = [
     ...buildStaticSitemapEntries(baseUrl),
     ...snapshot.stores.flatMap((store) =>
@@ -268,10 +269,10 @@ export async function buildGlobalSitemapXml(options?: { baseUrl?: string; client
 
 export async function buildStoreSitemapXml(
   storeSlug: string,
-  options?: { baseUrl?: string; client?: SupabaseClient },
+  options?: { baseUrl?: string; client?: SupabaseClient; demo?: boolean },
 ) {
   const baseUrl = resolvePublicBaseUrl(options?.baseUrl);
-  const snapshot = await loadSeoSnapshot({ client: options?.client });
+  const snapshot = await loadSeoSnapshot({ client: options?.client, demo: options?.demo });
   const store = snapshot.stores.find((candidate) => candidate.slug === sanitizeSeoText(storeSlug, '', 120));
 
   if (!store) {

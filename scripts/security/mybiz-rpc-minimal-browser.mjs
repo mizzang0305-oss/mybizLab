@@ -143,10 +143,12 @@ try {
     throw new Error('BROWSER_HOLD_CREATED_RECEIPT');
   }
   console.log('BROWSER_DEFAULT_HOLD=PASS');
-  const normalized = [attemptedBody.business_name.trim(), attemptedBody.owner_name.trim(),
-    attemptedBody.business_number.trim(), attemptedBody.phone.trim(),
-    attemptedBody.email.trim().toLowerCase(), attemptedBody.address.trim(),
-    attemptedBody.business_type.trim(), attemptedBody.requested_slug.trim(), 'free', null];
+  const normalizedName = String(attemptedBody.business_name || '').trim();
+  const normalized = [normalizedName, String(attemptedBody.owner_name || '').trim(),
+    String(attemptedBody.business_number || '').trim() || `BIZ-${attemptedBody.request_id}`,
+    String(attemptedBody.phone || '').trim(), String(attemptedBody.email || '').trim().toLowerCase(),
+    String(attemptedBody.address || '').trim(), String(attemptedBody.business_type || '').trim() || '기타',
+    String(attemptedBody.requested_slug || '').trim() || normalizedName, 'free', null];
   const requestKeyHash = hash(attemptedBody.request_id);
   const payloadHash = hash(JSON.stringify(normalized));
   const expiresAt = new Date(Date.now() + 60_000).toISOString();

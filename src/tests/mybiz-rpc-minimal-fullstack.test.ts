@@ -222,7 +222,9 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     expect(Number(sql(`select count(*) from public.store_public_pages where store_id='${storeId}'
       and is_published=false and inquiry_enabled=false and reservation_enabled=false`))).toBe(1);
     expect(() => sql(`update public.store_public_pages set is_published=true where store_id='${storeId}'`)).toThrow();
-    expect((await appPost({ ...body, business_name: 'Changed' }, user.token)).status).toBe(409);
+    // The server rejects a non-allowlisted canary payload before calling the RPC.
+    expect((await appPost({ ...body, business_name: 'Changed' }, user.token)).status).toBe(403);
+    expect(Number(sql(`select count(*) from private.store_provisioning_receipts where actor_auth_user_id='${user.id}'`))).toBe(1);
   });
 
   it.runIf(phase === 'new')('holds paid, nonexact, unbound and revoked identities without new rows', async () => {
