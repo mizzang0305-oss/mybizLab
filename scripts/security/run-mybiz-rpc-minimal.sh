@@ -78,9 +78,11 @@ for run in 1 2; do
   echo "OLD_APP_OLD_DB_${run}=BYPASS_REPRODUCED"
   echo "NEW_APP_OLD_DB_${run}=HOLD"
 
-  # Apply only the restricted RPC draft; the 15-table RLS candidate is absent.
+  # Apply only the restricted RPC draft and the narrow R5 two-table migration.
+  # The 15-table RLS candidate is absent from this disposable stack.
   sql_file supabase/migration_drafts/20260923102833_mybiz_r3_provisioning_rpc_boundary.sql
   sql_file supabase/tests/mybiz_r3_rpc_acl_assertions.sql
+  sql_file supabase/migration_drafts/20260924070556_mybiz_provisioning_raw_data_privacy.sql
   refresh_schema new
   test_phase new
   echo "OLD_APP_NEW_DB_${run}=DENIED"
@@ -88,7 +90,7 @@ for run in 1 2; do
   (cd "$repo_root" && node scripts/security/mybiz-rpc-minimal-browser.mjs)
   echo "REAL_BROWSER_FREE_FLOW_${run}=PASS"
 
-  # R5 RED gate: exercise real local Auth/PostgREST before privacy SQL exists.
+  # Real local Auth JWTs and PostgREST prove GRANT and row policy behavior.
   (cd "$repo_root" && LOCAL_R5_PRIVACY=1 npx vitest run src/tests/mybiz-r5-raw-api-fullstack.test.ts --reporter=dot)
 
   # Containment rollback never restores the unsafe old EXECUTE privilege.
@@ -103,6 +105,17 @@ for run in 1 2; do
     "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='provision_store_from_verified_actor'" \
     | grep -qx '0'
   echo "SAFE_DB_ONLY_ROLLBACK_${run}=PASS_OLD_BYPASS_CLOSED"
+
+  # Incident-only rollback rehearsal: restore the exact two-table prestate,
+  # without re-enabling the unsafe old provisioning RPC or deleting rows.
+  sql_file supabase/migration_drafts/20260924070556_mybiz_provisioning_raw_data_privacy_rollback.sql
+  psql "$local_db_url" -X -v ON_ERROR_STOP=1 -Atc \
+    "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('store_home_content','store_priority_settings') and c.relrowsecurity=false and c.relforcerowsecurity=false and has_table_privilege('anon',c.oid,'SELECT,INSERT,UPDATE,DELETE') and has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') and has_table_privilege('service_role',c.oid,'SELECT,INSERT,UPDATE,DELETE')" \
+    | grep -qx '2'
+  psql "$local_db_url" -X -v ON_ERROR_STOP=1 -Atc \
+    "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='create_store_with_owner' and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE'))" \
+    | grep -qx '0'
+  echo "TWO_TABLE_INCIDENT_ROLLBACK_${run}=PASS_OLD_RPC_STILL_BLOCKED"
   supabase stop --no-backup >/dev/null
   test ! -e supabase/.temp/project-ref
 done

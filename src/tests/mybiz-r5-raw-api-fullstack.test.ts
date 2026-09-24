@@ -78,6 +78,28 @@ describe.runIf(Boolean(statusFile) && process.env.LOCAL_R5_PRIVACY === '1')('R5 
       insert into public.store_priority_settings(store_id) values ('${otherStore}');`);
   });
 
+  it('has exactly the two intended RLS/ACL surfaces and protected helper', () => {
+    const posture = sql(`select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='public' and c.relname in ('store_home_content','store_priority_settings')
+        and c.relrowsecurity and not c.relforcerowsecurity`);
+    expect(posture).toBe('2');
+    const noBrowserHome = sql(`select not has_table_privilege('anon','public.store_home_content','SELECT')
+      and not has_table_privilege('authenticated','public.store_home_content','SELECT')
+      and has_table_privilege('service_role','public.store_home_content','SELECT')`);
+    expect(noBrowserHome).toBe('t');
+    const priorityGrants = sql(`select not has_table_privilege('anon','public.store_priority_settings','SELECT')
+      and has_table_privilege('authenticated','public.store_priority_settings','SELECT')
+      and has_table_privilege('authenticated','public.store_priority_settings','INSERT')
+      and has_table_privilege('authenticated','public.store_priority_settings','UPDATE')
+      and not has_table_privilege('authenticated','public.store_priority_settings','DELETE')`);
+    expect(priorityGrants).toBe('t');
+    const helperAcl = sql(`select not has_function_privilege('anon','private.is_legacy_text_store_member(text)','EXECUTE')
+      and has_function_privilege('authenticated','private.is_legacy_text_store_member(text)','EXECUTE')`);
+    expect(helperAcl).toBe('t');
+    expect(sql(`select count(*) from pg_policies where schemaname='public'
+      and tablename='store_priority_settings' and cmd in ('SELECT','INSERT','UPDATE')`)).toBe('3');
+  });
+
   it('denies raw home content to anon and authenticated while preserving service read', async () => {
     for (const token of [anonKey, memberToken]) {
       for (const method of ['GET', 'POST', 'PATCH', 'DELETE'] as const) {
