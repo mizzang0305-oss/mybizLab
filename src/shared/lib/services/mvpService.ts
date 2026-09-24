@@ -497,7 +497,7 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
 
   const store = mapLiveStoreToAppStore(
     storeResult.data as LiveStoreRow,
-    getDatabase().stores.find((item) => item.id === storeId) || null,
+    canUseDemoDatabaseCache() ? getDatabase().stores.find((item) => item.id === storeId) || null : null,
   );
 
   return {
