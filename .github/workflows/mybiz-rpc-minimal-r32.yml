@@ -5,6 +5,7 @@ on:
     branches:
       - codex/mybiz-rpc-minimal-release-r32
       - codex/mybiz-minimal-free-release-r4
+      - codex/mybiz-release-closure-r1
   workflow_dispatch:
 
 permissions:
@@ -19,6 +20,13 @@ jobs:
       SUPABASE_DB_PASSWORD: ''
     steps:
       - uses: actions/checkout@v4
+      - name: Verify exact R1 checkout and credentialless boundary
+        if: github.ref_name == 'codex/mybiz-release-closure-r1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "${SUPABASE_ACCESS_TOKEN:-}"
+          test -z "${SUPABASE_DB_PASSWORD:-}"
+          echo "CHECKOUT_HEAD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

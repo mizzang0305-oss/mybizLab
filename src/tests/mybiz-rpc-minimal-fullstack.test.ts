@@ -7,11 +7,12 @@ import type { AddressInfo } from 'node:net';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import provisionHandler from '../../api/stores/provision';
+import authSessionHandler from '../../api/auth/session';
 import { resetSupabaseAdminClientForTests } from '../server/supabaseAdmin';
 
 const statusFile = process.env.LOCAL_SUPABASE_STATUS_FILE;
 const phase = process.env.LOCAL_RPC_PHASE;
-type Identity = { id: string; token: string };
+type Identity = { id: string; profileId: string; token: string };
 
 describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('minimal RPC release on isolated Auth/PostgREST', () => {
   let server: Server;
@@ -48,7 +49,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
         values ('${publicId}','${id}','${binding === 'nonexact' ? 'OWNER_VERIFIED' : 'EXACT_ID'}',
         '${binding === 'revoked' ? 'REVOKED' : 'ACTIVE'}',${binding === 'revoked' ? 'now()' : 'null'});`);
     }
-    return { id, token };
+    return { id, profileId: publicId, token };
   }
 
   function requestBody(overrides: Record<string, unknown> = {}) {
@@ -103,6 +104,22 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
 
+  async function appSession(token: string, roleHint?: string) {
+    const response = await fetch(`${baseUrl}/api/auth/session${roleHint ? `?role=${roleHint}` : ''}`, {
+      headers: { authorization: `Bearer ${token}`, ...(roleHint ? { 'x-role': roleHint } : {}) },
+    });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  }
+
+  function addStoreMembership(user: Identity, role: 'owner' | 'manager' | 'staff' = 'owner') {
+    const storeId = randomUUID();
+    sql(`insert into public.stores(store_id,name,slug,plan,brand_config)
+      values ('${storeId}','Synthetic access','access-${storeId}','free','{}');
+      insert into public.store_members(store_id,profile_id,role)
+      values ('${storeId}','${user.profileId}','${role}');`);
+    return storeId;
+  }
+
   async function directRpc(rpc: string, body: object, token: string, key = anonKey) {
     const response = await fetch(`${apiUrl}/rest/v1/rpc/${rpc}`, {
       method: 'POST', headers: { apikey: key, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
@@ -139,10 +156,13 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     server = createServer(async (incoming, outgoing) => {
       const chunks: Buffer[] = [];
       for await (const chunk of incoming) chunks.push(Buffer.from(chunk));
-      const response = await provisionHandler(new Request(`http://127.0.0.1${incoming.url || '/'}`, {
+      const request = new Request(`http://127.0.0.1${incoming.url || '/'}`, {
         method: incoming.method, headers: incoming.headers as HeadersInit,
         body: chunks.length ? Buffer.concat(chunks) : undefined,
-      }));
+      });
+      const response = incoming.url?.startsWith('/api/auth/session')
+        ? await authSessionHandler(request)
+        : await provisionHandler(request);
       outgoing.writeHead(response.status, Object.fromEntries(response.headers.entries()));
       outgoing.end(await response.text());
     });
@@ -186,6 +206,68 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
         p_auth_user_id: user.id,
       }, token));
     }
+  });
+
+  it.runIf(phase === 'new')('allows real Auth JWT with unique active nonidentical binding and membership through server session', async () => {
+    const user = await identity('nonexact');
+    const storeId = addStoreMembership(user);
+    const session = await appSession(user.token);
+    expect(session.status, JSON.stringify(session.body)).toBe(200);
+    expect(session.body).toMatchObject({ ok: true, data: { profileId: user.profileId, accessibleStoreIds: [storeId], role: 'owner' } });
+    expect([401, 403, 404]).toContain(await directRpc('resolve_verified_merchant_profile_for_server',
+      { p_auth_user_id: user.id }, user.token));
+    expect([401, 403, 404]).toContain(await directRpc('resolve_verified_merchant_profile_for_server',
+      { p_auth_user_id: user.id }, anonKey));
+  });
+
+  it.runIf(phase === 'new')('allows exact binding but denies an unbound identity even with a membership', async () => {
+    const exact = await identity();
+    const storeId = addStoreMembership(exact);
+    expect((await appSession(exact.token)).body).toMatchObject({ ok: true, data: { accessibleStoreIds: [storeId] } });
+    const unbound = await identity('none');
+    sql(`insert into public.profiles(id,full_name) values ('${unbound.id}','Synthetic unbound');`);
+    addStoreMembership(unbound);
+    expect((await appSession(unbound.token)).status).toBe(403);
+  });
+
+  it.runIf(phase === 'new')('denies revoked binding, inactive Auth identity and removed membership', async () => {
+    const revoked = await identity('revoked');
+    addStoreMembership(revoked);
+    expect((await appSession(revoked.token)).status).toBe(403);
+
+    const inactive = await identity();
+    addStoreMembership(inactive);
+    sql(`update core.profiles set is_active=false where id='${inactive.id}';`);
+    expect((await appSession(inactive.token)).status).toBe(403);
+
+    const removed = await identity();
+    const removedStore = addStoreMembership(removed);
+    sql(`delete from public.store_members where profile_id='${removed.profileId}' and store_id='${removedStore}';`);
+    expect((await appSession(removed.token)).status).toBe(403);
+  });
+
+  it.runIf(phase === 'new')('keeps another store and client-supplied owner role out of a staff session', async () => {
+    const staff = await identity('nonexact');
+    const other = await identity();
+    const ownStore = addStoreMembership(staff, 'staff');
+    const otherStore = addStoreMembership(other);
+    const session = await appSession(staff.token, 'owner');
+    expect(session.status).toBe(200);
+    expect(session.body).toMatchObject({ ok: true, data: { profileId: staff.profileId, accessibleStoreIds: [ownStore], role: 'staff' } });
+    expect(JSON.stringify(session.body)).not.toContain(otherStore);
+  });
+
+  it.runIf(phase === 'new')('rejects conflicting active bindings at the existing unique indexes', async () => {
+    const first = await identity('nonexact');
+    const second = await identity('none');
+    const anotherProfile = randomUUID();
+    sql(`insert into public.profiles(id,full_name) values ('${anotherProfile}','Synthetic conflict');`);
+    expect(() => sql(`insert into private.profile_auth_bindings(public_profile_id,auth_profile_id,binding_source,status)
+      values ('${anotherProfile}','${first.id}','OWNER_VERIFIED','ACTIVE');`)).toThrow();
+    expect(() => sql(`insert into private.profile_auth_bindings(public_profile_id,auth_profile_id,binding_source,status)
+      values ('${first.profileId}','${second.id}','OWNER_VERIFIED','ACTIVE');`)).toThrow();
+    const storeId = addStoreMembership(first);
+    expect((await appSession(first.token)).body).toMatchObject({ ok: true, data: { accessibleStoreIds: [storeId] } });
   });
 
   it.runIf(phase === 'new')('blocks service-role provisioning while DB control is HOLD', async () => {

@@ -141,7 +141,9 @@ describe('/api/merchant/order-event', () => {
     });
     state.resolveStoreAccess.mockResolvedValueOnce({
       accessibleStores: [{ id: 'store-live-001' }],
+      memberships: [{ profile_id: 'profile-live-001', store_id: 'store-live-001', role: 'owner' }],
       profile: { id: 'profile-live-001' },
+      verifiedAuthUserId: 'profile-live-001',
     });
 
     const response = await handleMerchantOrderEventRequest(
@@ -190,7 +192,9 @@ describe('/api/merchant/order-event', () => {
     });
     state.resolveStoreAccess.mockResolvedValueOnce({
       accessibleStores: [{ id: 'store-live-001' }],
+      memberships: [{ profile_id: 'profile-live-001', store_id: 'store-live-001', role: 'owner' }],
       profile: { id: 'profile-live-001' },
+      verifiedAuthUserId: 'profile-live-001',
     });
 
     const response = await handleMerchantOrderEventRequest(

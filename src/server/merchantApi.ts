@@ -147,13 +147,16 @@ async function assertMerchantStoreAccess(
   });
 
   if (
-    resolvedAccess?.profile?.id !== authData.user.id ||
-    !resolvedAccess.accessibleStores.some((store) => store.id === storeId)
+    resolvedAccess?.verifiedAuthUserId !== authData.user.id ||
+    !resolvedAccess.accessibleStores.some((store) => store.id === storeId) ||
+    !resolvedAccess.memberships.some((member) =>
+      member.profile_id === resolvedAccess.profile.id && member.store_id === storeId &&
+      ['owner', 'manager', 'staff'].includes(member.role))
   ) {
     return { error: json({ ok: false, error: 'The authenticated merchant does not have access to this store.' }, 403) };
   }
 
-  return { adminClient, profileId: resolvedAccess.profile?.id || authData.user.id };
+  return { adminClient, profileId: resolvedAccess.profile.id };
 }
 
 async function assertOrderBelongsToStore(client: SupabaseClient, storeId: string, orderId: string): Promise<boolean> {

@@ -72,3 +72,34 @@ PR #187's SQL protects only `store_home_content` and `store_priority_settings`, 
 - G05 local Node HTTP now has bounded fetch **and body** completion; test cases cover missing env, 200 read, fetch/body hangs, invalid body, upstream 500, and 405. Production `/api/health` still timed out after 8 seconds on the old SHA.
 - The R3.2 workflow uses two disposable Auth/PostgREST stacks; run `bash scripts/security/run-mybiz-rpc-minimal.sh` only on a machine with Docker, psql, Supabase CLI and `RUNNER_TEMP`, with no remote Supabase credentials. Schema+fixture recreation is not Production backup/restore. Database backups do not include Storage objects or external provider settings; prove each separately.
 - Before a Production DDL/GRANT/Auth change, obtain exact candidate DB/runtime identity, verified protected backup and isolated restore, reviewed SQL diff/hash, side-effect and safe rollback. Before a new Git push/PR or deploy, obtain the action-specific Owner authorization. PR #181's historical exact-head deploy approval does not cover this candidate. PR #148 and other projects remain untouched.
+
+### R1 restricted continuation, 2026-09-25
+
+The local candidate adds `supabase/migration_drafts/20260925115116_mybiz_auth_binding_server_resolver.sql` to the **disposable stack only** after the existing RPC draft. The service-role-only public RPC reads the existing private active one-to-one binding, active core identity and public profile. It grants no browser access to `private.profile_auth_bindings` or the resolver. No Production SQL was applied. Application resolution uses the server-verified Auth user ID, then selects the bound public profile and active store membership. `store_members` has no active flag; removal is the fixture's revocation case. A failing unit regression first reproduced a legitimate non-identical binding's 403; local targeted tests now pass. The actual JWT/API result remains NOT_RUN pending an isolated runner.
+
+Original 14 full-stack skips by test ID/title (all require `LOCAL_SUPABASE_STATUS_FILE`):
+
+| Suite | ID / title | Intended execution |
+| --- | --- | --- |
+| RPC | maps real local Auth token to authenticated in PostgREST | old and new |
+| RPC | records old app/old DB direct RPC bypass and new app/old DB HOLD | old only |
+| RPC | denies old app/new DB and direct browser access to both RPCs | new only |
+| RPC | blocks service-role provisioning while DB control is HOLD | new only |
+| RPC | serializes concurrent same-key FREE requests and replays a lost-response retry | new only |
+| RPC | holds paid, nonexact, unbound and revoked identities without new rows | new only |
+| RPC | does not issue another FREE store when a legacy subscription row is missing | new only |
+| RPC | allows only the chosen actor and preserves slug uniqueness | new only |
+| RPC | denies a provision waiting behind a binding revocation transaction | new only |
+| RPC | denies a provision waiting behind core identity deactivation | new only |
+| R5 | has exactly the two intended RLS/ACL surfaces and protected helper | R5 only |
+| R5 | denies raw home content to anon and authenticated while preserving service read | R5 only |
+| R5 | denies every anon priority operation and authenticated DELETE | R5 only |
+| R5 | allows only own-store priority SELECT, INSERT and UPDATE | R5 only |
+
+Five new RPC tests run in the `new` phase only: unique active nonidentical binding through real Auth JWT/server HTTP session; exact binding and unbound denial; revoked/inactive/removed-membership denial; cross-store and role-hint denial; conflicting active binding index rejection. Expected per disposable stack: old phase 2 execute/13 intentional skip, new phase 14 execute/1 intentional skip, R5 phase 4 execute. Without a local status file all 19 are unexecuted. The R5 suite checks only `store_home_content` and `store_priority_settings`; the other 13 G04 tables remain untested by that suite.
+
+The R1 push workflow allowlist and exact checkout assertion are local. The Vercel project's connected root is `.` and the `vercel.json` rule matches only `codex/mybiz-release-closure-r1` with `false`; no other rule can re-enable it. [Vercel documents this rule](https://vercel.com/docs/project-configuration/git-configuration), but an actual suppressed deployment cannot be observed before the first remote branch push. The Owner explicitly made pre-push block confirmation a condition. Therefore do **not** push or dispatch the RPC workflow until that condition has a sufficient independent confirmation or revised Owner direction. Main has no dispatch copy of this RPC workflow; Stage 2 success is not RPC/Auth success. If the gate clears, perform one normal push of the exact final SHA, then read back the GitHub run event, head SHA, checkout summary and Vercel deployment list. Stop on any unexpected deployment.
+
+Deployment-time Vercel metadata for `dpl_5TmFPDjCc5PP7zuRdtMhkyRgxDG5` exposes **names** `SUPABASE_URL`, `VITE_SUPABASE_URL` and `VITE_DATA_PROVIDER`, but no values in the read-only API response. This proves names were associated with that deployment, not their target/provider. Request a sanitized deployment-time `SUPABASE_URL` host/project ref plus `VITE_DATA_PROVIDER`, or an authorized read-only actual server runtime target/provider diagnostic. Do not infer from the browser bundle, current project settings, or the password-only file. G01 remains BLOCKED.
+
+Local rollback: revert the single named candidate commit after checking later work. For the unexecuted SQL draft, no DB rollback is needed. If it is separately approved and applied later, a reviewed rollback may revoke service-role EXECUTE and drop only `public.resolve_verified_merchant_profile_for_server(uuid)` after confirming no server version depends on it; keep Auth write paths on HOLD until compatible code/DB are restored. Never restore broad grants or expose `private` to browser roles.

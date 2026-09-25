@@ -1444,10 +1444,25 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
       }
       const requestedEmail = (input.requestedEmail || authResult.data.user?.email || input.fallbackEmail).trim().toLowerCase();
 
+      let profileId = authUserId;
+      if (verifiedAuthUserId) {
+        const { data: boundProfileId, error: bindingError } = await client.rpc(
+          'resolve_verified_merchant_profile_for_server',
+          { p_auth_user_id: verifiedAuthUserId },
+        );
+        if (bindingError) {
+          throw new Error('Verified merchant profile binding lookup failed.');
+        }
+        if (typeof boundProfileId !== 'string' || !isUuidLike(boundProfileId)) {
+          return null;
+        }
+        profileId = boundProfileId;
+      }
+
       const { data: profileRow, error: profileError } = await client
         .from('profiles')
         .select('id,full_name,email,phone,created_at')
-        .eq('id', authUserId)
+        .eq('id', profileId)
         .maybeSingle();
 
       if (profileError) {
@@ -1491,6 +1506,7 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
         primaryRole: resolvePrimaryRole(memberships),
         profile,
         provider: 'supabase',
+        verifiedAuthUserId: verifiedAuthUserId || undefined,
       };
 
       return resolved;

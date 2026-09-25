@@ -35,6 +35,7 @@ export interface ResolvedStoreAccess {
   primaryRole: StoreMember['role'] | null;
   profile: Profile;
   provider: CanonicalRepositoryProvider;
+  verifiedAuthUserId?: string;
 }
 
 export interface CustomerMemoryUpsertInput {

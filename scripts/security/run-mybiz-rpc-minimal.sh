@@ -81,6 +81,7 @@ for run in 1 2; do
   # Apply only the restricted RPC draft and the narrow R5 two-table migration.
   # The 15-table RLS candidate is absent from this disposable stack.
   sql_file supabase/migration_drafts/20260923102833_mybiz_r3_provisioning_rpc_boundary.sql
+  sql_file supabase/migration_drafts/20260925115116_mybiz_auth_binding_server_resolver.sql
   sql_file supabase/tests/mybiz_r3_rpc_acl_assertions.sql
   sql_file supabase/migration_drafts/20260924070556_mybiz_provisioning_raw_data_privacy.sql
   refresh_schema new
