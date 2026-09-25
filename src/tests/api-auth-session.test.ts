@@ -91,6 +91,28 @@ describe('/api/auth/session', () => {
     });
   });
 
+  it('rejects membership resolved from a different profile with the same email', async () => {
+    adminAuthMocks.getUser.mockResolvedValue({
+      data: { user: { id: 'auth_owner', email: 'owner@mybiz.ai.kr', user_metadata: {} } },
+      error: null,
+    });
+    adminAuthMocks.resolveStoreAccess.mockResolvedValue({
+      accessibleStores: [{ id: 'store_other' }],
+      memberships: [{ profile_id: 'profile_other', store_id: 'store_other', role: 'owner' }],
+      primaryRole: 'owner',
+      profile: { id: 'profile_other' },
+    });
+
+    const response = await handleAdminSessionRequest(
+      new Request('https://example.com/api/auth/session', {
+        headers: { Authorization: 'Bearer verified-token' },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).ok).toBe(false);
+  });
+
   it('returns a server-validated membership session for an authenticated merchant', async () => {
     adminAuthMocks.getUser.mockResolvedValue({
       data: {

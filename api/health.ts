@@ -81,16 +81,13 @@ async function checkSupabase() {
       return { ok: true, rowCount: data.length, tableExists: true };
     }
 
-    return { ok: false, reason: await response.text(), status: response.status };
-  } catch (error) {
+    return { ok: false, reason: 'Supabase health check failed', status: response.status };
+  } catch {
     return {
       ok: false,
-      reason:
-        timedOut
-          ? `Supabase health check timed out after ${HEALTHCHECK_TIMEOUT_MS}ms`
-          : error instanceof Error
-            ? error.message
-            : 'Supabase connectivity check failed',
+      reason: timedOut
+        ? `Supabase health check timed out after ${HEALTHCHECK_TIMEOUT_MS}ms`
+        : 'Supabase connectivity check failed',
     };
   } finally {
     clearTimeout(timeoutId);

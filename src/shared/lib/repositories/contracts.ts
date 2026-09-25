@@ -24,6 +24,7 @@ export interface ResolveStoreAccessInput {
   fallbackProfileId: string;
   requestedEmail?: string;
   requestedFullName?: string;
+  verifiedAuthUserId?: string;
 }
 
 export interface ResolvedStoreAccess {

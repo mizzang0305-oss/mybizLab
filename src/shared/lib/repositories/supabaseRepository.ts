@@ -1433,13 +1433,22 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     resolveStoreAccess: async (input) => {
       const client = assertClient();
       const authResult = await client.auth.getUser();
-      const authUserId = authResult.data.user?.id;
+      const sessionAuthUserId = authResult.data.user?.id;
+      const verifiedAuthUserId = input.verifiedAuthUserId?.trim();
+      if (sessionAuthUserId && verifiedAuthUserId && sessionAuthUserId !== verifiedAuthUserId) {
+        return null;
+      }
+      const authUserId = verifiedAuthUserId || sessionAuthUserId;
+      if (!authUserId) {
+        return null;
+      }
       const requestedEmail = (input.requestedEmail || authResult.data.user?.email || input.fallbackEmail).trim().toLowerCase();
 
-      const profileQuery = authUserId
-        ? client.from('profiles').select('id,full_name,email,phone,created_at').eq('id', authUserId).maybeSingle()
-        : client.from('profiles').select('id,full_name,email,phone,created_at').eq('email', requestedEmail).maybeSingle();
-      const { data: profileRow, error: profileError } = await profileQuery;
+      const { data: profileRow, error: profileError } = await client
+        .from('profiles')
+        .select('id,full_name,email,phone,created_at')
+        .eq('id', authUserId)
+        .maybeSingle();
 
       if (profileError) {
         throw new Error(`Failed to load profile access context: ${profileError.message}`);

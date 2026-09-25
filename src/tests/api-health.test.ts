@@ -144,6 +144,30 @@ describe('/api/health', () => {
     });
   });
 
+  it('does not expose upstream response details through public health', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic-service-role-key';
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response('private upstream diagnostic', { status: 500 })) as typeof fetch;
+
+    const response = await healthHandler(new Request('https://example.com/api/health'));
+    const body = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(body).not.toContain('private upstream diagnostic');
+  });
+
+  it('does not expose network exception details through public health', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic-service-role-key';
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('private network diagnostic')) as typeof fetch;
+
+    const response = await healthHandler(new Request('https://example.com/api/health'));
+    const body = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(body).not.toContain('private network diagnostic');
+  });
+
   it('terminates an actual HTTP response when credentials are missing', async () => {
     process.env.SUPABASE_URL = 'https://example.supabase.co';
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -143,9 +143,13 @@ async function assertMerchantStoreAccess(
     fallbackProfileId: authData.user.id,
     requestedEmail: authData.user.email || undefined,
     requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
+    verifiedAuthUserId: authData.user.id,
   });
 
-  if (!resolvedAccess?.accessibleStores.some((store) => store.id === storeId)) {
+  if (
+    resolvedAccess?.profile?.id !== authData.user.id ||
+    !resolvedAccess.accessibleStores.some((store) => store.id === storeId)
+  ) {
     return { error: json({ ok: false, error: 'The authenticated merchant does not have access to this store.' }, 403) };
   }
 

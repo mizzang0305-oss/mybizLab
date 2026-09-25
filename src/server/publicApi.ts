@@ -60,18 +60,6 @@ function responseJson(body: Record<string, unknown>, status = 200, extraHeaders?
   });
 }
 
-function serializePublicApiError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-    };
-  }
-
-  return { error };
-}
-
 const PUBLIC_ORDER_CHECKOUT_ENDPOINT = '/api/public/order-payment-checkout';
 const PUBLIC_ORDER_PAYMENT_VERIFY_ENDPOINT = '/api/public/order-payment-verify';
 const PUBLIC_ORDER_PAYMENT_ID_MAX_LENGTH = 40;
@@ -671,16 +659,27 @@ function inferPublicApiErrorStatus(error: unknown) {
 
 function createPublicApiErrorResponse(error: unknown, status = 500) {
   const resolvedStatus = status === 500 ? inferPublicApiErrorStatus(error) : status;
+  const correlationId = globalThis.crypto.randomUUID();
   console.error('[public-api] request failed', {
-    error: serializePublicApiError(error),
+    correlationId,
     status: resolvedStatus,
   });
+  const inferredError =
+    resolvedStatus === 400
+      ? 'Invalid request.'
+      : resolvedStatus === 404
+        ? 'Requested resource is unavailable.'
+        : resolvedStatus === 429
+          ? 'Too many requests.'
+          : 'Request could not be completed.';
   return responseJson(
     {
       ok: false,
-      error: error instanceof Error ? error.message : 'Unknown public API error',
+      error: status !== 500 && error instanceof Error ? error.message : inferredError,
+      correlationId,
     },
     resolvedStatus,
+    { 'x-correlation-id': correlationId },
   );
 }
 

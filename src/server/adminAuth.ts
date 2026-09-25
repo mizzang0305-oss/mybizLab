@@ -83,9 +83,15 @@ export async function handleAdminSessionRequest(request: AdminAuthRequestLike) {
       fallbackProfileId: authData.user.id,
       requestedEmail: authData.user.email || undefined,
       requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
+      verifiedAuthUserId: authData.user.id,
     });
 
-    if (!resolvedAccess || !resolvedAccess.accessibleStores.length || !resolvedAccess.primaryRole) {
+    if (
+      !resolvedAccess ||
+      resolvedAccess.profile?.id !== authData.user.id ||
+      !resolvedAccess.accessibleStores.length ||
+      !resolvedAccess.primaryRole
+    ) {
       return json(
         {
           ok: false,
