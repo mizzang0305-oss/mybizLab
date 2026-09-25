@@ -1,5 +1,5 @@
 {
-  "observed_at": "2026-09-25T02:59:30Z",
+  "observed_at": "2026-09-25T03:07:20Z",
   "repository": "mizzang0305-oss/mybizLab",
   "overall_result": "BLOCKED",
   "final_certification": "NOT_CERTIFIED",
@@ -18,7 +18,7 @@
     {
       "gate_id": "G01",
       "status": "BLOCKED",
-      "observed_at": "2026-09-25T02:59:30Z",
+      "observed_at": "2026-09-25T03:07:20Z",
       "environment": "Production deployment plus candidate Supabase project",
       "source_sha": "41ae32991412d720683ffc1ac0a82f474a2c47ac",
       "deployment_id": "dpl_5TmFPDjCc5PP7zuRdtMhkyRgxDG5",
@@ -28,7 +28,7 @@
       "artifact_sha256": null,
       "command_or_test": "Read-only Vercel deployment lookup; Supabase project and catalog metadata lookup",
       "expected_result": "Deployed client and server target the same verified live project and compatible schema.",
-      "observed_result": "Deployment/source verified; candidate project is active but deployed runtime DB binding is unverified.",
+      "observed_result": "Deployment/source verified; candidate project is active, but public entry bundle contains no literal ref/hostname and deployed runtime DB binding is unverified.",
       "limitations": "Candidate project structure fingerprint is not a Production runtime identity proof; no durable raw artifact retained.",
       "reviewer_mode": "SELF_REVIEW"
     },

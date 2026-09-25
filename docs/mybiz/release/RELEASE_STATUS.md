@@ -1,6 +1,6 @@
 # MyBiz release closure status
 
-Observed: 2026-09-25 11:59 KST. This is a release checkpoint, not a launch approval.
+Observed through: 2026-09-25 12:07 KST. This is a release checkpoint, not a launch approval.
 
 ## Decision
 
@@ -28,6 +28,8 @@ Observed: 2026-09-25 11:59 KST. This is a release checkpoint, not a launch appro
 
 Details and machine-readable status: `release-evidence.json`.
 
+The 15 catalog findings are `ai_briefing_logs`, `ai_reports`, `events`, `menu_categories`, `menu_items`, `orders`, `sessions`, `store_analytics_profile`, `store_daily_metrics`, `store_home_content`, `store_modules`, `store_priority_settings`, `store_setup_requests`, `store_staff`, and `store_tables`. Object ownership and actual API exposure must be confirmed before defining a MyBiz-only remediation allowlist. PR #187's two-table draft does not cover the other 13.
+
 ## Highest-priority blockers
 
 1. **Security, G04 (TECHNICAL + AUTHORIZATION):** Inventory the exact MyBiz-owned API schema and all affected grants/policies. Prepare and review a minimal, backward-compatible RLS/GRANT fix in isolation. Production DDL/GRANT needs separate approval, identity fingerprint match, and G10 recovery proof. Do not use RLS OFF, broad grants, or browser service-role access as a workaround.
@@ -40,6 +42,7 @@ Details and machine-readable status: `release-evidence.json`.
 - PR #181 Owner approval exists for its then-current showroom head only; it does not approve the new integrated code, DB, or Auth changes. PR #182 and #187 remain Draft. PR #148 was not modified.
 - Local lint, typecheck, full test (`946 passed`, `14 skipped`), and build passed on the integrated tree. Build emitted chunking warnings. Full-stack skips are not Production evidence.
 - Anonymous status-only GET: `/`, `/pricing`, `/robots.txt`, `/sitemap.xml`, and `/dashboard/customers` returned HTTP 200. The dashboard response may be the SPA shell, so it is not an Auth pass. No response body or customer row was inspected.
+- The public Production entry bundle contained neither the candidate Supabase ref nor a literal Supabase hostname. This non-sensitive static probe cannot establish the deployed client/server DB target.
 - No Production DDL/DML, Auth/membership mutation, secret disclosure, backup/export, deploy, real payment, or external message was executed by this task.
 - Backup capability and scope must be verified for the actual runtime project; [Supabase's backup documentation](https://supabase.com/docs/guides/platform/backups) does not treat a Free-plan project as having an automatic daily backup or include Storage objects in a database backup.
 
