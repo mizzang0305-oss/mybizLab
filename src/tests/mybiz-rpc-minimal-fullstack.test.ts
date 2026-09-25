@@ -8,6 +8,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import provisionHandler from '../../api/stores/provision';
 import authSessionHandler from '../../api/auth/session';
+import adminHandler from '../../api/admin';
+import merchantHandler from '../../api/merchant';
 import { resetSupabaseAdminClientForTests } from '../server/supabaseAdmin';
 
 const statusFile = process.env.LOCAL_SUPABASE_STATUS_FILE;
@@ -111,6 +113,22 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
 
+  async function appAdminSession(token: string) {
+    const response = await fetch(`${baseUrl}/api/admin?resource=session`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  }
+
+  async function appOtherStoreOrderEvent(token: string, storeId: string, paymentId: string) {
+    const response = await fetch(`${baseUrl}/api/merchant?resource=order-event`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ storeId, orderId: randomUUID(), paymentId, status: 'synthetic' }),
+    });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  }
+
   function addStoreMembership(user: Identity, role: 'owner' | 'manager' | 'staff' = 'owner') {
     const storeId = randomUUID();
     sql(`insert into public.stores(store_id,name,slug,plan,brand_config)
@@ -160,9 +178,14 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
         method: incoming.method, headers: incoming.headers as HeadersInit,
         body: chunks.length ? Buffer.concat(chunks) : undefined,
       });
-      const response = incoming.url?.startsWith('/api/auth/session')
+      const pathname = new URL(request.url).pathname;
+      const response = pathname === '/api/auth/session'
         ? await authSessionHandler(request)
-        : await provisionHandler(request);
+        : pathname === '/api/admin'
+          ? await adminHandler(request)
+          : pathname === '/api/merchant'
+            ? await merchantHandler(request)
+            : await provisionHandler(request);
       outgoing.writeHead(response.status, Object.fromEntries(response.headers.entries()));
       outgoing.end(await response.text());
     });
@@ -255,6 +278,44 @@ describe.runIf(Boolean(statusFile) && (phase === 'old' || phase === 'new'))('min
     expect(session.status).toBe(200);
     expect(session.body).toMatchObject({ ok: true, data: { profileId: staff.profileId, accessibleStoreIds: [ownStore], role: 'staff' } });
     expect(JSON.stringify(session.body)).not.toContain(otherStore);
+  });
+
+  it.runIf(phase === 'new')('denies a bound merchant staff JWT on the platform admin HTTP session endpoint', async () => {
+    const staff = await identity('nonexact');
+    addStoreMembership(staff, 'staff');
+    expect((await appSession(staff.token)).status).toBe(200);
+    const adminSession = await appAdminSession(staff.token);
+    expect(adminSession.status, JSON.stringify(adminSession.body)).toBe(403);
+    expect(adminSession.body).toMatchObject({ ok: false, code: 'PLATFORM_ADMIN_ERROR' });
+  });
+
+  it.runIf(phase === 'new')('denies a staff JWT at another store before the merchant order-event read or write', async () => {
+    const staff = await identity('nonexact');
+    const other = await identity();
+    addStoreMembership(staff, 'staff');
+    const otherStore = addStoreMembership(other);
+    const paymentId = randomUUID();
+    const eventCount = () => Number(sql(`select count(*) from public.payment_events where event_id='${paymentId}'`));
+    expect(eventCount()).toBe(0);
+    const result = await appOtherStoreOrderEvent(staff.token, otherStore, paymentId);
+    expect(result.status, JSON.stringify(result.body)).toBe(403);
+    expect(result.body).toMatchObject({ ok: false, error: 'The authenticated merchant does not have access to this store.' });
+    expect(eventCount()).toBe(0);
+  });
+
+  it.runIf(phase === 'new')('ignores client profile identity spoofing and keeps the JWT-bound staff session', async () => {
+    const staff = await identity('nonexact');
+    const other = await identity('nonexact');
+    const ownStore = addStoreMembership(staff, 'staff');
+    const otherStore = addStoreMembership(other);
+    const response = await fetch(`${baseUrl}/api/auth/session?profileId=${other.profileId}`, {
+      headers: { authorization: `Bearer ${staff.token}`, 'x-profile-id': other.profileId },
+    });
+    const body = await response.json() as Record<string, unknown>;
+    expect(response.status, JSON.stringify(body)).toBe(200);
+    expect(body).toMatchObject({ ok: true, data: { profileId: staff.profileId, accessibleStoreIds: [ownStore], role: 'staff' } });
+    expect(JSON.stringify(body)).not.toContain(other.profileId);
+    expect(JSON.stringify(body)).not.toContain(otherStore);
   });
 
   it.runIf(phase === 'new')('rejects conflicting active bindings at the existing unique indexes', async () => {
