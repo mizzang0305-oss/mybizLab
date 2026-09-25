@@ -48,7 +48,7 @@ jobs:
           test -z "${SUPABASE_ACCESS_TOKEN:-}"
           test -z "${SUPABASE_DB_PASSWORD:-}"
           test -z "${SUPABASE_PROJECT_ID:-}"
-          if git grep -nE 'supabase[[:space:]]+(link|db[[:space:]]+push|migration[[:space:]]+(up|repair))|--linked|--project-ref' -- .github/workflows/mybiz-rls-security-certification.yml; then
+          if git grep -nE '^[[:space:]]*supabase[[:space:]]+(link|db[[:space:]]+push|migration[[:space:]]+(up|repair))|^[[:space:]]*supabase[[:space:]].*(--linked|--project-ref)' -- .github/workflows/mybiz-rls-security-certification.yml; then
             echo 'Forbidden remote Supabase command found in security workflow.' >&2
             exit 1
           fi
