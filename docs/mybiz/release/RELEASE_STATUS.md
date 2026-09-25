@@ -1,24 +1,24 @@
 # MyBiz release closure status
 
-Observed through: 2026-09-25 12:07 KST. This is a release checkpoint, not a launch approval.
+Observed through: 2026-09-25 17:48 KST. This is a release checkpoint, not a launch approval.
 
 ## Decision
 
 - `OVERALL_RESULT=BLOCKED`; `FINAL_CERTIFICATION=NOT_CERTIFIED`.
 - Strong paid acquisition and the next large phase remain on hold. Manual pilot outreach has a separate, narrower approval and is not a live-data or delivery approval.
 - Production is still source `41ae32991412d720683ffc1ac0a82f474a2c47ac` on Vercel deployment `dpl_5TmFPDjCc5PP7zuRdtMhkyRgxDG5`. It does not include open Draft PRs #181, #182, or #187.
-- The tested code checkpoint is `19bcf6112bb253144fd7ee17ec75c9aed9dbe453` on isolated branch `codex/mybiz-release-closure-r1`. This evidence-only documentation may create a later local HEAD without changing the tested runtime code. Neither is pushed, deployed, or certified.
+- This run resumed clean local HEAD `45068b141a63f91ae298d420a70c5cce16cc8e3d` on isolated branch `codex/mybiz-release-closure-r1`; the branch has no remote ref. This run changes the local health handler/test and evidence documents only. The integrated candidate remains unpushed, undeployed, and uncertified.
 - The Supabase project `plnuyudyogbzwpmdulnw` is active in `ap-northeast-2`; its relationship to the currently deployed client and server runtime is not yet verified. The provided password file exists, but its value was not read or disclosed.
 
 ## Gate register
 
 | Gate | Status | Current evidence and missing proof |
 | --- | --- | --- |
-| G01 identity/schema | BLOCKED | Production alias and source verified. Candidate DB catalog inspected, but deployed frontend/server DB target, live migration compatibility, and same-release identity are not proven. |
-| G02 Auth/session/membership | BLOCKED | Existing service-role email fallback could conflate accounts. Local candidate fails closed for exact-ID profiles; explicit non-identical auth/profile bindings, real sessions, revocation, and role paths remain unverified. |
+| G01 identity/schema | BLOCKED | `www.mybiz.ai.kr` resolves to the same Vercel deployment/source. A lazy-loaded deployed browser chunk contains candidate ref `plnuyudyogbzwpmdulnw`; this is static client configuration, not a server DB connection or actual provider request. Deployment-time server target and live schema compatibility remain unproven. The supplied env file contains a password key only, without a host/ref. |
+| G02 Auth/session/membership | BLOCKED | Live catalog has `private.profile_auth_bindings` with active one-to-one indexes and a private resolver function. Current server repository and session/merchant guards still require `profiles.id = auth.uid()`, so legitimate verified non-identical bindings fail 403. Real session, revocation, other-store and role paths are not certified. No binding or membership was written. |
 | G03 persistence/reread | BLOCKED | Local tests do not establish a committed Production row or independent reread. No Production write canary was authorized. |
-| G04 grants/RLS/tenant isolation | FAIL | Candidate project's live catalog has 15 `public` base tables with RLS disabled and `anon` CRUD table privileges. Actual Data API exposure and row access were not tested; two-store user-path isolation is unproven. |
-| G05 errors/health | FAIL | Anonymous Production `/api/health` did not return headers within 8 seconds. PR #182 and local candidate address response completion; local candidate also sanitizes health/public API errors, but neither is deployed. |
+| G04 grants/RLS/tenant isolation | FAIL | Repeated read-only catalog query: all 15 `public` base tables still have RLS OFF and `anon` CRUD. `store_setup_requests` has SELECT/UPDATE ownership policies, but RLS OFF makes them ineffective. Actual Data API exposure, unauthorized row access, and two-store path isolation are unproven. PR #187 covers only two tables and is not applied. |
+| G05 errors/health | FAIL | Production anonymous `/api/health` again returned no headers before an 8-second timeout. Local actual Node HTTP tests now cover missing env, successful read, fetch/body hangs, invalid body, upstream error and 405; the 5-second bound covers fetch **and body**. This local fix is not deployed. |
 | G06 privacy/consent | BLOCKED | Actual field inventory, retention/operator facts, withdrawal workflow, and current counsel/Owner decisions are not verified. |
 | G07 inquiry/consultation | BLOCKED | Synthetic tests pass; real approved request, consent, commit, authorized administrative reread, and follow-up are not verified. Payment is out of this minimal path. |
 | G08 mobile journey | NOT_TESTED | Public HTTP status does not verify 360/390/430px login-to-admin journey. No approved real account or Production write path was used. |
@@ -40,9 +40,9 @@ The 15 catalog findings are `ai_briefing_logs`, `ai_reports`, `events`, `menu_ca
 ## Verified boundaries
 
 - PR #181 Owner approval exists for its then-current showroom head only; it does not approve the new integrated code, DB, or Auth changes. PR #182 and #187 remain Draft. PR #148 was not modified.
-- Local lint, typecheck, full test (`946 passed`, `14 skipped`), and build passed on the integrated tree. Build emitted chunking warnings. Full-stack skips are not Production evidence.
+- Current local lint, typecheck, full test (`950 passed`, `14 skipped`) and build passed. The 14 skipped cases are the two real Auth/PostgREST suites requiring `LOCAL_SUPABASE_STATUS_FILE` and isolated CLI/Docker/psql. The local machine lacks Docker, psql and Supabase CLI; GitHub run [35969001195](https://github.com/mizzang0305-oss/mybizLab/actions/runs/35969001195) passed for earlier `8904cb1`, not this HEAD. Build emitted chunking warnings.
 - Anonymous status-only GET: `/`, `/pricing`, `/robots.txt`, `/sitemap.xml`, and `/dashboard/customers` returned HTTP 200. The dashboard response may be the SPA shell, so it is not an Auth pass. No response body or customer row was inspected.
-- The public Production entry bundle contained neither the candidate Supabase ref nor a literal Supabase hostname. This non-sensitive static probe cannot establish the deployed client/server DB target.
+- The public Production entry bundle lacks a literal Supabase hostname, but its lazy `cinematic-experience` chunk contains `plnuyudyogbzwpmdulnw.supabase.co`. No actual browser request or server runtime binding was observed; the real data provider remains unverified.
 - No Production DDL/DML, Auth/membership mutation, secret disclosure, backup/export, deploy, real payment, or external message was executed by this task.
 - Backup capability and scope must be verified for the actual runtime project; [Supabase's backup documentation](https://supabase.com/docs/guides/platform/backups) does not treat a Free-plan project as having an automatic daily backup or include Storage objects in a database backup.
 

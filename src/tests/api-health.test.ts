@@ -3,7 +3,7 @@ import { createServer, request as httpRequest } from 'node:http';
 
 import healthHandler from '../../api/health';
 
-async function requestHealthOverHttp(method: 'GET' | 'POST' = 'GET') {
+async function requestHealthOverHttp(method: 'GET' | 'POST' = 'GET', timeoutMs = 1500) {
   const server = createServer((request, response) => {
     void healthHandler(request as unknown as Request, response).catch((error: unknown) => {
       response.statusCode = 500;
@@ -31,7 +31,7 @@ async function requestHealthOverHttp(method: 'GET' | 'POST' = 'GET') {
           response.on('error', reject);
         },
       );
-      client.setTimeout(1500, () => client.destroy(new Error('Health HTTP response did not terminate')));
+      client.setTimeout(timeoutMs, () => client.destroy(new Error('Health HTTP response did not terminate')));
       client.on('error', reject);
       client.end();
     });
@@ -191,12 +191,69 @@ describe('/api/health', () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       ok: true,
-      services: { supabase: { ok: true, rowCount: 1, tableExists: true } },
+      services: { supabase: { ok: true, tableExists: true } },
     });
     expect(globalThis.fetch).toHaveBeenCalledOnce();
     const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0];
     expect(url).toBe('https://example.supabase.co/rest/v1/stores?select=store_id&limit=1');
     expect(init?.method).toBeUndefined();
+  });
+
+  it('terminates an actual HTTP response when upstream fetch never settles', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic-service-role-key';
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => {})) as typeof fetch;
+
+    const response = await requestHealthOverHttp('GET', 6500);
+
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({
+      ok: false,
+      services: { supabase: { ok: false, reason: 'Supabase health check timed out after 5000ms' } },
+    });
+  }, 8000);
+
+  it('terminates an actual HTTP response when upstream body never settles', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic-service-role-key';
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(new ReadableStream({ start() {} }))) as typeof fetch;
+
+    const response = await requestHealthOverHttp('GET', 6500);
+
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({
+      ok: false,
+      services: { supabase: { ok: false, reason: 'Supabase health check timed out after 5000ms' } },
+    });
+  }, 8000);
+
+  it('terminates an actual HTTP response for invalid upstream data', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic-service-role-key';
+    globalThis.fetch = vi.fn().mockResolvedValue(Response.json({ unexpected: true })) as typeof fetch;
+
+    const response = await requestHealthOverHttp();
+
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({
+      ok: false,
+      services: { supabase: { ok: false, reason: 'Supabase health check returned invalid data' } },
+    });
+  });
+
+  it('terminates an actual HTTP response for an upstream database error without leaking its body', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic-service-role-key';
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response('private database diagnostic', { status: 500 })) as typeof fetch;
+
+    const response = await requestHealthOverHttp();
+
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({
+      ok: false,
+      services: { supabase: { ok: false, reason: 'Supabase health check failed', status: 500 } },
+    });
+    expect(JSON.stringify(response.body)).not.toContain('private database diagnostic');
   });
 
   it('terminates an actual HTTP 405 response', async () => {

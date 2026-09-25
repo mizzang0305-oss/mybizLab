@@ -51,21 +51,31 @@ async function checkSupabase() {
   timeoutId.unref?.();
 
   try {
-    const responseResult = await Promise.race([
-      fetch(`${url}/rest/v1/stores?select=store_id&limit=1`, {
-        headers: {
-          apikey: anonKey || serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-        },
-        signal: controller.signal,
-      }),
+    const checkResult = await Promise.race([
+      (async () => {
+        const upstream = await fetch(`${url}/rest/v1/stores?select=store_id&limit=1`, {
+          headers: {
+            apikey: anonKey || serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          signal: controller.signal,
+        });
+        if (!upstream.ok) {
+          return { ok: false, reason: 'Supabase health check failed', status: upstream.status };
+        }
+        const data = (await upstream.json()) as unknown;
+        if (!Array.isArray(data)) {
+          return { ok: false, reason: 'Supabase health check returned invalid data' };
+        }
+        return { ok: true, tableExists: true };
+      })(),
       new Promise<typeof timeoutResult>((resolve) => {
         const timeoutRaceId = setTimeout(() => resolve(timeoutResult), HEALTHCHECK_TIMEOUT_MS);
         timeoutRaceId.unref?.();
       }),
     ]);
 
-    if (responseResult === timeoutResult) {
+    if (checkResult === timeoutResult) {
       timedOut = true;
       controller.abort();
       return {
@@ -74,14 +84,7 @@ async function checkSupabase() {
       };
     }
 
-    const response = responseResult;
-
-    if (response.ok) {
-      const data = (await response.json()) as unknown[];
-      return { ok: true, rowCount: data.length, tableExists: true };
-    }
-
-    return { ok: false, reason: 'Supabase health check failed', status: response.status };
+    return checkResult;
   } catch {
     return {
       ok: false,

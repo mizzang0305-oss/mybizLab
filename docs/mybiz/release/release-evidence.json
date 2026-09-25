@@ -1,24 +1,24 @@
 {
-  "observed_at": "2026-09-25T03:07:20Z",
+  "observed_at": "2026-09-25T08:48:45Z",
   "repository": "mizzang0305-oss/mybizLab",
   "overall_result": "BLOCKED",
   "final_certification": "NOT_CERTIFIED",
   "production_source_sha": "41ae32991412d720683ffc1ac0a82f474a2c47ac",
   "production_deployment_id": "dpl_5TmFPDjCc5PP7zuRdtMhkyRgxDG5",
-  "local_candidate_source_sha": "19bcf6112bb253144fd7ee17ec75c9aed9dbe453",
-  "local_candidate_source_sha_role": "tested_code_checkpoint_before_evidence_only_documentation",
+  "local_candidate_source_sha": "45068b141a63f91ae298d420a70c5cce16cc8e3d",
+  "local_candidate_source_sha_role": "clean_resume_head_before_this_runs_local_health_and_evidence_edits",
   "candidate_supabase_project_ref": "plnuyudyogbzwpmdulnw",
   "production_runtime_project_ref": null,
-  "production_runtime_project_ref_null_reason": "Deployed frontend/server target not verified; candidate project metadata is insufficient.",
+  "production_runtime_project_ref_null_reason": "Deployed lazy browser chunk contains candidate ref, but actual browser request and deployed server target are not verified; static client URL is insufficient.",
   "candidate_public_schema_structure_fingerprint": "ef738d5f7e1fdbe6b42970a9ad13f062",
   "configuration_fingerprint": null,
-  "configuration_fingerprint_null_reason": "No sanitized deployed-time client/server configuration artifact available.",
+  "configuration_fingerprint_null_reason": "No sanitized deployed-time server configuration or actual runtime provider artifact available; the supplied credential file has a password key only and no target host.",
   "reviewer_mode": "SELF_REVIEW",
   "gates": [
     {
       "gate_id": "G01",
       "status": "BLOCKED",
-      "observed_at": "2026-09-25T03:07:20Z",
+      "observed_at": "2026-09-25T08:44:29Z",
       "environment": "Production deployment plus candidate Supabase project",
       "source_sha": "41ae32991412d720683ffc1ac0a82f474a2c47ac",
       "deployment_id": "dpl_5TmFPDjCc5PP7zuRdtMhkyRgxDG5",
@@ -26,10 +26,10 @@
       "schema_fingerprint": null,
       "artifact_path": null,
       "artifact_sha256": null,
-      "command_or_test": "Read-only Vercel deployment lookup; Supabase project and catalog metadata lookup",
+      "command_or_test": "Read-only Vercel alias/deployment lookup; static deployed JS endpoint inspection; credential key-name-only parsing; Supabase catalog metadata lookup",
       "expected_result": "Deployed client and server target the same verified live project and compatible schema.",
-      "observed_result": "Deployment/source verified; candidate project is active, but public entry bundle contains no literal ref/hostname and deployed runtime DB binding is unverified.",
-      "limitations": "Candidate project structure fingerprint is not a Production runtime identity proof; no durable raw artifact retained.",
+      "observed_result": "Production alias maps to deployment/source; lazy browser chunk embeds candidate Supabase ref, but actual browser connection, server DB target, runtime provider and live schema compatibility are unverified. Credential file has a password key only, no host.",
+      "limitations": "Static browser endpoint is not server connection proof; deployment-time server configuration unavailable. No raw secret or customer artifact retained.",
       "reviewer_mode": "SELF_REVIEW"
     },
     {
@@ -45,8 +45,8 @@
       "artifact_sha256": null,
       "command_or_test": "Merchant identity regression tests; live profile/auth binding metadata review",
       "expected_result": "Real Auth/session/profile/membership mapping and revocation pass with approved accounts.",
-      "observed_result": "Local exact-ID fail-closed tests pass; explicit non-identical binding and real sessions remain unverified.",
-      "limitations": "Not deployed; legitimate non-identical profile bindings may be denied; no approved account used.",
+      "observed_result": "Existing private binding table and private resolver catalog verified. Server repository/session/merchant paths require exact auth/profile ID; a valid active non-identical binding is denied. Existing exact-ID unit tests pass; full Auth/PostgREST matrix not run on this head.",
+      "limitations": "No local Docker/psql/Supabase CLI; existing private resolver is not a browser Data API endpoint. No approved real account or Auth mutation used.",
       "reviewer_mode": "SELF_REVIEW"
     },
     {
@@ -79,8 +79,8 @@
       "artifact_sha256": null,
       "command_or_test": "Read-only pg_catalog RLS and has_table_privilege inspection",
       "expected_result": "MyBiz API tables have least-privilege grants and effective tenant RLS for ordinary roles.",
-      "observed_result": "15 public base tables have RLS disabled and anon CRUD table privileges.",
-      "limitations": "No row access test, actual Data API exposure proof, or A/B tenant fixture test; do not claim a confirmed data leak.",
+      "observed_result": "Repeated catalog query: 15 public base tables have RLS disabled and anon CRUD. store_setup_requests has SELECT/UPDATE own policies with USING/WITH CHECK, ineffective while RLS OFF. Per-table provisional purpose/class recorded in runbook.",
+      "limitations": "No customer rows, actual Data API reachability, unauthorized row proof, or current-head A/B full-stack fixture run. PR #187 covers only two tables and is not applied.",
       "reviewer_mode": "SELF_REVIEW"
     },
     {
@@ -94,10 +94,10 @@
       "schema_fingerprint": null,
       "artifact_path": null,
       "artifact_sha256": null,
-      "command_or_test": "GET /api/health with 8-second header timeout; local health/public API tests",
+      "command_or_test": "GET /api/health with 8-second header timeout; local actual Node HTTP termination tests, including fetch/body hangs and invalid responses",
       "expected_result": "Bounded safe health response and no raw upstream errors.",
-      "observed_result": "Production health returned no headers before timeout; local response/sanitization tests pass.",
-      "limitations": "Local PR #182 integration is not deployed; no Production fault injection.",
+      "observed_result": "Production health again returned no headers within 8 seconds. Local handler bounds fetch and body to 5 seconds, returns 503 on failure, and actual HTTP tests pass.",
+      "limitations": "Local health patch is undeployed; Production still FAIL. No Production fault injection.",
       "reviewer_mode": "SELF_REVIEW"
     },
     {
@@ -203,5 +203,32 @@
       "reviewer_mode": "SELF_REVIEW"
     }
   ],
-  "null_artifact_reason": "No retained raw logs, customer rows, deployment configuration, or hashed evidence artifact was created for this read-only checkpoint."
+  "current_run": {
+    "resume_head": "45068b141a63f91ae298d420a70c5cce16cc8e3d",
+    "remote_branch_exists": false,
+    "local_edits": [
+      "api/health.ts",
+      "src/tests/api-health.test.ts",
+      "docs/mybiz/release/RELEASE_STATUS.md",
+      "docs/mybiz/release/release-evidence.json",
+      "docs/mybiz/release/OPERATIONS_RUNBOOK.md"
+    ],
+    "validation": {
+      "tests_passed": 950,
+      "tests_skipped": 14,
+      "test_files_passed": 158,
+      "test_files_skipped": 2,
+      "lint": "PASS",
+      "typecheck": "PASS",
+      "build": "PASS_WITH_CHUNK_WARNINGS",
+      "actual_local_http_health": "PASS",
+      "isolated_auth_postgrest": "NOT_RUN_LOCAL_TOOLING_UNAVAILABLE",
+      "production_health": "FAIL_NO_HEADERS_WITHIN_8_SECONDS"
+    },
+    "production_mutations": "NONE",
+    "remote_git_mutations": "NONE",
+    "secret_values_disclosed": false,
+    "other_projects_changed": false
+  },
+  "null_artifact_reason": "No raw customer rows, secrets, deployed server configuration, or Production runtime artifacts were retained. Local validation results are recorded as sanitized summaries only."
 }
