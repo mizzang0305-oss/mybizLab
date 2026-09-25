@@ -20,7 +20,7 @@ returns uuid
 language sql stable security definer
 set search_path = ''
 as $body$
-  select case when count(*) = 1 then min(b.public_profile_id) else null end
+  select case when count(*) = 1 then min(b.public_profile_id::text)::uuid else null end
   from private.profile_auth_bindings b
   join core.profiles cp on cp.id = b.auth_profile_id and cp.is_active
   join auth.users au on au.id = b.auth_profile_id

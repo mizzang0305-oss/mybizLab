@@ -1,13 +1,13 @@
 # MyBiz release closure status
 
-Observed through: 2026-09-25 21:10 KST. This is a release checkpoint, not a launch approval.
+Observed through: 2026-09-25 22:35 KST. This is a release checkpoint, not a launch approval.
 
 ## Decision
 
 - `OVERALL_RESULT=BLOCKED`; `FINAL_CERTIFICATION=NOT_CERTIFIED`.
 - Strong paid acquisition and the next large phase remain on hold. Manual pilot outreach has a separate, narrower approval and is not a live-data or delivery approval.
 - Production is still source `41ae32991412d720683ffc1ac0a82f474a2c47ac` on Vercel deployment `dpl_5TmFPDjCc5PP7zuRdtMhkyRgxDG5`. It does not include open Draft PRs #181, #182, or #187.
-- This restricted continuation resumed clean local HEAD `8133d4661274c5c7a42888fccc8dace0e2f59a7e` on isolated branch `codex/mybiz-release-closure-r1`; the branch has no remote ref. Auth resolver, exact-branch CI/deployment configuration, isolated tests and evidence are local only. The candidate remains unpushed, undeployed, and uncertified.
+- The exact candidate `b20a51d920e6b6c9858d0bf4b0a557351bed4ef7` was normal-pushed once to `codex/mybiz-release-closure-r1`. GitHub push run [36140852222](https://github.com/mizzang0305-oss/mybizLab/actions/runs/36140852222) checked out that SHA but **failed** in the isolated rehearsal while applying the resolver SQL draft: PostgreSQL 17.6 rejects `min(uuid)`. Old phase 2/2 passed; new Auth and R5 phases were NOT_RUN. A one-line cast fix exists locally only; no second push or CI run was authorized. The remote candidate remains undeployed and uncertified.
 - The Supabase project `plnuyudyogbzwpmdulnw` is active in `ap-northeast-2`; its relationship to the currently deployed client and server runtime is not yet verified. The provided password file exists, but its value was not read or disclosed.
 
 ## Gate register
@@ -15,7 +15,7 @@ Observed through: 2026-09-25 21:10 KST. This is a release checkpoint, not a laun
 | Gate | Status | Current evidence and missing proof |
 | --- | --- | --- |
 | G01 identity/schema | BLOCKED | `www.mybiz.ai.kr` resolves to the same Vercel deployment/source. A lazy-loaded deployed browser chunk contains candidate ref `plnuyudyogbzwpmdulnw`; this is static client configuration, not a server DB connection or actual provider request. Deployment-time server target and live schema compatibility remain unproven. The supplied env file contains a password key only, without a host/ref. |
-| G02 Auth/session/membership | BLOCKED | A failing HTTP-handler unit test reproduced the legitimate non-identical binding 403. The local candidate now uses a service-role-only resolver draft and checks real memberships; 15 targeted unit tests pass. Real local Auth JWT/server/PostgREST positive and negative matrix remains NOT_RUN because this host lacks Docker/psql. No Production binding or membership was written. |
+| G02 Auth/session/membership | BLOCKED | A failing HTTP-handler unit test reproduced the legitimate non-identical binding 403. The pushed candidate's service-role-only resolver draft fails at `min(uuid)` during SQL creation on the isolated runner. Real JWT/server positive and negative matrix was NOT_RUN. A cast fix is local only; no Production binding or membership was written. |
 | G03 persistence/reread | BLOCKED | Local tests do not establish a committed Production row or independent reread. No Production write canary was authorized. |
 | G04 grants/RLS/tenant isolation | FAIL | Repeated read-only catalog query: all 15 `public` base tables still have RLS OFF and `anon` CRUD. `store_setup_requests` has SELECT/UPDATE ownership policies, but RLS OFF makes them ineffective. Actual Data API exposure, unauthorized row access, and two-store path isolation are unproven. PR #187 covers only two tables and is not applied. |
 | G05 errors/health | FAIL | Production anonymous `/api/health` again returned no headers before an 8-second timeout. Local actual Node HTTP tests now cover missing env, successful read, fetch/body hangs, invalid body, upstream error and 405; the 5-second bound covers fetch **and body**. This local fix is not deployed. |
@@ -41,7 +41,7 @@ The 15 catalog findings are `ai_briefing_logs`, `ai_reports`, `events`, `menu_ca
 
 - PR #181 Owner approval exists for its then-current showroom head only; it does not approve the new integrated code, DB, or Auth changes. PR #182 and #187 remain Draft. PR #148 was not modified.
 - Current local lint, typecheck, full test (`952 passed`, `19 skipped`) and build passed. The original 14 skipped tests consist of ten RPC and four R5 two-table tests; five new Auth matrix cases bring the local skip count to 19. They require `LOCAL_SUPABASE_STATUS_FILE` and isolated CLI/Docker/psql. The host lacks Docker and psql; GitHub run [35969001195](https://github.com/mizzang0305-oss/mybizLab/actions/runs/35969001195) passed for earlier `8904cb1`, not this candidate. Build emitted chunking warnings.
-- The RPC workflow now allowlists only the added R1 push branch and records exact checkout SHA. `vercel.json` has an exact R1 `git.deploymentEnabled=false` rule; project Root Directory is `.`. Vercel documents this rule, but no remote R1 branch exists and the actual automatic deployment suppression cannot be observed before push. Under the Owner's pre-push condition, remote push and GitHub-hosted CI remain NOT_RUN; no Preview was requested.
+- The RPC workflow's R1 push event and exact checkout assertion passed at `b20a51d`. `vercel.json` has an exact R1 `git.deploymentEnabled=false` rule; project Root Directory is `.`. The Owner accepted this static guard for the first push. Read-only Vercel list after the push showed **0 R1 deployments** among the latest 100; Production alias/deployment/source remained unchanged. No Preview was requested. `DEPLOYMENT_SUPPRESSION=PASS` for this push.
 - Anonymous status-only GET: `/`, `/pricing`, `/robots.txt`, `/sitemap.xml`, and `/dashboard/customers` returned HTTP 200. The dashboard response may be the SPA shell, so it is not an Auth pass. No response body or customer row was inspected.
 - The public Production entry bundle lacks a literal Supabase hostname, but its lazy `cinematic-experience` chunk contains `plnuyudyogbzwpmdulnw.supabase.co`. No actual browser request or server runtime binding was observed; the real data provider remains unverified.
 - No Production DDL/DML, Auth/membership mutation, secret disclosure, backup/export, deploy, real payment, or external message was executed by this task.
@@ -49,4 +49,4 @@ The 15 catalog findings are `ai_briefing_logs`, `ai_reports`, `events`, `menu_ca
 
 ## Resume point
 
-Review the exact local candidate and static Vercel branch rule. Obtain an independently verifiable pre-push exact-R1 deployment block or Owner direction that treats the documented branch rule plus root/config validation as sufficient for the authorized single push. Then run the existing GitHub-hosted isolated CI on the exact candidate SHA; do not substitute the earlier run. G01 identity and G10 recovery remain separate Production gates. Re-check every affected gate against one deployed SHA before certification.
+Review the one-line local SQL draft correction and its hash/diff. A **new, separate Owner authorization** is required before another remote push and GitHub-hosted isolated run; the approved single push was consumed. The existing Vercel branch guard must remain in place. G01 identity, G04 access control and G10 recovery remain separate Production gates. Re-check every affected gate against one deployed SHA before certification.
