@@ -132,6 +132,20 @@ jobs:
           npm run build
           npm test -- --reporter=dot
 
+      - name: Exercise real public and merchant API handlers against disposable DB
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/supabase-status.env"
+          test "${API_URL:-}" = 'http://127.0.0.1:54321'
+          test -n "${ANON_KEY:-}"
+          test -n "${SERVICE_ROLE_KEY:-}"
+          export MYBIZ_CI_LOCAL_DB=1
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_ANON_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          npx vitest run src/tests/mybiz-rls-local-api-e2e.test.ts --reporter=dot
+
       - name: Verify data-preserving write lockdown
         shell: bash
         run: |
