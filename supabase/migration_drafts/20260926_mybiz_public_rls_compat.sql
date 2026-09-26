@@ -62,6 +62,18 @@ revoke all on table public.store_setup_requests from anon, authenticated;
 -- Reuse the existing Production Service OS identity boundary. It resolves
 -- verified Auth/profile bindings and exact-ID fallback without exposing the
 -- private binding table to clients.
+create or replace function public.is_store_member(target_store_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select private.is_service_os_store_member(target_store_id);
+$;
+revoke execute on function public.is_store_member(uuid) from public, anon;
+grant execute on function public.is_store_member(uuid) to authenticated;
+
 -- Authenticated merchant editor: own store only. Public reads use the server API.
 create policy mybiz_tables_member_select on public.store_tables
   for select to authenticated using (private.is_service_os_store_member(store_id));
