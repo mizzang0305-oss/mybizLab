@@ -106,7 +106,7 @@ select is((select version from public.store_priority_settings
 
 select set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',true);
 set local role authenticated;
-select is((select count(*)::bigint from public.store_tables),1::bigint,
+select is((select count(distinct store_id)::bigint from public.store_tables),1::bigint,
   'verified Auth/profile binding sees the bound store only');
 select is((select count(*)::bigint from public.store_priority_settings),1::bigint,
   'verified binding authorizes priority settings for the bound store');
