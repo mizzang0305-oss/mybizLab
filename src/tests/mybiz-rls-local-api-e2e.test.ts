@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import provisionHandler from '../../api/stores/provision.js';
+import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
+import { mapLiveStoreToAppStore } from '../shared/lib/storeData.js';
+import { buildDefaultStorePublicPage } from '../shared/lib/services/publicPageService.js';
 import { handleAdminSessionRequest } from '../server/adminAuth.js';
 import { handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
 import { handleOnboardingSetupRequest } from '../server/onboardingSetupRequest.js';
@@ -85,6 +88,10 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
   }, 60_000);
 
   it('denies direct paid RPC and provisions only through the verified server with idempotent retries', async () => {
+    const previousPortOneSecret = process.env.PORTONE_API_SECRET;
+    const previousPortOneStoreId = process.env.PORTONE_STORE_ID;
+    process.env.PORTONE_API_SECRET = 'ptn_secret_synthetic_ci';
+    process.env.PORTONE_STORE_ID = 'synthetic-ci-store';
     const url = process.env.SUPABASE_URL || '';
     const anonKey = process.env.SUPABASE_ANON_KEY || '';
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -153,6 +160,14 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
       createdStoreIds.push(paidStoreId);
       expect((await admin.from('store_members').select('profile_id').eq('store_id', paidStoreId).single()).data?.profile_id).toBe(actorId);
       expect((await admin.from('store_subscriptions').select('plan').eq('store_id', paidStoreId).single()).data?.plan).toBe('pro');
+      expect((await userClient.from('store_subscriptions').select('plan').eq('store_id', paidStoreId).single()).data?.plan).toBe('pro');
+      const visibleStore = await userClient.from('stores')
+        .select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan')
+        .eq('store_id', paidStoreId).single();
+      expect(visibleStore.error).toBeNull();
+      const page = buildDefaultStorePublicPage({ store: mapLiveStoreToAppStore(visibleStore.data!, null) });
+      await createSupabaseRepository(userClient).saveStorePublicPage(page);
+      expect((await admin.from('store_public_pages').select('store_id').eq('store_id', paidStoreId).single()).data?.store_id).toBe(paidStoreId);
 
       const retry = await provisionHandler(makeRequest(payload));
       expect(retry.status).toBe(200);
@@ -171,9 +186,14 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
       expect(secondFree.status).toBe(403);
     } finally {
       globalThis.fetch = originalFetch;
+      if (previousPortOneSecret === undefined) delete process.env.PORTONE_API_SECRET;
+      else process.env.PORTONE_API_SECRET = previousPortOneSecret;
+      if (previousPortOneStoreId === undefined) delete process.env.PORTONE_STORE_ID;
+      else process.env.PORTONE_STORE_ID = previousPortOneStoreId;
       for (const storeId of createdStoreIds) {
         const safeStoreId = checkedUuid(storeId);
         localSql(`delete from private.store_provisioning_receipts where actor_auth_user_id='${actorId}' and store_id='${safeStoreId}'`);
+        expect((await admin.from('store_public_pages').delete().eq('store_id', safeStoreId)).error).toBeNull();
         localSql(`delete from public.store_home_content where store_id='${safeStoreId}'; delete from public.store_priority_settings where store_id='${safeStoreId}'; delete from public.store_analytics_profiles where store_id='${safeStoreId}'; delete from public.store_subscriptions where store_id='${safeStoreId}'; delete from public.store_members where store_id='${safeStoreId}'; delete from public.stores where store_id='${safeStoreId}'`);
         expect(localSql(`select count(*) from public.stores where store_id='${safeStoreId}'`)).toBe('0');
       }

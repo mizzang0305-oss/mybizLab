@@ -290,23 +290,6 @@ function getCachedAnalyticsProfile(storeId: string) {
   return liveStoreRuntimeCache.analyticsProfiles.get(storeId) || null;
 }
 
-async function getAuthenticatedSupabaseUserId() {
-  if (!supabase) {
-    throw new Error('Supabase client is not configured.');
-  }
-
-  const { data: authData, error: authError } = await supabase.auth.getUser();
-  if (authError) {
-    throw new Error(`Supabase auth lookup failed: ${authError.message}`);
-  }
-
-  if (!authData.user) {
-    throw new Error('스토어 생성 및 조회에는 로그인된 Supabase 세션이 필요합니다.');
-  }
-
-  return authData.user.id;
-}
-
 function syncStoresToLocalCache(stores: Store[], priorityRows?: LivePrioritySettingsRow[], analyticsProfiles?: StoreAnalyticsProfile[]) {
   if (!stores.length && !priorityRows?.length && !analyticsProfiles?.length) {
     return;
@@ -2567,35 +2550,26 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
-    const timestamp = nowIso();
     const repository = getCanonicalMyBizRepository();
     const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan, {
       paymentId: options?.paymentId,
       requestId: options?.requestId,
     });
-    const profileId = await getAuthenticatedSupabaseUserId();
+    const session = await refreshAdminSession();
+    const profileId = session?.profileId;
+    if (!profileId) {
+      throw new Error('스토어 생성 후 소유자 권한을 확인하지 못했습니다. 결제는 유지되며 활성화를 다시 시도할 수 있습니다.');
+    }
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
 
-    await repository.saveStoreSubscription({
-      id: `subscription_${verified.store.id}`,
-      store_id: verified.store.id,
-      plan: subscriptionPlan,
-      status:
-        options?.subscriptionStatus === 'subscription_cancelled'
-          ? 'cancelled'
-          : options?.subscriptionStatus === 'subscription_past_due'
-            ? 'past_due'
-            : verified.store.trial_ends_at
-              ? 'trialing'
-              : 'active',
-      billing_provider: options?.paymentId ? 'portone' : 'manual',
-      trial_ends_at: verified.store.trial_ends_at,
-      current_period_starts_at: timestamp,
-      current_period_ends_at:
-        subscriptionPlan === 'free' && verified.store.trial_ends_at ? verified.store.trial_ends_at : isoDaysFromNow(30),
-      created_at: timestamp,
-      updated_at: timestamp,
-    });
+    const { data: subscription, error: subscriptionError } = await supabase!
+      .from('store_subscriptions')
+      .select('store_id,plan,status')
+      .eq('store_id', verified.store.id)
+      .maybeSingle();
+    if (subscriptionError || !subscription || subscription.plan !== subscriptionPlan || subscription.status !== 'active') {
+      throw new Error('스토어 생성 후 구독 상태를 확인하지 못했습니다. 결제는 유지되며 활성화를 다시 시도할 수 있습니다.');
+    }
 
     await repository.saveStorePublicPage(
       buildDefaultStorePublicPage({

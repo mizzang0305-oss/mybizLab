@@ -5,7 +5,7 @@ import type { SetupRequestInput } from '@/shared/types/models';
 
 type MaybeSingleResult = { data: unknown; error: null | { message: string } };
 
-const { getSession, getUser, rpc, from, responseMap } = vi.hoisted(() => {
+const { getSession, getUser, refreshAdminSession, rpc, from, responseMap } = vi.hoisted(() => {
   const responseMap: Record<string, MaybeSingleResult> = {};
 
   function createQueryBuilder(table: string) {
@@ -27,6 +27,7 @@ const { getSession, getUser, rpc, from, responseMap } = vi.hoisted(() => {
   return {
     getSession: vi.fn(),
     getUser: vi.fn(),
+    refreshAdminSession: vi.fn(),
     rpc: vi.fn(),
     from: vi.fn((table: string) => ({
       select: vi.fn(() => createQueryBuilder(table)),
@@ -53,6 +54,11 @@ vi.mock('@/integrations/supabase/client', () => ({
     from,
   },
 }));
+
+vi.mock('@/shared/lib/adminSession.js', async () => {
+  const actual = await vi.importActual<typeof import('@/shared/lib/adminSession.js')>('@/shared/lib/adminSession.js');
+  return { ...actual, refreshAdminSession };
+});
 
 import { createStoreFromSetupRequest } from '@/shared/lib/services/mvpService';
 
@@ -98,7 +104,7 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
         ? null
         : {
             store_id: 'live-store-001',
-            profile_id: 'user-live-owner',
+            profile_id: 'bound-business-owner',
             role: 'owner',
           },
     error: null,
@@ -126,6 +132,10 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
           },
     error: null,
   };
+  responseMap.store_subscriptions = {
+    data: { store_id: 'live-store-001', plan: 'pro', status: 'active' },
+    error: null,
+  };
 }
 
 describe('createStoreFromSetupRequest with Supabase provisioning', () => {
@@ -135,6 +145,8 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     resetDatabase();
     getSession.mockReset();
     getUser.mockReset();
+    refreshAdminSession.mockReset();
+    refreshAdminSession.mockResolvedValue({ profileId: 'bound-business-owner' });
     rpc.mockReset();
     from.mockClear();
     getSession.mockResolvedValue({
@@ -189,6 +201,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     const created = await createStoreFromSetupRequest(requestInput, {
       plan: 'pro',
       paymentId: 'payment_live_001',
+      requestId: 'request-live-001',
       paymentMethodStatus: 'ready',
       requestStatus: 'approved',
       setupEventStatus: 'paid',
@@ -197,7 +210,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
       subscriptionStatus: 'subscription_active',
     });
 
-    expect(getUser).toHaveBeenCalledTimes(1);
+    expect(refreshAdminSession).toHaveBeenCalledTimes(1);
     const [requestUrl, requestInit] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
 
     expect(requestUrl).toBe('https://mybiz.ai.kr/api/stores/provision');
@@ -225,6 +238,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
     expect(from).toHaveBeenCalledWith('store_members');
     expect(from).toHaveBeenCalledWith('store_analytics_profiles');
     expect(from).toHaveBeenCalledWith('store_priority_settings');
+    expect(from).toHaveBeenCalledWith('store_subscriptions');
 
     expect(created.store.id).toBe('live-store-001');
     expect(created.store.slug).toBe('rpc-provision-store');

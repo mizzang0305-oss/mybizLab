@@ -1746,7 +1746,7 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
       }
 
       const legacyPayload = {
-        id: page.id,
+        ...(isUuidLike(page.id) ? { id: page.id } : {}),
         store_id: page.store_id,
         page_title: page.brand_name,
         hero_title: page.hero_title,

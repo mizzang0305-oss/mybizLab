@@ -585,6 +585,20 @@ grant select on public.subscriptions to service_role;
 grant delete on public.profiles, public.stores, public.store_members,
   public.store_public_pages, public.customers to service_role;
 
+-- Existing Production member policies needed by the browser verification and
+-- initial public-page editor after server provisioning.
+alter table public.store_public_pages enable row level security;
+alter table public.store_subscriptions enable row level security;
+alter table public.store_analytics_profiles enable row level security;
+create policy store_public_pages_member_access on public.store_public_pages
+  for all using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy store_subscriptions_member_access on public.store_subscriptions
+  for all using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy store_analytics_profiles_member_access on public.store_analytics_profiles
+  for all using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+grant select, insert, update on public.store_public_pages, public.store_subscriptions,
+  public.store_analytics_profiles to authenticated;
+
 -- Reproduce the Production vulnerability: broad CRUD grants with RLS disabled.
 grant select, insert, update, delete on public.store_tables to anon, authenticated, service_role;
 grant select, insert, update, delete on public.sessions to anon, authenticated, service_role;
