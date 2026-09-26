@@ -347,3 +347,8 @@ does not claim to certify all 22 tables. `MYBIZ_PRODUCTION_SECURITY_APPROVAL_REA
 must remain false until the exact affected table/operation grants, actual
 client callers and a narrow containment patch are reviewed in an isolated
 stack. No Production grant or policy was changed in this run.
+
+The local V3 containment candidate and its still-unrun disposable database
+tests are tracked in `docs/mybiz-rls-security-v3-local-candidate-2026-09-27.md`.
+The Production approval blocker remains until hosted V3 CI and backup/recovery
+evidence pass. This V2 catalog finding is not a Production mutation.
