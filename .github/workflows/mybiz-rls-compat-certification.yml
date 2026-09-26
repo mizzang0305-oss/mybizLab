@@ -99,6 +99,29 @@ jobs:
           set -euo pipefail
           supabase test db --local --workdir "$CI_SUPABASE_ROOT"
 
+      - name: Verify anonymous Data API denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase status --help >/dev/null
+          supabase status --workdir "$CI_SUPABASE_ROOT" -o env > "$RUNNER_TEMP/supabase-status.env"
+          source "$RUNNER_TEMP/supabase-status.env"
+          test -n "${API_URL:-}"
+          test -n "${ANON_KEY:-}"
+          for method in GET POST PATCH DELETE; do
+            body_args=()
+            if test "$method" != GET; then body_args=(--data-binary '{}'); fi
+            code="$(curl -sS -o /dev/null -w '%{http_code}' -X "$method" \
+              "$API_URL/rest/v1/orders?order_id=eq.33333333-3333-4333-8333-333333333333" \
+              -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY" \
+              -H 'Content-Type: application/json' \
+              "${body_args[@]}")"
+            case "$code" in
+              401|403) echo "anon orders $method denied ($code)" ;;
+              *) echo "anon orders $method unexpected HTTP $code" >&2; exit 1 ;;
+            esac
+          done
+
       - name: Run application regressions
         shell: bash
         run: |
@@ -108,6 +131,23 @@ jobs:
           npm run typecheck
           npm run build
           npm test -- --reporter=dot
+
+      - name: Verify data-preserving write lockdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -c "insert into public.orders(order_id,store_id,total_amount) values ('33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111',123)" >/dev/null
+          before="$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select count(*) from public.orders where order_id='33333333-3333-4333-8333-333333333333'")"
+          psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -f supabase/migration_drafts/20260926_mybiz_public_rls_write_lockdown.sql >/dev/null
+          after="$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select count(*) from public.orders where order_id='33333333-3333-4333-8333-333333333333'")"
+          test "$before" = 1
+          test "$after" = 1
+          test "$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select has_table_privilege('service_role','public.orders','INSERT')")" = f
+          test "$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select has_table_privilege('service_role','public.orders','SELECT')")" = t
+          test "$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select relrowsecurity from pg_class where oid='public.orders'::regclass")" = t
+          echo 'Write lockdown blocked service-role order INSERT and preserved the synthetic row.'
 
       - name: Write sanitized result
         if: always()
