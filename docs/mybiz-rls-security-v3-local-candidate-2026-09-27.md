@@ -17,6 +17,7 @@ Status: local candidate only. PR #188 remains Draft and its remote head is uncha
 | `store_subscriptions` | `anon` no CRUD; `authenticated` own-store SELECT only; entitlement writes server only. Initial row is inserted by verified-owner provisioning in the same transaction as store and owner membership. |
 | `stores` | `anon` no CRUD; `authenticated` own-store SELECT and column UPDATE only for `name`, `timezone`, `brand_config`, `slug`. No browser INSERT, DELETE, `plan` or `trial_ends_at` UPDATE. |
 | Browser setup request | Non-demo runtime always submits through `/api/onboarding/setup-request`; no direct table INSERT fallback. |
+| Public storefront | Live browser uses `/api/public/store`; an API failure does not fall through to anonymous `stores` reads. |
 | Browser settings | Existing-store UPDATE, never UPSERT. |
 | Paid onboarding | Authenticated owner email must match request before checkout. A verified payment followed by activation failure remains `paymentStatus=paid`; UI instructs the customer not to pay again. |
 

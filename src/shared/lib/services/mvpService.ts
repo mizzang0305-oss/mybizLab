@@ -5999,13 +5999,9 @@ function buildPublicExperience(store: Store, notices: StoreNotice[]) {
 
 export async function getPublicStore(storeSlug: string) {
   if (IS_LIVE_RUNTIME && typeof window !== 'undefined') {
-    try {
-      return await requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
-        searchParams: { slug: normalizeStoreSlug(storeSlug) },
-      });
-    } catch {
-      // API unavailable or store not found — fall through to local mock fallback
-    }
+    return requestPublicApi<Awaited<ReturnType<typeof getPublicStoreSnapshot>>>('/api/public/store', {
+      searchParams: { slug: normalizeStoreSlug(storeSlug) },
+    });
   }
 
   const store = await getStoreBySlug(storeSlug);
