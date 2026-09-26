@@ -102,9 +102,9 @@ The RLS and provisioning drafts must be applied as one reviewed security rollout
 ## Review package frozen after disposable CI
 
 - Draft PR: [#189](https://github.com/mizzang0305-oss/mybizLab/pull/189), Draft; no merge.
-- Last runtime/SQL/fixture change: `ca85cf6c9a7a246104b5e8e94e7873a57da8dccf`.
+- Last runtime/fixture behavior change: `ca85cf6c9a7a246104b5e8e94e7873a57da8dccf`. A later SQL comment clarification changes only the draft hash; use the current PR HEAD as the final code package.
 - Passing disposable run: [36249128365](https://github.com/mizzang0305-oss/mybizLab/actions/runs/36249128365). Four real handler E2E tests and 903 general tests passed; four general tests were skipped. The anonymous orders Data API returned 401 for GET, POST, PATCH, and DELETE.
-- RLS draft SHA-256: `f2532028acdeb78fdbd11869357bccc9f0574abfd80ef79c4c6ec315b8d7d272`.
+- RLS draft SHA-256: `dfbf994f1b52b6a6b48fe0b1b20ca50f017ec4da7c6d37c15b4110687eb47741`.
 - Server provisioning draft SHA-256: `1f02f604e32459fbc8224fb2ec9d02d14dffaaaed9eafa5ec5b405a3bdf125cd`.
 - Data-preserving write-lockdown SHA-256: `05356a4261df67bb557ce21014480ff4f10eb6cb87d3b84d8eab244fe42990c0`.
 - Client bundle search for service-role markers: zero matching files in the built `dist`.

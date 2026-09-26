@@ -118,8 +118,8 @@ grant select, insert, update on public.store_priority_settings to authenticated;
 
 -- The remaining 11 tables have no browser grant. Server service_role retains its
 -- existing table privileges; this draft does not broaden them.
--- Do not revoke create_store_with_owner from authenticated until the existing
--- provisioning RPC signature/auth.uid() mismatch is resolved and tested.
+-- The companion server-provisioning draft revokes the legacy
+-- create_store_with_owner overloads after the verified API path is in place.
 revoke execute on function public.generate_unique_store_slug(text) from public, anon, authenticated;
 
 commit;
