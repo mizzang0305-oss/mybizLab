@@ -107,6 +107,29 @@ describe('/api/stores/provision', () => {
     });
   });
 
+  it('requires the request email to match the authenticated owner email', async () => {
+    const response = await provisionHandler(
+      authenticatedRequest({
+        address: 'Seoul Seongsu 123-45',
+        business_name: 'Mismatch Store',
+        business_number: '123-45-67890',
+        business_type: 'Cafe',
+        email: 'other-owner@example.com',
+        owner_name: 'Owner Kim',
+        phone: '010-1234-5678',
+        plan: 'free',
+        requested_slug: 'mismatch-store',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'OWNER_EMAIL_MISMATCH',
+      ok: false,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('requires payment_id for paid onboarding store provisioning', async () => {
     const response = await provisionHandler(
       authenticatedRequest({
