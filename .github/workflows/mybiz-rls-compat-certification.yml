@@ -87,7 +87,34 @@ jobs:
         run: |
           set -euo pipefail
           if ! supabase start --workdir "$CI_SUPABASE_ROOT" --yes > "$RUNNER_TEMP/supabase-start.log" 2>&1; then
-            echo 'Supabase Local failed to start; raw logs are withheld to protect local credentials.' >&2
+            echo 'Supabase Local failed to start. Sanitized diagnostic follows:' >&2
+            python - "$RUNNER_TEMP/supabase-start.log" <<'PY'
+          import re
+          import sys
+
+          path = sys.argv[1]
+          with open(path, "r", encoding="utf-8", errors="replace") as handle:
+              lines = handle.readlines()
+
+          secret_patterns = [
+              (re.compile(r'(?i)(ANON_KEY|SERVICE_ROLE_KEY|JWT_SECRET|DB_PASSWORD|PASSWORD)\s*[=:]\s*\S+'), r'\1=[REDACTED]'),
+              (re.compile(r'postgres(?:ql)?://[^\s]+'), 'postgres://[REDACTED]'),
+              (re.compile(r'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}'), '[REDACTED_JWT]'),
+              (re.compile(r'(sb_(?:secret|publishable)_[A-Za-z0-9_-]+)'), '[REDACTED_KEY]'),
+          ]
+          interesting = re.compile(r'(?i)(error|fatal|failed|migration|syntax|duplicate|permission|function|relation|policy|rls)')
+          emitted = 0
+          for raw in lines[-300:]:
+              if not interesting.search(raw):
+                  continue
+              line = raw.rstrip("\n")
+              for pattern, replacement in secret_patterns:
+                  line = pattern.sub(replacement, line)
+              print(line)
+              emitted += 1
+          if emitted == 0:
+              print('No sanitized SQL/runtime diagnostic matched; inspect the ephemeral start failure separately.')
+          PY
             exit 1
           fi
           supabase db reset --local --workdir "$CI_SUPABASE_ROOT" --no-seed --yes > "$RUNNER_TEMP/supabase-reset.log" 2>&1
