@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "supabase/migration_drafts/20260926_mybiz_public_rls_compat.sql"
+      - "supabase/migration_drafts/20260926_mybiz_server_provisioning_boundary.sql"
+      - "supabase/live_patches/20260318_fix_create_store_with_owner_live.sql"
       - "supabase/tests/mybiz_rls_compat.sql"
       - "supabase/tests/fixtures/mybiz_rls_compat_ci_baseline.sql"
       - "src/**"
@@ -78,8 +80,12 @@ jobs:
           mkdir -p "$CI_SUPABASE_ROOT/supabase/migrations" "$CI_SUPABASE_ROOT/supabase/tests"
           cp supabase/tests/fixtures/mybiz_rls_compat_ci_baseline.sql \
             "$CI_SUPABASE_ROOT/supabase/migrations/20260925000000_mybiz_rls_compat_ci_baseline.sql"
+          cp supabase/live_patches/20260318_fix_create_store_with_owner_live.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260925000001_existing_provisioning_rpc.sql"
           cp supabase/migration_drafts/20260926_mybiz_public_rls_compat.sql \
             "$CI_SUPABASE_ROOT/supabase/migrations/20260926000000_mybiz_public_rls_compat.sql"
+          cp supabase/migration_drafts/20260926_mybiz_server_provisioning_boundary.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260926000001_mybiz_server_provisioning_boundary.sql"
           cp supabase/tests/mybiz_rls_compat.sql "$CI_SUPABASE_ROOT/supabase/tests/"
 
       - name: Start disposable Supabase and apply draft

@@ -12,7 +12,8 @@ insert into core.profiles (id, is_active) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', true),
-  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', true);
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', true)
+on conflict (id) do update set is_active = excluded.is_active;
 insert into public.profiles (id, full_name, email) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Store A owner', 'store-a@example.invalid'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Store B owner', 'store-b@example.invalid'),
@@ -111,6 +112,14 @@ select is((select count(distinct store_id)::bigint from public.store_tables),1::
 select is((select count(*)::bigint from public.store_priority_settings),1::bigint,
   'verified binding authorizes priority settings for the bound store');
 reset role;
+update private.profile_auth_bindings
+set status='REVOKED', revoked_at=now()
+where auth_profile_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+select set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',true);
+set local role authenticated;
+select is((select count(*)::bigint from public.store_tables),0::bigint,
+  'revoked binding cannot see the former store');
+reset role;
 
 select set_config('request.jwt.claim.sub','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',true);
 set local role authenticated;
@@ -122,6 +131,26 @@ set local role service_role;
 select is((select count(*)::bigint from public.orders),2::bigint,'server role can read both stores');
 select is((select count(*)::bigint from public.store_tables),3::bigint,'server role sees both store tables');
 reset role;
+
+select ok(not has_function_privilege('anon',
+  'public.create_store_with_owner(text,text,text,text,text,text,text,text,text)','EXECUTE'),
+  'anon cannot invoke legacy provisioning RPC');
+select ok(not has_function_privilege('authenticated',
+  'public.create_store_with_owner(text,text,text,text,text,text,text,text,text)','EXECUTE'),
+  'authenticated cannot bypass payment via legacy provisioning RPC');
+select ok(not has_function_privilege('anon',
+  'public.provision_store_from_verified_actor(uuid,text,text,text,text,text,text,text,text,text,text,text,text,numeric,text)','EXECUTE'),
+  'anon cannot invoke server provisioning RPC');
+select ok(not has_function_privilege('authenticated',
+  'public.provision_store_from_verified_actor(uuid,text,text,text,text,text,text,text,text,text,text,text,text,numeric,text)','EXECUTE'),
+  'authenticated cannot invoke server provisioning RPC');
+select ok(has_function_privilege('service_role',
+  'public.provision_store_from_verified_actor(uuid,text,text,text,text,text,text,text,text,text,text,text,text,numeric,text)','EXECUTE'),
+  'service role can invoke server provisioning RPC');
+select throws_ok($$select * from public.provision_store_from_verified_actor(
+  'ffffffff-ffff-4fff-8fff-ffffffffffff'::uuid,'synthetic-invalid','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  'Synthetic Store','Synthetic Owner','000','010','invalid@example.invalid','Seoul','Cafe','synthetic-invalid',
+  'free',null,null,null)$$,'42501',null,'unknown actor cannot provision');
 
 select * from finish();
 rollback;

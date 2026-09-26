@@ -8,8 +8,22 @@ create schema if not exists core;
 create schema if not exists private;
 create table core.profiles (
   id uuid primary key references auth.users(id),
+  email text,
+  full_name text,
+  updated_at timestamptz not null default now(),
   is_active boolean not null default true
 );
+create or replace function core.handle_auth_user_created()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  insert into core.profiles(id,email,full_name)
+  values (new.id,new.email,coalesce(new.raw_user_meta_data->>'full_name',new.email));
+  return new;
+end;
+$$;
+create trigger on_auth_user_created after insert on auth.users
+for each row execute function core.handle_auth_user_created();
 create table public.profiles (
   id uuid primary key,
   full_name text,
@@ -89,6 +103,20 @@ as $$
       and sm.profile_id = auth.uid()
   );
 $$;
+
+-- Existing Production policies rely on the public helper. Keep these active
+-- so server user-context tests exercise the same membership boundary.
+alter table public.stores enable row level security;
+alter table public.store_members enable row level security;
+create policy stores_member_access on public.stores
+  for all using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy store_members_select_member on public.store_members
+  for select using (public.is_store_member(store_id));
+create policy store_members_insert_member on public.store_members
+  for insert with check (public.is_store_member(store_id));
+create policy store_members_update_member on public.store_members
+  for update using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+grant select on public.stores, public.store_members to authenticated;
 
 create or replace function private.current_service_os_business_profile_id()
 returns uuid
