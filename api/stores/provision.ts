@@ -2,6 +2,7 @@ import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../s
 import { BillingApiStageError, callPortOneApi, validateBillingEnv } from '../../src/server/billingApiRuntime.js';
 import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../../src/server/supabaseAdmin.js';
+import { readServerEnv } from '../../src/server/serverEnv.js';
 
 export const config = {
   runtime: 'nodejs',
@@ -16,7 +17,6 @@ interface ProvisionRequestBody {
   business_type: string;
   email: string;
   owner_name: string;
-  owner_profile_id?: string;
   payment_id?: string;
   phone: string;
   plan?: 'free' | 'pro' | 'vip';
@@ -34,6 +34,89 @@ type RequestLike =
       text?: () => Promise<string>;
       url?: string;
     };
+
+function getHeaderValue(headers: Headers | Record<string, string | string[] | undefined> | undefined, key: string) {
+  if (!headers) return undefined;
+  if (headers instanceof Headers) return headers.get(key) || undefined;
+  const matchedKey = Object.keys(headers).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+  if (!matchedKey) return undefined;
+  const value = headers[matchedKey];
+  if (typeof value === 'string') return value;
+  return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : undefined;
+}
+
+function getBearerToken(request: RequestLike) {
+  const authorization = getHeaderValue(request.headers, 'authorization');
+  const matched = authorization?.match(/^Bearer\s+(.+)$/i);
+  return matched?.[1]?.trim() || null;
+}
+
+async function callAuthenticatedProvisionRpc(
+  accessToken: string,
+  payload: {
+    address: string;
+    businessName: string;
+    businessNumber: string;
+    businessType: string;
+    email: string;
+    ownerName: string;
+    phone: string;
+    plan: BillingPlanCode;
+    requestedSlug: string;
+  },
+) {
+  const supabaseUrl = readServerEnv('SUPABASE_URL') || readServerEnv('VITE_SUPABASE_URL');
+  const publishableKey = readServerEnv('VITE_SUPABASE_ANON_KEY') || readServerEnv('SUPABASE_ANON_KEY');
+
+  if (!supabaseUrl || !publishableKey) {
+    return {
+      data: null,
+      error: {
+        code: 'SUPABASE_USER_CONTEXT_ENV_MISSING',
+        message: 'Supabase user-context configuration is unavailable.',
+        status: 503,
+      },
+    };
+  }
+
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/rpc/create_store_with_owner`, {
+    method: 'POST',
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      p_store_name: payload.businessName,
+      p_owner_name: payload.ownerName,
+      p_business_number: payload.businessNumber,
+      p_phone: payload.phone,
+      p_email: payload.email,
+      p_address: payload.address,
+      p_business_type: payload.businessType,
+      p_requested_slug: payload.requestedSlug,
+      p_plan: payload.plan,
+    }),
+  });
+
+  const body = await response.json().catch(() => ({})) as
+    | Array<{ store_id?: string; id?: string; slug?: string }>
+    | { code?: string; message?: string };
+
+  if (!response.ok) {
+    const errorBody = Array.isArray(body) ? {} : body;
+    return {
+      data: null,
+      error: {
+        code: errorBody.code || 'PROVISION_RPC_FAILED',
+        message: errorBody.message || 'Store provisioning RPC failed.',
+        status: response.status >= 400 && response.status < 500 ? response.status : 500,
+      },
+    };
+  }
+
+  return { data: body, error: null };
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -247,7 +330,6 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       requested_slug,
       payment_id,
       plan = 'free',
-      owner_profile_id,
       request_id,
     } = body;
 
@@ -263,6 +345,21 @@ export default async function handler(request: RequestLike, response?: NodeRespo
 
     if (missing.length) {
       result = json({ ok: false, error: `Missing required fields: ${missing.join(', ')}` }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
+    const accessToken = getBearerToken(request);
+    if (!accessToken) {
+      result = json({ ok: false, code: 'AUTHENTICATION_REQUIRED', error: '스토어 생성에는 로그인이 필요합니다.' }, 401);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
+    const adminClient = getSupabaseAdminClient();
+    const { data: authData, error: authError } = await adminClient.auth.getUser(accessToken);
+    if (authError || !authData.user) {
+      result = json({ ok: false, code: 'INVALID_AUTH_SESSION', error: '로그인 세션을 확인할 수 없습니다.' }, 401);
       await sendNodeResponse(result, response);
       return result;
     }
@@ -286,30 +383,27 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       verifiedPaymentStatus = verification.paymentStatus;
     }
 
-    const adminClient = getSupabaseAdminClient();
-
-    const { data, error } = await adminClient.rpc('create_store_with_owner', {
-      p_store_name: business_name.trim(),
-      p_owner_name: owner_name.trim(),
-      p_business_number: business_number?.trim() || `BIZ-${Date.now()}`,
-      p_phone: phone.trim(),
-      p_email: email.trim().toLowerCase(),
-      p_address: address.trim(),
-      p_business_type: business_type?.trim() || '기타',
-      p_requested_slug: requested_slug?.trim() || business_name.trim(),
-      p_plan: plan,
-      ...(owner_profile_id ? { p_owner_profile_id: owner_profile_id } : {}),
+    const { data, error } = await callAuthenticatedProvisionRpc(accessToken, {
+      address: address.trim(),
+      businessName: business_name.trim(),
+      businessNumber: business_number?.trim() || `BIZ-${Date.now()}`,
+      businessType: business_type?.trim() || '기타',
+      email: email.trim().toLowerCase(),
+      ownerName: owner_name.trim(),
+      phone: phone.trim(),
+      plan,
+      requestedSlug: requested_slug?.trim() || business_name.trim(),
     });
 
     if (error) {
-      console.error('[provision] RPC error:', error);
+      console.error('[provision] authenticated RPC error', { code: error.code, status: error.status });
       result = json(
         {
           ok: false,
           error: error.message,
           code: error.code,
         },
-        500,
+        error.status,
       );
       await sendNodeResponse(result, response);
       return result;
