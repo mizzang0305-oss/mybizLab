@@ -4,6 +4,7 @@ import {
 } from '../../../shared/lib/services/publicPageEventReadModelService.js';
 import { getRequestMethod } from '../../nodeResponse.js';
 import { getSupabaseAdminClient } from '../../supabaseAdmin.js';
+import { resolveVerifiedUserStoreAccess } from '../../supabaseUserContext.js';
 import type { CustomerMemoryRequestLike } from './customerMemoryApi.js';
 
 interface PublicPageEventApiAccess {
@@ -104,23 +105,13 @@ async function defaultResolveAdminAccess(
     return json({ ok: false, error: `Supabase auth validation failed: ${authError?.message || 'No user found.'}` }, 401);
   }
 
-  const { data: membershipRows, error: membershipError } = await adminClient
-    .from('store_members')
-    .select('id,store_id,profile_id,role,created_at')
-    .eq('profile_id', authData.user.id)
-    .eq('store_id', storeId)
-    .limit(1);
-
-  if (membershipError) {
-    throw new Error(`Failed to load store membership: ${membershipError.message}`);
-  }
-
-  if (!membershipRows?.length) {
+  const resolvedAccess = await resolveVerifiedUserStoreAccess(token, authData.user);
+  if (!resolvedAccess?.accessibleStores.some((store) => store.id === storeId)) {
     return json({ ok: false, error: 'The authenticated merchant does not have access to this store.' }, 403);
   }
 
   return {
-    profileId: authData.user.id,
+    profileId: resolvedAccess.profile.id,
     storeId,
   };
 }
