@@ -13,10 +13,8 @@ vi.mock('../server/supabaseAdmin.js', () => ({
   }),
 }));
 
-vi.mock('../shared/lib/repositories/supabaseRepository.js', () => ({
-  createSupabaseRepository: () => ({
-    resolveStoreAccess: adminAuthMocks.resolveStoreAccess,
-  }),
+vi.mock('../server/supabaseUserContext.js', () => ({
+  resolveVerifiedUserStoreAccess: adminAuthMocks.resolveStoreAccess,
 }));
 
 import authSessionHandler from '../../api/auth/session';
@@ -155,6 +153,9 @@ describe('/api/auth/session', () => {
         role: 'owner',
       },
     });
+    expect(adminAuthMocks.resolveStoreAccess).toHaveBeenCalledWith(
+      'token_owner', expect.objectContaining({ id: 'profile_owner' }),
+    );
   });
 
   it('returns 405 for non-GET session route requests', async () => {

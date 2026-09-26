@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { adminClient, eqMock, fromMock, getUserMock, updateMock } = vi.hoisted(() => {
+const { adminClient, eqMock, fromMock, getUserMock, rpcMock, updateMock } = vi.hoisted(() => {
   const eqMock = vi.fn(async () => ({ error: null }));
   const updateMock = vi.fn(() => ({
     eq: eqMock,
@@ -9,6 +9,7 @@ const { adminClient, eqMock, fromMock, getUserMock, updateMock } = vi.hoisted(()
     update: updateMock,
   }));
   const getUserMock = vi.fn();
+  const rpcMock = vi.fn();
 
   return {
     adminClient: {
@@ -16,10 +17,12 @@ const { adminClient, eqMock, fromMock, getUserMock, updateMock } = vi.hoisted(()
         getUser: getUserMock,
       },
       from: fromMock,
+      rpc: rpcMock,
     },
     eqMock,
     fromMock,
     getUserMock,
+    rpcMock,
     updateMock,
   };
 });
@@ -46,6 +49,8 @@ describe('/api/stores/provision', () => {
     process.env.VITE_SUPABASE_ANON_KEY = 'test-publishable-key';
 
     getUserMock.mockReset();
+    rpcMock.mockReset();
+    rpcMock.mockResolvedValue({ data: [{ store_id: 'live-store-001', slug: 'live-store', replayed: false }], error: null });
     getUserMock.mockResolvedValue({
       data: {
         user: {
@@ -127,7 +132,7 @@ describe('/api/stores/provision', () => {
       code: 'OWNER_EMAIL_MISMATCH',
       ok: false,
     });
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it('requires payment_id for paid onboarding store provisioning', async () => {
@@ -156,7 +161,7 @@ describe('/api/stores/provision', () => {
     expect(getUserMock).toHaveBeenCalledWith('user-session-token');
   });
 
-  it('verifies payment and calls the production-compatible RPC with the user auth context', async () => {
+  it('verifies payment before calling the service-only provisioning RPC', async () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValueOnce(
@@ -169,23 +174,10 @@ describe('/api/stores/provision', () => {
               planKey: 'pro',
               requestId: 'request-live-001',
             },
+            currency: 'KRW',
             id: 'payment-live-001',
             status: 'PAID',
           }),
-          {
-            headers: { 'content-type': 'application/json' },
-            status: 200,
-          },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify([
-            {
-              slug: 'live-store',
-              store_id: 'live-store-001',
-            },
-          ]),
           {
             headers: { 'content-type': 'application/json' },
             status: 200,
@@ -235,29 +227,24 @@ describe('/api/stores/provision', () => {
         method: 'GET',
       }),
     );
-    expect(globalThis.fetch).toHaveBeenNthCalledWith(
-      2,
-      'https://test-project.supabase.co/rest/v1/rpc/create_store_with_owner',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          apikey: 'test-publishable-key',
-          Authorization: 'Bearer user-session-token',
-        }),
-        method: 'POST',
-      }),
-    );
-    const rpcInit = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1]?.[1] as RequestInit;
-    expect(JSON.parse(String(rpcInit.body))).toEqual({
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(rpcMock).toHaveBeenCalledWith('provision_store_from_verified_actor', expect.objectContaining({
+      p_auth_user_id: 'user-live-owner',
       p_address: 'Seoul Seongsu 123-45',
       p_business_number: '123-45-67890',
       p_business_type: 'Cafe',
       p_email: 'owner@example.com',
       p_owner_name: 'Owner Kim',
+      p_payment_amount: 79000,
+      p_payment_currency: 'KRW',
+      p_payment_id: 'payment-live-001',
       p_phone: '010-1234-5678',
       p_plan: 'pro',
+      p_request_key: 'request-live-001',
+      p_request_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
       p_requested_slug: 'paid-store',
       p_store_name: 'Paid Store',
-    });
+    }));
     expect(fromMock).toHaveBeenCalledWith('store_setup_requests');
     expect(updateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -299,5 +286,6 @@ describe('/api/stores/provision', () => {
       ok: false,
     });
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 });

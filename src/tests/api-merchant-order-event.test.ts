@@ -71,10 +71,8 @@ vi.mock('../server/supabaseAdmin.js', () => ({
   getSupabaseAdminClient: () => adminClient,
 }));
 
-vi.mock('../shared/lib/repositories/supabaseRepository.js', () => ({
-  createSupabaseRepository: () => ({
-    resolveStoreAccess: state.resolveStoreAccess,
-  }),
+vi.mock('../server/supabaseUserContext.js', () => ({
+  resolveVerifiedUserStoreAccess: state.resolveStoreAccess,
 }));
 
 import { handleMerchantMediaTranscribeRequest, handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
@@ -233,9 +231,9 @@ describe('/api/merchant/orders', () => {
     state.resolveStoreAccess.mockResolvedValueOnce({ accessibleStores: [{ id: 'store-live-001' }] });
     const response = await handleMerchantOrdersRequest(request('store-live-001', 'valid'));
     expect(response.status).toBe(200);
-    expect(state.resolveStoreAccess).toHaveBeenCalledWith(expect.objectContaining({
-      verifiedAuthUserId: 'merchant-a',
-    }));
+    expect(state.resolveStoreAccess).toHaveBeenCalledWith(
+      'valid', expect.objectContaining({ id: 'merchant-a' }),
+    );
     const payload = await response.json();
     expect(payload.data.orders).toEqual([{ order_id: 'order_live_001', store_id: 'store-live-001' }]);
     expect(JSON.stringify(payload)).not.toContain('order_other');

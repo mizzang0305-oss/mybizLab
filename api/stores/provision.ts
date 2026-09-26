@@ -1,8 +1,8 @@
+import { createHash } from 'node:crypto';
 import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans.js';
 import { BillingApiStageError, callPortOneApi, validateBillingEnv } from '../../src/server/billingApiRuntime.js';
 import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../../src/server/supabaseAdmin.js';
-import { readServerEnv } from '../../src/server/serverEnv.js';
 
 export const config = {
   runtime: 'nodejs',
@@ -49,73 +49,6 @@ function getBearerToken(request: RequestLike) {
   const authorization = getHeaderValue(request.headers, 'authorization');
   const matched = authorization?.match(/^Bearer\s+(.+)$/i);
   return matched?.[1]?.trim() || null;
-}
-
-async function callAuthenticatedProvisionRpc(
-  accessToken: string,
-  payload: {
-    address: string;
-    businessName: string;
-    businessNumber: string;
-    businessType: string;
-    email: string;
-    ownerName: string;
-    phone: string;
-    plan: BillingPlanCode;
-    requestedSlug: string;
-  },
-) {
-  const supabaseUrl = readServerEnv('SUPABASE_URL') || readServerEnv('VITE_SUPABASE_URL');
-  const publishableKey = readServerEnv('VITE_SUPABASE_ANON_KEY') || readServerEnv('SUPABASE_ANON_KEY');
-
-  if (!supabaseUrl || !publishableKey) {
-    return {
-      data: null,
-      error: {
-        code: 'SUPABASE_USER_CONTEXT_ENV_MISSING',
-        message: 'Supabase user-context configuration is unavailable.',
-        status: 503,
-      },
-    };
-  }
-
-  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/rpc/create_store_with_owner`, {
-    method: 'POST',
-    headers: {
-      apikey: publishableKey,
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      p_store_name: payload.businessName,
-      p_owner_name: payload.ownerName,
-      p_business_number: payload.businessNumber,
-      p_phone: payload.phone,
-      p_email: payload.email,
-      p_address: payload.address,
-      p_business_type: payload.businessType,
-      p_requested_slug: payload.requestedSlug,
-      p_plan: payload.plan,
-    }),
-  });
-
-  const body = await response.json().catch(() => ({})) as
-    | Array<{ store_id?: string; id?: string; slug?: string }>
-    | { code?: string; message?: string };
-
-  if (!response.ok) {
-    const errorBody = Array.isArray(body) ? {} : body;
-    return {
-      data: null,
-      error: {
-        code: errorBody.code || 'PROVISION_RPC_FAILED',
-        message: errorBody.message || 'Store provisioning RPC failed.',
-        status: response.status >= 400 && response.status < 500 ? response.status : 500,
-      },
-    };
-  }
-
-  return { data: body, error: null };
 }
 
 function json(body: unknown, status = 200) {
@@ -208,7 +141,7 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const expectedAmount = getBillingPlan(plan).amount;
   const actualAmount = readPaymentAmount(payment);
-  if (actualAmount !== null && actualAmount !== expectedAmount) {
+  if (actualAmount !== expectedAmount) {
     throw new BillingApiStageError({
       code: 'PAYMENT_AMOUNT_MISMATCH',
       details: {
@@ -224,7 +157,8 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const customData = readPaymentCustomData(payment);
   const planKey = normalizeNonEmptyString(readNestedRecordValue(customData, ['planKey']));
-  if (planKey && planKey !== plan) {
+  const paymentCurrency = normalizeNonEmptyString(payment.currency);
+  if (planKey !== plan || paymentCurrency !== 'KRW' || customData.grantsEntitlement === false) {
     throw new BillingApiStageError({
       code: 'PAYMENT_PLAN_MISMATCH',
       details: {
@@ -239,7 +173,7 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
   }
 
   const customRequestId = normalizeNonEmptyString(readNestedRecordValue(customData, ['requestId']));
-  if (requestId && customRequestId && customRequestId !== requestId) {
+  if (!requestId || customRequestId !== requestId) {
     throw new BillingApiStageError({
       code: 'PAYMENT_REQUEST_MISMATCH',
       details: {
@@ -254,7 +188,8 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
   }
 
   return {
-    payment,
+    paymentAmount: actualAmount,
+    paymentCurrency,
     paymentStatus,
   };
 }
@@ -376,6 +311,13 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       return result;
     }
 
+    const requestKey = normalizeNonEmptyString(request_id);
+    if (!requestKey || requestKey.length > 128) {
+      result = json({ ok: false, code: 'SETUP_REQUEST_REQUIRED', error: '스토어 생성 요청 식별자가 필요합니다.' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
     if (plan !== 'free' && !normalizeNonEmptyString(payment_id)) {
       result = json(
         {
@@ -390,46 +332,60 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     }
 
     let verifiedPaymentStatus: string | undefined;
+    let paymentAmount: number | null = null;
+    let paymentCurrency: string | null = null;
     if (plan !== 'free') {
-      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), normalizeNonEmptyString(request_id) || undefined);
+      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), requestKey);
       verifiedPaymentStatus = verification.paymentStatus;
+      paymentAmount = verification.paymentAmount;
+      paymentCurrency = verification.paymentCurrency;
     }
 
-    const { data, error } = await callAuthenticatedProvisionRpc(accessToken, {
-      address: address.trim(),
-      businessName: business_name.trim(),
-      businessNumber: business_number?.trim() || `BIZ-${Date.now()}`,
-      businessType: business_type?.trim() || '기타',
-      email: email.trim().toLowerCase(),
-      ownerName: owner_name.trim(),
-      phone: phone.trim(),
-      plan,
-      requestedSlug: requested_slug?.trim() || business_name.trim(),
+    const provisioning = {
+      p_auth_user_id: authData.user.id,
+      p_request_key: requestKey,
+      p_store_name: business_name.trim(),
+      p_owner_name: owner_name.trim(),
+      p_business_number: business_number?.trim() || '미입력',
+      p_phone: phone.trim(),
+      p_email: requestedEmail,
+      p_address: address.trim(),
+      p_business_type: business_type?.trim() || '기타',
+      p_requested_slug: requested_slug?.trim() || business_name.trim(),
+      p_plan: plan,
+      p_payment_id: plan === 'free' ? null : payment_id!.trim(),
+      p_payment_amount: paymentAmount,
+      p_payment_currency: paymentCurrency,
+    };
+    const requestHash = createHash('sha256').update(JSON.stringify(provisioning)).digest('hex');
+    const { data, error } = await adminClient.rpc('provision_store_from_verified_actor', {
+      ...provisioning,
+      p_request_hash: requestHash,
     });
 
     if (error) {
-      console.error('[provision] authenticated RPC error', { code: error.code, status: error.status });
+      console.error('[provision] server RPC error', { code: error.code });
       result = json(
         {
           ok: false,
-          error: error.message,
+          error: '스토어 생성이 완료되지 않았습니다. 요청 상태를 확인한 뒤 다시 시도해 주세요.',
           code: error.code,
         },
-        error.status,
+        error.code === '23505' ? 409 : error.code === '42501' ? 403 : 500,
       );
       await sendNodeResponse(result, response);
       return result;
     }
 
-    const row = Array.isArray(data) ? data[0] : data;
+    const row = (Array.isArray(data) ? data[0] : data) as { store_id?: string; slug?: string; replayed?: boolean } | null;
 
-    if (!row?.store_id && !row?.id) {
+    if (!row?.store_id) {
       result = json({ ok: false, error: 'Provision RPC did not return a store identifier.' }, 500);
       await sendNodeResponse(result, response);
       return result;
     }
 
-    const storeId = row.store_id ?? row.id;
+    const storeId = row.store_id;
     const slug = row.slug ?? requested_slug;
     await markSetupRequestConverted(request_id, storeId);
 
@@ -451,7 +407,9 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     await sendNodeResponse(result, response);
     return result;
   } catch (error) {
-    console.error('[provision] unexpected error:', error);
+    console.error('[provision] request failed', {
+      code: error instanceof BillingApiStageError ? error.code : 'PROVISION_FAILED',
+    });
     result = json(
       {
         ok: false,
