@@ -81,14 +81,74 @@ language sql
 stable
 security definer
 set search_path = public, pg_temp
-as $$
+as $
   select exists (
     select 1
     from public.store_members sm
     where sm.store_id = target_store_id
       and sm.profile_id = auth.uid()
   );
-$$;
+$;
+
+create or replace function private.current_service_os_business_profile_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  with current_identity as (
+    select auth.uid() as id
+  ),
+  explicit_binding as (
+    select b.public_profile_id
+    from private.profile_auth_bindings b
+    join current_identity ci on ci.id = b.auth_profile_id
+    join core.profiles cp on cp.id = b.auth_profile_id and cp.is_active
+    where b.status = 'ACTIVE'
+      and b.revoked_at is null
+    limit 1
+  ),
+  exact_id_fallback as (
+    select ci.id as public_profile_id
+    from current_identity ci
+    join auth.users au on au.id = ci.id
+    join core.profiles cp on cp.id = ci.id and cp.is_active
+    join public.profiles pp on pp.id = ci.id
+    where not exists (
+      select 1
+      from private.profile_auth_bindings b
+      where b.auth_profile_id = ci.id or b.public_profile_id = ci.id
+    )
+  )
+  select coalesce(
+    (select eb.public_profile_id from explicit_binding eb),
+    (select ef.public_profile_id from exact_id_fallback ef)
+  );
+$;
+
+create or replace function private.is_service_os_store_member(target_store_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select (select auth.uid()) is not null
+    and exists (
+      select 1
+      from public.store_members sm
+      where sm.store_id = target_store_id
+        and sm.profile_id = private.current_service_os_business_profile_id()
+    );
+$;
+
+grant usage on schema private to authenticated, service_role;
+revoke usage on schema private from anon;
+revoke execute on function private.current_service_os_business_profile_id() from public, anon, service_role;
+revoke execute on function private.is_service_os_store_member(uuid) from public, anon, service_role;
+grant execute on function private.current_service_os_business_profile_id() to authenticated;
+grant execute on function private.is_service_os_store_member(uuid) to authenticated;
 
 create or replace function public.generate_unique_store_slug(base_name text)
 returns text
