@@ -20,8 +20,8 @@ begin
   if missing is not null then
     raise exception 'MyBiz RLS target tables missing: %', missing;
   end if;
-  if to_regprocedure('public.is_store_member(uuid)') is null then
-    raise exception 'Existing store membership helper is required';
+  if to_regprocedure('private.is_service_os_store_member(uuid)') is null then
+    raise exception 'Existing Service OS store membership helper is required';
   end if;
 end;
 $guard$;
@@ -59,50 +59,48 @@ revoke all on table public.ai_reports from anon, authenticated;
 revoke all on table public.store_home_content from anon, authenticated;
 revoke all on table public.store_setup_requests from anon, authenticated;
 
--- Existing helper body uses schema-qualified references. Restrict lookup path.
-alter function public.is_store_member(uuid) set search_path = '';
-revoke execute on function public.is_store_member(uuid) from public, anon;
-grant execute on function public.is_store_member(uuid) to authenticated;
-
+-- Reuse the existing Production Service OS identity boundary. It resolves
+-- verified Auth/profile bindings and exact-ID fallback without exposing the
+-- private binding table to clients.
 -- Authenticated merchant editor: own store only. Public reads use the server API.
 create policy mybiz_tables_member_select on public.store_tables
-  for select to authenticated using (public.is_store_member(store_id));
+  for select to authenticated using (private.is_service_os_store_member(store_id));
 create policy mybiz_tables_member_insert on public.store_tables
-  for insert to authenticated with check (public.is_store_member(store_id));
+  for insert to authenticated with check (private.is_service_os_store_member(store_id));
 grant select, insert on public.store_tables to authenticated;
 
 create policy mybiz_categories_member_select on public.menu_categories
-  for select to authenticated using (public.is_store_member(store_id));
+  for select to authenticated using (private.is_service_os_store_member(store_id));
 create policy mybiz_categories_member_insert on public.menu_categories
-  for insert to authenticated with check (public.is_store_member(store_id));
+  for insert to authenticated with check (private.is_service_os_store_member(store_id));
 grant select, insert on public.menu_categories to authenticated;
 
 create policy mybiz_items_member_select on public.menu_items
-  for select to authenticated using (public.is_store_member(store_id));
+  for select to authenticated using (private.is_service_os_store_member(store_id));
 create policy mybiz_items_member_insert on public.menu_items
-  for insert to authenticated with check (public.is_store_member(store_id));
+  for insert to authenticated with check (private.is_service_os_store_member(store_id));
 grant select, insert on public.menu_items to authenticated;
 
 -- Production legacy priority settings use TEXT store_id, unlike the UUID membership key.
 create policy mybiz_priority_member_select on public.store_priority_settings
   for select to authenticated using (
     case when store_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      then public.is_store_member(store_id::uuid) else false end
+      then private.is_service_os_store_member(store_id::uuid) else false end
   );
 create policy mybiz_priority_member_insert on public.store_priority_settings
   for insert to authenticated with check (
     case when store_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      then public.is_store_member(store_id::uuid) else false end
+      then private.is_service_os_store_member(store_id::uuid) else false end
   );
 create policy mybiz_priority_member_update on public.store_priority_settings
   for update to authenticated
   using (
     case when store_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      then public.is_store_member(store_id::uuid) else false end
+      then private.is_service_os_store_member(store_id::uuid) else false end
   )
   with check (
     case when store_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      then public.is_store_member(store_id::uuid) else false end
+      then private.is_service_os_store_member(store_id::uuid) else false end
   );
 grant select, insert, update on public.store_priority_settings to authenticated;
 
