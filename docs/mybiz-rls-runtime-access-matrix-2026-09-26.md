@@ -62,7 +62,7 @@ No Production DB changes are authorized by this matrix.
 
 All 15 currently have RLS disabled and broad anon/authenticated CRUD in the verified baseline. Production grants and policies were not changed in this work.
 
-The `store_tables`, `menu_categories`, `menu_items`, and `store_priority_settings` policies use the existing `is_store_member(uuid)` helper. This helper resolves only exact Auth/profile IDs. A nonidentical but active Auth/profile binding is a documented compatibility gap, not a claimed PASS. No anon UPDATE/DELETE and no authenticated DELETE are proposed.
+The `store_tables`, `menu_categories`, `menu_items`, and `store_priority_settings` policies use the `private.is_service_os_store_member(uuid)` Production identity helper. The draft also replaces the body of the existing `public.is_store_member(uuid)` signature, used by `stores` and `store_members` policies, with a delegation to that private helper. It resolves ACTIVE verified bindings and exact-ID fallback; REVOKED bindings have no fallback. Disposable pgTAP and API E2E must both pass before this is certified. No anon UPDATE/DELETE and no authenticated DELETE are proposed.
 
 ## Exact client operation matrix
 
@@ -87,3 +87,9 @@ The `store_tables`, `menu_categories`, `menu_items`, and `store_priority_setting
 | store_setup_requests | N | N | N | N | N | N | N | N | request scoped | N | Y/Y |
 
 Here S/I/U/D are SELECT/INSERT/UPDATE/DELETE. Current Production still has RLS disabled and broad anon/authenticated CRUD on every listed table. For legacy/unknown tables the absence of a current repository caller does not prove external callers are absent.
+
+## Server authorization and provisioning update
+
+- The server validates the user JWT with Supabase Auth, then creates a separate anon-key client carrying that JWT. `store_members` is queried with no `profile_id` filter; the existing RLS policy determines visible rows. The returned `profile_id` is the business profile for merchant writes and OAuth state. The service-role client remains for authorized data operations after store scope is verified.
+- The new server-only provisioning draft accepts only an actor ID derived from the server-verified Auth response. It resolves the same binding semantics inside its reviewed transaction. The old nine-text-argument authenticated RPC loses EXECUTE, preventing caller-controlled paid plans from bypassing payment verification.
+- The initial list above records historical call sites; the target and exact operation tables below describe the proposed boundary. Production remains unchanged.
