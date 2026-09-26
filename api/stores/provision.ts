@@ -16,7 +16,6 @@ interface ProvisionRequestBody {
   business_type: string;
   email: string;
   owner_name: string;
-  owner_profile_id?: string;
   payment_id?: string;
   phone: string;
   plan?: 'free' | 'pro' | 'vip';
@@ -44,6 +43,15 @@ function json(body: unknown, status = 200) {
 
 function normalizeNonEmptyString(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function bearerToken(request: RequestLike) {
+  const headers = request.headers;
+  const authorization = headers instanceof Headers
+    ? headers.get('authorization')
+    : Object.entries(headers || {}).find(([key]) => key.toLowerCase() === 'authorization')?.[1];
+  const value = Array.isArray(authorization) ? authorization[0] : authorization;
+  return typeof value === 'string' ? value.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || null : null;
 }
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -125,7 +133,7 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const expectedAmount = getBillingPlan(plan).amount;
   const actualAmount = readPaymentAmount(payment);
-  if (actualAmount !== null && actualAmount !== expectedAmount) {
+  if (actualAmount !== expectedAmount) {
     throw new BillingApiStageError({
       code: 'PAYMENT_AMOUNT_MISMATCH',
       details: {
@@ -141,7 +149,7 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const customData = readPaymentCustomData(payment);
   const planKey = normalizeNonEmptyString(readNestedRecordValue(customData, ['planKey']));
-  if (planKey && planKey !== plan) {
+  if (planKey !== plan) {
     throw new BillingApiStageError({
       code: 'PAYMENT_PLAN_MISMATCH',
       details: {
@@ -156,7 +164,7 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
   }
 
   const customRequestId = normalizeNonEmptyString(readNestedRecordValue(customData, ['requestId']));
-  if (requestId && customRequestId && customRequestId !== requestId) {
+  if (!requestId || customRequestId !== requestId) {
     throw new BillingApiStageError({
       code: 'PAYMENT_REQUEST_MISMATCH',
       details: {
@@ -234,7 +242,25 @@ export default async function handler(request: RequestLike, response?: NodeRespo
   }
 
   try {
+    const token = bearerToken(request);
+    if (!token) {
+      result = json({ ok: false, code: 'AUTH_REQUIRED' }, 401);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    const adminClient = getSupabaseAdminClient();
+    const { data: authData, error: authError } = await adminClient.auth.getUser(token);
+    if (authError || !authData.user) {
+      result = json({ ok: false, code: 'AUTH_INVALID' }, 401);
+      await sendNodeResponse(result, response);
+      return result;
+    }
     const body = await readJsonBody(request);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      result = json({ ok: false, code: 'INVALID_REQUEST_BODY' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
 
     const {
       business_name,
@@ -247,9 +273,19 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       requested_slug,
       payment_id,
       plan = 'free',
-      owner_profile_id,
       request_id,
     } = body;
+
+    if ('owner_profile_id' in body) {
+      result = json({ ok: false, code: 'CLIENT_IDENTITY_NOT_ACCEPTED' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    if (!authData.user.email || authData.user.email.trim().toLowerCase() !== normalizeNonEmptyString(email).toLowerCase()) {
+      result = json({ ok: false, code: 'OWNER_EMAIL_MISMATCH' }, 403);
+      await sendNodeResponse(result, response);
+      return result;
+    }
 
     if (!isBillingPlanCode(plan)) {
       result = json({ ok: false, error: `Unsupported plan: ${String(plan)}` }, 400);
@@ -267,6 +303,27 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       return result;
     }
 
+    const normalizedRequestId = normalizeNonEmptyString(request_id);
+    if (plan !== 'free' && !normalizedRequestId) {
+      result = json({ ok: false, code: 'ONBOARDING_REQUEST_REQUIRED' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+    if (normalizedRequestId) {
+      const { data: setupRequest, error: setupError } = await adminClient
+        .from('store_setup_requests').select('id,email').eq('id', normalizedRequestId).maybeSingle();
+      if (setupError || !setupRequest) {
+        result = json({ ok: false, code: 'ONBOARDING_REQUEST_NOT_FOUND' }, 404);
+        await sendNodeResponse(result, response);
+        return result;
+      }
+      if (normalizeNonEmptyString(setupRequest.email).toLowerCase() !== authData.user.email.trim().toLowerCase()) {
+        result = json({ ok: false, code: 'ONBOARDING_OWNER_MISMATCH' }, 403);
+        await sendNodeResponse(result, response);
+        return result;
+      }
+    }
+
     if (plan !== 'free' && !normalizeNonEmptyString(payment_id)) {
       result = json(
         {
@@ -282,13 +339,12 @@ export default async function handler(request: RequestLike, response?: NodeRespo
 
     let verifiedPaymentStatus: string | undefined;
     if (plan !== 'free') {
-      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), normalizeNonEmptyString(request_id) || undefined);
+      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), normalizedRequestId || undefined);
       verifiedPaymentStatus = verification.paymentStatus;
     }
 
-    const adminClient = getSupabaseAdminClient();
-
-    const { data, error } = await adminClient.rpc('create_store_with_owner', {
+    const { data, error } = await adminClient.rpc('create_store_with_verified_owner', {
+      p_actor_id: authData.user.id,
       p_store_name: business_name.trim(),
       p_owner_name: owner_name.trim(),
       p_business_number: business_number?.trim() || `BIZ-${Date.now()}`,
@@ -298,7 +354,6 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       p_business_type: business_type?.trim() || '기타',
       p_requested_slug: requested_slug?.trim() || business_name.trim(),
       p_plan: plan,
-      ...(owner_profile_id ? { p_owner_profile_id: owner_profile_id } : {}),
     });
 
     if (error) {

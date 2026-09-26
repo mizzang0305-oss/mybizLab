@@ -116,6 +116,50 @@ begin
 end;
 $$;
 
+-- Exact Production Service OS identity semantics, installed before the
+-- compatibility draft replaces the public helper body.
+create or replace function private.current_service_os_business_profile_id()
+returns uuid language sql stable security definer set search_path = '' as $$
+  with current_identity as (select auth.uid() as id),
+  explicit_binding as (
+    select b.public_profile_id
+    from private.profile_auth_bindings b
+    join current_identity ci on ci.id = b.auth_profile_id
+    join core.profiles cp on cp.id = b.auth_profile_id and cp.is_active
+    where b.status = 'ACTIVE' and b.revoked_at is null
+    limit 1
+  ),
+  exact_id_fallback as (
+    select ci.id as public_profile_id
+    from current_identity ci
+    join auth.users au on au.id = ci.id
+    join core.profiles cp on cp.id = ci.id and cp.is_active
+    join public.profiles pp on pp.id = ci.id
+    where not exists (
+      select 1 from private.profile_auth_bindings b
+      where b.auth_profile_id = ci.id or b.public_profile_id = ci.id
+    )
+  )
+  select coalesce(
+    (select eb.public_profile_id from explicit_binding eb),
+    (select ef.public_profile_id from exact_id_fallback ef)
+  );
+$$;
+create or replace function private.is_service_os_store_member(target_store_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select (select auth.uid()) is not null and exists (
+    select 1 from public.store_members sm
+    where sm.store_id = target_store_id
+      and sm.profile_id = private.current_service_os_business_profile_id()
+  );
+$$;
+revoke all on function private.current_service_os_business_profile_id() from public, anon, service_role;
+revoke all on function private.is_service_os_store_member(uuid) from public, anon, service_role;
+grant execute on function private.current_service_os_business_profile_id() to authenticated;
+grant execute on function private.is_service_os_store_member(uuid) to authenticated;
+revoke all on function public.is_store_member(uuid) from public, anon;
+grant execute on function public.is_store_member(uuid) to authenticated, service_role;
+
 -- The existing live provisioning body is installed as a separate CI-only
 -- migration after all baseline tables exist. Never substitute an inert RPC.
 
@@ -478,6 +522,62 @@ create table public.payment_events (
   raw jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+create table public.lead_capture_requests (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid references public.stores(store_id),
+  source text not null,
+  status text not null default 'new',
+  store_name text not null,
+  business_type text not null
+);
+
+-- Representative unchanged Production policy shapes. The V3 migration must
+-- replace only public.is_store_member(uuid), never these policy definitions.
+alter table public.stores enable row level security;
+alter table public.store_members enable row level security;
+alter table public.store_public_pages enable row level security;
+alter table public.customers enable row level security;
+alter table public.customer_contacts enable row level security;
+alter table public.customer_preferences enable row level security;
+alter table public.conversation_sessions enable row level security;
+alter table public.conversation_messages enable row level security;
+alter table public.lead_capture_requests enable row level security;
+create policy stores_member_access on public.stores for all
+  using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy store_members_select_member on public.store_members for select
+  using (public.is_store_member(store_id));
+create policy store_members_insert_member on public.store_members for insert
+  with check (public.is_store_member(store_id));
+create policy store_members_update_member on public.store_members for update
+  using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy store_public_pages_member_access on public.store_public_pages for all
+  using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy customers_select_store_member on public.customers for select to authenticated
+  using (public.is_store_member(store_id));
+create policy customer_contacts_select_store_member on public.customer_contacts for select to authenticated
+  using (store_id is not null and exists (
+    select 1 from public.customers c where c.customer_id=customer_contacts.customer_id
+      and c.store_id=customer_contacts.store_id and public.is_store_member(c.store_id)
+  ));
+create policy customer_preferences_member_access on public.customer_preferences for all
+  using (exists (select 1 from public.customers c
+    where c.customer_id=customer_preferences.customer_id and public.is_store_member(c.store_id)))
+  with check (exists (select 1 from public.customers c
+    where c.customer_id=customer_preferences.customer_id and public.is_store_member(c.store_id)));
+create policy conversation_sessions_member_access on public.conversation_sessions for all
+  using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy conversation_messages_member_access on public.conversation_messages for all
+  using (exists (select 1 from public.conversation_sessions cs
+    where cs.id=conversation_messages.conversation_session_id and public.is_store_member(cs.store_id)))
+  with check (exists (select 1 from public.conversation_sessions cs
+    where cs.id=conversation_messages.conversation_session_id and public.is_store_member(cs.store_id)));
+create policy lead_capture_requests_store_member_select on public.lead_capture_requests
+  for select to authenticated using (store_id is not null and public.is_store_member(store_id));
+grant select on public.stores, public.store_members, public.store_public_pages,
+  public.customers, public.customer_contacts, public.customer_preferences,
+  public.conversation_sessions, public.conversation_messages,
+  public.lead_capture_requests to authenticated;
+grant select, insert on public.lead_capture_requests to service_role;
 grant select, insert, update on public.stores, public.profiles, public.store_members,
   public.store_public_pages, public.store_subscriptions, public.customers,
   public.inquiries, public.visitor_sessions, public.customer_contacts,

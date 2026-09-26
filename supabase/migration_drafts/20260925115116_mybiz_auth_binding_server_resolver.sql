@@ -1,4 +1,5 @@
--- DRAFT ONLY. Server-side verified Auth/profile binding lookup.
+-- DRAFT ONLY. Server-side verified Auth/profile lookup. Match the existing
+-- Service OS exact-ID fallback only when no binding row exists for the actor.
 -- Do not apply to Production without exact DB identity, backup and approval.
 begin;
 
@@ -20,15 +21,29 @@ returns uuid
 language sql stable security definer
 set search_path = ''
 as $body$
-  select case when count(*) = 1 then min(b.public_profile_id::text)::uuid else null end
-  from private.profile_auth_bindings b
-  join core.profiles cp on cp.id = b.auth_profile_id and cp.is_active
-  join auth.users au on au.id = b.auth_profile_id
-  join public.profiles pp on pp.id = b.public_profile_id
-  where p_auth_user_id is not null
-    and b.auth_profile_id = p_auth_user_id
-    and b.status = 'ACTIVE'
-    and b.revoked_at is null;
+  with explicit_binding as (
+    select case when count(*) = 1 then min(b.public_profile_id::text)::uuid else null end as profile_id
+    from private.profile_auth_bindings b
+    join core.profiles cp on cp.id = b.auth_profile_id and cp.is_active
+    join auth.users au on au.id = b.auth_profile_id
+    join public.profiles pp on pp.id = b.public_profile_id
+    where p_auth_user_id is not null
+      and b.auth_profile_id = p_auth_user_id
+      and b.status = 'ACTIVE'
+      and b.revoked_at is null
+  ), exact_id_fallback as (
+    select pp.id as profile_id
+    from auth.users au
+    join core.profiles cp on cp.id = au.id and cp.is_active
+    join public.profiles pp on pp.id = au.id
+    where au.id = p_auth_user_id
+      and not exists (
+        select 1 from private.profile_auth_bindings b
+        where b.auth_profile_id = au.id or b.public_profile_id = au.id
+      )
+  )
+  select coalesce((select profile_id from explicit_binding),
+                  (select profile_id from exact_id_fallback));
 $body$;
 
 revoke all on function public.resolve_verified_merchant_profile_for_server(uuid)

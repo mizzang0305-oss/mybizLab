@@ -101,6 +101,10 @@ jobs:
             "$CI_SUPABASE_ROOT/supabase/migrations/20260925000001_mybiz_existing_provisioning_function.sql"
           cp supabase/migration_drafts/20260925115116_mybiz_auth_binding_server_resolver.sql \
             "$CI_SUPABASE_ROOT/supabase/migrations/20260925000002_mybiz_auth_binding_server_resolver.sql"
+          cp supabase/migration_drafts/20260926_mybiz_existing_policy_identity_compat.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260925000003_mybiz_existing_policy_identity_compat.sql"
+          cp supabase/migration_drafts/20260926_mybiz_verified_owner_provisioning.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260925000004_mybiz_verified_owner_provisioning.sql"
           cp supabase/migration_drafts/20260926_mybiz_legacy_public_rls_hardening.sql \
             "$CI_SUPABASE_ROOT/supabase/migrations/20260926000000_mybiz_legacy_public_rls_hardening.sql"
 
@@ -151,6 +155,15 @@ jobs:
         shell: bash
         env:
           LOCAL_RLS_PHASE: http
+        run: |
+          set -euo pipefail
+          npx vitest run src/tests/mybiz-rls-security-fullstack.test.ts --reporter=dot
+
+      - name: Verify server-only store provisioning with real local Auth
+        id: provisioning
+        shell: bash
+        env:
+          LOCAL_RLS_PHASE: provision
         run: |
           set -euo pipefail
           npx vitest run src/tests/mybiz-rls-security-fullstack.test.ts --reporter=dot
@@ -221,6 +234,7 @@ jobs:
             echo '- pgTAP: `${{ steps.pgtap.outcome }}`'
             echo '- PostgREST: `${{ steps.postgrest.outcome }}`'
             echo '- Hardened HTTP: `${{ steps.http.outcome }}`'
+            echo '- Verified-owner provisioning: `${{ steps.provisioning.outcome }}`'
             echo '- DB lint: `${{ steps.db_lint.outcome }}`'
             echo '- Compatibility tests: `${{ steps.compat.outcome }}`'
             echo '- Full app gates: `${{ steps.full.outcome }}`'

@@ -10,11 +10,13 @@ import authSessionHandler from '../../api/auth/session';
 import merchantHandler from '../../api/merchant';
 import onboardingHandler from '../../api/onboarding/setup-request';
 import publicHandler from '../../api/public';
+import provisionHandler from '../../api/stores/provision';
+import { getBillingPlan } from '../shared/lib/billingPlans';
 import { resetSupabaseAdminClientForTests } from '../server/supabaseAdmin';
 
 const statusFile = process.env.LOCAL_SUPABASE_STATUS_FILE;
 const phase = process.env.LOCAL_RLS_PHASE;
-type Identity = { authId: string; profileId: string; token: string };
+type Identity = { authId: string; profileId: string; token: string; email: string };
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 const targets = [
@@ -28,7 +30,7 @@ const grants: Record<string, string> = {
   menu_items: 'RI', store_priority_settings: 'RIU',
 };
 
-describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http' || phase === 'rollback'))('V2 hardened local full stack', () => {
+describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http' || phase === 'provision' || phase === 'rollback'))('V2 hardened local full stack', () => {
   let server: Server;
   let appUrl: string;
   let apiUrl: string;
@@ -41,6 +43,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
   let nonMember: Identity;
   let revoked: Identity;
   let noBinding: Identity;
+  let exact: Identity;
   const storeA = randomUUID();
   const storeB = randomUUID();
   const storeBWrite = randomUUID();
@@ -54,7 +57,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
     }).trim();
   }
 
-  async function identity(mode: 'bound' | 'unbound' | 'revoked' = 'bound'): Promise<Identity> {
+  async function identity(mode: 'bound' | 'unbound' | 'revoked' | 'exact' = 'bound'): Promise<Identity> {
     const email = `rls-${randomUUID()}@example.test`;
     const password = `${randomUUID()}${randomUUID()}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -64,17 +67,17 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
       auth: { persistSession: false, autoRefreshToken: false },
     }).auth.signInWithPassword({ email, password });
     expect(signedIn.error).toBeNull();
-    const profileId = randomUUID();
+    const profileId = mode === 'exact' ? authId : randomUUID();
     sql(`insert into core.profiles(id) values ('${authId}');
       insert into public.profiles(id,full_name) values ('${profileId}','Synthetic');`);
-    if (mode !== 'unbound') {
+    if (mode === 'bound' || mode === 'revoked') {
       sql(`insert into private.profile_auth_bindings
         (public_profile_id,auth_profile_id,binding_source,status,revoked_at)
         values ('${profileId}','${authId}','OWNER_VERIFIED',
           '${mode === 'revoked' ? 'REVOKED' : 'ACTIVE'}',${mode === 'revoked' ? 'now()' : 'null'});`);
     }
-    expect(authId).not.toBe(profileId);
-    return { authId, profileId, token: signedIn.data.session!.access_token };
+    if (mode !== 'exact') expect(authId).not.toBe(profileId);
+    return { authId, profileId, token: signedIn.data.session!.access_token, email };
   }
 
   async function rest(table: string, method: Method, key: string, token: string, query = '', body?: object) {
@@ -88,6 +91,15 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
     });
     const text = await response.text();
     return { status: response.status, body: text ? JSON.parse(text) as unknown : null };
+  }
+
+  async function memberRpc(token: string, storeId: string) {
+    const response = await fetch(`${apiUrl}/rest/v1/rpc/is_store_member`, {
+      method: 'POST',
+      headers: { apikey: anonKey, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ target_store_id: storeId }),
+    });
+    return { status: response.status, value: await response.json() as boolean };
   }
 
   function payload(table: string, storeId: string): Record<string, unknown> {
@@ -131,15 +143,16 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
     process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey;
     resetSupabaseAdminClientForTests();
     admin = createClient(apiUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-    [a, b, nonMember, revoked, noBinding] = await Promise.all([
-      identity(), identity(), identity(), identity('revoked'), identity('unbound'),
+    [a, b, nonMember, revoked, noBinding, exact] = await Promise.all([
+      identity(), identity(), identity(), identity('revoked'), identity('unbound'), identity('exact'),
     ]);
     sql(`insert into public.stores(store_id,slug,name,plan) values
       ('${storeA}','${slugA}','Synthetic A','pro'),
       ('${storeB}','${slugB}','Synthetic B','pro'),
       ('${storeBWrite}','write-${storeBWrite}','Synthetic B Write','pro');
       insert into public.store_members(store_id,profile_id,role) values
-      ('${storeA}','${a.profileId}','owner'),('${storeB}','${b.profileId}','owner'),
+       ('${storeA}','${a.profileId}','owner'),('${storeA}','${exact.profileId}','staff'),
+       ('${storeB}','${b.profileId}','owner'),
       ('${storeBWrite}','${b.profileId}','owner');
       insert into public.store_subscriptions(store_id,plan,status) values
       ('${storeA}','pro','active'),('${storeB}','pro','active');
@@ -157,6 +170,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
         const response = path === '/api/auth/session' ? await authSessionHandler(request)
           : path === '/api/merchant' ? await merchantHandler(request)
             : path === '/api/onboarding/setup-request' ? await onboardingHandler(request)
+              : path === '/api/stores/provision' ? await provisionHandler(request)
               : await publicHandler(request);
         outgoing.writeHead(response.status, Object.fromEntries(response.headers.entries()));
         outgoing.end(await response.text());
@@ -255,6 +269,62 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
     const removed = await rest('store_tables', 'GET', anonKey, a.token, `?store_id=eq.${storeA}`);
     expect(removed.status).toBe(200);
     expect(removed.body).toEqual([]);
+    sql(`insert into public.store_members(store_id,profile_id,role)
+      values ('${storeA}','${a.profileId}','owner'),
+             ('${storeA}','${exact.profileId}','staff')
+      on conflict (store_id,profile_id) do nothing`);
+  });
+
+  it.runIf(phase === 'postgrest')('keeps existing policy shapes binding-aware without policy rewrites', async () => {
+    expect(await memberRpc(exact.token, storeA)).toEqual({ status: 200, value: true });
+    expect(await memberRpc(exact.token, storeB)).toEqual({ status: 200, value: false });
+    expect(await memberRpc(a.token, storeA)).toEqual({ status: 200, value: true });
+    expect(await memberRpc(a.token, storeB)).toEqual({ status: 200, value: false });
+    for (const identity of [revoked, noBinding, nonMember]) {
+      expect(await memberRpc(identity.token, storeA)).toEqual({ status: 200, value: false });
+    }
+    sql(`update core.profiles set is_active=false where id='${a.authId}'`);
+    expect(await memberRpc(a.token, storeA)).toEqual({ status: 200, value: false });
+    sql(`update core.profiles set is_active=true where id='${a.authId}'`);
+    // This table's own policy calls the helper; a SECURITY INVOKER helper
+    // would recurse or fail here, so exercise the real REST/RLS path.
+    const ownMembership = await rest('store_members', 'GET', anonKey, a.token, `?store_id=eq.${storeA}`);
+    expect(ownMembership.status).toBe(200);
+    expect((ownMembership.body as unknown[]).length).toBe(2);
+    const otherMembership = await rest('store_members', 'GET', anonKey, a.token, `?store_id=eq.${storeB}`);
+    expect(otherMembership.status).toBe(200);
+    expect(otherMembership.body).toEqual([]);
+
+    const customerA = randomUUID();
+    const customerB = randomUUID();
+    const conversationA = randomUUID();
+    const conversationB = randomUUID();
+    sql(`insert into public.customers(customer_id,store_id,customer_key) values
+      ('${customerA}','${storeA}','synthetic-a'),('${customerB}','${storeB}','synthetic-b');
+      insert into public.customer_contacts(customer_id,store_id,contact_type,normalized_value) values
+      ('${customerA}','${storeA}','email','synthetic-a@example.test'),
+      ('${customerB}','${storeB}','email','synthetic-b@example.test');
+      insert into public.customer_preferences(customer_id) values ('${customerA}'),('${customerB}');
+      insert into public.conversation_sessions(id,store_id,channel) values
+      ('${conversationA}','${storeA}','synthetic'),('${conversationB}','${storeB}','synthetic');
+      insert into public.conversation_messages(conversation_session_id,role,content) values
+      ('${conversationA}','user','synthetic'),('${conversationB}','user','synthetic');
+      insert into public.lead_capture_requests(store_id,source,store_name,business_type) values
+      ('${storeA}','synthetic','A','service'),('${storeB}','synthetic','B','service'),
+      (null,'synthetic','Unassigned','service');`);
+    for (const table of ['stores', 'store_public_pages', 'customers', 'customer_contacts',
+      'customer_preferences', 'conversation_sessions', 'conversation_messages', 'lead_capture_requests']) {
+      const visible = await rest(table, 'GET', anonKey, a.token);
+      expect(visible.status, table).toBe(200);
+      expect((visible.body as unknown[]).length, table).toBe(1);
+      const asOther = await rest(table, 'GET', anonKey, b.token);
+      expect(asOther.status, table).toBe(200);
+      expect((asOther.body as unknown[]).length, table).toBe(
+        table === 'store_public_pages' ? 0 : table === 'stores' ? 2 : 1,
+      );
+    }
+    const nullable = await rest('lead_capture_requests', 'GET', anonKey, a.token);
+    expect((nullable.body as unknown[]).length).toBe(1);
   });
 
   it.runIf(phase === 'http')('uses non-identical binding for the actual session and merchant HTTP boundary', async () => {
@@ -334,6 +404,92 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
     expect(Number(sql(`select count(*) from public.inquiries where store_id='${storeA}'`))).toBe(before + 1);
   });
 
+  it.runIf(phase === 'provision')('creates a free exact-ID owner only through verified server HTTP', async () => {
+    const body = {
+      business_name: 'Synthetic Provision Store', owner_name: 'Synthetic Owner',
+      business_number: 'SYN-12345', phone: '0000000000', email: exact.email,
+      address: 'Synthetic Seoul', business_type: 'service', requested_slug: `provision-${randomUUID()}`,
+      plan: 'free',
+    };
+    expect((await app('/api/stores/provision', 'POST', body)).status).toBe(401);
+    expect((await app('/api/stores/provision', 'POST', body, 'invalid-token')).status).toBe(401);
+    expect((await app('/api/stores/provision', 'POST', { ...body, email: 'wrong@example.test' }, exact.token)).status).toBe(403);
+    expect((await app('/api/stores/provision', 'POST', { ...body, owner_profile_id: a.profileId }, exact.token)).status).toBe(400);
+    const result = await app('/api/stores/provision', 'POST', body, exact.token);
+    expect(result.status).toBe(200);
+    const created = (result.body.store as Record<string, unknown>).id as string;
+    expect(sql(`select profile_id from public.store_members where store_id='${created}' and role='owner'`)).toBe(exact.authId);
+    expect(sql(`select count(*) from public.store_priority_settings where store_id='${created}'`)).toBe('1');
+    const session = await app('/api/auth/session', 'GET', undefined, exact.token);
+    expect(session.status).toBe(200);
+    expect((session.body.data as Record<string, unknown>).accessibleStoreIds).toContain(created);
+
+    for (const name of ['create_store_with_owner', 'create_store_with_verified_owner']) {
+      const args = name === 'create_store_with_owner'
+        ? { p_store_name: 'Bypass', p_owner_name: 'Bypass', p_business_number: 'SYN',
+          p_phone: '000', p_email: exact.email, p_address: 'Synthetic', p_business_type: 'service',
+          p_requested_slug: 'bypass', p_plan: 'vip' }
+        : { p_actor_id: exact.authId, p_store_name: 'Bypass', p_owner_name: 'Bypass',
+          p_business_number: 'SYN', p_phone: '000', p_email: exact.email,
+          p_address: 'Synthetic', p_business_type: 'service', p_requested_slug: 'bypass', p_plan: 'vip' };
+      for (const token of [anonKey, exact.token]) {
+        const response = await fetch(`${apiUrl}/rest/v1/rpc/${name}`, {
+          method: 'POST', headers: { apikey: anonKey, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify(args),
+        });
+        denied(response.status);
+      }
+    }
+    const invalidActor = await fetch(`${apiUrl}/rest/v1/rpc/create_store_with_verified_owner`, {
+      method: 'POST', headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ p_actor_id: randomUUID(), p_store_name: 'Invalid', p_owner_name: 'Invalid',
+        p_business_number: 'SYN', p_phone: '000', p_email: exact.email, p_address: 'Synthetic',
+        p_business_type: 'service', p_requested_slug: 'invalid', p_plan: 'free' }),
+    });
+    expect(invalidActor.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it.runIf(phase === 'provision')('requires matching paid request and synthetic PAID verification', async () => {
+    const requestId = randomUUID();
+    sql(`insert into public.store_setup_requests(id,email,business_name,owner_name)
+      values ('${requestId}','${exact.email}','Synthetic Paid','Synthetic Owner')`);
+    const body = { business_name: 'Synthetic Paid', owner_name: 'Synthetic Owner',
+      business_number: 'SYN-23456', phone: '0000000000', email: exact.email,
+      address: 'Synthetic Seoul', business_type: 'service', requested_slug: `paid-${randomUUID()}`,
+      plan: 'pro', request_id: requestId };
+    expect((await app('/api/stores/provision', 'POST', body, exact.token)).status).toBe(400);
+    const wrongRequest = { ...body, request_id: randomUUID(), payment_id: `synthetic-${randomUUID()}` };
+    expect((await app('/api/stores/provision', 'POST', wrongRequest, exact.token)).status).toBe(404);
+    process.env.PORTONE_API_SECRET = 'synthetic-local-only';
+    process.env.PORTONE_STORE_ID = 'synthetic-local-store';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const target = input instanceof Request ? input.url : String(input);
+      if (target.includes('api.portone.io')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          status: target.includes('not-paid') ? 'READY' : 'PAID',
+          amount: { total: getBillingPlan('pro').amount },
+          customData: { planKey: 'pro', requestId },
+        }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+    try {
+      expect((await app('/api/stores/provision', 'POST', {
+        ...body, payment_id: `not-paid-${randomUUID()}`,
+      }, exact.token)).status).toBe(409);
+      const response = await app('/api/stores/provision', 'POST', { ...body, payment_id: `synthetic-${randomUUID()}` }, exact.token);
+      expect(response.status).toBe(200);
+      const created = (response.body.store as Record<string, unknown>).id as string;
+      expect(sql(`select profile_id from public.store_members where store_id='${created}' and role='owner'`)).toBe(exact.authId);
+      expect(sql(`select status from public.store_setup_requests where id='${requestId}'`)).toBe('converted');
+    } finally {
+      globalThis.fetch = originalFetch;
+      delete process.env.PORTONE_API_SECRET;
+      delete process.env.PORTONE_STORE_ID;
+    }
+  });
+
   it.runIf(phase === 'rollback')('keeps server paths alive while direct client CRUD is held', async () => {
     denied((await rest('orders', 'GET', anonKey, anonKey)).status);
     denied((await rest('orders', 'GET', anonKey, a.token)).status);
@@ -353,5 +509,12 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
     });
     expect(onboarding.status).toBe(201);
     expect(Number(sql('select count(*) from public.store_setup_requests'))).toBe(before + 1);
+    const provision = await app('/api/stores/provision', 'POST', {
+      business_name: 'Rollback Synthetic Store', owner_name: 'Synthetic Owner',
+      business_number: 'SYN-ROLLBACK', phone: '0000000000', email: exact.email,
+      address: 'Synthetic Seoul', business_type: 'service',
+      requested_slug: `rollback-provision-${randomUUID()}`, plan: 'free',
+    }, exact.token);
+    expect(provision.status).toBe(200);
   });
 });

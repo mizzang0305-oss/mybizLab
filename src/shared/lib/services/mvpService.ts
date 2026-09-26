@@ -514,10 +514,15 @@ async function createStoreViaSupabaseRpc(
     requestId?: string;
   },
 ): Promise<CreateStoreWithOwnerRpcRow> {
-  // 서버사이드 API 통해 service_role로 RPC 호출 (클라이언트 Auth 불필요)
+  const client = assertLiveSupabaseClient();
+  const session = await client.auth.getSession();
+  const accessToken = session.data.session?.access_token;
+  if (session.error || !accessToken) {
+    throw new Error('스토어 생성에는 인증된 소유자 세션이 필요합니다.');
+  }
   const response = await fetch(resolveServerApiUrl('/api/stores/provision'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       business_name: input.business_name,
       owner_name: input.owner_name,

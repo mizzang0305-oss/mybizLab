@@ -204,12 +204,8 @@ revoke execute on function public.generate_unique_store_slug(text) from anon;
 revoke execute on function public.generate_unique_store_slug(text) from authenticated;
 grant execute on function public.generate_unique_store_slug(text) to service_role;
 
--- The provisioning API invokes this existing RPC with its server admin client.
--- Direct authenticated EXECUTE permits caller-controlled plan selection despite
--- table RLS; retain the server path only. Do not replace the function body here.
+-- The verified-owner server RPC replaces this legacy entry point. Keep the
+-- object for separately approved recovery, but remove all client/API roles.
 revoke execute on function public.create_store_with_owner(
   text, text, text, text, text, text, text, text, text
-) from public, anon, authenticated;
-grant execute on function public.create_store_with_owner(
-  text, text, text, text, text, text, text, text, text
-) to service_role;
+) from public, anon, authenticated, service_role;

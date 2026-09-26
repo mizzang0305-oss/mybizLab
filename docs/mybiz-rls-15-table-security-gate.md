@@ -250,3 +250,100 @@ No exact migration SHA, code SHA, hosted CI result or full-stack PASS is
 recorded in this draft section until the final candidate is committed and the
 exact CI checkout is observed. `MYBIZ_PRODUCTION_SECURITY_APPROVAL_READY=false`
 while those proofs and the 32-policy identity boundary remain unresolved.
+
+### V3 read-only Production policy manifest (2026-09-26)
+
+The latest catalog has **33** `is_store_member(uuid)` policies on **22** RLS-enabled
+tables. This supersedes the earlier 32-policy count. Roles: 19 `PUBLIC`, 14
+`authenticated`; commands: 16 ALL, 6 SELECT, 5 INSERT, 6 UPDATE. None of
+these tables overlaps the 15-table V2 migration. This manifest contains no
+customer rows. Recheck all counts before any Production apply and stop on drift.
+
+| Table | Policy | Command | Roles | RLS |
+| --- | --- | --- | --- | --- |
+| `conversation_messages` | `conversation_messages_member_access` | ALL | public | ON |
+| `conversation_sessions` | `conversation_sessions_member_access` | ALL | public | ON |
+| `customer_contacts` | `customer_contacts_insert_store_member` | INSERT | authenticated | ON |
+| `customer_contacts` | `customer_contacts_select_store_member` | SELECT | authenticated | ON |
+| `customer_contacts` | `customer_contacts_update_store_member` | UPDATE | authenticated | ON |
+| `customer_preferences` | `customer_preferences_member_access` | ALL | public | ON |
+| `customer_timeline_events` | `customer_timeline_events_insert_store_member` | INSERT | authenticated | ON |
+| `customer_timeline_events` | `customer_timeline_events_select_store_member` | SELECT | authenticated | ON |
+| `customer_timeline_events` | `customer_timeline_events_update_store_member` | UPDATE | authenticated | ON |
+| `customers` | `customers_insert_store_member` | INSERT | authenticated | ON |
+| `customers` | `customers_select_store_member` | SELECT | authenticated | ON |
+| `customers` | `customers_update_store_member` | UPDATE | authenticated | ON |
+| `inquiries` | `inquiries_insert_store_member` | INSERT | authenticated | ON |
+| `inquiries` | `inquiries_select_store_member` | SELECT | authenticated | ON |
+| `inquiries` | `inquiries_update_store_member` | UPDATE | authenticated | ON |
+| `lead_capture_requests` | `lead_capture_requests_store_member_select` | SELECT | authenticated | ON |
+| `lead_capture_requests` | `lead_capture_requests_store_member_update` | UPDATE | authenticated | ON |
+| `order_items` | `order_items_member_access` | ALL | public | ON |
+| `reservations` | `reservations_member_access` | ALL | public | ON |
+| `review_request_links` | `review_request_links_member_access` | ALL | public | ON |
+| `social_accounts` | `social_accounts_member_access` | ALL | public | ON |
+| `social_publish_jobs` | `social_publish_jobs_member_access` | ALL | public | ON |
+| `store_analytics_profiles` | `store_analytics_profiles_member_access` | ALL | public | ON |
+| `store_blog_posts` | `store_blog_posts_member_access` | ALL | public | ON |
+| `store_media_assets` | `store_media_assets_member_access` | ALL | public | ON |
+| `store_members` | `store_members_insert_member` | INSERT | public | ON |
+| `store_members` | `store_members_select_member` | SELECT | public | ON |
+| `store_members` | `store_members_update_member` | UPDATE | public | ON |
+| `store_public_pages` | `store_public_pages_member_access` | ALL | public | ON |
+| `store_reviews` | `store_reviews_member_access` | ALL | public | ON |
+| `store_subscriptions` | `store_subscriptions_member_access` | ALL | public | ON |
+| `stores` | `stores_member_access` | ALL | public | ON |
+| `waiting_entries` | `waiting_entries_member_access` | ALL | public | ON |
+
+The V3 draft replaces only the body of `public.is_store_member(uuid)` with a
+call to the existing `private.is_service_os_store_member(uuid)`. Its contract,
+owner and ACL remain unchanged; no policy DDL is part of that draft. The
+disposable fixture exercises exact-ID fallback, active verified binding,
+revocation, inactive core identity, unbound/nonmember denial, cross-store
+denial and the `store_members` self-policy. These are CI requirements, not
+Production PASS claims.
+
+Provisioning is a separate blocker: current Production has the 9-argument
+`create_store_with_owner` with `auth.uid()`, while the prior app used a
+service-role call without a Bearer owner. V3 drafts a service-role-only
+`create_store_with_verified_owner` and requires server `auth.getUser(token)`,
+matching owner/setup-request email and paid verification before its call.
+The existing RPC is retained as an object with client/API EXECUTE removed by
+the V2 draft. Actual Production execution, backup and recovery remain gated.
+
+### V3 preflight, rollout and newly observed privilege blocker
+
+The exact Production preflight must compare the 33 policy identities and 22
+RLS flags above with a fresh read-only catalog result. A count mismatch stops
+the change. Compare the current function owner, result type and EXECUTE ACL
+before replacing its body; verify the same ACL and policy definitions after.
+The disposable fixture covers representative policy shapes, not all 33 live
+policy bodies. `LOCAL_RLS_PHASE=provision` requires real local Auth, a verified
+Bearer owner, a service-role-only RPC, synthetic paid verification and direct
+RPC denial. No Production payment or customer row is used.
+
+Production order remains **draft, not authorization**: (0) exact target and
+backup/recovery evidence; (1) server resolver if absent; (2) existing policy
+identity helper; (3) server-only provisioning RPC; (4) deploy the compatible
+app with provisioning/merchant writes held; (5) V2 15-table RLS hardening;
+(6) read-only ACL/RLS/policy check; (7) separately approved synthetic smoke;
+(8) reopen routes and observe the rollback window. Code that calls the new
+RPC cannot precede step 3. The old RPC remains inaccessible to browser roles.
+On failure, hold the affected application routes first; never disable RLS or
+restore broad anonymous grants. The existing server-only rollback draft is
+limited to the V2 15-table target and does not roll back the 33-policy helper.
+
+**Additional approval blocker found by read-only Production catalog on
+2026-09-26:** `authenticated` currently has SELECT/INSERT/UPDATE/DELETE table
+privileges on `store_members`, `store_subscriptions` and `stores`. The existing
+`store_members_insert_member` policy checks membership in the target store,
+not the inserted role or profile. An active member may therefore be able to
+insert an `owner` membership. The `stores`/`store_subscriptions` policies also
+use membership alone for broad operations, potentially allowing direct plan
+changes. This is a catalog/policy risk, **not a tested unauthorized row write
+or proof of exploitation**. The V3 helper changes identity resolution, not
+these privileges or policy semantics; the representative fixture intentionally
+does not claim to certify all 22 tables. `MYBIZ_PRODUCTION_SECURITY_APPROVAL_READY`
+must remain false until the exact affected table/operation grants, actual
+client callers and a narrow containment patch are reviewed in an isolated
+stack. No Production grant or policy was changed in this run.

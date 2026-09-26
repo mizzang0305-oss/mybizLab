@@ -8,15 +8,18 @@ select no_plan();
 insert into auth.users (id, email, raw_user_meta_data) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'rls-a@example.invalid', '{}'::jsonb),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'rls-b@example.invalid', '{}'::jsonb),
-  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'rls-unbound@example.invalid', '{}'::jsonb);
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'rls-unbound@example.invalid', '{}'::jsonb),
+  ('99999999-9999-4999-8999-999999999999', 'rls-exact@example.invalid', '{}'::jsonb);
 insert into core.profiles (id) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'),
+  ('99999999-9999-4999-8999-999999999999');
 insert into public.profiles (id) values
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
-  ('ffffffff-ffff-4fff-8fff-ffffffffffff');
+  ('ffffffff-ffff-4fff-8fff-ffffffffffff'),
+  ('99999999-9999-4999-8999-999999999999');
 insert into private.profile_auth_bindings
   (auth_profile_id, public_profile_id, binding_source) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'OWNER_VERIFIED'),
@@ -29,7 +32,8 @@ insert into public.stores (store_id, slug, name) values
 
 insert into public.store_members (store_id, profile_id, role) values
   ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'owner'),
-  ('22222222-2222-4222-8222-222222222222', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'owner');
+  ('22222222-2222-4222-8222-222222222222', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'owner'),
+  ('11111111-1111-4111-8111-111111111111', '99999999-9999-4999-8999-999999999999', 'staff');
 
 insert into public.store_tables (store_id, table_no) values
   ('11111111-1111-4111-8111-111111111111', 1),
@@ -206,7 +210,13 @@ select ok((select p.prosecdef and exists (select 1 from unnest(p.proconfig) cfg 
   from pg_proc p where p.oid='public.resolve_verified_merchant_profile_for_server(uuid)'::regprocedure),
   'server resolver is definer with a fixed search path');
 select ok(not has_function_privilege('authenticated','public.create_store_with_owner(text,text,text,text,text,text,text,text,text)','EXECUTE'), 'authenticated cannot provision directly');
-select ok(has_function_privilege('service_role','public.create_store_with_owner(text,text,text,text,text,text,text,text,text)','EXECUTE'), 'service role can provision through RPC');
+select ok(not has_function_privilege('service_role','public.create_store_with_owner(text,text,text,text,text,text,text,text,text)','EXECUTE'), 'legacy provisioning RPC is no longer an API path');
+select ok(not has_function_privilege('anon','public.create_store_with_verified_owner(uuid,text,text,text,text,text,text,text,text,text)','EXECUTE'), 'anon cannot execute verified-owner RPC');
+select ok(not has_function_privilege('authenticated','public.create_store_with_verified_owner(uuid,text,text,text,text,text,text,text,text,text)','EXECUTE'), 'authenticated cannot bypass server payment gate');
+select ok(has_function_privilege('service_role','public.create_store_with_verified_owner(uuid,text,text,text,text,text,text,text,text,text)','EXECUTE'), 'service role can execute verified-owner RPC');
+select ok(not has_function_privilege('anon','public.is_store_member(uuid)','EXECUTE'), 'existing member helper stays closed to anon');
+select ok(has_function_privilege('authenticated','public.is_store_member(uuid)','EXECUTE'), 'existing member helper retains authenticated execute');
+select ok(has_function_privilege('service_role','public.is_store_member(uuid)','EXECUTE'), 'existing member helper retains service-role execute');
 
 -- Simulate Store A's authenticated owner session.
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
@@ -220,6 +230,10 @@ select is((select count(*) from public.menu_categories)::bigint, 1::bigint, 'mem
 select is((select count(*) from public.menu_items)::bigint, 1::bigint, 'member sees only own menu_items');
 select is((select count(*) from public.store_priority_settings)::bigint, 1::bigint, 'member sees only own priority settings');
 select ok(public.is_bound_store_member('11111111-1111-4111-8111-111111111111'), 'nonidentical Auth/profile binding grants Store A');
+select ok(public.is_store_member('11111111-1111-4111-8111-111111111111'), 'existing policy helper accepts verified bound Store A');
+select ok(not public.is_store_member('22222222-2222-4222-8222-222222222222'), 'existing policy helper rejects other store');
+select is((select count(*)::bigint from public.store_members)::bigint, 2::bigint,
+  'store_members self-policy avoids recursion and sees own store only');
 select ok(not public.is_bound_store_member('22222222-2222-4222-8222-222222222222'), 'binding helper denies Store B');
 select lives_ok($$insert into public.store_tables(store_id,table_no) values
   ('11111111-1111-4111-8111-111111111111',2)$$, 'own-store table INSERT');
@@ -255,6 +269,8 @@ update private.profile_auth_bindings set status='REVOKED', revoked_at=now()
 set local role authenticated;
 select ok(not public.is_bound_store_member('11111111-1111-4111-8111-111111111111'),
   'revoked binding denied');
+select ok(not public.is_store_member('11111111-1111-4111-8111-111111111111'),
+  'existing policy helper denies revoked binding');
 reset role;
 update private.profile_auth_bindings set status='ACTIVE', revoked_at=null
   where auth_profile_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -262,6 +278,8 @@ update core.profiles set is_active=false where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaa
 set local role authenticated;
 select ok(not public.is_bound_store_member('11111111-1111-4111-8111-111111111111'),
   'inactive core profile denied');
+select ok(not public.is_store_member('11111111-1111-4111-8111-111111111111'),
+  'existing policy helper denies inactive core profile');
 reset role;
 update core.profiles set is_active=true where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 delete from public.store_members where store_id='11111111-1111-4111-8111-111111111111';
@@ -270,7 +288,8 @@ select ok(not public.is_bound_store_member('11111111-1111-4111-8111-111111111111
   'missing membership denied');
 reset role;
 insert into public.store_members(store_id,profile_id,role) values
-  ('11111111-1111-4111-8111-111111111111','cccccccc-cccc-4ccc-8ccc-cccccccccccc','owner');
+  ('11111111-1111-4111-8111-111111111111','cccccccc-cccc-4ccc-8ccc-cccccccccccc','owner'),
+  ('11111111-1111-4111-8111-111111111111','99999999-9999-4999-8999-999999999999','staff');
 select throws_ok($$insert into private.profile_auth_bindings
   (auth_profile_id,public_profile_id,binding_source) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','ffffffff-ffff-4fff-8fff-ffffffffffff','OWNER_VERIFIED')$$,
@@ -279,6 +298,17 @@ select set_config('request.jwt.claim.sub','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 set local role authenticated;
 select ok(not public.is_bound_store_member('11111111-1111-4111-8111-111111111111'),
   'unbound Auth identity denied');
+select ok(not public.is_store_member('11111111-1111-4111-8111-111111111111'),
+  'existing policy helper denies unbound nonidentical user');
+reset role;
+select set_config('request.jwt.claim.sub','99999999-9999-4999-8999-999999999999',true);
+set local role authenticated;
+select ok(public.is_store_member('11111111-1111-4111-8111-111111111111'),
+  'existing policy helper preserves exact-ID fallback');
+select ok(public.is_bound_store_member('11111111-1111-4111-8111-111111111111'),
+  'V2 target helper also preserves exact-ID fallback');
+select ok(not public.is_store_member('22222222-2222-4222-8222-222222222222'),
+  'exact-ID fallback remains store-scoped');
 reset role;
 select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',true);
 set local role authenticated;
