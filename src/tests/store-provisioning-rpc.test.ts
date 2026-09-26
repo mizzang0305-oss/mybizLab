@@ -5,7 +5,7 @@ import type { SetupRequestInput } from '@/shared/types/models';
 
 type MaybeSingleResult = { data: unknown; error: null | { message: string } };
 
-const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
+const { getSession, getUser, rpc, from, responseMap } = vi.hoisted(() => {
   const responseMap: Record<string, MaybeSingleResult> = {};
 
   function createQueryBuilder(table: string) {
@@ -25,6 +25,7 @@ const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
   }
 
   return {
+    getSession: vi.fn(),
     getUser: vi.fn(),
     rpc: vi.fn(),
     from: vi.fn((table: string) => ({
@@ -45,6 +46,7 @@ vi.mock('@/shared/lib/appConfig', async () => {
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
+      getSession,
       getUser,
     },
     rpc,
@@ -131,9 +133,18 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
   beforeEach(() => {
     resetDatabase();
+    getSession.mockReset();
     getUser.mockReset();
     rpc.mockReset();
     from.mockClear();
+    getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'user-session-token',
+        },
+      },
+      error: null,
+    });
     getUser.mockResolvedValue({
       data: {
         user: {
@@ -191,7 +202,10 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     expect(requestUrl).toBe('https://mybiz.ai.kr/api/stores/provision');
     expect(requestInit).toMatchObject({
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: 'Bearer user-session-token',
+        'Content-Type': 'application/json',
+      },
       method: 'POST',
     });
     expect(JSON.parse(requestInit.body as string)).toMatchObject({
