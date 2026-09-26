@@ -5,7 +5,7 @@ import type { SetupRequestInput } from '@/shared/types/models';
 
 type MaybeSingleResult = { data: unknown; error: null | { message: string } };
 
-const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
+const { getUser, getSession, rpc, from, responseMap } = vi.hoisted(() => {
   const responseMap: Record<string, MaybeSingleResult> = {};
 
   function createQueryBuilder(table: string) {
@@ -26,6 +26,7 @@ const { getUser, rpc, from, responseMap } = vi.hoisted(() => {
 
   return {
     getUser: vi.fn(),
+    getSession: vi.fn(),
     rpc: vi.fn(),
     from: vi.fn((table: string) => ({
       select: vi.fn(() => createQueryBuilder(table)),
@@ -46,6 +47,7 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
       getUser,
+      getSession,
     },
     rpc,
     from,
@@ -66,7 +68,7 @@ const requestInput: SetupRequestInput = {
   selected_features: ['ai_manager', 'sales_analysis', 'order_management'],
 };
 
-function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 'store_analytics_profiles' | 'store_priority_settings' }) {
+function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 'store_subscriptions' | 'store_analytics_profiles' | 'store_priority_settings' }) {
   responseMap.stores = {
     data:
       options?.missing === 'stores'
@@ -101,6 +103,10 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
           },
     error: null,
   };
+  responseMap.store_subscriptions = {
+    data: options?.missing === 'store_subscriptions' ? null : { store_id: 'live-store-001', plan: 'pro', status: 'active' },
+    error: null,
+  };
   responseMap.store_analytics_profiles = {
     data: options?.missing === 'store_analytics_profiles' ? null : { id: 'analytics-live', store_id: 'live-store-001' },
     error: null,
@@ -132,6 +138,8 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
   beforeEach(() => {
     resetDatabase();
     getUser.mockReset();
+    getSession.mockReset();
+    getSession.mockResolvedValue({ data: { session: { access_token: 'synthetic-owner-token' } }, error: null });
     rpc.mockReset();
     from.mockClear();
     getUser.mockResolvedValue({
@@ -191,7 +199,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     expect(requestUrl).toBe('https://mybiz.ai.kr/api/stores/provision');
     expect(requestInit).toMatchObject({
-      headers: { 'Content-Type': 'application/json' },
+      headers: { Authorization: 'Bearer synthetic-owner-token', 'Content-Type': 'application/json' },
       method: 'POST',
     });
     expect(JSON.parse(requestInit.body as string)).toMatchObject({
@@ -209,6 +217,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     expect(from).toHaveBeenCalledWith('stores');
     expect(from).toHaveBeenCalledWith('store_members');
+    expect(from).toHaveBeenCalledWith('store_subscriptions');
     expect(from).toHaveBeenCalledWith('store_analytics_profiles');
     expect(from).toHaveBeenCalledWith('store_priority_settings');
 
@@ -218,6 +227,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     const database = getDatabase();
     expect(database.store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(true);
+    expect(from).not.toHaveBeenCalledWith('subscriptions');
   });
 
   it('throws if a required provisioning row is missing after RPC creation', async () => {
@@ -228,5 +238,10 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
         plan: 'pro',
       }),
     ).rejects.toThrow();
+  });
+
+  it('fails closed when the server transaction did not create an initial subscription', async () => {
+    setProvisioningRows({ missing: 'store_subscriptions' });
+    await expect(createStoreFromSetupRequest(requestInput, { plan: 'pro' })).rejects.toThrow('초기 subscription');
   });
 });

@@ -125,7 +125,6 @@ function createRepository() {
     }),
     getStoreSubscription: async () => subscription,
     listStoreSubscriptions: async () => [subscription],
-    saveStoreSubscription: async (value) => value,
     appendTimelineEvent: async (event) => {
       customerTimeline.push(event);
       return event;

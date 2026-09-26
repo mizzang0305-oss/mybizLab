@@ -4,6 +4,7 @@ import {
   applyOnboardingSetupRequestSaved,
   buildDiagnosisResult,
   createInitialOnboardingFlowState,
+  markVerifiedPaymentActivationFailed,
   readOnboardingFlowState,
 } from '@/shared/lib/onboardingFlow';
 import { getDatabase, resetDatabase } from '@/shared/lib/mockDb';
@@ -29,6 +30,16 @@ describe('onboarding flow helpers', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('keeps a verified payment paid when store activation fails', () => {
+    const failed = markVerifiedPaymentActivationFailed(createInitialOnboardingFlowState(), 'synthetic-payment');
+    expect(failed).toMatchObject({
+      paymentId: 'synthetic-payment',
+      paymentStatus: 'paid',
+      activationStatus: 'failed',
+      step: 'activation',
+    });
   });
 
   it('builds a diagnosis result with score, strategies, and a recommended plan', () => {

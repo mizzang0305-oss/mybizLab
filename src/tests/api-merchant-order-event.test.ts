@@ -107,6 +107,27 @@ describe('/api/merchant/order-event', () => {
     expect(state.paymentEvents).toHaveLength(0);
   });
 
+  it('rejects an order event when email lookup resolves another profile', async () => {
+    state.authGetUser.mockResolvedValueOnce({
+      data: { user: { id: 'auth_owner', email: 'owner@example.com', user_metadata: {} } },
+      error: null,
+    });
+    state.resolveStoreAccess.mockResolvedValueOnce({
+      accessibleStores: [{ id: 'store-live-001' }],
+      profile: { id: 'profile_other' },
+    });
+
+    const response = await handleMerchantOrderEventRequest(
+      merchantRequest(
+        { orderId: 'order_live_001', paymentId: 'compat-status:order_live_001:1', storeId: 'store-live-001' },
+        'merchant-token',
+      ),
+    );
+
+    expect(response.status).toBe(403);
+    expect(state.paymentEvents).toHaveLength(0);
+  });
+
   it('persists order operation events only for stores the merchant can access', async () => {
     state.authGetUser.mockResolvedValueOnce({
       data: {
@@ -120,6 +141,9 @@ describe('/api/merchant/order-event', () => {
     });
     state.resolveStoreAccess.mockResolvedValueOnce({
       accessibleStores: [{ id: 'store-live-001' }],
+      memberships: [{ profile_id: 'profile-live-001', store_id: 'store-live-001', role: 'owner' }],
+      profile: { id: 'profile-live-001' },
+      verifiedAuthUserId: 'profile-live-001',
     });
 
     const response = await handleMerchantOrderEventRequest(
@@ -168,6 +192,9 @@ describe('/api/merchant/order-event', () => {
     });
     state.resolveStoreAccess.mockResolvedValueOnce({
       accessibleStores: [{ id: 'store-live-001' }],
+      memberships: [{ profile_id: 'profile-live-001', store_id: 'store-live-001', role: 'owner' }],
+      profile: { id: 'profile-live-001' },
+      verifiedAuthUserId: 'profile-live-001',
     });
 
     const response = await handleMerchantOrderEventRequest(

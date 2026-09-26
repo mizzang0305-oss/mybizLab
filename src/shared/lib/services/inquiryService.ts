@@ -1,4 +1,4 @@
-import { createId } from '../ids.js';
+import { createUuid } from '../ids.js';
 import { getCustomerRecordId } from '../domain/customerMemory.js';
 import {
   inquiryOwnerUpdateSchema,
@@ -170,8 +170,8 @@ export async function submitCanonicalPublicInquiry(
   await assertStoreEntitlement(storeId, 'public_inquiry', undefined, { repository });
 
   const timestamp = nowIso();
-  const inquiryId = createId('inquiry');
-  const conversationSessionId = createId('conversation_session');
+  const inquiryId = createUuid();
+  const conversationSessionId = createUuid();
   const visitorToken = input.visitorToken?.trim() || `public_inquiry_${Date.now()}`;
   const visitorSession = await touchVisitorSession(
     {
@@ -223,7 +223,7 @@ export async function submitCanonicalPublicInquiry(
   });
 
   await repository.appendTimelineEvent({
-    id: createId('customer_timeline'),
+    id: createUuid(),
     store_id: storeId,
     customer_id: customerId,
     event_type: 'conversation_started',
@@ -261,7 +261,7 @@ export async function submitCanonicalPublicInquiry(
   });
 
   await repository.saveConversationMessage({
-    id: createId('conversation_message'),
+    id: createUuid(),
     store_id: storeId,
     conversation_session_id: conversationSession.id,
     customer_id: customerId,
@@ -276,7 +276,7 @@ export async function submitCanonicalPublicInquiry(
   });
 
   await repository.appendTimelineEvent({
-    id: createId('customer_timeline'),
+    id: createUuid(),
     store_id: storeId,
     customer_id: customerId,
     event_type: 'conversation_message',

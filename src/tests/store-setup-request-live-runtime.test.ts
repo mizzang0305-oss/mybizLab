@@ -40,7 +40,7 @@ vi.mock('@/shared/lib/mockDb', async () => {
   };
 });
 
-import { saveSetupRequest } from '@/shared/lib/services/mvpService';
+import { getPublicStore, saveSetupRequest } from '@/shared/lib/services/mvpService';
 
 const requestInput: SetupRequestInput = {
   business_name: 'Live Request Store',
@@ -113,5 +113,14 @@ describe('saveSetupRequest in live runtime', () => {
     );
 
     expect(updateDatabase).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to anonymous stores reads when the public API fails', async () => {
+    requestPublicApi.mockRejectedValue(new Error('Public API unavailable'));
+
+    await expect(getPublicStore('synthetic-store')).rejects.toThrow('Public API unavailable');
+    expect(requestPublicApi).toHaveBeenCalledWith('/api/public/store', {
+      searchParams: { slug: 'synthetic-store' },
+    });
   });
 });

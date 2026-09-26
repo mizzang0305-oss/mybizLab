@@ -91,6 +91,53 @@ describe('/api/auth/session', () => {
     });
   });
 
+  it('rejects membership resolved from a different profile with the same email', async () => {
+    adminAuthMocks.getUser.mockResolvedValue({
+      data: { user: { id: 'auth_owner', email: 'owner@mybiz.ai.kr', user_metadata: {} } },
+      error: null,
+    });
+    adminAuthMocks.resolveStoreAccess.mockResolvedValue({
+      accessibleStores: [{ id: 'store_other' }],
+      memberships: [{ profile_id: 'profile_other', store_id: 'store_other', role: 'owner' }],
+      primaryRole: 'owner',
+      profile: { id: 'profile_other' },
+      verifiedAuthUserId: 'auth_other',
+    });
+
+    const response = await handleAdminSessionRequest(
+      new Request('https://example.com/api/auth/session', {
+        headers: { Authorization: 'Bearer verified-token' },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).ok).toBe(false);
+  });
+
+  it('accepts a uniquely verified nonidentical auth/profile binding with an active store membership', async () => {
+    adminAuthMocks.getUser.mockResolvedValue({
+      data: { user: { id: 'auth_owner', email: 'owner@mybiz.ai.kr', user_metadata: {} } },
+      error: null,
+    });
+    adminAuthMocks.resolveStoreAccess.mockResolvedValue({
+      accessibleStores: [{ id: 'store_a', name: 'Synthetic Store A', slug: 'store-a' }],
+      email: 'owner@mybiz.ai.kr',
+      fullName: 'Synthetic Owner',
+      memberships: [{ id: 'member_a', profile_id: 'profile_owner', store_id: 'store_a', role: 'owner' }],
+      primaryRole: 'owner',
+      profile: { id: 'profile_owner' },
+      provider: 'supabase',
+      verifiedAuthUserId: 'auth_owner',
+    });
+
+    const response = await handleAdminSessionRequest(new Request('https://example.com/api/auth/session', {
+      headers: { Authorization: 'Bearer verified-token' },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, data: { profileId: 'profile_owner', accessibleStoreIds: ['store_a'] } });
+  });
+
   it('returns a server-validated membership session for an authenticated merchant', async () => {
     adminAuthMocks.getUser.mockResolvedValue({
       data: {
@@ -132,6 +179,7 @@ describe('/api/auth/session', () => {
         created_at: '2026-04-22T00:00:00.000Z',
       },
       provider: 'supabase',
+      verifiedAuthUserId: 'profile_owner',
     });
 
     const response = await handleAdminSessionRequest(

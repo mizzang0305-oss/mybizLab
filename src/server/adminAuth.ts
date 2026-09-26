@@ -83,9 +83,21 @@ export async function handleAdminSessionRequest(request: AdminAuthRequestLike) {
       fallbackProfileId: authData.user.id,
       requestedEmail: authData.user.email || undefined,
       requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
+      verifiedAuthUserId: authData.user.id,
     });
 
-    if (!resolvedAccess || !resolvedAccess.accessibleStores.length || !resolvedAccess.primaryRole) {
+    const validMemberships = resolvedAccess?.memberships.filter((member) =>
+      member.profile_id === resolvedAccess.profile.id &&
+      ['owner', 'manager', 'staff'].includes(member.role) &&
+      resolvedAccess.accessibleStores.some((store) => store.id === member.store_id),
+    ) || [];
+    const validStoreIds = new Set(validMemberships.map((member) => member.store_id));
+    const validStores = resolvedAccess?.accessibleStores.filter((store) => validStoreIds.has(store.id)) || [];
+    if (
+      resolvedAccess?.verifiedAuthUserId !== authData.user.id ||
+      !validStores.length ||
+      !validMemberships.some((member) => member.role === resolvedAccess.primaryRole)
+    ) {
       return json(
         {
           ok: false,
@@ -98,22 +110,22 @@ export async function handleAdminSessionRequest(request: AdminAuthRequestLike) {
     return json({
       ok: true,
       data: {
-        accessibleStoreIds: resolvedAccess.accessibleStores.map((store) => store.id),
-        accessibleStores: resolvedAccess.accessibleStores,
+        accessibleStoreIds: validStores.map((store) => store.id),
+        accessibleStores: validStores,
         authenticatedAt: new Date().toISOString(),
         email: resolvedAccess.email,
         fullName: normalizeDisplayName(resolvedAccess.fullName),
-        memberships: resolvedAccess.memberships,
+        memberships: validMemberships,
         profileId: resolvedAccess.profile.id,
         provider: resolvedAccess.provider,
         role: resolvedAccess.primaryRole,
       },
     });
-  } catch (error) {
+  } catch {
     return json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : 'Unknown admin auth error',
+        error: 'Admin session validation failed.',
       },
       500,
     );

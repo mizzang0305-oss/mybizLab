@@ -1,22 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { adminClient, eqMock, fromMock, rpcMock, updateMock } = vi.hoisted(() => {
+const { adminClient, eqMock, fromMock, getUserMock, rpcMock, updateMock } = vi.hoisted(() => {
   const eqMock = vi.fn(async () => ({ error: null }));
   const updateMock = vi.fn(() => ({
     eq: eqMock,
   }));
   const fromMock = vi.fn(() => ({
+    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 'request-live-001', email: 'owner@example.com' }, error: null }) }) }),
     update: updateMock,
   }));
   const rpcMock = vi.fn();
+  const getUserMock = vi.fn();
 
   return {
     adminClient: {
+      auth: { getUser: getUserMock },
       from: fromMock,
       rpc: rpcMock,
     },
     eqMock,
     fromMock,
+    getUserMock,
     rpcMock,
     updateMock,
   };
@@ -39,6 +43,8 @@ describe('/api/stores/provision', () => {
     delete process.env.PORTONE_V2_API_SECRET;
     process.env.PORTONE_STORE_ID = 'store-v2-test';
     rpcMock.mockReset();
+    getUserMock.mockReset();
+    getUserMock.mockResolvedValue({ data: { user: { id: 'synthetic-owner-id', email: 'owner@example.com' } }, error: null });
     rpcMock.mockResolvedValue({
       data: {
         id: 'live-store-001',
@@ -51,6 +57,30 @@ describe('/api/stores/provision', () => {
     updateMock.mockClear();
     eqMock.mockClear();
     globalThis.fetch = originalFetch;
+  });
+
+  it('rejects missing bearer and mismatched owner email before payment or RPC', async () => {
+    const body = { address: 'Synthetic', business_name: 'Synthetic', business_number: 'SYN',
+      business_type: 'service', email: 'owner@example.com', owner_name: 'Owner',
+      phone: '0000000000', requested_slug: 'synthetic', plan: 'free' };
+    const missing = await provisionHandler(new Request('https://example.com/api/stores/provision', {
+      method: 'POST', body: JSON.stringify(body),
+    }));
+    expect(missing.status).toBe(401);
+    const mismatch = await provisionHandler(new Request('https://example.com/api/stores/provision', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-token' },
+      body: JSON.stringify({ ...body, email: 'other@example.com' }),
+    }));
+    expect(mismatch.status).toBe(403);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-object request body before provisioning', async () => {
+    const response = await provisionHandler(new Request('https://example.com/api/stores/provision', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-token' }, body: 'null',
+    }));
+    expect(response.status).toBe(400);
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   afterEach(() => {
@@ -77,6 +107,7 @@ describe('/api/stores/provision', () => {
           requested_slug: 'paid-store',
         }),
         method: 'POST',
+        headers: { Authorization: 'Bearer synthetic-token' },
       }),
     );
 
@@ -127,6 +158,7 @@ describe('/api/stores/provision', () => {
           requested_slug: 'paid-store',
         }),
         method: 'POST',
+        headers: { Authorization: 'Bearer synthetic-token' },
       }),
     );
 
@@ -155,8 +187,9 @@ describe('/api/stores/provision', () => {
       }),
     );
     expect(rpcMock).toHaveBeenCalledWith(
-      'create_store_with_owner',
+      'create_store_with_verified_owner',
       expect.objectContaining({
+        p_actor_id: 'synthetic-owner-id',
         p_plan: 'pro',
         p_requested_slug: 'paid-store',
       }),
@@ -194,6 +227,7 @@ describe('/api/stores/provision', () => {
           requested_slug: 'paid-store',
         }),
         method: 'POST',
+        headers: { Authorization: 'Bearer synthetic-token' },
       }),
     );
 
