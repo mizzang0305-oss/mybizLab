@@ -76,10 +76,13 @@ select lives_ok($$insert into public.menu_categories(store_id,name)
   values ('11111111-1111-4111-8111-111111111111','Own')$$,'own category insert allowed');
 select throws_ok($$insert into public.menu_categories(store_id,name)
   values ('22222222-2222-4222-8222-222222222222','Denied')$$,'42501',null,'cross store category insert denied');
-select is((with changed as (update public.store_priority_settings set version=2
-  where store_id='22222222-2222-4222-8222-222222222222' returning 1)
-  select count(*)::bigint from changed),0::bigint,'cross store priority update denied');
+select lives_ok($$update public.store_priority_settings set version=2
+  where store_id='22222222-2222-4222-8222-222222222222'$$,
+  'cross store priority update cannot mutate an invisible row');
 reset role;
+select is((select version from public.store_priority_settings
+  where store_id='22222222-2222-4222-8222-222222222222'),1,
+  'Store B priority row was not changed by Store A');
 
 select set_config('request.jwt.claim.sub','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',true);
 set local role authenticated;
