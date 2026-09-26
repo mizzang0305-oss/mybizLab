@@ -63,3 +63,27 @@ No Production DB changes are authorized by this matrix.
 All 15 currently have RLS disabled and broad anon/authenticated CRUD in the verified baseline. Production grants and policies were not changed in this work.
 
 The `store_tables`, `menu_categories`, `menu_items`, and `store_priority_settings` policies use the existing `is_store_member(uuid)` helper. This helper resolves only exact Auth/profile IDs. A nonidentical but active Auth/profile binding is a documented compatibility gap, not a claimed PASS. No anon UPDATE/DELETE and no authenticated DELETE are proposed.
+
+## Exact client operation matrix
+
+`Y` means the proposed grant and RLS policy allow the operation for the specified role and own store. `N` means no direct Data API grant. These are target permissions tested on a synthetic fixture, not current Production permissions. The server service-role path retains existing CRUD privileges for all 15 tables. Public content reaches clients through the existing server API, not anonymous table access.
+
+| Table | Anon S | Anon I | Anon U | Anon D | Auth S | Auth I | Auth U | Auth D | Store scoped | Public content | Server R/W |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| store_tables | N | N | N | N | Y | Y | N | N | Y | Y | Y/Y |
+| sessions | N | N | N | N | N | N | N | N | Y | N | Y/Y |
+| orders | N | N | N | N | N | N | N | N | Y | N | Y/Y |
+| events | N | N | N | N | N | N | N | N | unknown legacy | N | Y/Y |
+| menu_categories | N | N | N | N | Y | Y | N | N | Y | Y | Y/Y |
+| menu_items | N | N | N | N | Y | Y | N | N | Y | Y | Y/Y |
+| store_staff | N | N | N | N | N | N | N | N | unknown legacy | N | Y/Y |
+| store_modules | N | N | N | N | N | N | N | N | unknown legacy | N | Y/Y |
+| ai_briefing_logs | N | N | N | N | N | N | N | N | unknown legacy | N | Y/Y |
+| store_analytics_profile | N | N | N | N | N | N | N | N | unknown legacy | N | Y/Y |
+| store_priority_settings | N | N | N | N | Y | Y | Y | N | Y | N | Y/Y |
+| store_daily_metrics | N | N | N | N | N | N | N | N | unknown legacy | N | Y/Y |
+| ai_reports | N | N | N | N | N | N | N | N | unknown legacy | N | Y/Y |
+| store_home_content | N | N | N | N | N | N | N | N | Y | legacy fallback | Y/Y |
+| store_setup_requests | N | N | N | N | N | N | N | N | request scoped | N | Y/Y |
+
+Here S/I/U/D are SELECT/INSERT/UPDATE/DELETE. Current Production still has RLS disabled and broad anon/authenticated CRUD on every listed table. For legacy/unknown tables the absence of a current repository caller does not prove external callers are absent.
