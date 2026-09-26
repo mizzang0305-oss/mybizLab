@@ -192,7 +192,7 @@ function createThenableQuery(
   return query;
 }
 
-async function loadService(options: { accessToken?: string } = {}) {
+async function loadService(options: { accessToken?: string | null } = {}) {
   vi.resetModules();
   vi.stubGlobal('window', {
     location: {
@@ -214,8 +214,49 @@ async function loadService(options: { accessToken?: string } = {}) {
     url: string;
   }> = [];
 
-  if (options.accessToken) {
-    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+  vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).includes('/api/public/store?')) {
+        return new Response(JSON.stringify({
+          ok: true,
+          data: {
+            tables: liveState.storeTables.map((row) => ({
+              id: row.table_id,
+              store_id: row.store_id,
+              table_no: row.table_no,
+              is_active: true,
+              seats: 4,
+              qr_value: 'https://mybiz.ai.kr/store/mybiz-live-cafe/order?table=1',
+            })),
+            menu: {
+              categories: liveState.menuCategories.map((row) => ({
+                id: row.category_id,
+                store_id: row.store_id,
+                name: row.name,
+                sort_order: 0,
+              })),
+              items: liveState.menuItems.map((row) => ({
+                id: row.menu_id,
+                store_id: row.store_id,
+                category_id: row.category_id,
+                name: row.name,
+                price: row.price,
+                is_active: row.is_active,
+              })),
+            },
+          },
+        }), { headers: { 'content-type': 'application/json; charset=utf-8' } });
+      }
+      if (String(url).includes('/api/merchant/orders?')) {
+        return new Response(JSON.stringify({
+          ok: true,
+          data: {
+            orders: liveState.orders,
+            items: [],
+            tables: liveState.storeTables,
+            paymentEvents: liveState.paymentEvents,
+          },
+        }), { headers: { 'content-type': 'application/json; charset=utf-8' } });
+      }
       const body = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>;
       merchantApiCalls.push({
         authorization: init?.headers instanceof Headers
@@ -239,15 +280,14 @@ async function loadService(options: { accessToken?: string } = {}) {
         status: 200,
       });
     });
-  }
 
   const supabase = {
     auth: {
       getSession: async () => ({
         data: {
-          session: options.accessToken
+          session: options.accessToken !== null
             ? {
-                access_token: options.accessToken,
+                access_token: options.accessToken || 'merchant-session-token',
               }
             : null,
         },
@@ -477,5 +517,10 @@ describe('table-order live compatibility', () => {
       payment_source: 'counter',
       payment_status: 'paid',
     });
+  });
+
+  it('does not fall back to a direct database read without merchant authentication', async () => {
+    const { service } = await loadService({ accessToken: null });
+    await expect(service.listOrders('store-live-001')).rejects.toThrow('Merchant authentication is required');
   });
 });

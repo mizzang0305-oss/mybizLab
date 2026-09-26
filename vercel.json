@@ -74,6 +74,10 @@
       "dest": "/api/public?resource=order-payment-verify"
     },
     {
+      "src": "/api/merchant/orders",
+      "dest": "/api/merchant?resource=orders"
+    },
+    {
       "src": "/api/merchant/order-event",
       "dest": "/api/merchant?resource=order-event"
     },

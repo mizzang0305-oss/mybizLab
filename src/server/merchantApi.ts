@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
 import { transcribeStoreMediaAsset } from '../shared/lib/services/contentEngineService.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
+import { resolveVerifiedUserStoreAccess } from './supabaseUserContext.js';
 
 export type MerchantRequestLike =
   | Request
@@ -136,14 +136,7 @@ async function assertMerchantStoreAccess(
     };
   }
 
-  const repository = createSupabaseRepository(adminClient);
-  const resolvedAccess = await repository.resolveStoreAccess({
-    fallbackEmail: authData.user.email || 'ops@mybiz.ai.kr',
-    fallbackFullName: (authData.user.user_metadata?.full_name as string | undefined) || authData.user.email || '운영 관리자',
-    fallbackProfileId: authData.user.id,
-    requestedEmail: authData.user.email || undefined,
-    requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
-  });
+  const resolvedAccess = await resolveVerifiedUserStoreAccess(token, authData.user);
 
   if (!resolvedAccess?.accessibleStores.some((store) => store.id === storeId)) {
     return { error: json({ ok: false, error: 'The authenticated merchant does not have access to this store.' }, 403) };
@@ -163,6 +156,58 @@ async function assertOrderBelongsToStore(client: SupabaseClient, storeId: string
   }
 
   return Boolean(result.data);
+}
+
+export async function handleMerchantOrdersRequest(request: MerchantRequestLike): Promise<Response> {
+  try {
+    const storeId = normalizeText(getRequestUrl(request).searchParams.get('storeId'));
+    if (!storeId) {
+      return json({ ok: false, error: 'storeId is required.' }, 400);
+    }
+
+    const access = await assertMerchantStoreAccess(request, storeId);
+    if ('error' in access) {
+      return access.error;
+    }
+
+    const client = access.adminClient;
+    const ordersResult = await client.from('orders').select('*').eq('store_id', storeId);
+    if (ordersResult.error) {
+      throw new Error(`Failed to load merchant orders: ${ordersResult.error.message}`);
+    }
+
+    const orders = (ordersResult.data || []) as Record<string, unknown>[];
+    const [itemsResult, tablesResult] = await Promise.all([
+      client.from('order_items').select('*').eq('store_id', storeId),
+      client.from('store_tables').select('*').eq('store_id', storeId),
+    ]);
+    if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
+      throw new Error(`Failed to load merchant order items: ${itemsResult.error.message}`);
+    }
+    if (tablesResult.error && !isSchemaCompatError(tablesResult.error)) {
+      throw new Error(`Failed to load merchant tables: ${tablesResult.error.message}`);
+    }
+
+    const orderIds = [...new Set(orders.flatMap((row) => [normalizeText(row.id), normalizeText(row.order_id)]).filter(Boolean))];
+    const paymentEventsResult = orderIds.length
+      ? await client.from('payment_events').select('*').in('order_id', orderIds)
+      : { data: [], error: null };
+    if (paymentEventsResult.error && !isSchemaCompatError(paymentEventsResult.error)) {
+      throw new Error(`Failed to load merchant payment events: ${paymentEventsResult.error.message}`);
+    }
+
+    return json({
+      ok: true,
+      data: {
+        orders,
+        items: itemsResult.data || [],
+        tables: tablesResult.data || [],
+        paymentEvents: paymentEventsResult.data || [],
+      },
+    });
+  } catch (error) {
+    return json({ ok: false, error: error instanceof Error ? error.message : 'Unknown merchant API error.' }, 500);
+  }
 }
 
 export async function handleMerchantOrderEventRequest(request: MerchantRequestLike): Promise<Response> {

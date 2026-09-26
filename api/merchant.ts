@@ -1,6 +1,7 @@
 import {
   handleMerchantMediaTranscribeRequest,
   handleMerchantOrderEventRequest,
+  handleMerchantOrdersRequest,
   type MerchantRequestLike,
 } from '../src/server/merchantApi.js';
 import {
@@ -69,6 +70,8 @@ async function routeMerchantRequest(request: MerchantRequestLike): Promise<Respo
   const resource = getResource(request);
 
   switch (resource) {
+    case 'orders':
+      return method === 'GET' ? handleMerchantOrdersRequest(request) : getMethodNotAllowed();
     case 'order-event':
       return method === 'POST' ? handleMerchantOrderEventRequest(request) : methodNotAllowed();
     case 'media-transcribe':

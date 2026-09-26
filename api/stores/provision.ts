@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans.js';
 import { BillingApiStageError, callPortOneApi, validateBillingEnv } from '../../src/server/billingApiRuntime.js';
 import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
@@ -16,7 +17,6 @@ interface ProvisionRequestBody {
   business_type: string;
   email: string;
   owner_name: string;
-  owner_profile_id?: string;
   payment_id?: string;
   phone: string;
   plan?: 'free' | 'pro' | 'vip';
@@ -34,6 +34,22 @@ type RequestLike =
       text?: () => Promise<string>;
       url?: string;
     };
+
+function getHeaderValue(headers: Headers | Record<string, string | string[] | undefined> | undefined, key: string) {
+  if (!headers) return undefined;
+  if (headers instanceof Headers) return headers.get(key) || undefined;
+  const matchedKey = Object.keys(headers).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+  if (!matchedKey) return undefined;
+  const value = headers[matchedKey];
+  if (typeof value === 'string') return value;
+  return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : undefined;
+}
+
+function getBearerToken(request: RequestLike) {
+  const authorization = getHeaderValue(request.headers, 'authorization');
+  const matched = authorization?.match(/^Bearer\s+(.+)$/i);
+  return matched?.[1]?.trim() || null;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -125,7 +141,7 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const expectedAmount = getBillingPlan(plan).amount;
   const actualAmount = readPaymentAmount(payment);
-  if (actualAmount !== null && actualAmount !== expectedAmount) {
+  if (actualAmount !== expectedAmount) {
     throw new BillingApiStageError({
       code: 'PAYMENT_AMOUNT_MISMATCH',
       details: {
@@ -141,7 +157,8 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
 
   const customData = readPaymentCustomData(payment);
   const planKey = normalizeNonEmptyString(readNestedRecordValue(customData, ['planKey']));
-  if (planKey && planKey !== plan) {
+  const paymentCurrency = normalizeNonEmptyString(payment.currency);
+  if (planKey !== plan || paymentCurrency !== 'KRW' || customData.grantsEntitlement === false) {
     throw new BillingApiStageError({
       code: 'PAYMENT_PLAN_MISMATCH',
       details: {
@@ -156,7 +173,7 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
   }
 
   const customRequestId = normalizeNonEmptyString(readNestedRecordValue(customData, ['requestId']));
-  if (requestId && customRequestId && customRequestId !== requestId) {
+  if (!requestId || customRequestId !== requestId) {
     throw new BillingApiStageError({
       code: 'PAYMENT_REQUEST_MISMATCH',
       details: {
@@ -171,7 +188,8 @@ async function verifyProvisionPayment(plan: BillingPlanCode, paymentId: string, 
   }
 
   return {
-    payment,
+    paymentAmount: actualAmount,
+    paymentCurrency,
     paymentStatus,
   };
 }
@@ -247,7 +265,6 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       requested_slug,
       payment_id,
       plan = 'free',
-      owner_profile_id,
       request_id,
     } = body;
 
@@ -267,6 +284,40 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       return result;
     }
 
+    const accessToken = getBearerToken(request);
+    if (!accessToken) {
+      result = json({ ok: false, code: 'AUTHENTICATION_REQUIRED', error: '스토어 생성에는 로그인이 필요합니다.' }, 401);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
+    const adminClient = getSupabaseAdminClient();
+    const { data: authData, error: authError } = await adminClient.auth.getUser(accessToken);
+    if (authError || !authData.user) {
+      result = json({ ok: false, code: 'INVALID_AUTH_SESSION', error: '로그인 세션을 확인할 수 없습니다.' }, 401);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
+    const authenticatedEmail = authData.user.email?.trim().toLowerCase();
+    const requestedEmail = email.trim().toLowerCase();
+    if (!authenticatedEmail || authenticatedEmail !== requestedEmail) {
+      result = json({
+        ok: false,
+        code: 'OWNER_EMAIL_MISMATCH',
+        error: '로그인 계정 이메일과 스토어 생성 요청 이메일이 일치해야 합니다.',
+      }, 403);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
+    const requestKey = normalizeNonEmptyString(request_id);
+    if (!requestKey || requestKey.length > 128) {
+      result = json({ ok: false, code: 'SETUP_REQUEST_REQUIRED', error: '스토어 생성 요청 식별자가 필요합니다.' }, 400);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
     if (plan !== 'free' && !normalizeNonEmptyString(payment_id)) {
       result = json(
         {
@@ -281,49 +332,60 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     }
 
     let verifiedPaymentStatus: string | undefined;
+    let paymentAmount: number | null = null;
+    let paymentCurrency: string | null = null;
     if (plan !== 'free') {
-      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), normalizeNonEmptyString(request_id) || undefined);
+      const verification = await verifyProvisionPayment(plan, payment_id!.trim(), requestKey);
       verifiedPaymentStatus = verification.paymentStatus;
+      paymentAmount = verification.paymentAmount;
+      paymentCurrency = verification.paymentCurrency;
     }
 
-    const adminClient = getSupabaseAdminClient();
-
-    const { data, error } = await adminClient.rpc('create_store_with_owner', {
+    const provisioning = {
+      p_auth_user_id: authData.user.id,
+      p_request_key: requestKey,
       p_store_name: business_name.trim(),
       p_owner_name: owner_name.trim(),
-      p_business_number: business_number?.trim() || `BIZ-${Date.now()}`,
+      p_business_number: business_number?.trim() || '미입력',
       p_phone: phone.trim(),
-      p_email: email.trim().toLowerCase(),
+      p_email: requestedEmail,
       p_address: address.trim(),
       p_business_type: business_type?.trim() || '기타',
       p_requested_slug: requested_slug?.trim() || business_name.trim(),
       p_plan: plan,
-      ...(owner_profile_id ? { p_owner_profile_id: owner_profile_id } : {}),
+      p_payment_id: plan === 'free' ? null : payment_id!.trim(),
+      p_payment_amount: paymentAmount,
+      p_payment_currency: paymentCurrency,
+    };
+    const requestHash = createHash('sha256').update(JSON.stringify(provisioning)).digest('hex');
+    const { data, error } = await adminClient.rpc('provision_store_from_verified_actor', {
+      ...provisioning,
+      p_request_hash: requestHash,
     });
 
     if (error) {
-      console.error('[provision] RPC error:', error);
+      console.error('[provision] server RPC error', { code: error.code });
       result = json(
         {
           ok: false,
-          error: error.message,
+          error: '스토어 생성이 완료되지 않았습니다. 요청 상태를 확인한 뒤 다시 시도해 주세요.',
           code: error.code,
         },
-        500,
+        error.code === '23505' ? 409 : error.code === '42501' ? 403 : 500,
       );
       await sendNodeResponse(result, response);
       return result;
     }
 
-    const row = Array.isArray(data) ? data[0] : data;
+    const row = (Array.isArray(data) ? data[0] : data) as { store_id?: string; slug?: string; replayed?: boolean } | null;
 
-    if (!row?.store_id && !row?.id) {
+    if (!row?.store_id) {
       result = json({ ok: false, error: 'Provision RPC did not return a store identifier.' }, 500);
       await sendNodeResponse(result, response);
       return result;
     }
 
-    const storeId = row.store_id ?? row.id;
+    const storeId = row.store_id;
     const slug = row.slug ?? requested_slug;
     await markSetupRequestConverted(request_id, storeId);
 
@@ -345,7 +407,9 @@ export default async function handler(request: RequestLike, response?: NodeRespo
     await sendNodeResponse(result, response);
     return result;
   } catch (error) {
-    console.error('[provision] unexpected error:', error);
+    console.error('[provision] request failed', {
+      code: error instanceof BillingApiStageError ? error.code : 'PROVISION_FAILED',
+    });
     result = json(
       {
         ok: false,
