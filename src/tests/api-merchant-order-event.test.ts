@@ -22,6 +22,12 @@ function createOrdersQuery(filters: Array<{ column: string; value: unknown }> = 
     select() {
       return this;
     },
+    then(resolve: (value: { data: Record<string, unknown>[]; error: null }) => unknown) {
+      return Promise.resolve({
+        data: state.orders.filter((order) => filters.every(({ column, value }) => order[column] === value)),
+        error: null,
+      }).then(resolve);
+    },
   };
 }
 
@@ -36,10 +42,24 @@ const adminClient = {
 
     if (table === 'payment_events') {
       return {
+        select: () => ({
+          in: async (_column: string, ids: string[]) => ({
+            data: state.paymentEvents.filter((event) => ids.includes(String(event.order_id))),
+            error: null,
+          }),
+        }),
         insert: async (payload: Record<string, unknown>) => {
           state.paymentEvents.push(payload);
           return { data: null, error: null };
         },
+      };
+    }
+
+    if (table === 'order_items' || table === 'store_tables') {
+      return {
+        select: () => ({
+          eq: async () => ({ data: [], error: null }),
+        }),
       };
     }
 
@@ -57,7 +77,7 @@ vi.mock('../shared/lib/repositories/supabaseRepository.js', () => ({
   }),
 }));
 
-import { handleMerchantMediaTranscribeRequest, handleMerchantOrderEventRequest } from '../server/merchantApi.js';
+import { handleMerchantMediaTranscribeRequest, handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
 
 function merchantRequest(body: Record<string, unknown>, token?: string) {
   return new Request('https://example.com/api/merchant/order-event', {
@@ -185,6 +205,40 @@ describe('/api/merchant/order-event', () => {
 
     expect(response.status).toBe(403);
     expect(state.paymentEvents).toHaveLength(0);
+  });
+});
+
+describe('/api/merchant/orders', () => {
+  function request(storeId: string, token?: string) {
+    return new Request(`https://example.com/api/merchant/orders?storeId=${storeId}`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+  }
+
+  it('rejects missing and invalid bearer tokens', async () => {
+    expect((await handleMerchantOrdersRequest(request('store-live-001'))).status).toBe(401);
+    state.authGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Invalid token' } });
+    expect((await handleMerchantOrdersRequest(request('store-live-001', 'invalid'))).status).toBe(401);
+  });
+
+  it('rejects a merchant without membership in the requested store', async () => {
+    state.authGetUser.mockResolvedValueOnce({ data: { user: { id: 'merchant-a', email: 'a@example.invalid' } }, error: null });
+    state.resolveStoreAccess.mockResolvedValueOnce({ accessibleStores: [{ id: 'store-a' }] });
+    expect((await handleMerchantOrdersRequest(request('store-b', 'valid'))).status).toBe(403);
+  });
+
+  it('returns only the authorized store orders', async () => {
+    state.orders.push({ order_id: 'order_other', store_id: 'store-b' });
+    state.authGetUser.mockResolvedValueOnce({ data: { user: { id: 'merchant-a', email: 'a@example.invalid' } }, error: null });
+    state.resolveStoreAccess.mockResolvedValueOnce({ accessibleStores: [{ id: 'store-live-001' }] });
+    const response = await handleMerchantOrdersRequest(request('store-live-001', 'valid'));
+    expect(response.status).toBe(200);
+    expect(state.resolveStoreAccess).toHaveBeenCalledWith(expect.objectContaining({
+      verifiedAuthUserId: 'merchant-a',
+    }));
+    const payload = await response.json();
+    expect(payload.data.orders).toEqual([{ order_id: 'order_live_001', store_id: 'store-live-001' }]);
+    expect(JSON.stringify(payload)).not.toContain('order_other');
   });
 });
 

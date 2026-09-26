@@ -227,6 +227,7 @@ async function resolveDefaultMerchantAccess(
     fallbackEmail: authData.user.email || 'ops@mybiz.ai.kr',
     fallbackFullName: (authData.user.user_metadata?.full_name as string | undefined) || authData.user.email || '운영 관리자',
     fallbackProfileId: authData.user.id,
+    verifiedAuthUserId: authData.user.id,
     requestedEmail: authData.user.email || undefined,
     requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
   });

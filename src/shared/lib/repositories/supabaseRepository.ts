@@ -1432,9 +1432,9 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     },
     resolveStoreAccess: async (input) => {
       const client = assertClient();
-      const authResult = await client.auth.getUser();
-      const authUserId = authResult.data.user?.id;
-      const requestedEmail = (input.requestedEmail || authResult.data.user?.email || input.fallbackEmail).trim().toLowerCase();
+      const authResult = input.verifiedAuthUserId ? null : await client.auth.getUser();
+      const authUserId = input.verifiedAuthUserId || authResult?.data.user?.id;
+      const requestedEmail = (input.requestedEmail || authResult?.data.user?.email || input.fallbackEmail).trim().toLowerCase();
 
       const profileQuery = authUserId
         ? client.from('profiles').select('id,full_name,email,phone,created_at').eq('id', authUserId).maybeSingle()

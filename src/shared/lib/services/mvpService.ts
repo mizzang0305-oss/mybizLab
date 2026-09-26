@@ -12,7 +12,7 @@ import {
   normalizeInquiryTags,
 } from '../inquirySchema.js';
 import { manualMetricFormSchema, type ManualMetricFormInput } from '../manualMetricSchema.js';
-import { repairOrderItemMenuName, repairPublicMenuCatalog } from '../menuText.js';
+import { repairOrderItemMenuName } from '../menuText.js';
 import { getDatabase, saveDatabase, updateDatabase } from '../mockDb.js';
 import { createSeedDatabase } from '../mockSeed.js';
 import {
@@ -74,7 +74,6 @@ import {
   withStoreBrandConfig,
   withStorePriorityWeights,
 } from '../storeData.js';
-import { buildLiveStoreSetupRequestInsertPayload } from '../setupRequestPersistence.js';
 import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '../storeSlug.js';
 import type {
   AIReport,
@@ -949,42 +948,44 @@ function buildTimelineOrderItems(orderId: string, storeId: string, metadata: Rec
 
 async function listLiveOrders(storeId: string) {
   const client = assertLiveSupabaseClient();
-  const ordersResult = await client.from('orders').select('*').eq('store_id', storeId);
-
-  if (ordersResult.error) {
-    throw new Error(`Failed to load live orders: ${ordersResult.error.message}`);
+  const session = typeof client.auth?.getSession === 'function' ? await client.auth.getSession() : null;
+  const accessToken = session?.data?.session?.access_token;
+  if (!accessToken) {
+    throw new Error('Merchant authentication is required to load live orders.');
   }
 
-  const orderRows = (ordersResult.data || []) as Record<string, unknown>[];
-
-  const [itemsResult, customers, tablesResult, timelineEvents] = await Promise.all([
-    client.from('order_items').select('*').eq('store_id', storeId),
+  const url = new URL(resolveServerApiUrl('/api/merchant/orders'), window.location.origin);
+  url.searchParams.set('storeId', storeId);
+  const [response, customers, timelineEvents] = await Promise.all([
+    fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } }),
     listStoreCustomers(storeId),
-    client.from('store_tables').select('*').eq('store_id', storeId),
     listCustomerTimelineEvents(storeId),
   ]);
-
-  if (itemsResult.error && !isSchemaCompatError(itemsResult.error)) {
-    throw new Error(`Failed to load live order items: ${itemsResult.error.message}`);
+  const responseText = await response.text();
+  if ((response.headers.get('content-type') || '').includes('text/html') || responseText.trimStart().startsWith('<')) {
+    throw new Error('Merchant orders API returned HTML instead of JSON.');
+  }
+  let payload: {
+    data?: { orders?: Record<string, unknown>[]; items?: Record<string, unknown>[]; tables?: Record<string, unknown>[]; paymentEvents?: Record<string, unknown>[] };
+    error?: string;
+    ok?: boolean;
+  };
+  try {
+    payload = JSON.parse(responseText) as typeof payload;
+  } catch {
+    throw new Error('Merchant orders API returned an unreadable response.');
+  }
+  if (!response.ok || payload.ok !== true || !payload.data) {
+    throw new Error(payload.error || `Merchant orders API failed with ${response.status}.`);
   }
 
-  if (tablesResult.error && !isSchemaCompatError(tablesResult.error)) {
-    throw new Error(`Failed to load live tables for orders: ${tablesResult.error.message}`);
-  }
+  const orderRows = payload.data.orders || [];
 
-  const orderIds = [...new Set(orderRows.flatMap((row) => getLiveOrderIdAliases(row)))];
-  const paymentEventsResult = orderIds.length
-    ? await client.from('payment_events').select('*').in('order_id', orderIds)
-    : { data: [], error: null };
-  if (paymentEventsResult.error && !isSchemaCompatError(paymentEventsResult.error)) {
-    throw new Error(`Failed to load live payment events for orders: ${paymentEventsResult.error.message}`);
-  }
-
-  const items = ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveOrderItem(row));
+  const items = (payload.data.items || []).map((row) => mapLiveOrderItem(row));
   const tableNoById = new Map(
-    ((tablesResult.data || []) as Record<string, unknown>[]).map((row) => [normalizeText(row.id || row.table_id), normalizeText(row.table_no)] as const),
+    (payload.data.tables || []).map((row) => [normalizeText(row.id || row.table_id), normalizeText(row.table_no)] as const),
   );
-  const paymentEvents = (paymentEventsResult.data || []) as Record<string, unknown>[];
+  const paymentEvents = payload.data.paymentEvents || [];
   const customerById = new Map(customers.map((customer) => [customer.id, customer]));
   const timelineCustomerIdByOrderId = buildOrderCustomerIdByTimeline(timelineEvents);
   const timelineMetadataByOrderId = buildOrderMetadataByTimeline(timelineEvents);
@@ -1028,50 +1029,18 @@ async function listLiveOrders(storeId: string) {
     .sort((left, right) => right.placed_at.localeCompare(left.placed_at));
 }
 
-async function listLiveStoreTables(storeId: string) {
-  const client = assertLiveSupabaseClient();
-  const { data, error } = await client.from('store_tables').select('*').eq('store_id', storeId).order('table_no', { ascending: true });
-
-  if (error) {
-    throw new Error(`Failed to load live store tables: ${error.message}`);
-  }
-
-  const store = await getStoreById(storeId);
-  return ((data || []) as Record<string, unknown>[]).map((row) => {
-    const table = mapLiveStoreTable(row);
-    return {
-      ...table,
-      qr_value: table.qr_value || `${buildStoreUrl(store?.slug || storeId)}/order?table=${encodeURIComponent(table.table_no)}`,
-    };
+async function listLiveStoreTables(storeId: string): Promise<StoreTable[]> {
+  const snapshot = await requestPublicApi<{ tables: StoreTable[] }>('/api/public/store', {
+    searchParams: { storeId },
   });
+  return snapshot.tables;
 }
 
-async function listLiveMenu(storeId: string) {
-  const client = assertLiveSupabaseClient();
-  const [initialCategoriesResult, itemsResult] = await Promise.all([
-    client.from('menu_categories').select('*').eq('store_id', storeId),
-    client.from('menu_items').select('*').eq('store_id', storeId).order('name', { ascending: true }),
-  ]);
-  let categoriesResult = initialCategoriesResult;
-
-  if (categoriesResult.error && isSchemaCompatError(categoriesResult.error)) {
-    categoriesResult = await client.from('menu_categories').select('*').eq('store_id', storeId);
-  }
-
-  if (categoriesResult.error) {
-    throw new Error(`Failed to load live menu categories: ${categoriesResult.error.message}`);
-  }
-
-  if (itemsResult.error) {
-    throw new Error(`Failed to load live menu items: ${itemsResult.error.message}`);
-  }
-
-  return repairPublicMenuCatalog({
-    categories: ((categoriesResult.data || []) as Record<string, unknown>[])
-      .map((row) => mapLiveMenuCategory(row))
-      .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name, 'ko-KR')),
-    items: ((itemsResult.data || []) as Record<string, unknown>[]).map((row) => mapLiveMenuItem(row)),
+async function listLiveMenu(storeId: string): Promise<{ categories: MenuCategory[]; items: MenuItem[] }> {
+  const snapshot = await requestPublicApi<{ menu: { categories: MenuCategory[]; items: MenuItem[] } }>('/api/public/store', {
+    searchParams: { storeId },
   });
+  return snapshot.menu;
 }
 
 function isoDaysAgo(daysAgo: number, hours = 9) {
@@ -2574,18 +2543,6 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
     updated_at: timestamp,
   };
 
-  if (shouldUseSupabaseStoreProvisioning() && supabase) {
-    const { error } = await supabase
-      .from('store_setup_requests')
-      .insert(buildLiveStoreSetupRequestInsertPayload(request));
-
-    if (error) {
-      throw new Error(`스토어 생성 요청을 저장하지 못했습니다: ${error.message}`);
-    }
-
-    return request;
-  }
-
   if (!IS_DEMO_RUNTIME) {
     throw new Error('Store setup request local fallback is disabled outside explicit demo runtime.');
   }
@@ -3549,45 +3506,6 @@ export async function attachCustomerToOrder(
     summary: '주문 고객 정보가 고객 메모리에 연결되었습니다.',
     visitIncrement: 1,
   });
-
-  if (shouldUseLiveOrderData()) {
-    const client = assertLiveSupabaseClient();
-    const { error } = await client
-      .from('orders')
-      .update({ customer_id: memoryRecord.customer.id })
-      .eq('id', orderId)
-      .eq('store_id', storeId);
-
-    if (error && !isSchemaCompatError(error)) {
-      throw new Error(`Failed to attach customer to live order: ${error.message}`);
-    }
-
-    if (error) {
-      const current = (await listLiveOrders(storeId)).find((order) => order.id === orderId) || null;
-      await persistLiveCompatOrderEvent({
-        amount: current?.total_amount || 0,
-        orderId,
-        paymentId: `compat-customer:${orderId}:${Date.now()}`,
-        raw: {
-          customer_id: memoryRecord.customer.id,
-          items: current?.items || [],
-          kitchen_status: current?.status === 'completed' ? 'completed' : current?.status || 'pending',
-          note: current?.note || null,
-          payment_method: current?.payment_method || null,
-          payment_recorded_at: current?.payment_recorded_at || null,
-          payment_source: current?.payment_source || null,
-          payment_status: current?.payment_status || 'pending',
-          placed_at: current?.placed_at || nowIso(),
-          table_id: current?.table_id || null,
-          table_no: current?.table_no || null,
-        },
-        status: current?.payment_status === 'paid' ? 'paid' : 'pending',
-        storeId,
-      });
-    }
-
-    return memoryRecord.customer;
-  }
 
   updateDatabase((database) => {
     database.orders = database.orders.map((order) =>
@@ -5331,9 +5249,11 @@ async function persistLiveCompatOrderEvent(input: {
   const client = assertLiveSupabaseClient();
   const session = typeof client.auth?.getSession === 'function' ? await client.auth.getSession().catch(() => null) : null;
   const accessToken = session?.data?.session?.access_token;
+  if (!accessToken) {
+    throw new Error('Merchant authentication is required to update live orders.');
+  }
 
-  if (accessToken) {
-    const response = await fetch(resolveServerApiUrl('/api/merchant/order-event'), {
+  const response = await fetch(resolveServerApiUrl('/api/merchant/order-event'), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -5367,23 +5287,7 @@ async function persistLiveCompatOrderEvent(input: {
       throw new Error(payload.error || payload.message || `Merchant API request failed with ${response.status}.`);
     }
 
-    return;
-  }
-
-  const { error } = await client.from('payment_events').insert({
-    provider: 'mybiz',
-    event_id: input.paymentId,
-    order_id: input.orderId,
-    user_id: null,
-    status: input.status,
-    amount: input.amount,
-    raw: input.raw,
-    created_at: nowIso(),
-  });
-
-  if (error) {
-    throw new Error(`Failed to persist live compat order event: ${error.message}`);
-  }
+  return;
 }
 
 function completeOrder(database: ReturnType<typeof getDatabase>, order: Order) {

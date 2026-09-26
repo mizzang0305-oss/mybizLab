@@ -81,6 +81,7 @@ export async function handleAdminSessionRequest(request: AdminAuthRequestLike) {
       fallbackEmail: authData.user.email || 'ops@mybiz.ai.kr',
       fallbackFullName: normalizeDisplayName((authData.user.user_metadata?.full_name as string | undefined) || authData.user.email),
       fallbackProfileId: authData.user.id,
+      verifiedAuthUserId: authData.user.id,
       requestedEmail: authData.user.email || undefined,
       requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
     });
