@@ -81,14 +81,14 @@ language sql
 stable
 security definer
 set search_path = public, pg_temp
-as $
+as $$
   select exists (
     select 1
     from public.store_members sm
     where sm.store_id = target_store_id
       and sm.profile_id = auth.uid()
   );
-$;
+$$;
 
 create or replace function private.current_service_os_business_profile_id()
 returns uuid
@@ -96,7 +96,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   with current_identity as (
     select auth.uid() as id
   ),
@@ -125,7 +125,7 @@ as $
     (select eb.public_profile_id from explicit_binding eb),
     (select ef.public_profile_id from exact_id_fallback ef)
   );
-$;
+$$;
 
 create or replace function private.is_service_os_store_member(target_store_id uuid)
 returns boolean
@@ -133,7 +133,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select (select auth.uid()) is not null
     and exists (
       select 1
@@ -141,7 +141,7 @@ as $
       where sm.store_id = target_store_id
         and sm.profile_id = private.current_service_os_business_profile_id()
     );
-$;
+$$;
 
 grant usage on schema private to authenticated, service_role;
 revoke usage on schema private from anon;

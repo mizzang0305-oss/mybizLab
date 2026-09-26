@@ -68,9 +68,9 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select private.is_service_os_store_member(target_store_id);
-$;
+$$;
 revoke execute on function public.is_store_member(uuid) from public, anon;
 grant execute on function public.is_store_member(uuid) to authenticated;
 
