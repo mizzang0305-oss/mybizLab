@@ -93,3 +93,18 @@ Here S/I/U/D are SELECT/INSERT/UPDATE/DELETE. Current Production still has RLS d
 - The server validates the user JWT with Supabase Auth, then creates a separate anon-key client carrying that JWT. `store_members` is queried with no `profile_id` filter; the existing RLS policy determines visible rows. The returned `profile_id` is the business profile for merchant writes and OAuth state. The service-role client remains for authorized data operations after store scope is verified.
 - The new server-only provisioning draft accepts only an actor ID derived from the server-verified Auth response. It resolves the same binding semantics inside its reviewed transaction. The old nine-text-argument authenticated RPC loses EXECUTE, preventing caller-controlled paid plans from bypassing payment verification.
 - The initial list above records historical call sites; the target and exact operation tables below describe the proposed boundary. Production remains unchanged.
+
+## September identity fixture parity
+
+Production migration history includes `20260914041214`, `20260914112340`, and `20260914131226`; their complete sources are absent from this repository. The disposable fixture reproduces only the security dependencies needed for this gate. Production catalog was inspected read-only; no Production data was copied.
+
+| Production object | Disposable fixture object | Matched fields / behavior | Known difference | Risk |
+| --- | --- | --- | --- | --- |
+| `core.profiles` | `core.profiles` plus `auth.users` trigger | Auth UUID, active state, and Auth deletion cascade needed by the identity resolver | Fixture omits unrelated profile metadata | Production-only trigger behavior outside these fields remains untested |
+| `private.profile_auth_bindings` | Same name and active/revoked synthetic rows | Exact Auth-to-business-profile mapping and revoked-binding denial | No real identity rows or business data are imported | A historical binding anomaly must be reviewed separately before Production apply |
+| `private.current_service_os_business_profile_id()` | Same signature in fixture | Active binding first, exact Auth ID fallback, no email matching | Fixture is a minimal reconstruction, not a byte-identical September migration | SQL semantics were exercised; complete Production dependency parity is not claimed |
+| `private.is_service_os_store_member(uuid)` | Same signature in fixture | Membership for direct and bound owners, cross-store denial | Fixture contains only synthetic stores and roles | Unknown external callers are not exercised |
+| `public.stores`, `public.store_members` policies | Same tables and representative policies | Authenticated owner access via `public.is_store_member(uuid)` | Fixture keeps only columns needed for E2E | Merchant behavior outside tested operations requires Production smoke |
+| `public.create_store_with_owner(...)` | Existing nine-text-argument source applied before security draft | Caller-selected plan bypass exists before revocation; direct client EXECUTE is denied after draft | Older overloads, if present in Production, are revoked by catalog loop but not all simulated | Recheck exact overload inventory before approved Production execution |
+
+The fixture's purpose is to prove the proposed access rules and server flow against real Auth, PostgREST, and Postgres roles. It is not a Production schema clone. The one unbound Production owner profile is explicitly approved by the Owner to remain inaccessible in this release; no automatic email binding is permitted.
