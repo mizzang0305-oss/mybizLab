@@ -13,6 +13,7 @@ import { Panel } from '@/shared/components/Panel';
 import { usePersistentDiagnosisWorldSurface } from '@/shared/components/PersistentDiagnosisWorldShell';
 import { useAccessibleStores } from '@/shared/hooks/useCurrentStore';
 import { usePageMeta } from '@/shared/hooks/usePageMeta';
+import { supabase } from '@/integrations/supabase/client';
 import { IS_DEMO_RUNTIME } from '@/shared/lib/appConfig';
 import { createDemoAdminSession, refreshAdminSession } from '@/shared/lib/adminSession';
 import { BILLING_PLAN_DETAILS, SUBSCRIPTION_TEST_PRODUCT, type BillingCheckoutProductCode } from '@/shared/lib/billingPlans';
@@ -719,6 +720,24 @@ export function OnboardingPage() {
   }
 
   async function startCheckout() {
+    if (!IS_DEMO_RUNTIME) {
+      const authSession =
+        supabase && typeof supabase.auth?.getSession === 'function'
+          ? await supabase.auth.getSession().catch(() => null)
+          : null;
+      const accessToken = authSession?.data?.session?.access_token;
+
+      if (!accessToken) {
+        const nextPath = encodeURIComponent('/onboarding?step=payment');
+        setMessage({
+          tone: 'info',
+          text: '결제와 스토어 생성은 로그인된 소유자 계정으로만 진행할 수 있습니다. 로그인 후 이 단계로 돌아옵니다.',
+        });
+        navigate(`/login?next=${nextPath}`);
+        return;
+      }
+    }
+
     if (flow.selectedPlan === 'free') {
       setFlow((current) => ({ ...current, paymentStatus: 'processing' }));
       setMessage({ tone: 'info', text: 'FREE 플랜은 결제 없이 바로 스토어를 활성화합니다.' });
