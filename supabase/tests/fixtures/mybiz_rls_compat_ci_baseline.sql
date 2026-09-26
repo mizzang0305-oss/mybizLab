@@ -494,7 +494,8 @@ grant select, insert, update on public.stores, public.profiles, public.store_mem
 grant select, insert, delete on public.payment_events to service_role;
 grant select on public.subscriptions to service_role;
 -- CI-only teardown permissions for synthetic Auth/store rows.
-grant delete on public.profiles, public.stores, public.store_members to service_role;
+grant delete on public.profiles, public.stores, public.store_members,
+  public.store_public_pages, public.customers to service_role;
 
 -- Reproduce the Production vulnerability: broad CRUD grants with RLS disabled.
 grant select, insert, update, delete on public.store_tables to anon, authenticated, service_role;

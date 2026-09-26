@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
 import { handleOnboardingSetupRequest } from '../server/onboardingSetupRequest.js';
-import { handlePublicStoreRequest } from '../server/publicApi.js';
+import { handlePublicOrderRequest, handlePublicStoreRequest } from '../server/publicApi.js';
 
 const isLocalCi = process.env.MYBIZ_CI_LOCAL_DB === '1';
 
@@ -30,6 +30,9 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
     const email = `mybiz-rls-ci-${suffix}@example.invalid`;
     const password = `Synthetic-only-${suffix}-password`;
     let setupRequestId: string | null = null;
+    let publicOrderId: string | null = null;
+    let publicSessionId: string | null = null;
+    let publicCustomerId: string | null = null;
     const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
       email,
       email_confirm: true,
@@ -57,12 +60,47 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
       expect((await admin.from('store_tables').insert({ table_id: tableA, store_id: storeA, table_no: 1 })).error).toBeNull();
       expect((await admin.from('menu_categories').insert({ category_id: categoryA, store_id: storeA, name: 'Synthetic menu' })).error).toBeNull();
       expect((await admin.from('menu_items').insert({ menu_id: itemA, store_id: storeA, category_id: categoryA, name: 'Synthetic item', price: 1000 })).error).toBeNull();
+      expect((await admin.from('store_public_pages').insert({
+        store_id: storeA,
+        is_published: true,
+        cta_primary_target: 'order',
+      })).error).toBeNull();
 
       const publicResponse = await handlePublicStoreRequest(new Request(`http://127.0.0.1/api/public/store?storeId=${storeA}`));
       expect(publicResponse.status).toBe(200);
       const publicBody = await publicResponse.json();
       expect(publicBody.data?.menu?.items?.some((item: { id: string }) => item.id === itemA)).toBe(true);
       expect(publicBody.data?.tables?.some((table: { id: string }) => table.id === tableA)).toBe(true);
+      expect(publicBody.data?.capabilities?.orderEntryEnabled).toBe(true);
+
+      const publicOrderResponse = await handlePublicOrderRequest(new Request(
+        'http://127.0.0.1/api/public/order',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            storeSlug: `synthetic-a-${suffix}`,
+            tableNo: '1',
+            items: [{ menu_item_id: itemA, quantity: 1 }],
+            paymentMethod: 'cash',
+            paymentSource: 'counter',
+          }),
+          headers: { 'content-type': 'application/json' },
+        },
+      ));
+      expect(publicOrderResponse.status).toBe(200);
+      const publicOrderBody = await publicOrderResponse.json();
+      publicOrderId = publicOrderBody.data?.order?.id || null;
+      expect(publicOrderId).toBeTruthy();
+      const publicOrderRow = await admin.from('orders').select('order_id,store_id').eq('order_id', publicOrderId).maybeSingle();
+      expect(publicOrderRow.error).toBeNull();
+      expect(publicOrderRow.data?.store_id).toBe(storeA);
+      const publicSessionRow = await admin.from('sessions').select('session_id,customer_id')
+        .eq('store_id', storeA).maybeSingle();
+      expect(publicSessionRow.error).toBeNull();
+      publicSessionId = publicSessionRow.data?.session_id || null;
+      publicCustomerId = publicSessionRow.data?.customer_id || null;
+      expect(publicSessionId).toBeTruthy();
+      expect(publicCustomerId).toBeTruthy();
 
       const { data: session, error: signInError } = await publicClient.auth.signInWithPassword({ email, password });
       expect(signInError).toBeNull();
@@ -137,6 +175,20 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
       expect(setupRow.error).toBeNull();
       expect(setupRow.data?.requested_slug).toBe(`synthetic-setup-${suffix}`);
     } finally {
+      if (publicOrderId) {
+        expect((await admin.from('payment_events').delete().eq('order_id', publicOrderId)).error).toBeNull();
+        expect((await admin.from('orders').delete().eq('order_id', publicOrderId)).error).toBeNull();
+        const publicOrderReadback = await admin.from('orders').select('order_id').eq('order_id', publicOrderId).maybeSingle();
+        expect(publicOrderReadback.error).toBeNull();
+        expect(publicOrderReadback.data).toBeNull();
+      }
+      if (publicSessionId) {
+        expect((await admin.from('sessions').delete().eq('session_id', publicSessionId)).error).toBeNull();
+      }
+      if (publicCustomerId) {
+        expect((await admin.from('customers').delete().eq('customer_id', publicCustomerId)).error).toBeNull();
+      }
+      expect((await admin.from('store_public_pages').delete().eq('store_id', storeA)).error).toBeNull();
       expect((await admin.from('payment_events').delete().eq('event_id', eventA)).error).toBeNull();
       const eventReadback = await admin.from('payment_events').select('event_id').eq('event_id', eventA).maybeSingle();
       expect(eventReadback.error).toBeNull();
