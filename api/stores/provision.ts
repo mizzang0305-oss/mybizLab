@@ -364,6 +364,18 @@ export default async function handler(request: RequestLike, response?: NodeRespo
       return result;
     }
 
+    const authenticatedEmail = authData.user.email?.trim().toLowerCase();
+    const requestedEmail = email.trim().toLowerCase();
+    if (!authenticatedEmail || authenticatedEmail !== requestedEmail) {
+      result = json({
+        ok: false,
+        code: 'OWNER_EMAIL_MISMATCH',
+        error: '로그인 계정 이메일과 스토어 생성 요청 이메일이 일치해야 합니다.',
+      }, 403);
+      await sendNodeResponse(result, response);
+      return result;
+    }
+
     if (plan !== 'free' && !normalizeNonEmptyString(payment_id)) {
       result = json(
         {
