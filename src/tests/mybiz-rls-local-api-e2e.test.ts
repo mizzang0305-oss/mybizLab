@@ -9,7 +9,7 @@ import { buildDefaultStorePublicPage } from '../shared/lib/services/publicPageSe
 import { handleAdminSessionRequest } from '../server/adminAuth.js';
 import { handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
 import { handleOnboardingSetupRequest } from '../server/onboardingSetupRequest.js';
-import { handlePublicOrderRequest, handlePublicStoreRequest } from '../server/publicApi.js';
+import { handlePublicInquiryRequest, handlePublicOrderRequest, handlePublicStoreRequest } from '../server/publicApi.js';
 
 const isLocalCi = process.env.MYBIZ_CI_LOCAL_DB === '1';
 
@@ -30,6 +30,45 @@ function checkedUuid(value: string) {
 }
 
 describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
+  it('persists a synthetic public inquiry through the real server handler', async () => {
+    const url = process.env.SUPABASE_URL || '';
+    expect(new URL(url).hostname).toBe('127.0.0.1');
+    const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY || '', {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const storeId = checkedUuid(crypto.randomUUID());
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const email = `mybiz-inquiry-${suffix}@example.invalid`;
+    try {
+      expect((await admin.from('stores').insert({ store_id: storeId, slug: `inquiry-${suffix}`, name: 'Synthetic Inquiry Store' })).error).toBeNull();
+      expect((await admin.from('store_subscriptions').insert({ store_id: storeId, plan: 'pro', status: 'active' })).error).toBeNull();
+      expect((await admin.from('store_public_pages').insert({ store_id: storeId, is_published: true, inquiry_enabled: true })).error).toBeNull();
+      const response = await handlePublicInquiryRequest(new Request('http://127.0.0.1/api/public/inquiry', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ storeId, customerName: 'Synthetic Inquiry QA', phone: '010-0000-0000', email,
+          category: 'reservation', message: 'Synthetic request only', marketingOptIn: false }),
+      }));
+      expect(response.status).toBe(200);
+      const inquiry = await admin.from('inquiries').select('id,store_id,email').eq('store_id', storeId).eq('email', email).single();
+      expect(inquiry.error).toBeNull();
+      expect(inquiry.data?.store_id).toBe(storeId);
+    } finally {
+      // Every delete is restricted to the random synthetic store and its linked rows.
+      localSql(`delete from public.conversation_messages where conversation_session_id in (select id from public.conversation_sessions where store_id='${storeId}')`);
+      localSql(`delete from public.inquiries where store_id='${storeId}'`);
+      localSql(`delete from public.conversation_sessions where store_id='${storeId}'`);
+      localSql(`delete from public.visitor_sessions where store_id='${storeId}'`);
+      localSql(`delete from public.customer_timeline_events where store_id='${storeId}'`);
+      localSql(`delete from public.customer_contacts where customer_id in (select customer_id from public.customers where store_id='${storeId}')`);
+      localSql(`delete from public.customer_preferences where customer_id in (select customer_id from public.customers where store_id='${storeId}')`);
+      expect((await admin.from('customers').delete().eq('store_id', storeId)).error).toBeNull();
+      expect((await admin.from('store_public_pages').delete().eq('store_id', storeId)).error).toBeNull();
+      localSql(`delete from public.store_subscriptions where store_id='${storeId}'`);
+      expect((await admin.from('stores').delete().eq('store_id', storeId)).error).toBeNull();
+      expect(localSql(`select count(*) from public.inquiries where store_id='${storeId}'`)).toBe('0');
+    }
+  }, 60_000);
+
   it('authorizes an explicitly bound owner through user-context RLS and denies revoked bindings', async () => {
     const url = process.env.SUPABASE_URL || '';
     expect(new URL(url).hostname).toBe('127.0.0.1');
