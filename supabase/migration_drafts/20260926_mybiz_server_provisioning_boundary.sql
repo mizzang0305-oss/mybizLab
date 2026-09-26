@@ -84,6 +84,8 @@ declare
   v_slug text;
   v_existing private.store_provisioning_receipts%rowtype;
   v_region text;
+  v_customer_focus text;
+  v_analytics_preset text;
 begin
   if p_auth_user_id is null
     or p_request_key is null or length(p_request_key) not between 1 and 128
@@ -173,6 +175,16 @@ begin
     coalesce(nullif(trim(p_requested_slug), ''), trim(p_store_name))
   );
   v_region := coalesce(nullif(pg_catalog.split_part(trim(p_address), ' ', 1), ''), '미설정');
+  if p_business_type ilike '%카페%' or p_business_type ilike '%브런치%' or p_business_type ilike '%coffee%' then
+    v_analytics_preset := 'seongsu_brunch_cafe';
+    v_customer_focus := '직장인 점심·주말 방문';
+  elsif p_business_type ilike '%고기%' or p_business_type ilike '%식당%' or p_business_type ilike '%외식%' or p_business_type ilike '%bbq%' then
+    v_analytics_preset := 'mapo_evening_restaurant';
+    v_customer_focus := '저녁 회식·예약 고객';
+  else
+    v_analytics_preset := 'consultation_service';
+    v_customer_focus := '상담 전환 중심 고객';
+  end if;
 
   insert into public.stores (store_id, name, slug, plan, brand_config)
   values (
@@ -194,7 +206,7 @@ begin
   );
   insert into public.store_analytics_profiles
     (store_id, industry, region, customer_focus, analytics_preset)
-  values (v_store_id, trim(p_business_type), v_region, '상담 전환 중심 고객', 'consultation_service');
+  values (v_store_id, trim(p_business_type), v_region, v_customer_focus, v_analytics_preset);
   insert into public.store_priority_settings
     (store_id, revenue_weight, repeat_customer_weight, reservation_weight,
      consultation_weight, branding_weight, order_efficiency_weight)

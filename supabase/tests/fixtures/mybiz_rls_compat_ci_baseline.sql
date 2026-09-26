@@ -7,7 +7,7 @@ create extension if not exists pgcrypto;
 create schema if not exists core;
 create schema if not exists private;
 create table core.profiles (
-  id uuid primary key references auth.users(id),
+  id uuid primary key references auth.users(id) on delete cascade,
   email text,
   full_name text,
   updated_at timestamptz not null default now(),

@@ -1,13 +1,186 @@
+import { execFileSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
+import provisionHandler from '../../api/stores/provision.js';
+import { handleAdminSessionRequest } from '../server/adminAuth.js';
 import { handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
 import { handleOnboardingSetupRequest } from '../server/onboardingSetupRequest.js';
 import { handlePublicOrderRequest, handlePublicStoreRequest } from '../server/publicApi.js';
 
 const isLocalCi = process.env.MYBIZ_CI_LOCAL_DB === '1';
 
+function localSql(sql: string) {
+  if (process.env.MYBIZ_CI_LOCAL_DB !== '1' || new URL(process.env.SUPABASE_URL || '').hostname !== '127.0.0.1') {
+    throw new Error('Synthetic SQL is restricted to disposable local CI.');
+  }
+  return execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-h', '127.0.0.1', '-p', '54322', '-U', 'postgres', '-d', 'postgres', '-Atc', sql], {
+    encoding: 'utf8', env: { ...process.env, PGPASSWORD: 'postgres' },
+  }).trim();
+}
+
+function checkedUuid(value: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    throw new Error('Expected synthetic UUID.');
+  }
+  return value;
+}
+
 describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
+  it('authorizes an explicitly bound owner through user-context RLS and denies revoked bindings', async () => {
+    const url = process.env.SUPABASE_URL || '';
+    expect(new URL(url).hostname).toBe('127.0.0.1');
+    const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY || '', {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const publicClient = createClient(url, process.env.SUPABASE_ANON_KEY || '', {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const email = `mybiz-bound-${suffix}@example.invalid`;
+    const password = `Synthetic-only-${suffix}-password`;
+    const profileId = checkedUuid(crypto.randomUUID());
+    const storeA = checkedUuid(crypto.randomUUID());
+    const storeB = checkedUuid(crypto.randomUUID());
+    const { data: createdUser, error: createError } = await admin.auth.admin.createUser({ email, email_confirm: true, password });
+    expect(createError).toBeNull();
+    const authId = checkedUuid(createdUser.user?.id || '');
+    try {
+      expect((await admin.from('profiles').insert({ id: profileId, full_name: 'Bound Synthetic Owner', email: `business-${suffix}@example.invalid` })).error).toBeNull();
+      expect((await admin.from('stores').insert([
+        { store_id: storeA, slug: `bound-a-${suffix}`, name: 'Bound Store A' },
+        { store_id: storeB, slug: `bound-b-${suffix}`, name: 'Bound Store B' },
+      ])).error).toBeNull();
+      expect((await admin.from('store_members').insert({ store_id: storeA, profile_id: profileId, role: 'owner' })).error).toBeNull();
+      expect((await admin.from('orders').insert([
+        { order_id: crypto.randomUUID(), store_id: storeA, total_amount: 1000 },
+        { order_id: crypto.randomUUID(), store_id: storeB, total_amount: 2000 },
+      ])).error).toBeNull();
+      localSql(`insert into private.profile_auth_bindings(public_profile_id,auth_profile_id,binding_source,status) values ('${profileId}','${authId}','OWNER_VERIFIED','ACTIVE')`);
+      const { data: signedIn, error: signInError } = await publicClient.auth.signInWithPassword({ email, password });
+      expect(signInError).toBeNull();
+      const token = signedIn.session?.access_token;
+      expect(token).toBeTruthy();
+      const headers = { authorization: `Bearer ${token}` };
+      const session = await handleAdminSessionRequest(new Request('http://127.0.0.1/api/auth/session', { headers }));
+      expect(session.status).toBe(200);
+      expect((await session.json()).data?.profileId).toBe(profileId);
+      const own = await handleMerchantOrdersRequest(new Request(`http://127.0.0.1/api/merchant/orders?storeId=${storeA}`, { headers }));
+      expect(own.status).toBe(200);
+      expect(JSON.stringify(await own.json())).not.toContain(storeB);
+      const other = await handleMerchantOrdersRequest(new Request(`http://127.0.0.1/api/merchant/orders?storeId=${storeB}`, { headers }));
+      expect(other.status).toBe(403);
+
+      localSql(`update private.profile_auth_bindings set status='REVOKED',revoked_at=now() where auth_profile_id='${authId}' and public_profile_id='${profileId}'`);
+      expect((await handleAdminSessionRequest(new Request('http://127.0.0.1/api/auth/session', { headers }))).status).toBe(403);
+      expect((await handleMerchantOrdersRequest(new Request(`http://127.0.0.1/api/merchant/orders?storeId=${storeA}`, { headers }))).status).toBe(403);
+    } finally {
+      localSql(`delete from private.profile_auth_bindings where auth_profile_id='${authId}' and public_profile_id='${profileId}'`);
+      expect((await admin.from('orders').delete().in('store_id', [storeA, storeB])).error).toBeNull();
+      expect((await admin.from('store_members').delete().eq('store_id', storeA)).error).toBeNull();
+      expect((await admin.from('stores').delete().in('store_id', [storeA, storeB])).error).toBeNull();
+      expect((await admin.from('profiles').delete().eq('id', profileId)).error).toBeNull();
+      expect((await admin.auth.admin.deleteUser(authId)).error).toBeNull();
+    }
+  }, 60_000);
+
+  it('denies direct paid RPC and provisions only through the verified server with idempotent retries', async () => {
+    const url = process.env.SUPABASE_URL || '';
+    const anonKey = process.env.SUPABASE_ANON_KEY || '';
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    expect(new URL(url).hostname).toBe('127.0.0.1');
+    const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const publicClient = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const email = `mybiz-provision-${suffix}@example.invalid`;
+    const password = `Synthetic-only-${suffix}-password`;
+    const requestId = crypto.randomUUID();
+    const freeRequestId = crypto.randomUUID();
+    const paymentId = `synthetic-paid-${suffix}`;
+    const createdStoreIds: string[] = [];
+    const { data: createdUser, error: createError } = await admin.auth.admin.createUser({ email, email_confirm: true, password });
+    expect(createError).toBeNull();
+    const actorId = checkedUuid(createdUser.user?.id || '');
+    const originalFetch = globalThis.fetch;
+    try {
+      const { data: signedIn, error: signInError } = await publicClient.auth.signInWithPassword({ email, password });
+      expect(signInError).toBeNull();
+      const token = signedIn.session?.access_token;
+      expect(token).toBeTruthy();
+      const userClient = createClient(url, anonKey, {
+        accessToken: async () => token!, auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const payload = {
+        business_name: `Synthetic ${suffix}`, owner_name: 'Synthetic CI Owner', business_number: '000-00-00000',
+        phone: '010-0000-0000', email, address: 'Seoul Synthetic', business_type: 'Cafe',
+        requested_slug: `synthetic-provision-${suffix}`, plan: 'pro', payment_id: paymentId, request_id: requestId,
+      };
+      const oldRpc = await userClient.rpc('create_store_with_owner', {
+        p_store_name: payload.business_name, p_owner_name: payload.owner_name,
+        p_business_number: payload.business_number, p_phone: payload.phone, p_email: email,
+        p_address: payload.address, p_business_type: payload.business_type,
+        p_requested_slug: payload.requested_slug, p_plan: 'pro',
+      });
+      expect(oldRpc.error).not.toBeNull();
+      const directNewRpc = await userClient.rpc('provision_store_from_verified_actor', {
+        p_auth_user_id: actorId, p_request_key: requestId, p_request_hash: 'a'.repeat(64),
+        p_store_name: payload.business_name, p_owner_name: payload.owner_name,
+        p_business_number: payload.business_number, p_phone: payload.phone, p_email: email,
+        p_address: payload.address, p_business_type: payload.business_type,
+        p_requested_slug: payload.requested_slug, p_plan: 'pro',
+        p_payment_id: paymentId, p_payment_amount: 79000, p_payment_currency: 'KRW',
+      });
+      expect(directNewRpc.error).not.toBeNull();
+      expect((await admin.from('stores').select('store_id').eq('slug', payload.requested_slug)).data).toHaveLength(0);
+
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('api.portone.io/payments/')) {
+          return Promise.resolve(new Response(JSON.stringify({
+            id: paymentId, status: 'PAID', amount: { total: 79000 }, currency: 'KRW',
+            customData: { planKey: 'pro', requestId, grantsEntitlement: true },
+          }), { status: 200, headers: { 'content-type': 'application/json' } }));
+        }
+        return originalFetch(input, init);
+      }) as typeof fetch;
+      const makeRequest = (body: Record<string, unknown>) => new Request('http://127.0.0.1/api/stores/provision', {
+        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const paid = await provisionHandler(makeRequest(payload));
+      expect(paid.status).toBe(200);
+      const paidBody = await paid.json();
+      const paidStoreId = checkedUuid(paidBody.store?.id || '');
+      createdStoreIds.push(paidStoreId);
+      expect((await admin.from('store_members').select('profile_id').eq('store_id', paidStoreId).single()).data?.profile_id).toBe(actorId);
+      expect((await admin.from('store_subscriptions').select('plan').eq('store_id', paidStoreId).single()).data?.plan).toBe('pro');
+
+      const retry = await provisionHandler(makeRequest(payload));
+      expect(retry.status).toBe(200);
+      expect((await retry.json()).store.id).toBe(paidStoreId);
+      expect((await admin.from('stores').select('store_id').eq('slug', payload.requested_slug)).data).toHaveLength(1);
+      const reusedPayment = await provisionHandler(makeRequest({ ...payload, request_id: crypto.randomUUID(), requested_slug: `reuse-${suffix}` }));
+      expect(reusedPayment.status).toBe(409);
+
+      const free = await provisionHandler(makeRequest({ ...payload, plan: 'free', payment_id: undefined, request_id: freeRequestId,
+        requested_slug: `synthetic-free-${suffix}` }));
+      expect(free.status).toBe(200);
+      const freeStoreId = checkedUuid((await free.json()).store?.id || '');
+      createdStoreIds.push(freeStoreId);
+      const secondFree = await provisionHandler(makeRequest({ ...payload, plan: 'free', payment_id: undefined,
+        request_id: crypto.randomUUID(), requested_slug: `synthetic-free-second-${suffix}` }));
+      expect(secondFree.status).toBe(403);
+    } finally {
+      globalThis.fetch = originalFetch;
+      for (const storeId of createdStoreIds) {
+        const safeStoreId = checkedUuid(storeId);
+        localSql(`delete from private.store_provisioning_receipts where actor_auth_user_id='${actorId}' and store_id='${safeStoreId}'`);
+        localSql(`delete from public.store_home_content where store_id='${safeStoreId}'; delete from public.store_priority_settings where store_id='${safeStoreId}'; delete from public.store_analytics_profiles where store_id='${safeStoreId}'; delete from public.store_subscriptions where store_id='${safeStoreId}'; delete from public.store_members where store_id='${safeStoreId}'; delete from public.stores where store_id='${safeStoreId}'`);
+        expect(localSql(`select count(*) from public.stores where store_id='${safeStoreId}'`)).toBe('0');
+      }
+      expect((await admin.auth.admin.deleteUser(actorId)).error).toBeNull();
+    }
+  }, 60_000);
+
   it('reads a synthetic public store and isolates merchant orders by verified Auth membership', async () => {
     const url = process.env.SUPABASE_URL || '';
     const anonKey = process.env.SUPABASE_ANON_KEY || '';
