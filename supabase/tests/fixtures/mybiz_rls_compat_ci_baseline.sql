@@ -359,6 +359,21 @@ create table public.store_subscriptions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- The current public snapshot still checks this Production legacy fallback.
+create table public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  tier text not null default 'free',
+  status text not null default 'inactive',
+  billing_key text,
+  started_at timestamptz default now(),
+  expires_at timestamptz,
+  created_at timestamptz default now(),
+  last_payment_status text,
+  last_order_id text,
+  cancel_at timestamptz,
+  updated_at timestamptz default now()
+);
 create table public.customers (
   customer_id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(store_id),
@@ -477,6 +492,9 @@ grant select, insert, update on public.stores, public.profiles, public.store_mem
   public.conversation_sessions, public.conversation_messages,
   public.store_analytics_profiles to service_role;
 grant select, insert on public.payment_events to service_role;
+grant select on public.subscriptions to service_role;
+-- CI-only teardown permissions for synthetic Auth/store rows.
+grant delete on public.profiles, public.stores, public.store_members to service_role;
 
 -- Reproduce the Production vulnerability: broad CRUD grants with RLS disabled.
 grant select, insert, update, delete on public.store_tables to anon, authenticated, service_role;

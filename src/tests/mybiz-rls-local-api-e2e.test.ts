@@ -80,15 +80,18 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
       ));
       expect(otherResponse.status).toBe(403);
     } finally {
-      await admin.from('menu_items').delete().eq('menu_id', itemA);
-      await admin.from('menu_categories').delete().eq('category_id', categoryA);
-      await admin.from('store_tables').delete().eq('table_id', tableA);
-      await admin.from('orders').delete().in('order_id', [orderA, orderB]);
-      await admin.from('store_members').delete().eq('profile_id', userId);
-      await admin.from('stores').delete().in('store_id', [storeA, storeB]);
-      await admin.from('profiles').delete().eq('id', userId);
+      expect((await admin.from('menu_items').delete().eq('menu_id', itemA)).error).toBeNull();
+      expect((await admin.from('menu_categories').delete().eq('category_id', categoryA)).error).toBeNull();
+      expect((await admin.from('store_tables').delete().eq('table_id', tableA)).error).toBeNull();
+      expect((await admin.from('orders').delete().in('order_id', [orderA, orderB])).error).toBeNull();
+      expect((await admin.from('store_members').delete().eq('profile_id', userId)).error).toBeNull();
+      expect((await admin.from('stores').delete().in('store_id', [storeA, storeB])).error).toBeNull();
+      expect((await admin.from('profiles').delete().eq('id', userId)).error).toBeNull();
+      const readback = await admin.from('orders').select('order_id').in('order_id', [orderA, orderB]);
+      expect(readback.error).toBeNull();
+      expect(readback.data).toHaveLength(0);
       if (userId) {
-        await admin.auth.admin.deleteUser(userId);
+        expect((await admin.auth.admin.deleteUser(userId)).error).toBeNull();
       }
     }
   }, 30_000);
