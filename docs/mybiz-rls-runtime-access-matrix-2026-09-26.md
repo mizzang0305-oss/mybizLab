@@ -37,3 +37,29 @@ Purpose: classify current runtime dependencies before any database permission ch
 5. after the above, create a disposable-database permission migration and cross-store regression tests.
 
 No Production DB changes are authorized by this matrix.
+
+## Target access matrix for the 15 Production findings
+
+`S/I/U/D` below means SELECT/INSERT/UPDATE/DELETE. `none` means no direct Data API grant. Server access is through the existing service-role client only. Every target table enables RLS. The target is a review draft pending disposable DB proof.
+
+| Table | Active classification / evidence | Target anon | Target authenticated | Server | Policy / code change |
+| --- | --- | --- | --- | --- | --- |
+| store_tables | PUBLIC_READ_REQUIRED + AUTH_MEMBER_REQUIRED; public snapshot, merchant editor/order read | none | S/I own store | S/I/U/D | Existing `is_store_member(store_id)`; public reads via server snapshot; merchant order read via server |
+| sessions | SERVER_ONLY; public session creation in `publicApi.ts` | none | none | S/I/U/D | No browser policy; public API writes |
+| orders | SERVER_ONLY_PUBLIC_FLOW + MERCHANT_PRIVATE; public order API, merchant API | none | none | S/I/U/D | Merchant read and event API; no browser raw order grant |
+| events | UNUSED_LEGACY candidate; no direct current table caller found | none | none | S/I/U/D | Quarantine, no DROP; dependency search remains required |
+| menu_categories | PUBLIC_READ_REQUIRED + AUTH_MEMBER_REQUIRED; public snapshot, merchant editor | none | S/I own store | S/I/U/D | Public snapshot server read; existing store-member policy for editor |
+| menu_items | PUBLIC_READ_REQUIRED + AUTH_MEMBER_REQUIRED; public snapshot, merchant editor | none | S/I own store | S/I/U/D | Public snapshot server read; existing store-member policy for editor |
+| store_staff | UNKNOWN_BLOCKER, no direct current caller | none | none | S/I/U/D | Quarantine; verify indirect jobs/RPC before Production |
+| store_modules | UNKNOWN_BLOCKER, no direct current caller | none | none | S/I/U/D | Quarantine; verify indirect jobs/RPC before Production |
+| ai_briefing_logs | UNKNOWN_BLOCKER, no direct current caller | none | none | S/I/U/D | Quarantine; verify indirect jobs/RPC before Production |
+| store_analytics_profile | UNUSED_LEGACY candidate; singular table has 0 Production rows; plural table has 6 | none | none | S/I/U/D | Quarantine; do not confuse with active plural table |
+| store_priority_settings | AUTH_MEMBER_REQUIRED; live provisioning/brand/dashboard browser S/I/U | none | S/I/U own store | S/I/U/D | Membership policy casts validated UUID-shaped text store ID |
+| store_daily_metrics | UNKNOWN_BLOCKER, no direct current caller | none | none | S/I/U/D | Quarantine; verify indirect jobs/RPC before Production |
+| ai_reports | UNKNOWN_BLOCKER, no direct current caller | none | none | S/I/U/D | Quarantine; verify indirect jobs/RPC before Production |
+| store_home_content | LEGACY_FALLBACK; public server fallback; 6 rows all have canonical public page | none | none | S/I/U/D | Preserve server fallback, no direct client policy |
+| store_setup_requests | SERVER_ONLY; onboarding API and provisioning API | none | none | S/I/U/D | Remove browser insert fallback; preexisting own-row policies have no client grant |
+
+All 15 currently have RLS disabled and broad anon/authenticated CRUD in the verified baseline. Production grants and policies were not changed in this work.
+
+The `store_tables`, `menu_categories`, `menu_items`, and `store_priority_settings` policies use the existing `is_store_member(uuid)` helper. This helper resolves only exact Auth/profile IDs. A nonidentical but active Auth/profile binding is a documented compatibility gap, not a claimed PASS. No anon UPDATE/DELETE and no authenticated DELETE are proposed.

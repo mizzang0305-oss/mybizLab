@@ -72,3 +72,15 @@ No Production DDL or deploy is allowed from this branch until:
 MYBIZ_PRODUCTION_SECURITY_APPROVAL_READY=true
 
 Biz2Lab PR #130 remains frozen during this gate.
+
+## Implemented in this branch
+
+1. Authenticated merchant orders GET returns only rows for a verified member store; the browser retains one existing order read-model mapper.
+2. Onboarding live setup requests and merchant order events no longer fall back to direct browser DB writes.
+3. Live public menu/table reads reuse `/api/public/store` instead of anonymous table SELECT.
+4. Server merchant/admin/OAuth access passes the verified Auth ID to the repository to prevent service-role email fallback.
+5. A 15-table RLS/least-grant SQL draft and synthetic disposable-DB pgTAP workflow are prepared. Neither has been applied to Production.
+
+## Next gate and rollback
+
+Run `.github/workflows/mybiz-rls-compat-certification.yml` on the exact candidate SHA, then compare the fixture to read-only Production catalog and test the public/menu/order/onboarding and merchant dashboard paths against the disposable stack. Reconcile the Production provisioning RPC mismatch and nonidentical profile binding before approving schema changes. The code rollback is the prior approved MyBiz deployment. A schema rollback must preserve RLS and avoid restoring anon full CRUD; if a compatible server path cannot be restored without weakening security, stop writes and require separate Owner approval. No automatic table DROP or customer-data deletion is authorized.
