@@ -227,24 +227,24 @@ select lives_ok($$insert into public.menu_categories(store_id,name) values
   ('11111111-1111-4111-8111-111111111111','Own')$$, 'own-store category INSERT');
 select lives_ok($$insert into public.menu_items(store_id,name,price) values
   ('11111111-1111-4111-8111-111111111111','Own',300)$$, 'own-store menu INSERT');
-select is((with changed as (update public.orders set status='submitted'
+with changed as (update public.orders set status='submitted'
   where store_id='11111111-1111-4111-8111-111111111111' returning 1)
-  select count(*)::bigint from changed), 1::bigint, 'own-store order UPDATE');
-select is((with changed as (update public.store_priority_settings set version=2
+select is((select count(*)::bigint from changed), 1::bigint, 'own-store order UPDATE');
+with changed as (update public.store_priority_settings set version=2
   where store_id='11111111-1111-4111-8111-111111111111' returning 1)
-  select count(*)::bigint from changed), 1::bigint, 'own-store priority UPDATE');
+select is((select count(*)::bigint from changed), 1::bigint, 'own-store priority UPDATE');
 select throws_ok($$insert into public.store_tables(store_id,table_no) values
   ('22222222-2222-4222-8222-222222222222',3)$$, '42501', null, 'cross-store table INSERT denied');
 select throws_ok($$insert into public.menu_categories(store_id,name) values
   ('22222222-2222-4222-8222-222222222222','Denied')$$, '42501', null, 'cross-store category INSERT denied');
 select throws_ok($$insert into public.menu_items(store_id,name,price) values
   ('22222222-2222-4222-8222-222222222222','Denied',300)$$, '42501', null, 'cross-store menu INSERT denied');
-select is((with changed as (update public.orders set status='submitted'
+with changed as (update public.orders set status='submitted'
   where store_id='22222222-2222-4222-8222-222222222222' returning 1)
-  select count(*)::bigint from changed), 0::bigint, 'cross-store order UPDATE blocked');
-select is((with changed as (update public.store_priority_settings set version=3
+select is((select count(*)::bigint from changed), 0::bigint, 'cross-store order UPDATE blocked');
+with changed as (update public.store_priority_settings set version=3
   where store_id='22222222-2222-4222-8222-222222222222' returning 1)
-  select count(*)::bigint from changed), 0::bigint, 'cross-store priority UPDATE blocked');
+select is((select count(*)::bigint from changed), 0::bigint, 'cross-store priority UPDATE blocked');
 
 reset role;
 
