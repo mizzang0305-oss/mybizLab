@@ -8,6 +8,9 @@ revoke select, update on public.orders from authenticated;
 revoke select, insert on public.menu_categories from authenticated;
 revoke select, insert on public.menu_items from authenticated;
 revoke select, insert, update on public.store_priority_settings from authenticated;
+-- V3 core-table HOLD: keep member reads but pause browser settings writes.
+-- Initial subscriptions and owner membership remain server-only.
+revoke update (name, timezone, brand_config, slug) on public.stores from authenticated;
 
 -- Keep RLS and all restrictive policies in place. Revoking direct client
 -- grants means cross-store access remains impossible during application HOLD.
@@ -34,5 +37,28 @@ begin
   end loop;
 end;
 $guard$;
+
+do $core_guard$
+declare target text;
+begin
+  foreach target in array array['stores','store_members','store_subscriptions'] loop
+    if not (select c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='public' and c.relname=target) then
+      raise exception 'Rollback invariant failed: core RLS disabled for %', target;
+    end if;
+    if has_any_column_privilege('anon',format('public.%I',target),'SELECT')
+      or has_any_column_privilege('anon',format('public.%I',target),'INSERT')
+      or has_any_column_privilege('anon',format('public.%I',target),'UPDATE')
+      or has_table_privilege('anon',format('public.%I',target),'DELETE') then
+      raise exception 'Rollback invariant failed: anon core grant on %', target;
+    end if;
+  end loop;
+  if has_any_column_privilege('authenticated','public.stores','UPDATE')
+    or has_any_column_privilege('authenticated','public.store_members','UPDATE')
+    or has_any_column_privilege('authenticated','public.store_subscriptions','UPDATE') then
+    raise exception 'Rollback invariant failed: browser core write remains';
+  end if;
+end;
+$core_guard$;
 
 commit;

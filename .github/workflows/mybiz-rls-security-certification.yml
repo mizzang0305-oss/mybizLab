@@ -8,8 +8,12 @@ on:
       - "supabase/migration_drafts/20260926_mybiz_legacy_public_rls_hardening.sql"
       - "supabase/migration_drafts/20260925115116_mybiz_auth_binding_server_resolver.sql"
       - "supabase/migration_drafts/20260926_mybiz_rls_safe_server_only_rollback.sql"
+      - "supabase/migration_drafts/20260926_mybiz_existing_policy_identity_compat.sql"
+      - "supabase/migration_drafts/20260926_mybiz_verified_owner_provisioning.sql"
+      - "supabase/migration_drafts/20260926_mybiz_core_table_least_privilege.sql"
       - "supabase/tests/fixtures/mybiz_rls_security_compat_ci_baseline.sql"
       - "supabase/tests/mybiz_rls_security_compat.sql"
+      - "supabase/tests/mybiz_core_table_least_privilege.sql"
       - "supabase/tests/mybiz_rls_safe_rollback.sql"
       - "src/**"
       - ".github/workflows/mybiz-rls-security-certification.yml"
@@ -107,9 +111,13 @@ jobs:
             "$CI_SUPABASE_ROOT/supabase/migrations/20260925000004_mybiz_verified_owner_provisioning.sql"
           cp supabase/migration_drafts/20260926_mybiz_legacy_public_rls_hardening.sql \
             "$CI_SUPABASE_ROOT/supabase/migrations/20260926000000_mybiz_legacy_public_rls_hardening.sql"
+          cp supabase/migration_drafts/20260926_mybiz_core_table_least_privilege.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260926000001_mybiz_core_table_least_privilege.sql"
 
           cp supabase/tests/mybiz_rls_security_compat.sql \
             "$CI_SUPABASE_ROOT/supabase/tests/mybiz_rls_security_compat.sql"
+          cp supabase/tests/mybiz_core_table_least_privilege.sql \
+            "$CI_SUPABASE_ROOT/supabase/tests/mybiz_core_table_least_privilege.sql"
 
           printf 'CI-only migration order:\n'
           find "$CI_SUPABASE_ROOT/supabase/migrations" -maxdepth 1 -type f -printf '%f\n' | sort
@@ -210,10 +218,10 @@ jobs:
             printf '%s\n' "$result" >&2
             exit 1
           fi
-          test "$(grep -c '^ok ' <<< "$result")" = '5'
+          test "$(grep -c '^ok ' <<< "$result")" = '8'
           LOCAL_RLS_PHASE=rollback npx vitest run \
             src/tests/mybiz-rls-security-fullstack.test.ts --reporter=dot
-          echo 'SAFE_ROLLBACK_EPHEMERAL=PASS (5 assertions)'
+          echo 'SAFE_ROLLBACK_EPHEMERAL=PASS (8 assertions)'
 
       - name: Write sanitized security certification summary
         if: always()
@@ -225,13 +233,13 @@ jobs:
             echo "- Final SHA: \`${FINAL_SHA:-unavailable}\`"
             echo "- Supabase CLI: \`${EXPECTED_CLI_VERSION}\`"
             echo '- Runtime: GitHub-hosted ubuntu-24.04 / ephemeral Docker'
-            echo '- Target fixture: 15 Production security-gate legacy tables'
+            echo '- Target fixture: 15 legacy tables plus stores, store_members, store_subscriptions'
             echo '- Store authorization: verified binding resolver + store_members'
             echo '- Source: `${{ steps.source.outcome }}`'
             echo '- Docker: `${{ steps.docker.outcome }}`'
             echo '- Fixture: `${{ steps.fixture.outcome }}`'
             echo '- Resolver/RLS apply: `${{ steps.migration.outcome }}`'
-            echo '- pgTAP: `${{ steps.pgtap.outcome }}`'
+            echo '- V2 + V3 pgTAP: `${{ steps.pgtap.outcome }}`'
             echo '- PostgREST: `${{ steps.postgrest.outcome }}`'
             echo '- Hardened HTTP: `${{ steps.http.outcome }}`'
             echo '- Verified-owner provisioning: `${{ steps.provisioning.outcome }}`'

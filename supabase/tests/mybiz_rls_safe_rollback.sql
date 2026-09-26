@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(5);
+select plan(8);
 
 select is((select count(*)::bigint from pg_class c join pg_namespace n on n.oid=c.relnamespace
   where n.nspname='public' and c.relname=any(array[
@@ -46,6 +46,20 @@ select is((select count(*)::bigint from unnest(array[
 
 select ok(not public.is_bound_store_member('22222222-2222-4222-8222-222222222222'),
   'without a verified JWT the binding helper denies cross-store access');
+
+select is((select count(*)::bigint from pg_class c join pg_namespace n on n.oid=c.relnamespace
+  where n.nspname='public' and c.relname=any(array['stores','store_members','store_subscriptions'])
+    and c.relrowsecurity),3::bigint,'core RLS remains enabled');
+select is((select count(*)::bigint from unnest(array['stores','store_members','store_subscriptions']) t(name)
+  where has_any_column_privilege('anon',format('public.%I',name),'SELECT')
+    or has_any_column_privilege('anon',format('public.%I',name),'INSERT')
+    or has_any_column_privilege('anon',format('public.%I',name),'UPDATE')
+    or has_table_privilege('anon',format('public.%I',name),'DELETE')),
+  0::bigint,'core anon CRUD remains zero');
+select ok(not has_any_column_privilege('authenticated','public.stores','UPDATE')
+  and not has_any_column_privilege('authenticated','public.store_members','UPDATE')
+  and not has_any_column_privilege('authenticated','public.store_subscriptions','UPDATE'),
+  'core client writes paused without restoring broad access');
 
 select * from finish();
 rollback;

@@ -152,7 +152,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
       ('${storeBWrite}','write-${storeBWrite}','Synthetic B Write','pro');
       insert into public.store_members(store_id,profile_id,role) values
        ('${storeA}','${a.profileId}','owner'),('${storeA}','${exact.profileId}','staff'),
-       ('${storeB}','${b.profileId}','owner'),
+       ('${storeB}','${b.profileId}','owner'),('${storeB}','${revoked.profileId}','staff'),
       ('${storeBWrite}','${b.profileId}','owner');
       insert into public.store_subscriptions(store_id,plan,status) values
       ('${storeA}','pro','active'),('${storeB}','pro','active');
@@ -232,6 +232,60 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
       const serviceDelete = await rest(table, 'DELETE', serviceKey, serviceKey, filter);
       expect(serviceDelete.status, `${table}: service DELETE`).toBe(200);
     }
+  });
+
+  it.runIf(phase === 'postgrest')('enforces core table grants and column-scoped store settings through Data API', async () => {
+    for (const table of ['stores', 'store_members', 'store_subscriptions']) {
+      const insertBody = table === 'stores'
+        ? { store_id: randomUUID(), name: 'Anonymous store' }
+        : table === 'store_members'
+          ? { store_id: storeA, profile_id: nonMember.profileId, role: 'owner' }
+          : { store_id: storeA, plan: 'vip', status: 'active' };
+      const updateBody = table === 'stores' ? { name: 'Anonymous update' }
+        : table === 'store_members' ? { role: 'owner' } : { plan: 'vip' };
+      denied((await rest(table, 'GET', anonKey, anonKey)).status);
+      denied((await rest(table, 'POST', anonKey, anonKey, '', insertBody)).status);
+      denied((await rest(table, 'PATCH', anonKey, anonKey, `?store_id=eq.${storeA}`, updateBody)).status);
+      denied((await rest(table, 'DELETE', anonKey, anonKey, `?store_id=eq.${storeA}`)).status);
+      const own = await rest(table, 'GET', anonKey, a.token, `?store_id=eq.${storeA}`);
+      expect(own.status, `${table}: own SELECT`).toBe(200);
+      expect((own.body as unknown[]).length).toBeGreaterThan(0);
+      const cross = await rest(table, 'GET', anonKey, a.token, `?store_id=eq.${storeB}`);
+      expect(cross.status, `${table}: cross SELECT RLS`).toBe(200);
+      expect(cross.body).toEqual([]);
+      for (const identity of [nonMember, revoked, noBinding]) {
+        const blocked = await rest(table, 'GET', anonKey, identity.token);
+        expect(blocked.status, `${table}: ${identity.authId} SELECT`).toBe(200);
+        expect(blocked.body).toEqual([]);
+      }
+    }
+    for (const table of ['stores', 'store_members', 'store_subscriptions']) {
+      const exactOwn = await rest(table, 'GET', anonKey, exact.token, `?store_id=eq.${storeA}`);
+      expect(exactOwn.status, `${table}: exact-ID SELECT`).toBe(200);
+      expect((exactOwn.body as unknown[]).length).toBeGreaterThan(0);
+    }
+    denied((await rest('stores', 'POST', anonKey, a.token, '',
+      { store_id: randomUUID(), name: 'Unauthorized store' })).status);
+    denied((await rest('stores', 'DELETE', anonKey, a.token, `?store_id=eq.${storeA}`)).status);
+    denied((await rest('store_members', 'POST', anonKey, a.token, '',
+      { store_id: storeA, profile_id: nonMember.profileId, role: 'owner' })).status);
+    denied((await rest('store_members', 'PATCH', anonKey, a.token, `?store_id=eq.${storeA}`,
+      { role: 'owner' })).status);
+    denied((await rest('store_subscriptions', 'PATCH', anonKey, a.token, `?store_id=eq.${storeA}`,
+      { plan: 'vip' })).status);
+    denied((await rest('stores', 'PATCH', anonKey, a.token, `?store_id=eq.${storeA}`,
+      { plan: 'vip' })).status);
+    denied((await rest('stores', 'PATCH', anonKey, a.token, `?store_id=eq.${storeA}`,
+      { trial_ends_at: new Date().toISOString() })).status);
+    const ownUpdate = await rest('stores', 'PATCH', anonKey, a.token, `?store_id=eq.${storeA}`,
+      { name: 'Synthetic Updated A' });
+    expect(ownUpdate.status).toBe(200);
+    expect((ownUpdate.body as unknown[]).length).toBe(1);
+    const crossUpdate = await rest('stores', 'PATCH', anonKey, a.token, `?store_id=eq.${storeB}`,
+      { name: 'Forbidden B' });
+    expect(crossUpdate.status).toBe(200);
+    expect(crossUpdate.body).toEqual([]);
+    expect(sql(`select name from public.stores where store_id='${storeB}'`)).toBe('Synthetic B');
   });
 
   it.runIf(phase === 'postgrest')('allows own-store writes and rejects Store A writes to Store B', async () => {
@@ -419,6 +473,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
     expect(result.status).toBe(200);
     const created = (result.body.store as Record<string, unknown>).id as string;
     expect(sql(`select profile_id from public.store_members where store_id='${created}' and role='owner'`)).toBe(exact.authId);
+    expect(sql(`select plan || ':' || status from public.store_subscriptions where store_id='${created}'`)).toBe('free:active');
     expect(sql(`select count(*) from public.store_priority_settings where store_id='${created}'`)).toBe('1');
     const session = await app('/api/auth/session', 'GET', undefined, exact.token);
     expect(session.status).toBe(200);
@@ -482,6 +537,7 @@ describe.runIf(Boolean(statusFile) && (phase === 'postgrest' || phase === 'http'
       expect(response.status).toBe(200);
       const created = (response.body.store as Record<string, unknown>).id as string;
       expect(sql(`select profile_id from public.store_members where store_id='${created}' and role='owner'`)).toBe(exact.authId);
+      expect(sql(`select plan || ':' || status from public.store_subscriptions where store_id='${created}'`)).toBe('pro:active');
       expect(sql(`select status from public.store_setup_requests where id='${requestId}'`)).toBe('converted');
     } finally {
       globalThis.fetch = originalFetch;

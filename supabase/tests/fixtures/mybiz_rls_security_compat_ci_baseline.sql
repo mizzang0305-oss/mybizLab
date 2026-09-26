@@ -535,6 +535,7 @@ create table public.lead_capture_requests (
 -- replace only public.is_store_member(uuid), never these policy definitions.
 alter table public.stores enable row level security;
 alter table public.store_members enable row level security;
+alter table public.store_subscriptions enable row level security;
 alter table public.store_public_pages enable row level security;
 alter table public.customers enable row level security;
 alter table public.customer_contacts enable row level security;
@@ -549,6 +550,8 @@ create policy store_members_select_member on public.store_members for select
 create policy store_members_insert_member on public.store_members for insert
   with check (public.is_store_member(store_id));
 create policy store_members_update_member on public.store_members for update
+  using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+create policy store_subscriptions_member_access on public.store_subscriptions for all
   using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
 create policy store_public_pages_member_access on public.store_public_pages for all
   using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
@@ -585,6 +588,10 @@ grant select, insert, update on public.stores, public.profiles, public.store_mem
   public.conversation_sessions, public.conversation_messages,
   public.store_analytics_profiles to service_role;
 grant select, insert on public.payment_events to service_role;
+
+-- Reproduce the additional Production core-table privilege risk before V3.
+grant select, insert, update, delete on public.stores, public.store_members,
+  public.store_subscriptions to anon, authenticated;
 
 -- Reproduce the Production vulnerability: broad CRUD grants with RLS disabled.
 grant select, insert, update, delete on public.store_tables to anon, authenticated, service_role;
