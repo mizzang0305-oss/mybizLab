@@ -1,5 +1,5 @@
 import type { Customer, CustomerContact, CustomerPreference, CustomerTimelineEvent } from '../../types/models';
-import { createId } from '../ids.js';
+import { createUuid } from '../ids.js';
 
 export function normalizeCustomerPhone(value?: string | null) {
   return (value || '').replace(/\D/g, '');
@@ -47,7 +47,7 @@ export function buildCustomerContact(input: {
     input.type === 'phone' ? normalizeCustomerPhone(input.value) : normalizeCustomerEmail(input.value);
 
   return {
-    id: createId(`customer_contact_${input.type}`),
+    id: createUuid(),
     store_id: input.storeId,
     customer_id: input.customerId,
     type: input.type,
@@ -67,7 +67,7 @@ export function buildCustomerPreference(input: {
   timestamp: string;
 }): CustomerPreference {
   return {
-    id: createId('customer_preference'),
+    id: createUuid(),
     store_id: input.storeId,
     customer_id: input.customerId,
     marketing_opt_in: Boolean(input.marketingOptIn),
@@ -88,7 +88,7 @@ export function buildCustomerTimelineEvent(input: {
   timestamp: string;
 }): CustomerTimelineEvent {
   return {
-    id: createId('customer_timeline'),
+    id: createUuid(),
     store_id: input.storeId,
     customer_id: input.customerId,
     event_type: input.eventType,

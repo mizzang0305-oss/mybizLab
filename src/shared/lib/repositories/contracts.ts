@@ -24,6 +24,7 @@ export interface ResolveStoreAccessInput {
   fallbackProfileId: string;
   requestedEmail?: string;
   requestedFullName?: string;
+  verifiedAuthUserId?: string;
 }
 
 export interface ResolvedStoreAccess {
@@ -34,6 +35,7 @@ export interface ResolvedStoreAccess {
   primaryRole: StoreMember['role'] | null;
   profile: Profile;
   provider: CanonicalRepositoryProvider;
+  verifiedAuthUserId?: string;
 }
 
 export interface CustomerMemoryUpsertInput {

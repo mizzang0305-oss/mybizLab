@@ -1,4 +1,4 @@
-import { createId } from '../ids.js';
+import { createUuid } from '../ids.js';
 import {
   buildCustomerContact,
   buildCustomerPreference,
@@ -113,7 +113,7 @@ export async function upsertCustomerMemory(
   const created = !match.customer;
   const baseCustomer: Customer = normalizeCustomerRecord(
     match.customer || {
-      id: createId('customer'),
+      id: createUuid(),
       customer_id: undefined,
       store_id: input.storeId,
       name: input.name?.trim() || '고객',

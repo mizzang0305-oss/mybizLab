@@ -1,4 +1,4 @@
-import { createId } from '../ids.js';
+import { createId, createUuid } from '../ids.js';
 import { IS_LIVE_RUNTIME } from '../appConfig.js';
 import { requestPublicApi } from '../publicApiClient.js';
 import { repairPublicStorePageCopy } from '../publicStoreText.js';
@@ -304,7 +304,7 @@ export async function touchVisitorSession(input: TouchVisitorSessionInput, optio
   }
 
   const nextSession: VisitorSession = {
-    id: input.sessionId || existing?.id || createId('visitor_session'),
+    id: input.sessionId || existing?.id || createUuid(),
     store_id: input.storeId,
     public_page_id: input.publicPageId || existing?.public_page_id,
     customer_id: input.customerId || existing?.customer_id,

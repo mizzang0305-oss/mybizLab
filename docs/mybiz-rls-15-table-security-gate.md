@@ -67,3 +67,186 @@ The earlier GitHub run `36192879802` failed in source-isolation verification bef
 The authorized Git push automatically created Vercel Preview `dpl_6KjudEkT5kvetHc7RsJtQoxCGLTM` at the pushed SHA. It is `READY`, `target=null`; it was not manually deployed or promoted. Production remains `dpl_5TmFPDjCc5PP7zuRdtMhkyRgxDG5` at `41ae32991412d720683ffc1ac0a82f474a2c47ac` with the existing public aliases.
 
 No Production DB write, Auth change, deployment, Biz2Lab change or AgentOps work is authorized by this document.
+
+## V2 local-only checkpoint (2026-09-26)
+
+The V2 draft now adds `public.is_bound_store_member(uuid)` for **these target
+policies only**. It resolves `auth.uid()` through one active, unrevoked
+`private.profile_auth_bindings` row, active `core.profiles`, an existing
+`auth.users` and `public.profiles` row, and a `store_members` row for the
+requested store. `store_members` has no active/status flag in the read-only
+Production catalog; removal of the membership is the revocation mechanism.
+The pre-existing `is_store_member` remains unchanged because its callers
+extend beyond the 15-table gate. The helper is SECURITY DEFINER with an empty
+search path, qualified references, and authenticated-only EXECUTE.
+
+The following is the **draft target**, not a verified Production grant state.
+The fixture's service role retains RIUD on all 15 for existing server paths.
+
+| Table | Classification | anon R/I/U/D | auth R/I/U/D | Policy / caller rationale |
+| --- | --- | --- | --- | --- |
+| `store_tables` | merchant + public server | ---- | RI-- | bound membership; `mvpService` reads/inserts; public API reads |
+| `sessions` | server only | ---- | ---- | public order legacy session |
+| `orders` | merchant + public server | ---- | R-U- | bound membership; merchant read/customer-link update; public API writes |
+| `events` | quarantined legacy | ---- | ---- | no active target-table caller established |
+| `menu_categories` | merchant + public server | ---- | RI-- | bound membership; menu read/insert; public API reads |
+| `menu_items` | merchant + public server | ---- | RI-- | bound membership; menu read/insert; public API reads |
+| `store_staff` | quarantined legacy | ---- | ---- | no active target-table caller established |
+| `store_modules` | quarantined legacy | ---- | ---- | no active target-table caller established |
+| `ai_briefing_logs` | quarantined legacy | ---- | ---- | no active target-table caller established |
+| `store_analytics_profile` | quarantined legacy | ---- | ---- | singular legacy table; plural table is separate |
+| `store_priority_settings` | merchant + server | ---- | RIU- | bound membership; `mvpService` read/upsert |
+| `store_daily_metrics` | server only | ---- | ---- | no direct browser DB caller established |
+| `ai_reports` | server only | ---- | ---- | no direct browser DB caller established |
+| `store_home_content` | legacy server fallback | ---- | ---- | `loadLegacyStorePublicPage` via server admin path; canonical page path preferred |
+| `store_setup_requests` | onboarding server | ---- | ---- | server endpoint inserts; own-row policy retained without client grant |
+
+The fixture now carries the 38 previously omitted target columns in
+`events` (6), `ai_reports` (6), `store_daily_metrics` (15),
+`store_home_content` (4), and `store_setup_requests` (7). The latter's
+`requested_slug` and `email` also have local indexes for the real onboarding
+lookup. `stores` has the canonical repository select columns; the fixture
+adds the existing core/private binding shape and unique active indexes.
+These changes are source alignment only. `FIXTURE_MISSING_REQUIRED_COLUMNS`
+remains `UNKNOWN` until the hardened HTTP paths run.
+
+The revised pgTAP draft uses nonidentical synthetic Auth/profile IDs, own-store
+positive operations, cross-store SELECT/INSERT/UPDATE/DELETE boundaries
+(ungranted operations are asserted by privilege), and revoked/inactive/missing/
+conflicting/unbound/other-store identities. It has **not** run in a disposable
+Supabase stack in this checkpoint: local Docker, psql and Supabase CLI are
+unavailable. The inert fixture body of `create_store_with_owner` tests its
+EXECUTE ACL only; it is not provisioning compatibility evidence.
+
+After the narrow R1 server-path port, local lint/typecheck/build and all
+903 Vitest tests in 155 files passed; the three focused Auth tests passed
+15/15. Those tests use mocks and do not replace real JWT/HTTP proof. A source
+scan of the current Vite output found no `SUPABASE_SERVICE_ROLE_KEY` or
+`service_role` marker, but no key value was inspected. `git diff --check`
+passed. The V2 SQL, pgTAP, PostgREST, onboarding/inquiry/order HTTP, DB lint
+and rollback rehearsal remain `NOT_RUN`.
+
+**Independent runtime blocker:** the remote PR HEAD still uses an exact
+Auth/profile lookup. This local-only draft carries the narrow R1 verified
+binding resolver path in `adminAuth`, `merchantApi`,
+`supabaseRepository`, its contract and focused unit tests. The SQL draft
+also carries the server-only resolver function. The Production catalog does
+not contain that function. R1 at
+`d92b3e4a1ae3c60fa19425d770f7d78058e55847` supplied the already
+verified design, but no V2 real JWT/HTTP test has run. This introduces a
+cross-branch Auth rollout dependency and an exact Production SQL apply order;
+the R1 resolver draft must not be applied a second time after this draft.
+Do not deploy the local runtime patch against a DB without the resolver, and
+do not use a mocked or all-403 route to claim V2 closure.
+
+**Gate:** `MYBIZ_RLS_COMPATIBILITY_V2_VERIFIED=false`,
+`MYBIZ_PRODUCTION_SECURITY_APPROVAL_READY=false`. No V2 push or hosted CI
+has occurred at this checkpoint. A single push remains authorized only after
+the full PostgREST, hardened HTTP, function, rollback and local validation
+package is ready. Production SQL/credential changes remain prohibited.
+
+## V2 full-stack harness candidate (local; Hosted CI result pending)
+
+The earlier local-only checkpoint above remains historical evidence. This
+candidate keeps the R1 resolver in its own exact draft file,
+`20260925115116_mybiz_auth_binding_server_resolver.sql`, and the V2 RLS draft
+depends on it. The new `is_bound_store_member(uuid)` calls that one canonical
+resolver using `auth.uid()` and then checks `store_members.profile_id` for the
+target store. It does not duplicate the private binding query. The existing
+`is_store_member(uuid)` is not replaced: a read-only Production catalog query
+found **32 policies outside this 15-table target** that still refer to it.
+Those other policies need a separately bounded compatibility decision before
+any claim of platform-wide non-identical identity support. This is a known
+approval blocker, not an assumed PASS.
+
+### Exact disposable SQL order
+
+1. `mybiz_rls_security_compat_ci_baseline.sql`: synthetic target tables,
+   binding foundation and support relations; no remote data.
+2. Existing `20260318_fix_create_store_with_owner_live.sql` **only inside the
+   disposable CI root** so the provisioning function has its real source body,
+   rather than an inert fixture placeholder. It is not a new Production apply
+   proposal.
+3. R1 verified resolver draft. It guards the identity foundation and refuses
+   to replace an existing resolver.
+4. V2 legacy public RLS hardening draft. It refuses to run before the resolver.
+5. Supabase Local/PostgREST schema reload through `supabase db reset`, 49 pgTAP
+   assertions, real JWT/PostgREST matrix, actual Node HTTP handlers, DB lint,
+   application quality gates, then safe rollback rehearsal.
+
+The actual HTTP harness imports the existing `/api/auth/session`,
+`/api/public`, `/api/onboarding/setup-request` and `/api/merchant` handlers.
+Its `LOCAL_SUPABASE_STATUS_FILE` is generated by `supabase status -o env` in
+the hosted ephemeral runner and validated to contain only `127.0.0.1` API/DB
+targets before use. No Production credential is injected. Five roles are
+exercised: anon, authenticated non-member, non-identical Store A member,
+non-identical Store B member, and service role. It requests SELECT, INSERT,
+UPDATE and DELETE for all 15 target tables; required own-store writes and
+cross-store denies are separate assertions. The HTTP paths include a
+pre-payment public order only, with no payment provider request.
+
+The read-only Production catalog also confirms UUID identifiers on
+`visitor_sessions`, `customers`, `customer_contacts`, `customer_preferences`,
+`customer_timeline_events`, `conversation_sessions`, `conversation_messages`
+and `inquiries`. Prefix-based `createId()` values in the public inquiry
+write chain could not persist into those UUID columns; the candidate changes
+only those persisted IDs to `createUuid()`. This is a runtime compatibility
+patch, not a new data model. The disposable support fixture follows the
+existing legacy repository fallback shape. The HTTP run must still prove the
+full path; local unit tests cannot do so.
+
+A read-only `information_schema.columns` comparison of the 15 target tables
+found **147 Production columns, zero missing fixture columns and zero basic
+type mismatches** (UUID/text/integer/boolean/jsonb/array/numeric/date/
+timestamptz). This establishes column-shape alignment for the target set,
+not constraint, data, PostgREST or HTTP compatibility. Those remain the
+Hosted CI gates.
+
+### Safe rollback and Production execution draft
+
+**Application rollback:** HOLD the affected public/merchant routes or return a
+temporary unavailable response, then restore a previously safe compatible
+application SHA while retaining the resolver and hardened DB permissions.
+Never deploy a server build that invokes the resolver before the resolver is
+present. Observe the route error rate and synthetic smoke before reopening.
+
+**DB compatibility HOLD:**
+`20260926_mybiz_rls_safe_server_only_rollback.sql` removes only the five
+newly granted authenticated direct-operation sets. It keeps all 15 RLS flags,
+all zero anon direct CRUD, policies and service-role CRUD. It is deliberately
+a server-only HOLD state, not a restoration of old broad grants. CI rechecks
+these invariants with five pgTAP assertions and actual server HTTP requests
+after applying the rollback.
+Production application of this draft requires its own exact Owner approval.
+
+Local draft SHA256 (source bytes, LF; recheck against the final Git blob before
+Production approval): resolver
+`53A97109F6AA76E9DF8217C228C439C7A44FAA69AC26A57E08A552C04DE7041C`,
+V2 RLS
+`0C21D18B0DC7C51A7A69AF75DA21259725543C7BB99DF1FE2594F4CD4A02E305`,
+safe server-only rollback
+`1176EC672A2398D3430BFDE502A7C417F2AAF3929500859360E9B49CFCB04F84`.
+
+Proposed order, **not authorized for execution**:
+
+1. Confirm exact Production project/deployment identity and backup plus
+   tested recovery point; retain the rollback window and operators.
+2. Review/apply the exact resolver SQL only if absent, then verify server-role
+   EXECUTE and non-identical binding semantics. Existing binding foundation
+   remains untouched.
+3. Deploy a resolver-compatible application SHA only after step 2, with
+   affected merchant routes held until smoke. Existing browser operations
+   must be checked before the privilege change.
+4. Review/apply the exact V2 RLS draft and recheck 15 RLS flags, anon CRUD 0,
+   authenticated target grants, service-role public/onboarding paths, and
+   negative cross-store access.
+5. Perform synthetic Production smoke for Auth session, public page/menu,
+   inquiry, onboarding, pre-payment order, and merchant cross-store denial;
+   verify no secret in browser assets and no unintended Preview promotion.
+6. Observe the rollback window. On failure hold affected routes first;
+   use the narrow server-only DB rollback only under a separate approval.
+
+No exact migration SHA, code SHA, hosted CI result or full-stack PASS is
+recorded in this draft section until the final candidate is committed and the
+exact CI checkout is observed. `MYBIZ_PRODUCTION_SECURITY_APPROVAL_READY=false`
+while those proofs and the 32-policy identity boundary remain unresolved.

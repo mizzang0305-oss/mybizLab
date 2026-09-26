@@ -71,6 +71,7 @@ describe('phase 3 canonical channel writes', () => {
       storeId: 'store_golden_coffee',
       visitorToken: 'reservation-visitor',
     });
+    expect(session.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
     const reservation = await saveReservation('store_golden_coffee', {
       customer_name: 'Visitor Reservation',
@@ -101,6 +102,7 @@ describe('phase 3 canonical channel writes', () => {
       storeId: 'store_golden_coffee',
       visitorToken: 'waiting-visitor',
     });
+    expect(session.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
     const waitingEntry = await saveWaitingEntry('store_golden_coffee', {
       customer_name: 'Visitor Waiting',

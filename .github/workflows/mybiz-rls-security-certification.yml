@@ -6,8 +6,11 @@ on:
       - main
     paths:
       - "supabase/migration_drafts/20260926_mybiz_legacy_public_rls_hardening.sql"
+      - "supabase/migration_drafts/20260925115116_mybiz_auth_binding_server_resolver.sql"
+      - "supabase/migration_drafts/20260926_mybiz_rls_safe_server_only_rollback.sql"
       - "supabase/tests/fixtures/mybiz_rls_security_compat_ci_baseline.sql"
       - "supabase/tests/mybiz_rls_security_compat.sql"
+      - "supabase/tests/mybiz_rls_safe_rollback.sql"
       - "src/**"
       - ".github/workflows/mybiz-rls-security-certification.yml"
   workflow_dispatch:
@@ -39,12 +42,15 @@ jobs:
           persist-credentials: false
 
       - name: Verify source identity and remote isolation
+        id: source
         shell: bash
         run: |
           set -euo pipefail
           expected_sha="${{ github.event.pull_request.head.sha || github.sha }}"
           actual_sha="$(git rev-parse HEAD)"
           test "$actual_sha" = "$expected_sha"
+          echo "CI_HEAD_SHA=$expected_sha"
+          echo "CHECKOUT_HEAD_SHA=$actual_sha"
           test -z "${SUPABASE_ACCESS_TOKEN:-}"
           test -z "${SUPABASE_DB_PASSWORD:-}"
           test -z "${SUPABASE_PROJECT_ID:-}"
@@ -56,6 +62,7 @@ jobs:
           echo "CI_SUPABASE_ROOT=$RUNNER_TEMP/mybiz-rls-security" >> "$GITHUB_ENV"
 
       - name: Verify ephemeral Docker runtime
+        id: docker
         shell: bash
         run: |
           set -euo pipefail
@@ -74,6 +81,7 @@ jobs:
           version: 2.117.0
 
       - name: Prepare isolated Production-like RLS fixture
+        id: fixture
         shell: bash
         run: |
           set -euo pipefail
@@ -86,16 +94,24 @@ jobs:
           supabase init --workdir "$CI_SUPABASE_ROOT" --yes
           mkdir -p "$CI_SUPABASE_ROOT/supabase/migrations" "$CI_SUPABASE_ROOT/supabase/tests"
 
-          cp supabase/tests/fixtures/mybiz_rls_security_compat_ci_baseline.sql             "$CI_SUPABASE_ROOT/supabase/migrations/20260925000000_mybiz_rls_security_compat_ci_baseline.sql"
+          cp supabase/tests/fixtures/mybiz_rls_security_compat_ci_baseline.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260925000000_mybiz_rls_security_compat_ci_baseline.sql"
 
-          cp supabase/migration_drafts/20260926_mybiz_legacy_public_rls_hardening.sql             "$CI_SUPABASE_ROOT/supabase/migrations/20260926000000_mybiz_legacy_public_rls_hardening.sql"
+          cp supabase/live_patches/20260318_fix_create_store_with_owner_live.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260925000001_mybiz_existing_provisioning_function.sql"
+          cp supabase/migration_drafts/20260925115116_mybiz_auth_binding_server_resolver.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260925000002_mybiz_auth_binding_server_resolver.sql"
+          cp supabase/migration_drafts/20260926_mybiz_legacy_public_rls_hardening.sql \
+            "$CI_SUPABASE_ROOT/supabase/migrations/20260926000000_mybiz_legacy_public_rls_hardening.sql"
 
-          cp supabase/tests/mybiz_rls_security_compat.sql             "$CI_SUPABASE_ROOT/supabase/tests/mybiz_rls_security_compat.sql"
+          cp supabase/tests/mybiz_rls_security_compat.sql \
+            "$CI_SUPABASE_ROOT/supabase/tests/mybiz_rls_security_compat.sql"
 
           printf 'CI-only migration order:\n'
           find "$CI_SUPABASE_ROOT/supabase/migrations" -maxdepth 1 -type f -printf '%f\n' | sort
 
-      - name: Start ephemeral Supabase and apply RLS draft
+      - name: Start ephemeral Supabase and apply fixture, resolver, and RLS draft
+        id: migration
         shell: bash
         run: |
           set -euo pipefail
@@ -103,36 +119,88 @@ jobs:
           supabase db reset --local --workdir "$CI_SUPABASE_ROOT" --no-seed --yes
           supabase migration list --local --workdir "$CI_SUPABASE_ROOT"
           psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc 'select version();'
+          status_file="$RUNNER_TEMP/mybiz-rls-local-status.env"
+          supabase status --workdir "$CI_SUPABASE_ROOT" -o env > "$status_file"
+          chmod 600 "$status_file"
+          echo "LOCAL_SUPABASE_STATUS_FILE=$status_file" >> "$GITHUB_ENV"
+          test "$(psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc \
+            "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace \
+             where n.nspname='public' and p.proname='resolve_verified_merchant_profile_for_server'")" = '1'
 
       - name: Run RLS and cross-store enforcement matrix
+        id: pgtap
         shell: bash
         run: |
           set -euo pipefail
           supabase test db --local --workdir "$CI_SUPABASE_ROOT"
 
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Verify actual local JWT and PostgREST operation matrix
+        id: postgrest
+        shell: bash
+        env:
+          LOCAL_RLS_PHASE: postgrest
+        run: |
+          set -euo pipefail
+          npx vitest run src/tests/mybiz-rls-security-fullstack.test.ts --reporter=dot
+
+      - name: Verify actual hardened application HTTP paths
+        id: http
+        shell: bash
+        env:
+          LOCAL_RLS_PHASE: http
+        run: |
+          set -euo pipefail
+          npx vitest run src/tests/mybiz-rls-security-fullstack.test.ts --reporter=dot
+
       - name: Lint hardened ephemeral database
+        id: db_lint
         shell: bash
         run: |
           set -euo pipefail
           supabase db lint --local --workdir "$CI_SUPABASE_ROOT" --schema public --level warning --fail-on error
 
-      - name: Install application dependencies
-        run: npm ci
-
       - name: Run compatibility-focused application tests
+        id: compat
         shell: bash
         run: |
           set -euo pipefail
           npx vitest run             src/tests/store-setup-request-live-runtime.test.ts             src/tests/table-order-live-compat.test.ts             src/tests/public-order-live-compat.test.ts             src/tests/merchant-orders-customer-truth.test.ts             src/tests/store-provisioning-rpc.test.ts             src/tests/api-onboarding-setup-request.test.ts             src/tests/api-stores-provision.test.ts
 
       - name: Run full application quality gates
+        id: full
         shell: bash
         run: |
           set -euo pipefail
           npm run lint
           npm run typecheck
           npm run build
+          node -e "const fs=require('fs'),path=require('path');const s=fs.readFileSync(process.env.LOCAL_SUPABASE_STATUS_FILE,'utf8');const m=s.match(/^(?:export )?SERVICE_ROLE_KEY=['\"]?([^'\"\r\n]+)/m);if(!m)throw Error('LOCAL_SERVICE_KEY_MISSING');const key=m[1];let hits=0;function scan(p){for(const e of fs.readdirSync(p,{withFileTypes:true})){const f=path.join(p,e.name);if(e.isDirectory())scan(f);else if(fs.readFileSync(f).includes(key))hits++;}}scan('dist');if(hits)throw Error('SERVICE_ROLE_BROWSER_EXPOSURE');console.log('SERVICE_ROLE_BROWSER_EXPOSURE=0');"
           npm test -- --reporter=dot
+
+      - name: Rehearse safe server-only rollback in ephemeral database
+        id: rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/migration_drafts/20260926_mybiz_rls_safe_server_only_rollback.sql
+          cp supabase/tests/mybiz_rls_safe_rollback.sql \
+            "$CI_SUPABASE_ROOT/supabase/tests/mybiz_rls_safe_rollback.sql"
+          result="$(psql -X -A -t -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/mybiz_rls_safe_rollback.sql)"
+          if grep -q '^not ok' <<< "$result"; then
+            printf '%s\n' "$result" >&2
+            exit 1
+          fi
+          test "$(grep -c '^ok ' <<< "$result")" = '5'
+          LOCAL_RLS_PHASE=rollback npx vitest run \
+            src/tests/mybiz-rls-security-fullstack.test.ts --reporter=dot
+          echo 'SAFE_ROLLBACK_EPHEMERAL=PASS (5 assertions)'
 
       - name: Write sanitized security certification summary
         if: always()
@@ -145,8 +213,18 @@ jobs:
             echo "- Supabase CLI: \`${EXPECTED_CLI_VERSION}\`"
             echo '- Runtime: GitHub-hosted ubuntu-24.04 / ephemeral Docker'
             echo '- Target fixture: 15 Production security-gate legacy tables'
-            echo '- Public anon CRUD target: 0'
-            echo '- Store authorization: auth.uid() + store_members'
+            echo '- Store authorization: verified binding resolver + store_members'
+            echo '- Source: `${{ steps.source.outcome }}`'
+            echo '- Docker: `${{ steps.docker.outcome }}`'
+            echo '- Fixture: `${{ steps.fixture.outcome }}`'
+            echo '- Resolver/RLS apply: `${{ steps.migration.outcome }}`'
+            echo '- pgTAP: `${{ steps.pgtap.outcome }}`'
+            echo '- PostgREST: `${{ steps.postgrest.outcome }}`'
+            echo '- Hardened HTTP: `${{ steps.http.outcome }}`'
+            echo '- DB lint: `${{ steps.db_lint.outcome }}`'
+            echo '- Compatibility tests: `${{ steps.compat.outcome }}`'
+            echo '- Full app gates: `${{ steps.full.outcome }}`'
+            echo '- Safe rollback: `${{ steps.rollback.outcome }}`'
             echo '- Remote project link: 0'
             echo '- Remote SQL execution: 0'
             echo '- Production DB mutation: 0'
