@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
-import { handleMerchantOrdersRequest } from '../server/merchantApi.js';
+import { handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
+import { handleOnboardingSetupRequest } from '../server/onboardingSetupRequest.js';
 import { handlePublicStoreRequest } from '../server/publicApi.js';
 
 const isLocalCi = process.env.MYBIZ_CI_LOCAL_DB === '1';
@@ -21,12 +22,14 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
     const storeB = crypto.randomUUID();
     const orderA = crypto.randomUUID();
     const orderB = crypto.randomUUID();
+    const eventA = `synthetic-event-${crypto.randomUUID()}`;
     const tableA = crypto.randomUUID();
     const categoryA = crypto.randomUUID();
     const itemA = crypto.randomUUID();
     const suffix = crypto.randomUUID().slice(0, 8);
     const email = `mybiz-rls-ci-${suffix}@example.invalid`;
     const password = `Synthetic-only-${suffix}-password`;
+    let setupRequestId: string | null = null;
     const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
       email,
       email_confirm: true,
@@ -79,7 +82,71 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
         { headers: { authorization: `Bearer ${token}` } },
       ));
       expect(otherResponse.status).toBe(403);
+
+      const crossStoreEvent = await handleMerchantOrderEventRequest(new Request(
+        'http://127.0.0.1/api/merchant/order-event',
+        {
+          method: 'POST',
+          body: JSON.stringify({ storeId: storeA, orderId: orderB, paymentId: eventA, status: 'paid', amount: 2000 }),
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        },
+      ));
+      expect(crossStoreEvent.status).toBe(403);
+
+      const ownEvent = await handleMerchantOrderEventRequest(new Request(
+        'http://127.0.0.1/api/merchant/order-event',
+        {
+          method: 'POST',
+          body: JSON.stringify({ storeId: storeA, orderId: orderA, paymentId: eventA, status: 'paid', amount: 1000 }),
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        },
+      ));
+      expect(ownEvent.status).toBe(200);
+      const persistedEvent = await admin.from('payment_events').select('event_id,order_id,status')
+        .eq('event_id', eventA).maybeSingle();
+      expect(persistedEvent.error).toBeNull();
+      expect(persistedEvent.data).toMatchObject({ event_id: eventA, order_id: orderA, status: 'paid' });
+
+      const setupResponse = await handleOnboardingSetupRequest(new Request(
+        'http://127.0.0.1/api/onboarding/setup-request',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            input: {
+              business_name: 'Synthetic CI Setup',
+              owner_name: 'Synthetic QA',
+              business_number: '000-00-00000',
+              phone: '010-0000-0000',
+              email,
+              address: 'Synthetic Test Address',
+              business_type: 'Cafe',
+              requested_slug: `synthetic-setup-${suffix}`,
+              selected_features: ['ai_manager', 'sales_analysis'],
+            },
+            requestedPlan: 'free',
+          }),
+          headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.10' },
+        },
+      ));
+      expect(setupResponse.status).toBe(201);
+      const setupBody = await setupResponse.json();
+      setupRequestId = setupBody.data?.request?.id || null;
+      expect(setupRequestId).toBeTruthy();
+      const setupRow = await admin.from('store_setup_requests').select('id,requested_slug')
+        .eq('id', setupRequestId).maybeSingle();
+      expect(setupRow.error).toBeNull();
+      expect(setupRow.data?.requested_slug).toBe(`synthetic-setup-${suffix}`);
     } finally {
+      expect((await admin.from('payment_events').delete().eq('event_id', eventA)).error).toBeNull();
+      const eventReadback = await admin.from('payment_events').select('event_id').eq('event_id', eventA).maybeSingle();
+      expect(eventReadback.error).toBeNull();
+      expect(eventReadback.data).toBeNull();
+      if (setupRequestId) {
+        expect((await admin.from('store_setup_requests').delete().eq('id', setupRequestId)).error).toBeNull();
+        const setupReadback = await admin.from('store_setup_requests').select('id').eq('id', setupRequestId).maybeSingle();
+        expect(setupReadback.error).toBeNull();
+        expect(setupReadback.data).toBeNull();
+      }
       expect((await admin.from('menu_items').delete().eq('menu_id', itemA)).error).toBeNull();
       expect((await admin.from('menu_categories').delete().eq('category_id', categoryA)).error).toBeNull();
       expect((await admin.from('store_tables').delete().eq('table_id', tableA)).error).toBeNull();

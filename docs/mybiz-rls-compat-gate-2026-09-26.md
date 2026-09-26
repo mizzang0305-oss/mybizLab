@@ -1,7 +1,7 @@
 # MyBiz RLS compatibility gate
 
 Date: 2026-09-26
-Status: code boundary implemented; disposable RLS validation pending
+Status: code boundary and synthetic RLS CI PASS; Production compatibility gate open
 Branch: security/mybiz-rls-compat-v1
 Production target: Mybiz Project (plnuyudyogbzwpmdulnw)
 
@@ -75,6 +75,14 @@ Target certification: MYBIZ_PRODUCTION_SECURITY_APPROVAL_READY.
 1. Production has three September migration ledger entries absent from this repository. The synthetic fixture covers the 15 target table shapes and helper, but does not prove parity for every Production dependency.
 2. The current Production `create_store_with_owner` RPC requires `auth.uid()` and has nine text arguments. The server provisioning API calls it through service role without a user JWT and can send `p_owner_profile_id`, which the Production signature does not accept. Provisioning must be reconciled before narrowing its authenticated EXECUTE grant or declaring public onboarding regression PASS.
 3. Existing Production `is_store_member(uuid)` matches `store_members.profile_id = auth.uid()` and cannot authorize a nonidentical Auth/profile binding. The draft permits direct-ID members only. A binding-aware authorization path needs separately reviewed semantics; a new SECURITY DEFINER helper is not introduced as a shortcut.
-4. Local Windows has no Docker/Supabase CLI. The scoped GitHub Actions workflow is prepared for disposable Supabase validation, but no CI result is claimed here until the actual run completes.
+4. Local Windows has no Docker/Supabase CLI. GitHub Actions run [36210794714](https://github.com/mizzang0305-oss/mybizLab/actions/runs/36210794714) started disposable Supabase, applied the draft, passed 21 pgTAP assertions, denied anon `orders` GET/POST/PATCH/DELETE over the Data API with HTTP 401, passed 901 application tests, exercised the real public-store and merchant-orders handlers against synthetic persisted rows, and proved the write-lockdown draft preserved its synthetic row. The runner destroyed the stack afterward. The subsequent onboarding and merchant-event extension needs its own CI result. This fixture is synthetic and does not replace a full Production-schema compatibility test.
+
+## Read-only Production catalog recheck
+
+- RLS disabled: 15/15 target tables.
+- Full anonymous CRUD: 15/15; full authenticated CRUD: 15/15; full service-role CRUD: 15/15.
+- `generate_unique_store_slug(text)` has explicit PUBLIC, anon, and authenticated EXECUTE grants; the draft revokes all three client grants.
+- `create_store_with_owner(...)` still permits authenticated EXECUTE and accepts caller-supplied plan; this remains an approval blocker until the provisioning business rule and server path are reconciled.
+- The eight legacy/unknown tables audited for indirect use have no public/private/core view references and no user triggers; `store_home_content` has one function-body reference in provisioning. No Production Edge Functions are deployed. These findings do not prove absence of external jobs or older callers.
 
 Production SQL, deployment, and Biz2Lab PR #130 remain on hold.

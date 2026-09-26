@@ -491,7 +491,7 @@ grant select, insert, update on public.stores, public.profiles, public.store_mem
   public.customer_preferences, public.customer_timeline_events,
   public.conversation_sessions, public.conversation_messages,
   public.store_analytics_profiles to service_role;
-grant select, insert on public.payment_events to service_role;
+grant select, insert, delete on public.payment_events to service_role;
 grant select on public.subscriptions to service_role;
 -- CI-only teardown permissions for synthetic Auth/store rows.
 grant delete on public.profiles, public.stores, public.store_members to service_role;
