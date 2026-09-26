@@ -74,7 +74,6 @@ import {
   withStoreBrandConfig,
   withStorePriorityWeights,
 } from '../storeData.js';
-import { buildLiveStoreSetupRequestInsertPayload } from '../setupRequestPersistence.js';
 import { buildStoreUrl, isReservedSlug, normalizeStoreSlug } from '../storeSlug.js';
 import type {
   AIReport,
@@ -243,7 +242,7 @@ function shouldUseSupabaseStoreProvisioning() {
 }
 
 function shouldUseServerBackedSetupRequestSave() {
-  return typeof window !== 'undefined' && !IS_DEMO_RUNTIME;
+  return !IS_DEMO_RUNTIME;
 }
 
 function assertLocalStoreProvisioningAllowed() {
@@ -449,7 +448,7 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
     throw new Error('Supabase client is not configured.');
   }
 
-  const [storeResult, membershipResult, analyticsResult, priorityResult] = await Promise.all([
+  const [storeResult, membershipResult, subscriptionResult, analyticsResult, priorityResult] = await Promise.all([
     supabase.from('stores').select('store_id,name,timezone,created_at,brand_config,slug,trial_ends_at,plan').eq('store_id', storeId).maybeSingle(),
     supabase
       .from('store_members')
@@ -458,6 +457,7 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
       .eq('profile_id', profileId)
       .eq('role', 'owner')
       .maybeSingle(),
+    supabase.from('store_subscriptions').select('store_id,plan,status').eq('store_id', storeId).maybeSingle(),
     supabase.from('store_analytics_profiles').select('id,store_id').eq('store_id', storeId).maybeSingle(),
     supabase
       .from('store_priority_settings')
@@ -473,6 +473,9 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
   if (membershipResult.error) {
     throw new Error(`Failed to verify owner membership: ${membershipResult.error.message}`);
   }
+  if (subscriptionResult.error) {
+    throw new Error(`Failed to verify initial subscription: ${subscriptionResult.error.message}`);
+  }
   if (analyticsResult.error) {
     throw new Error(`Failed to verify analytics profile: ${analyticsResult.error.message}`);
   }
@@ -484,6 +487,9 @@ async function verifyProvisionedStore(storeId: string, profileId: string) {
   }
   if (!membershipResult.data) {
     throw new Error('스토어 생성 후 owner membership이 생성되지 않았습니다.');
+  }
+  if (!subscriptionResult.data) {
+    throw new Error('스토어 생성 후 초기 subscription이 생성되지 않았습니다.');
   }
   if (!analyticsResult.data) {
     throw new Error('스토어 생성 후 analytics profile이 생성되지 않았습니다.');
@@ -2579,18 +2585,6 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
     updated_at: timestamp,
   };
 
-  if (shouldUseSupabaseStoreProvisioning() && supabase) {
-    const { error } = await supabase
-      .from('store_setup_requests')
-      .insert(buildLiveStoreSetupRequestInsertPayload(request));
-
-    if (error) {
-      throw new Error(`스토어 생성 요청을 저장하지 못했습니다: ${error.message}`);
-    }
-
-    return request;
-  }
-
   if (!IS_DEMO_RUNTIME) {
     throw new Error('Store setup request local fallback is disabled outside explicit demo runtime.');
   }
@@ -2605,7 +2599,6 @@ export async function saveSetupRequest(input: SetupRequestInput, options?: SaveS
 export async function createStoreFromSetupRequest(input: SetupRequestInput, options?: CreateStoreFromSetupRequestOptions) {
   const subscriptionPlan = options?.plan ?? 'free';
   if (shouldUseSupabaseStoreProvisioning()) {
-    const timestamp = nowIso();
     const repository = getCanonicalMyBizRepository();
     const provisionedStore = await createStoreViaSupabaseRpc(input, subscriptionPlan, {
       paymentId: options?.paymentId,
@@ -2613,27 +2606,6 @@ export async function createStoreFromSetupRequest(input: SetupRequestInput, opti
     });
     const profileId = await getAuthenticatedSupabaseUserId();
     const verified = await verifyProvisionedStore(provisionedStore.store_id, profileId);
-
-    await repository.saveStoreSubscription({
-      id: `subscription_${verified.store.id}`,
-      store_id: verified.store.id,
-      plan: subscriptionPlan,
-      status:
-        options?.subscriptionStatus === 'subscription_cancelled'
-          ? 'cancelled'
-          : options?.subscriptionStatus === 'subscription_past_due'
-            ? 'past_due'
-            : verified.store.trial_ends_at
-              ? 'trialing'
-              : 'active',
-      billing_provider: options?.paymentId ? 'portone' : 'manual',
-      trial_ends_at: verified.store.trial_ends_at,
-      current_period_starts_at: timestamp,
-      current_period_ends_at:
-        subscriptionPlan === 'free' && verified.store.trial_ends_at ? verified.store.trial_ends_at : isoDaysFromNow(30),
-      created_at: timestamp,
-      updated_at: timestamp,
-    });
 
     await repository.saveStorePublicPage(
       buildDefaultStorePublicPage({

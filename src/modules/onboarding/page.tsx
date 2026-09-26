@@ -2,6 +2,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useReducedMotion } from 'motion/react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 import {
   ConnectedServicesBoard,
@@ -38,6 +39,7 @@ import {
   clearOnboardingFlowState,
   createInitialOnboardingFlowState,
   createRequestedSlug,
+  markVerifiedPaymentActivationFailed,
   persistOnboardingFlowState,
   readOnboardingFlowState,
   safeTrim,
@@ -554,7 +556,6 @@ export function OnboardingPage() {
       }));
       setMessage({ tone: 'info', text: '결제 상태를 확인하는 중입니다. 확인이 끝나면 스토어 생성이 이어집니다.' });
       await verifyPortOnePayment(paymentId);
-      await finalizeActivation(paymentId, false, source);
     } catch (error) {
       setFlow((current) => ({
         ...current,
@@ -573,6 +574,13 @@ export function OnboardingPage() {
                 : error.message
             : '결제 확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.',
       });
+      return;
+    }
+    try {
+      await finalizeActivation(paymentId, false, source);
+    } catch {
+      setFlow((current) => markVerifiedPaymentActivationFailed(current, paymentId));
+      setMessage({ tone: 'error', text: '결제는 확인됐지만 스토어 생성이 완료되지 않았습니다. 다시 결제하지 말고 운영자에게 문의해 주세요.' });
     }
   }
 
@@ -719,6 +727,19 @@ export function OnboardingPage() {
   }
 
   async function startCheckout() {
+    if (!IS_DEMO_RUNTIME) {
+      let ownerEmail: string | undefined;
+      try {
+        const { data, error } = await supabase?.auth.getUser() ?? { data: { user: null }, error: null };
+        ownerEmail = error ? undefined : data.user?.email;
+      } catch {
+        ownerEmail = undefined;
+      }
+      if (!ownerEmail || ownerEmail.trim().toLowerCase() !== safeTrim(flow.requestDraft.email).toLowerCase()) {
+        setMessage({ tone: 'error', text: '결제 또는 활성화 전에 요청서 이메일과 일치하는 소유자 계정으로 로그인해 주세요.' });
+        return;
+      }
+    }
     if (flow.selectedPlan === 'free') {
       setFlow((current) => ({ ...current, paymentStatus: 'processing' }));
       setMessage({ tone: 'info', text: 'FREE 플랜은 결제 없이 바로 스토어를 활성화합니다.' });
@@ -1744,6 +1765,11 @@ export function OnboardingPage() {
                   </p>
                 ) : null}
               </div>
+              {!IS_DEMO_RUNTIME ? (
+                <p className="mt-3 text-sm text-slate-600">
+                  결제 전에 요청서 이메일과 같은 소유자 계정으로 <Link className="font-semibold underline" to="/login?next=%2Fonboarding%3Fstep%3Dpayment">로그인</Link>해 주세요.
+                </p>
+              ) : null}
               <div className="mt-6 flex flex-wrap gap-3">
           <button className="btn-primary" disabled={!flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
             {flow.paymentStatus === 'processing'
@@ -1765,6 +1791,11 @@ export function OnboardingPage() {
 
           {flow.step === 'activation' ? (
             <Panel title="5. 승인 및 운영 시작" subtitle="결제 확인 후 승인, 스토어 생성, 관리자 대시보드 준비가 순서대로 완료됩니다.">
+              {flow.activationStatus === 'failed' ? (
+                <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  결제는 확인됐지만 스토어 생성이 완료되지 않았습니다. 다시 결제하지 말고 운영자에게 문의해 주세요.
+                </p>
+              ) : null}
               <div className="space-y-4">
                 {[
                   ['결제 확인', flow.paymentStatus === 'paid', flow.paymentStatus === 'processing'],

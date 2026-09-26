@@ -68,7 +68,7 @@ const requestInput: SetupRequestInput = {
   selected_features: ['ai_manager', 'sales_analysis', 'order_management'],
 };
 
-function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 'store_analytics_profiles' | 'store_priority_settings' }) {
+function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 'store_subscriptions' | 'store_analytics_profiles' | 'store_priority_settings' }) {
   responseMap.stores = {
     data:
       options?.missing === 'stores'
@@ -101,6 +101,10 @@ function setProvisioningRows(options?: { missing?: 'stores' | 'store_members' | 
             profile_id: 'user-live-owner',
             role: 'owner',
           },
+    error: null,
+  };
+  responseMap.store_subscriptions = {
+    data: options?.missing === 'store_subscriptions' ? null : { store_id: 'live-store-001', plan: 'pro', status: 'active' },
     error: null,
   };
   responseMap.store_analytics_profiles = {
@@ -213,6 +217,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     expect(from).toHaveBeenCalledWith('stores');
     expect(from).toHaveBeenCalledWith('store_members');
+    expect(from).toHaveBeenCalledWith('store_subscriptions');
     expect(from).toHaveBeenCalledWith('store_analytics_profiles');
     expect(from).toHaveBeenCalledWith('store_priority_settings');
 
@@ -222,6 +227,7 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
 
     const database = getDatabase();
     expect(database.store_public_pages.some((page) => page.store_id === 'live-store-001')).toBe(true);
+    expect(from).not.toHaveBeenCalledWith('subscriptions');
   });
 
   it('throws if a required provisioning row is missing after RPC creation', async () => {
@@ -232,5 +238,10 @@ describe('createStoreFromSetupRequest with Supabase provisioning', () => {
         plan: 'pro',
       }),
     ).rejects.toThrow();
+  });
+
+  it('fails closed when the server transaction did not create an initial subscription', async () => {
+    setProvisioningRows({ missing: 'store_subscriptions' });
+    await expect(createStoreFromSetupRequest(requestInput, { plan: 'pro' })).rejects.toThrow('초기 subscription');
   });
 });

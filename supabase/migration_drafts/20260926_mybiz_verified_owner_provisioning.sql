@@ -98,6 +98,14 @@ begin
   );
   insert into public.store_members (store_id, profile_id, role)
   values (v_store_id, p_actor_id, 'owner');
+  -- The initial entitlement is written in this transaction. The browser has
+  -- no insert/update privilege on store_subscriptions after V3 hardening.
+  insert into public.store_subscriptions
+    (store_id, plan, status, billing_provider, current_period_starts_at,
+     current_period_ends_at)
+  values (v_store_id, p_plan, 'active',
+    case when p_plan = 'free' then 'manual' else 'portone' end,
+    timezone('utc', now()), timezone('utc', now()) + interval '30 days');
   insert into public.store_analytics_profiles
     (id, store_id, industry, region, customer_focus, analytics_preset, version, updated_at)
   values (gen_random_uuid(), v_store_id, trim(p_business_type), v_region,

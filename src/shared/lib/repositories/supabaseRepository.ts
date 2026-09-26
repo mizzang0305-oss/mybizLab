@@ -1022,30 +1022,6 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     return new Map(customers.map((customer) => [getCustomerRecordId(customer), customer] as const));
   }
 
-  async function loadPreferredMemberships(storeIds?: string[]) {
-    const client = assertClient();
-    let query = client.from('store_members').select('id,store_id,profile_id,role,created_at');
-    if (storeIds?.length) {
-      query = query.in('store_id', storeIds);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      throw new Error(`Failed to load store memberships for subscription fallback: ${error.message}`);
-    }
-
-    const bestMembershipByStore = new Map<string, StoreMember>();
-    ((data || []) as Array<{ id?: string; store_id: string; profile_id: string; role: string; created_at?: string }>).forEach((row) => {
-      const membership = mapStoreMembershipRow(row);
-      const current = bestMembershipByStore.get(membership.store_id);
-      if (!current || rankMembershipRole(membership.role) > rankMembershipRole(current.role)) {
-        bestMembershipByStore.set(membership.store_id, membership);
-      }
-    });
-
-    return bestMembershipByStore;
-  }
-
   async function loadLegacyStoreSubscriptions(storeIds?: string[]) {
     const client = assertClient();
     let membershipQuery = client.from('store_members').select('id,store_id,profile_id,role,created_at');
@@ -1204,15 +1180,13 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
     const client = assertClient();
     const brandConfig = getStoreBrandConfig(store);
     const payload = {
-      store_id: normalizeStoreId(store),
       name: store.name,
       slug: store.slug,
       brand_config: brandConfig,
-      trial_ends_at: store.trial_ends_at || null,
       timezone: store.timezone || null,
     };
 
-    const { data, error } = await client.from('stores').upsert(payload, { onConflict: 'store_id' }).select(LIVE_STORE_SELECT).single();
+    const { data, error } = await client.from('stores').update(payload).eq('store_id', normalizeStoreId(store)).select(LIVE_STORE_SELECT).single();
     if (error) {
       throw new Error(`Failed to save store: ${error.message}`);
     }
@@ -1799,65 +1773,6 @@ export function createSupabaseRepository(clientOverride?: SupabaseClient | null)
 
       const store = await findStoreById(page.store_id);
       return store ? mapAnyStorePublicPageRow(store, legacyData as Record<string, unknown>) : page;
-    },
-    saveStoreSubscription: async (subscription) => {
-      const client = assertClient();
-      const payload = {
-        id: subscription.id,
-        store_id: subscription.store_id,
-        plan: normalizePlan(subscription.plan, 'free'),
-        status: subscription.status,
-        billing_provider: subscription.billing_provider || null,
-        trial_ends_at: subscription.trial_ends_at || null,
-        current_period_starts_at: subscription.current_period_starts_at || null,
-        current_period_ends_at: subscription.current_period_ends_at || null,
-        created_at: subscription.created_at,
-        updated_at: subscription.updated_at,
-      };
-      const { data, error } = await client
-        .from('store_subscriptions')
-        .upsert(payload, { onConflict: 'store_id' })
-        .select('*')
-        .single();
-
-      if (error && !isSchemaCompatError(error)) {
-        throw new Error(`Failed to save store subscription: ${error.message}`);
-      }
-
-      if (!error && data) {
-        return mapStoreSubscriptionRow(data as StoreSubscriptionRow);
-      }
-
-      const membershipMap = await loadPreferredMemberships([subscription.store_id]);
-      const membership = membershipMap.get(subscription.store_id);
-      if (!membership) {
-        throw new Error('Failed to save store subscription: no store membership found for legacy subscription fallback.');
-      }
-
-      const legacyPayload = {
-        id: subscription.id,
-        user_id: membership.profile_id,
-        tier: normalizePlan(subscription.plan, 'free'),
-        status: subscription.status,
-        billing_key: subscription.billing_provider === 'portone' ? `compat_${subscription.id}` : null,
-        started_at: subscription.current_period_starts_at || subscription.created_at,
-        expires_at: subscription.current_period_ends_at || subscription.trial_ends_at || null,
-        last_payment_status:
-          subscription.status === 'active'
-            ? 'paid'
-            : subscription.status === 'past_due'
-              ? 'failed'
-              : subscription.status === 'cancelled'
-                ? 'cancelled'
-                : 'pending',
-        updated_at: subscription.updated_at,
-      };
-      const { error: legacyError } = await client.from('subscriptions').upsert(legacyPayload, { onConflict: 'id' });
-      if (legacyError) {
-        throw new Error(`Failed to save store subscription: ${legacyError.message}`);
-      }
-
-      return subscription;
     },
     saveVisitorSession: async (session) => {
       const client = assertClient();

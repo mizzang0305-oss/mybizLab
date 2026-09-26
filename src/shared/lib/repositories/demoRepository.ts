@@ -309,18 +309,6 @@ export const demoRepository: CanonicalMyBizRepository = {
 
     return page;
   },
-  saveStoreSubscription: async (subscription) => {
-    updateDatabase((database) => {
-      const subscriptionIndex = database.store_subscriptions.findIndex((item) => item.store_id === subscription.store_id);
-      if (subscriptionIndex >= 0) {
-        database.store_subscriptions[subscriptionIndex] = subscription;
-      } else {
-        database.store_subscriptions.unshift(subscription);
-      }
-    });
-
-    return subscription;
-  },
   saveVisitorSession: async (session) => {
     updateDatabase((database) => {
       const index = database.visitor_sessions.findIndex((item) => item.id === session.id);

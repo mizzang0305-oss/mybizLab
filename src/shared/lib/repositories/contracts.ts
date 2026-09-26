@@ -82,7 +82,6 @@ export interface CanonicalPlanRepository {
   resolveStoreSubscription: (storeId: string) => Promise<StoreSubscriptionResolution>;
   getStoreSubscription: (storeId: string) => Promise<StoreSubscription | null>;
   listStoreSubscriptions: (storeIds?: string[]) => Promise<StoreSubscription[]>;
-  saveStoreSubscription: (subscription: StoreSubscription) => Promise<StoreSubscription>;
 }
 
 export interface CanonicalStoreRepository {
