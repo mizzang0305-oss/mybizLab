@@ -49,9 +49,10 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
           category: 'reservation', message: 'Synthetic request only', marketingOptIn: false }),
       }));
       expect(response.status).toBe(200);
-      const inquiry = await admin.from('inquiries').select('id,store_id,email').eq('store_id', storeId).eq('email', email).single();
+      const inquiry = await admin.from('inquiries').select('id,store_id,contact_email').eq('store_id', storeId).eq('contact_email', email).single();
       expect(inquiry.error).toBeNull();
       expect(inquiry.data?.store_id).toBe(storeId);
+      expect(inquiry.data?.contact_email).toBe(email);
     } finally {
       // Every delete is restricted to the random synthetic store and its linked rows.
       localSql(`delete from public.conversation_messages where conversation_session_id in (select id from public.conversation_sessions where store_id='${storeId}')`);

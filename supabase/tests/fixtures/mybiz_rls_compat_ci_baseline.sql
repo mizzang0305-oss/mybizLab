@@ -483,7 +483,8 @@ create table public.customer_contacts (
   raw_value text,
   is_primary boolean default false,
   is_verified boolean default false,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  store_id uuid
 );
 create table public.customer_preferences (
   id uuid primary key default gen_random_uuid(),
@@ -503,7 +504,10 @@ create table public.customer_timeline_events (
   customer_id uuid not null,
   event_type text not null,
   payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  source text,
+  summary text,
+  occurred_at timestamptz
 );
 create table public.conversation_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -530,38 +534,36 @@ create table public.inquiries (
   customer_id uuid,
   conversation_session_id uuid,
   visitor_session_id uuid,
-  customer_name text,
-  phone text,
-  email text,
+  channel text not null default 'public_page',
+  subject text,
+  summary text,
+  intent text,
+  priority_score integer,
+  contact_name text,
+  contact_phone text,
+  contact_email text,
   category text,
-  status text,
+  status text not null default 'new',
   message text,
-  tags jsonb not null default '[]'::jsonb,
+  tags text[] not null default '{}'::text[],
   memo text,
   marketing_opt_in boolean default false,
-  requested_visit_date text,
+  requested_visit_date date,
   source text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create table public.visitor_sessions (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(store_id),
-  public_page_id uuid,
-  customer_id uuid,
-  inquiry_id uuid,
-  reservation_id uuid,
-  waiting_entry_id uuid,
-  visitor_token text not null,
-  channel text not null,
-  entry_path text not null,
-  last_path text not null,
+  source text,
+  landing_path text,
   referrer text,
-  metadata jsonb not null default '{}'::jsonb,
-  first_seen_at timestamptz not null default now(),
-  last_seen_at timestamptz not null default now(),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  device_type text,
+  ip_hash text,
+  customer_id uuid,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz
 );
 create table public.payment_events (
   event_id text primary key,
