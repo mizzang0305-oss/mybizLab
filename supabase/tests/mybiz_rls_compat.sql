@@ -58,6 +58,8 @@ select is((select count(*)::bigint from unnest(array[
   0::bigint, 'authenticated cannot delete any target table');
 select ok(not has_function_privilege('anon','public.generate_unique_store_slug(text)','EXECUTE'),
   'anon cannot execute slug helper');
+select ok(not has_function_privilege('authenticated','public.generate_unique_store_slug(text)','EXECUTE'),
+  'authenticated cannot execute slug helper directly');
 select ok(has_function_privilege('authenticated','public.is_store_member(uuid)','EXECUTE'),
   'merchant membership helper remains callable');
 

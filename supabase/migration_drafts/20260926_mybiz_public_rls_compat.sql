@@ -110,6 +110,6 @@ grant select, insert, update on public.store_priority_settings to authenticated;
 -- existing table privileges; this draft does not broaden them.
 -- Do not revoke create_store_with_owner from authenticated until the existing
 -- provisioning RPC signature/auth.uid() mismatch is resolved and tested.
-revoke execute on function public.generate_unique_store_slug(text) from public, anon;
+revoke execute on function public.generate_unique_store_slug(text) from public, anon, authenticated;
 
 commit;
