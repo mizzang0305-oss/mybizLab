@@ -99,11 +99,18 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
         { order_id: crypto.randomUUID(), store_id: storeA, total_amount: 1000 },
         { order_id: crypto.randomUUID(), store_id: storeB, total_amount: 2000 },
       ])).error).toBeNull();
+      expect((await admin.from('store_priority_settings').insert([
+        { store_id: storeA, version: 1 },
+        { store_id: storeB, version: 1 },
+      ])).error).toBeNull();
       localSql(`insert into private.profile_auth_bindings(public_profile_id,auth_profile_id,binding_source,status) values ('${profileId}','${authId}','OWNER_VERIFIED','ACTIVE')`);
       const { data: signedIn, error: signInError } = await publicClient.auth.signInWithPassword({ email, password });
       expect(signInError).toBeNull();
       const token = signedIn.session?.access_token;
       expect(token).toBeTruthy();
+      const userClient = createClient(url, process.env.SUPABASE_ANON_KEY || '', {
+        accessToken: async () => token!, auth: { autoRefreshToken: false, persistSession: false },
+      });
       const headers = { authorization: `Bearer ${token}` };
       const session = await handleAdminSessionRequest(new Request('http://127.0.0.1/api/auth/session', { headers }));
       expect(session.status).toBe(200);
@@ -113,12 +120,27 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
       expect(JSON.stringify(await own.json())).not.toContain(storeB);
       const other = await handleMerchantOrdersRequest(new Request(`http://127.0.0.1/api/merchant/orders?storeId=${storeB}`, { headers }));
       expect(other.status).toBe(403);
+      const ownSettings = await userClient.from('store_priority_settings').select('store_id,version').eq('store_id', storeA);
+      expect(ownSettings.error).toBeNull();
+      expect(ownSettings.data).toHaveLength(1);
+      const otherSettings = await userClient.from('store_priority_settings').select('store_id,version').eq('store_id', storeB);
+      expect(otherSettings.error).toBeNull();
+      expect(otherSettings.data).toHaveLength(0);
+      const ownUpdate = await userClient.from('store_priority_settings').update({ version: 2 }).eq('store_id', storeA).select('version');
+      expect(ownUpdate.error).toBeNull();
+      expect(ownUpdate.data?.[0]?.version).toBe(2);
+      const otherUpdate = await userClient.from('store_priority_settings').update({ version: 2 }).eq('store_id', storeB).select('version');
+      expect(otherUpdate.error).toBeNull();
+      expect(otherUpdate.data).toHaveLength(0);
+      expect((await admin.from('store_priority_settings').select('version').eq('store_id', storeB).single()).data?.version).toBe(1);
 
       localSql(`update private.profile_auth_bindings set status='REVOKED',revoked_at=now() where auth_profile_id='${authId}' and public_profile_id='${profileId}'`);
       expect((await handleAdminSessionRequest(new Request('http://127.0.0.1/api/auth/session', { headers }))).status).toBe(403);
       expect((await handleMerchantOrdersRequest(new Request(`http://127.0.0.1/api/merchant/orders?storeId=${storeA}`, { headers }))).status).toBe(403);
+      expect((await userClient.from('store_priority_settings').select('store_id').eq('store_id', storeA)).data).toHaveLength(0);
     } finally {
       localSql(`delete from private.profile_auth_bindings where auth_profile_id='${authId}' and public_profile_id='${profileId}'`);
+      localSql(`delete from public.store_priority_settings where store_id in ('${storeA}','${storeB}')`);
       expect((await admin.from('orders').delete().in('store_id', [storeA, storeB])).error).toBeNull();
       expect((await admin.from('store_members').delete().eq('store_id', storeA)).error).toBeNull();
       expect((await admin.from('stores').delete().in('store_id', [storeA, storeB])).error).toBeNull();
