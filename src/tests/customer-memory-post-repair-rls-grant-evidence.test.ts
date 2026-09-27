@@ -122,6 +122,9 @@ describe('customer-memory post-repair RLS/grant evidence', () => {
       '20260614_production_baseline_adoption.sql',
       '20260615075421_customer_memory_schema_alignment.sql',
       '20260616070824_customer_memory_rls_grant_hardening.sql',
+      '20260927064807_mybiz_server_provisioning_boundary_20260927.sql',
+      '20260927064932_mybiz_public_rls_compat_20260927.sql',
+      '20260928000000_mybiz_provisioning_hold.sql',
     ]);
   });
 

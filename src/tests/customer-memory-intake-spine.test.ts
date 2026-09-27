@@ -295,6 +295,9 @@ describe('customer memory intake spine', () => {
       '20260614_production_baseline_adoption.sql',
       expect.stringMatching(/^\d{14}_customer_memory_schema_alignment\.sql$/),
       '20260616070824_customer_memory_rls_grant_hardening.sql',
+      '20260927064807_mybiz_server_provisioning_boundary_20260927.sql',
+      '20260927064932_mybiz_public_rls_compat_20260927.sql',
+      '20260928000000_mybiz_provisioning_hold.sql',
     ]);
     expect(draftMigrations).toHaveLength(1);
     expect(docs).toContain('No migration is applied by this PR');
