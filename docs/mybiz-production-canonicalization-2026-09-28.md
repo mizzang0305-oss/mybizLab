@@ -11,7 +11,7 @@ Status: partial, read-only Production reconciliation. No Production SQL, migrati
 
 ## Production ledger and SQL identity
 
-Read-only `supabase_migrations.schema_migrations` has nine versions. The repository before this change had three files under `supabase/migrations`; six remote versions were absent locally. This change adds the two security versions already recorded remotely and one historical provisioning HOLD file. Four remote versions remain absent locally: `20260914041214`, `20260914112340`, `20260914131226`, and `20260925121544`. The last version belongs to Biz2Lab commercial submissions and is not copied into this MyBiz scope without separate review.
+Read-only `supabase_migrations.schema_migrations` has nine versions. The repository before this change had three files under `supabase/migrations`; six remote versions were absent locally. This change retains the two security versions already recorded remotely and archives the historical provisioning HOLD outside the active migration scan. Four remote versions remain absent locally: `20260914041214`, `20260914112340`, `20260914131226`, and `20260925121544`. The last version belongs to Biz2Lab commercial submissions and is not copied into this MyBiz scope without separate review.
 
 **Ownership boundary:** `supabase_migrations.schema_migrations` is the ledger for the shared Supabase project `plnuyudyogbzwpmdulnw`, not a ledger owned by the MyBiz Git repository. A version absent from this repository may have been applied from another branch or repository. Do not copy another product's migration into MyBiz or run `db push` from either repository until the project-wide sequence and ownership are reconciled.
 
@@ -26,7 +26,7 @@ Read-only `supabase_migrations.schema_migrations` has nine versions. The reposit
 | --- | --- | --- | --- | --- |
 | `20260927064807` | `supabase/migrations/20260927064807_mybiz_server_provisioning_boundary_20260927.sql` | `1f02f604e32459fbc8224fb2ec9d02d14dffaaaed9eafa5ec5b405a3bdf125cd` | `81cbfb386f9d09858f3acac7e4b2f9849e41eb6712663035a0c81aa57af56c05` | Already recorded in Production |
 | `20260927064932` | `supabase/migrations/20260927064932_mybiz_public_rls_compat_20260927.sql` | `dfbf994f1b52b6a6b48fe0b1b20ca50f017ec4da7c6d37c15b4110687eb47741` | `4011dad239954ec7f4e3f6c717500d54952cd6247762e53625cfefc0bb4638d3` | Already recorded in Production |
-| `20260928000000` | `supabase/migrations/20260928000000_mybiz_provisioning_hold.sql` | Not present | Record after separate approval only | Exact function EXECUTE HOLD already present in Production catalog |
+| `20260928000000` | `supabase/migrations_archive/post_baseline_20260928/20260928000000_mybiz_provisioning_hold.sql` | Not present | Ledger reconciliation deferred; separate Owner decision only | Exact function EXECUTE HOLD already present in Production catalog; SQL preserved outside active scan |
 
 The first two canonical files are byte-for-byte copies of their Git-tracked draft SQL (LF line endings). Production ledger statements have mixed CRLF/LF line endings, so raw SHA-256 values differ. After replacing CRLF with LF, each Production ledger statement has the same SHA-256 and byte count as its corresponding canonical file. This establishes identical SQL text apart from line endings; it does not authorize replay.
 
@@ -37,7 +37,7 @@ The Production and disposable `public.is_store_member(uuid)` definitions have th
 ## Migration history plan
 
 - `20260927064807` and `20260927064932`: no repair. Both are already in the Production ledger with exact frozen hashes.
-- `20260928000000`: proposed one-row `applied` history reconciliation only after a separate Owner approval and a fresh catalog/ledger check. `migration repair` must not execute its SQL body, but it does mutate migration history. Do not run it in this task.
+- `20260928000000`: the SQL is archived outside the active migration scan. Optional one-row `applied` history reconciliation requires a separate Owner approval and fresh catalog/ledger check; it is not a PR #190 merge prerequisite. `migration repair` mutates migration history and must not run in this task.
 - The three MyBiz September sources were located by exact Git-blob/ledger hash, but are not active migration files in this branch. The Biz2Lab source remains in its owning repository; its split ledger statements need exact source comparison. A complete shared-project replay needs both repository lanes and a verified application order. Do not fabricate no-op files or run `db push` from this incomplete tree.
 
 ## Disposable replay and rollout boundary
@@ -46,7 +46,7 @@ For an isolated replay, use the existing synthetic Production-like fixture and o
 
 On 2026-09-28, pinned Supabase CLI `2.117.0` started a disposable Docker stack with that exact order. The existing 31-assertion pgTAP suite initially passed 30 assertions; its sole failure expected the pre-HOLD service_role EXECUTE grant. In the disposable copy of that suite only, changing that one expectation to `service_role` denied produced **31/31 PASS**. The original regression test remains unchanged for the pre-HOLD security draft. No remote Supabase link or credential was used.
 
-Thirteen older repository tests pinned `supabase/migrations` to exactly three filenames. This Git change updates only those expected filename lists to include the three historical canonicalization files; their other assertions remain intact.
+Thirteen older repository tests pin the active `supabase/migrations` filenames. Their expected lists exclude the archived HOLD; its preserved SHA-256 is verified separately. The three historical MyBiz sources remain outside this PR and are not added to the active migration chain.
 
 Fresh local application checks: lint, typecheck, and build PASS. The first full test run hit one unrelated 5-second publishing-test timeout; that test passed alone (6/6), and a full rerun with two workers passed 907 tests with four existing skips.
 
@@ -58,4 +58,16 @@ Dashboard shows organization `FREE`; Email provider and Google OAuth are enabled
 
 ## Remaining gate
 
-Canonicalization is incomplete until the three historical MyBiz sources are restored and replayed in order, the Biz2Lab-owned source is compared with its split ledger without changing ownership, the canonical PR is reviewed, and the separate Owner decision on the HOLD history row is made. The scoped disposable security replay passed; a complete shared-project replay has not run. The already closed Production security gate is not reopened or re-applied by this Git task.
+Historical full replay remains incomplete until the three historical MyBiz sources are restored and replayed in order and the Biz2Lab-owned source is compared with its split ledger without changing ownership. PR #190 still needs review. The HOLD history row is deferred to a separate Owner decision and is not a merge prerequisite. The scoped disposable security replay passed; a complete shared-project replay has not run. The already closed Production security gate is not reopened or re-applied by this Git task.
+
+## Provisioning HOLD archive safety
+
+`20260928000000` has a Production catalog ACL state of **PRESENT**, a Production
+migration ledger row of **ABSENT**, and byte-identical SQL evidence under
+`supabase/migrations_archive/post_baseline_20260928/`. Its classification is
+`HISTORICAL_PRODUCTION_STATE_EVIDENCE` and its replay is **FORBIDDEN**. The
+archived SQL is outside the active `supabase/migrations/` scan. Ledger-only
+reconciliation is **DEFERRED_SEPARATE_OWNER_DECISION** and is **not required**
+for PR #190 merge. `CURRENT_PRODUCTION_SCHEMA_BASELINE_V1` remains the current
+canonical application schema starting point. No Production SQL, migration
+repair, or `db push` was run to archive this evidence.

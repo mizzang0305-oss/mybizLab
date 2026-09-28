@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -47,6 +48,23 @@ const manifest = readWorkspaceFile('supabase/migrations_archive/pre_baseline_202
 const gitignore = readWorkspaceFile('.gitignore');
 
 describe('Supabase production baseline adoption cleanup', () => {
+  it('preserves the provisioning HOLD outside the active migration scan', () => {
+    const file = '20260928000000_mybiz_provisioning_hold.sql';
+    const archived = readFileSync(
+      workspacePath('supabase/migrations_archive/post_baseline_20260928', file),
+    );
+    const archiveManifest = readWorkspaceFile(
+      'supabase/migrations_archive/post_baseline_20260928/MANIFEST.md',
+    );
+
+    expect(activeMigrations).not.toContain(file);
+    expect(createHash('sha256').update(archived).digest('hex')).toBe(
+      'ab4dd45e35f61bd809d39f43664092b5b8597f3767f1e84546a5291f867db5b5',
+    );
+    expect(archiveManifest).toContain('HISTORICAL_PRODUCTION_STATE_EVIDENCE');
+    expect(archiveManifest).toContain('migration ledger: this version is **absent**');
+  });
+
   it('keeps only the baseline marker and approved customer-memory draft migrations active', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
@@ -54,7 +72,6 @@ describe('Supabase production baseline adoption cleanup', () => {
       '20260616070824_customer_memory_rls_grant_hardening.sql',
       '20260927064807_mybiz_server_provisioning_boundary_20260927.sql',
       '20260927064932_mybiz_public_rls_compat_20260927.sql',
-      '20260928000000_mybiz_provisioning_hold.sql',
     ]);
 
     const activeVersionPrefixes = activeMigrations.map((name) => name.split('_')[0]);
