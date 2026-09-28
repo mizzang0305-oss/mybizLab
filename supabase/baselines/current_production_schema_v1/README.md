@@ -46,6 +46,29 @@ RLS and policies, remain in strict parity scope.
 The candidate is ready for Owner review as a current-state schema baseline.
 It is not a historical migration reconstruction or a Production promotion.
 
+## Canonical local bootstrap
+
+Use a new, unlinked Supabase Local workdir. The active migration scan contains
+the comment-only `20260614` marker and the future identity resolver migration;
+the marker cannot create the application
+schema on its own. The existing Stage 2 certification workflow is the tested
+implementation of this order:
+
+1. `supabase init --workdir <disposable-dir> --yes`
+2. `supabase start --workdir <disposable-dir> --yes`
+3. `supabase db reset --local --workdir <disposable-dir> --no-seed --yes`
+4. Apply `current_schema_candidate_v4.sql` with local `psql -X -1 -v ON_ERROR_STOP=1`.
+5. Apply only a later migration explicitly classified `REPLAYABLE_FUTURE_MIGRATION`.
+
+The first migration in step 5 is the CLI-created
+`20260928232001_service_os_verified_identity_resolver.sql`. It adds a
+service-role-only identity lookup after the V4 application objects exist.
+Only copy the comment-only marker into the disposable workdir before
+`supabase start` / reset; apply V4, then this future migration. Never use `--linked`,
+`db push`, or Production credentials for this bootstrap. The four archived
+post-baseline SQL files and the provisioning HOLD are historical evidence;
+replaying them after V4 would duplicate or conflict with current-state objects.
+
 Local verification changed no Production SQL, Auth, RLS, environment, or
 deployment. Git publication and PR review are separate from that evidence;
 this baseline must not be applied through `db push` or a Production migration.

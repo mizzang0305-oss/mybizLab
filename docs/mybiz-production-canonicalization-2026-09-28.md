@@ -24,8 +24,8 @@ Read-only `supabase_migrations.schema_migrations` has nine versions. The reposit
 
 | Version | Local canonical file | Production ledger SHA-256 | Local file SHA-256 | Meaning |
 | --- | --- | --- | --- | --- |
-| `20260927064807` | `supabase/migrations/20260927064807_mybiz_server_provisioning_boundary_20260927.sql` | `1f02f604e32459fbc8224fb2ec9d02d14dffaaaed9eafa5ec5b405a3bdf125cd` | `81cbfb386f9d09858f3acac7e4b2f9849e41eb6712663035a0c81aa57af56c05` | Already recorded in Production |
-| `20260927064932` | `supabase/migrations/20260927064932_mybiz_public_rls_compat_20260927.sql` | `dfbf994f1b52b6a6b48fe0b1b20ca50f017ec4da7c6d37c15b4110687eb47741` | `4011dad239954ec7f4e3f6c717500d54952cd6247762e53625cfefc0bb4638d3` | Already recorded in Production |
+| `20260927064807` | `supabase/migrations_archive/post_baseline_20260928/20260927064807_mybiz_server_provisioning_boundary_20260927.sql` | `1f02f604e32459fbc8224fb2ec9d02d14dffaaaed9eafa5ec5b405a3bdf125cd` | `81cbfb386f9d09858f3acac7e4b2f9849e41eb6712663035a0c81aa57af56c05` | Already recorded in Production; historical archive |
+| `20260927064932` | `supabase/migrations_archive/post_baseline_20260928/20260927064932_mybiz_public_rls_compat_20260927.sql` | `dfbf994f1b52b6a6b48fe0b1b20ca50f017ec4da7c6d37c15b4110687eb47741` | `4011dad239954ec7f4e3f6c717500d54952cd6247762e53625cfefc0bb4638d3` | Already recorded in Production; historical archive |
 | `20260928000000` | `supabase/migrations_archive/post_baseline_20260928/20260928000000_mybiz_provisioning_hold.sql` | Not present | Ledger reconciliation deferred; separate Owner decision only | Exact function EXECUTE HOLD already present in Production catalog; SQL preserved outside active scan |
 
 The first two canonical files are byte-for-byte copies of their Git-tracked draft SQL (LF line endings). Production ledger statements have mixed CRLF/LF line endings, so raw SHA-256 values differ. After replacing CRLF with LF, each Production ledger statement has the same SHA-256 and byte count as its corresponding canonical file. This establishes identical SQL text apart from line endings; it does not authorize replay.
@@ -46,7 +46,7 @@ For an isolated replay, use the existing synthetic Production-like fixture and o
 
 On 2026-09-28, pinned Supabase CLI `2.117.0` started a disposable Docker stack with that exact order. The existing 31-assertion pgTAP suite initially passed 30 assertions; its sole failure expected the pre-HOLD service_role EXECUTE grant. In the disposable copy of that suite only, changing that one expectation to `service_role` denied produced **31/31 PASS**. The original regression test remains unchanged for the pre-HOLD security draft. No remote Supabase link or credential was used.
 
-Thirteen older repository tests pin the active `supabase/migrations` filenames. Their expected lists exclude the archived HOLD; its preserved SHA-256 is verified separately. The three historical MyBiz sources remain outside this PR and are not added to the active migration chain.
+Repository tests pin the active `supabase/migrations` filenames. The active scan contains the comment-only baseline marker and the new future identity resolver migration. The archived HOLD and four already-applied SQL blobs are verified separately. The three historical MyBiz sources remain outside this PR and are not added to the active migration chain.
 
 Fresh local application checks: lint, typecheck, and build PASS. The first full test run hit one unrelated 5-second publishing-test timeout; that test passed alone (6/6), and a full rerun with two workers passed 907 tests with four existing skips.
 
@@ -71,3 +71,64 @@ reconciliation is **DEFERRED_SEPARATE_OWNER_DECISION** and is **not required**
 for PR #190 merge. `CURRENT_PRODUCTION_SCHEMA_BASELINE_V1` remains the current
 canonical application schema starting point. No Production SQL, migration
 repair, or `db push` was run to archive this evidence.
+
+## Active migration chain review for PR #190
+
+Read-only Production ledger metadata confirms all five files that were active
+before this review have ledger rows. The V4 current-state baseline already
+contains their application schema effects. The marker is no-op; the other four
+require application objects that the marker does not create on a clean database.
+
+| Version | Classification | Production ledger | Active after review |
+| --- | --- | --- | --- |
+| `20260614` | `BASELINE_MARKER` | Present | Yes, comment-only |
+| `20260615075421` | `HISTORICAL_UNREPLAYABLE` | Present | No; byte-identical archive |
+| `20260616070824` | `HISTORICAL_UNREPLAYABLE` | Present | No; byte-identical archive |
+| `20260927064807` | `HISTORICAL_UNREPLAYABLE` | Present | No; byte-identical archive |
+| `20260927064932` | `HISTORICAL_UNREPLAYABLE` | Present | No; byte-identical archive |
+
+The archive manifest records the original Git blob hashes and missing clean-DB
+prerequisites. Local/CI bootstrap is platform reset, then explicit V4 apply,
+then only future replayable migrations; the CLI-created
+`20260928232001_service_os_verified_identity_resolver.sql` is the first one.
+The marker alone
+does not build the application schema. Production ledger, SQL, RLS, and grants
+were not changed by this repository classification.
+
+## P1 multi-member identity remediation candidate
+
+An isolated Supabase Local HTTP test with a verified Auth JWT, an explicit
+non-identical Auth/profile binding, and owner plus manager membership in one
+store reproduced `/api/auth/session` returning **500 instead of 200**.
+`resolveVerifiedUserStoreAccess` treats all RLS-visible `store_members` rows as
+the caller, while the current `store_members_select_member` policy exposes
+other members of a store the caller belongs to. The existing canonical
+identity resolver lives in `private`; the local Data API returns `PGRST106`
+for private-schema service-role reads because that schema is not exposed.
+
+The Owner-approved future migration adds a private `SECURITY DEFINER` resolver
+with the same ACTIVE-binding / exact-ID-without-history rules as the V4 helper.
+A narrow public `SECURITY INVOKER` wrapper is executable only by `service_role`;
+`anon` and `authenticated` have no EXECUTE. The server passes only the UUID
+returned by `auth.getUser(accessToken)` through its existing admin client, then
+loads only that profile's memberships with the verified user's token and RLS.
+Email, metadata, client-supplied IDs, and service-role membership reads are not
+authorization inputs.
+
+The SQL has not been applied to Production. Deployment order is database
+resolver first, application code second: deploying this application change
+before the resolver would make merchant session resolution fail. If the code
+needs rollback, restore the prior application SHA while leaving the closed
+service-role-only functions in place; no broad grants or RLS changes are a
+rollback step. Any Production migration or deployment still needs its own gate.
+
+In a new unlinked Supabase Local PostgreSQL 17 stack, marker-only reset,
+single-transaction V4 apply, and `supabase migration up --local` recorded
+`20260614` then `20260928232001` in that order. Stage 2/security pgTAP
+passed 48/48 and 31/31, revision atomicity passed, and the synthetic JWT
+API tests passed 7/7. The HTTP cases include same-store owner/manager/staff,
+non-identical binding, revoked and inactive identities, both binding-history
+directions, missing identity, cross-store denial, invalid token, and current
+provisioning HOLD. Direct Data API RPC calls are denied to `anon` and
+`authenticated`; `service_role` receives only the expected UUID or NULL.
+These are isolated results, not Production migration or deployment evidence.

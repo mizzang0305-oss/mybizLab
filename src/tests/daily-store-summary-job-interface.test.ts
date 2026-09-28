@@ -264,10 +264,7 @@ describe('Trigger.dev-style daily store summary job interface', () => {
     expect(vercelConfig).toContain('/api/admin?resource=background-jobs');
     expect(readdirSync(resolve(process.cwd(), 'supabase/migrations')).sort()).toEqual([
       '20260614_production_baseline_adoption.sql',
-      '20260615075421_customer_memory_schema_alignment.sql',
-      '20260616070824_customer_memory_rls_grant_hardening.sql',
-      '20260927064807_mybiz_server_provisioning_boundary_20260927.sql',
-      '20260927064932_mybiz_public_rls_compat_20260927.sql',
+      '20260928232001_service_os_verified_identity_resolver.sql',
     ]);
   });
 });

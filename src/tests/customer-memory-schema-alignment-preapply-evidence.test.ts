@@ -11,7 +11,7 @@ function readWorkspaceFile(path: string) {
 
 const doc = readWorkspaceFile('docs/customer-memory-schema-alignment-preapply-evidence.md');
 const pendingMigration = readWorkspaceFile(
-  'supabase/migrations/20260615075421_customer_memory_schema_alignment.sql',
+  'supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql',
 );
 const activeMigrations = readdirSync(workspacePath('supabase/migrations'))
   .filter((name) => name.endsWith('.sql'))
@@ -21,12 +21,9 @@ describe('customer-memory schema alignment pre-apply evidence', () => {
   it('documents the pending schema alignment migration while later hardening drafts are active', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
-      '20260615075421_customer_memory_schema_alignment.sql',
-      '20260616070824_customer_memory_rls_grant_hardening.sql',
-      '20260927064807_mybiz_server_provisioning_boundary_20260927.sql',
-      '20260927064932_mybiz_public_rls_compat_20260927.sql',
+      '20260928232001_service_os_verified_identity_resolver.sql',
     ]);
-    expect(existsSync(workspacePath('supabase/migrations/20260615075421_customer_memory_schema_alignment.sql'))).toBe(
+    expect(existsSync(workspacePath('supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql'))).toBe(
       true,
     );
     expect(doc).toContain('Pending migration under review: `supabase/migrations/20260615075421_customer_memory_schema_alignment.sql`');

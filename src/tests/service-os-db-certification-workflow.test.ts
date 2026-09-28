@@ -19,7 +19,8 @@ describe('MyBiz Stage 2 database certification workflow', () => {
     expect(workflow).toContain('persist-credentials: false');
     expect(workflow).not.toMatch(/SUPABASE_ACCESS_TOKEN:\s*\$\{\{/);
     expect(workflow).not.toMatch(/SUPABASE_DB_PASSWORD:\s*\$\{\{/);
-    expect(workflow).not.toMatch(/supabase (link|db push|migration (up|repair))/);
+    expect(workflow).not.toMatch(/supabase (link|db push|migration repair)/);
+    expect(workflow).toContain('supabase migration up --local --workdir');
     expect(workflow).not.toMatch(/--linked|--project-ref/);
     expect(workflow).toContain('github.event.pull_request.number == 190');
     expect(workflow).toContain("github.head_ref == 'codex/mybiz-production-canonical-v1'");

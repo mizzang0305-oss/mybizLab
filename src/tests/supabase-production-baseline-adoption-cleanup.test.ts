@@ -38,10 +38,10 @@ const archivedMigrations = readdirSync(archivePath)
   .sort();
 const marker = readWorkspaceFile('supabase/migrations/20260614_production_baseline_adoption.sql');
 const alignmentDraft = readWorkspaceFile(
-  'supabase/migrations/20260615075421_customer_memory_schema_alignment.sql',
+  'supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql',
 );
 const hardeningDraft = readWorkspaceFile(
-  'supabase/migrations/20260616070824_customer_memory_rls_grant_hardening.sql',
+  'supabase/migrations_archive/post_baseline_20260928/20260616070824_customer_memory_rls_grant_hardening.sql',
 );
 const cleanupDoc = readWorkspaceFile('docs/supabase-production-baseline-adoption-cleanup.md');
 const manifest = readWorkspaceFile('supabase/migrations_archive/pre_baseline_20260614/MANIFEST.md');
@@ -58,20 +58,33 @@ describe('Supabase production baseline adoption cleanup', () => {
     );
 
     expect(activeMigrations).not.toContain(file);
-    expect(createHash('sha256').update(archived).digest('hex')).toBe(
+    // Git checkout may expand LF to CRLF on Windows; the committed SQL blob is LF.
+    expect(createHash('sha256').update(archived.toString('utf8').replace(/\r\n/g, '\n')).digest('hex')).toBe(
       'ab4dd45e35f61bd809d39f43664092b5b8597f3767f1e84546a5291f867db5b5',
     );
     expect(archiveManifest).toContain('HISTORICAL_PRODUCTION_STATE_EVIDENCE');
     expect(archiveManifest).toContain('migration ledger: this version is **absent**');
   });
 
-  it('keeps only the baseline marker and approved customer-memory draft migrations active', () => {
+  it.each([
+    ['20260615075421_customer_memory_schema_alignment.sql', '84f0028357ba5d521cb82b691ee37aac1c00e2b52eb5eeb413aed9defe789a28'],
+    ['20260616070824_customer_memory_rls_grant_hardening.sql', '5f56ba21706387e9beb57565f6970879530ad09207087c54683e1b39e47d33d4'],
+    ['20260927064807_mybiz_server_provisioning_boundary_20260927.sql', '81cbfb386f9d09858f3acac7e4b2f9849e41eb6712663035a0c81aa57af56c05'],
+    ['20260927064932_mybiz_public_rls_compat_20260927.sql', '4011dad239954ec7f4e3f6c717500d54952cd6247762e53625cfefc0bb4638d3'],
+  ])('archives already-applied SQL %s without changing its Git content', (file, expectedSha) => {
+    const archived = readFileSync(workspacePath('supabase/migrations_archive/post_baseline_20260928', file));
+    const archiveManifest = readWorkspaceFile('supabase/migrations_archive/post_baseline_20260928/MANIFEST.md');
+
+    expect(activeMigrations).not.toContain(file);
+    expect(createHash('sha256').update(archived.toString('utf8').replace(/\r\n/g, '\n')).digest('hex')).toBe(expectedSha);
+    expect(archiveManifest).toContain(expectedSha);
+    expect(archiveManifest).toContain('HISTORICAL_UNREPLAYABLE');
+  });
+
+  it('keeps the marker and the reviewed future identity resolver as the only active migrations', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
-      '20260615075421_customer_memory_schema_alignment.sql',
-      '20260616070824_customer_memory_rls_grant_hardening.sql',
-      '20260927064807_mybiz_server_provisioning_boundary_20260927.sql',
-      '20260927064932_mybiz_public_rls_compat_20260927.sql',
+      '20260928232001_service_os_verified_identity_resolver.sql',
     ]);
 
     const activeVersionPrefixes = activeMigrations.map((name) => name.split('_')[0]);
@@ -80,6 +93,12 @@ describe('Supabase production baseline adoption cleanup', () => {
     for (const migration of legacyMigrations) {
       expect(activeMigrations).not.toContain(migration);
     }
+    const future = readWorkspaceFile('supabase/migrations/20260928232001_service_os_verified_identity_resolver.sql');
+    expect(future).toContain('security definer');
+    expect(future).toContain('security invoker');
+    expect(future).toContain("set search_path = ''");
+    expect(future).toMatch(/revoke all on function public\.resolve_service_os_business_profile_id\(uuid\)\s+from public, anon, authenticated;/i);
+    expect(future).toMatch(/grant execute on function public\.resolve_service_os_business_profile_id\(uuid\)\s+to service_role;/i);
   });
 
   it('keeps the customer-memory alignment migration clearly draft-only and non-destructive', () => {

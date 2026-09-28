@@ -281,11 +281,13 @@ describe('customer memory intake spine', () => {
     expect(payload.error).toBe('CUSTOMER_MEMORY_SPINE_DISABLED');
   });
 
-  it('keeps the intake spine non-applying while allowing only the PR 109 draft alignment migration', () => {
+  it('keeps the intake spine non-applying and preserves the PR 109 draft in the archive', () => {
     const activeMigrations = readdirSync(resolve(process.cwd(), 'supabase/migrations')).sort();
     const docs = readFileSync(resolve(process.cwd(), 'docs/customer-memory-intake-spine-mvp.md'), 'utf8');
-    const draftMigrations = activeMigrations.filter((name) => name.endsWith('_customer_memory_schema_alignment.sql'));
-    const draftSql = readFileSync(resolve(process.cwd(), 'supabase/migrations', draftMigrations[0] || ''), 'utf8');
+    const draftSql = readFileSync(resolve(
+      process.cwd(),
+      'supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql',
+    ), 'utf8');
     const executableDraftSql = draftSql
       .split('\n')
       .filter((line) => !line.trimStart().startsWith('--'))
@@ -293,12 +295,8 @@ describe('customer memory intake spine', () => {
 
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
-      expect.stringMatching(/^\d{14}_customer_memory_schema_alignment\.sql$/),
-      '20260616070824_customer_memory_rls_grant_hardening.sql',
-      '20260927064807_mybiz_server_provisioning_boundary_20260927.sql',
-      '20260927064932_mybiz_public_rls_compat_20260927.sql',
+      '20260928232001_service_os_verified_identity_resolver.sql',
     ]);
-    expect(draftMigrations).toHaveLength(1);
     expect(docs).toContain('No migration is applied by this PR');
     expect(docs).toContain('GRANT/REVOKE execution is out of scope');
     expect(draftSql).toContain('DRAFT ONLY');

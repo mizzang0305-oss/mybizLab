@@ -10,7 +10,7 @@ function readWorkspaceFile(path: string) {
 }
 
 const doc = readWorkspaceFile('docs/customer-memory-rls-hardening-drift-resolution.md');
-const migration = readWorkspaceFile('supabase/migrations/20260616070824_customer_memory_rls_grant_hardening.sql');
+const migration = readWorkspaceFile('supabase/migrations_archive/post_baseline_20260928/20260616070824_customer_memory_rls_grant_hardening.sql');
 const launchGates = readWorkspaceFile('src/shared/lib/launchGates.ts');
 
 describe('customer-memory RLS hardening drift resolution', () => {

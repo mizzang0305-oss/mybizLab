@@ -138,6 +138,7 @@ describe('/api/merchant/order-event', () => {
     });
     state.resolveStoreAccess.mockResolvedValueOnce({
       accessibleStores: [{ id: 'store-live-001' }],
+      profile: { id: 'merchant-a' },
     });
 
     const response = await handleMerchantOrderEventRequest(
@@ -186,6 +187,7 @@ describe('/api/merchant/order-event', () => {
     });
     state.resolveStoreAccess.mockResolvedValueOnce({
       accessibleStores: [{ id: 'store-live-001' }],
+      profile: { id: 'merchant-a' },
     });
 
     const response = await handleMerchantOrderEventRequest(
@@ -221,14 +223,14 @@ describe('/api/merchant/orders', () => {
 
   it('rejects a merchant without membership in the requested store', async () => {
     state.authGetUser.mockResolvedValueOnce({ data: { user: { id: 'merchant-a', email: 'a@example.invalid' } }, error: null });
-    state.resolveStoreAccess.mockResolvedValueOnce({ accessibleStores: [{ id: 'store-a' }] });
+    state.resolveStoreAccess.mockResolvedValueOnce({ accessibleStores: [{ id: 'store-a' }], profile: { id: 'merchant-a' } });
     expect((await handleMerchantOrdersRequest(request('store-b', 'valid'))).status).toBe(403);
   });
 
   it('returns only the authorized store orders', async () => {
     state.orders.push({ order_id: 'order_other', store_id: 'store-b' });
     state.authGetUser.mockResolvedValueOnce({ data: { user: { id: 'merchant-a', email: 'a@example.invalid' } }, error: null });
-    state.resolveStoreAccess.mockResolvedValueOnce({ accessibleStores: [{ id: 'store-live-001' }] });
+    state.resolveStoreAccess.mockResolvedValueOnce({ accessibleStores: [{ id: 'store-live-001' }], profile: { id: 'merchant-a' } });
     const response = await handleMerchantOrdersRequest(request('store-live-001', 'valid'));
     expect(response.status).toBe(200);
     expect(state.resolveStoreAccess).toHaveBeenCalledWith(

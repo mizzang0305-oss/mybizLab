@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient, type User } from '@supabase/supabase
 import type { ResolvedStoreAccess } from '../shared/lib/repositories/contracts.js';
 import { mapLiveStoreToAppStore } from '../shared/lib/storeData.js';
 import type { StoreMember } from '../shared/types/models.js';
+import { getSupabaseAdminClient } from './supabaseAdmin.js';
 import { readServerEnv } from './serverEnv.js';
 
 /** Call only after the bearer token has been checked with Auth getUser(). */
@@ -18,15 +19,21 @@ export function createVerifiedUserClient(accessToken: string): SupabaseClient {
   });
 }
 
-/** RLS-visible memberships are the only server-side source of merchant access. */
+/** Call only with the User returned by Auth getUser(accessToken). */
 export async function resolveVerifiedUserStoreAccess(
   accessToken: string,
   user: User,
   userClient: SupabaseClient = createVerifiedUserClient(accessToken),
 ): Promise<ResolvedStoreAccess | null> {
+  const { data: businessProfileId, error: identityError } = await getSupabaseAdminClient()
+    .rpc('resolve_service_os_business_profile_id', { p_auth_user_id: user.id });
+  if (identityError) throw new Error('Failed to resolve the verified business profile.');
+  if (!businessProfileId || typeof businessProfileId !== 'string') return null;
+
   const { data: rows, error: membershipError } = await userClient
     .from('store_members')
-    .select('id,store_id,profile_id,role,created_at');
+    .select('id,store_id,profile_id,role,created_at')
+    .eq('profile_id', businessProfileId);
   if (membershipError) throw new Error(`Failed to load RLS-visible store memberships: ${membershipError.message}`);
 
   const memberships: StoreMember[] = (rows || []).map((row) => ({
@@ -38,10 +45,6 @@ export async function resolveVerifiedUserStoreAccess(
   }));
   if (!memberships.length) return null;
 
-  const profileIds = [...new Set(memberships.map((member) => member.profile_id))];
-  if (profileIds.length !== 1) {
-    throw new Error('Ambiguous RLS-visible business profile identity.');
-  }
   const storeIds = [...new Set(memberships.map((member) => member.store_id))];
   const { data: storeRows, error: storeError } = await userClient
     .from('stores')
@@ -60,7 +63,7 @@ export async function resolveVerifiedUserStoreAccess(
     fullName,
     memberships,
     primaryRole: memberships.slice().sort((a, b) => roleRank[b.role] - roleRank[a.role])[0]?.role || null,
-    profile: { id: profileIds[0], full_name: fullName, email, created_at: user.created_at },
+    profile: { id: businessProfileId, full_name: fullName, email, created_at: user.created_at },
     provider: 'supabase',
   };
 }
