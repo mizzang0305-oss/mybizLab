@@ -1,4 +1,9 @@
--- CI-ONLY baseline fixture for the ephemeral Stage 2 database certification.
+-- OBSOLETE CI-ONLY synthetic fixture; retained as historical test evidence.
+-- The Stage 2 workflow now consumes
+-- supabase/baselines/current_production_schema_v1/current_schema_candidate_v4.sql.
+-- Do not apply this synthetic schema over the current-state baseline.
+--
+-- CI-ONLY baseline fixture for the former ephemeral Stage 2 database certification.
 --
 -- The repository's first active migration is a comment-only Production baseline
 -- adoption marker, so a fresh Supabase stack does not otherwise contain the

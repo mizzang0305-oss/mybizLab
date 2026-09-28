@@ -33,12 +33,21 @@ insert into public.store_members (store_id, profile_id, role) values
   ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'owner'),
   ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'owner'),
   ('22222222-2222-4222-8222-222222222222', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'owner');
-insert into public.store_tables (store_id, table_no) values
-  ('11111111-1111-4111-8111-111111111111', 1),
-  ('22222222-2222-4222-8222-222222222222', 2);
-insert into public.orders (store_id, total_amount) values
-  ('11111111-1111-4111-8111-111111111111', 1000),
-  ('22222222-2222-4222-8222-222222222222', 2000);
+insert into public.customers (customer_id, store_id, customer_key) values
+  ('33333333-3333-4333-8333-333333333331', '11111111-1111-4111-8111-111111111111', 'synthetic-customer-a'),
+  ('33333333-3333-4333-8333-333333333332', '22222222-2222-4222-8222-222222222222', 'synthetic-customer-b');
+insert into public.store_tables (table_id, store_id, table_no) values
+  ('44444444-4444-4444-8444-444444444441', '11111111-1111-4111-8111-111111111111', 1),
+  ('44444444-4444-4444-8444-444444444442', '22222222-2222-4222-8222-222222222222', 2);
+insert into public.sessions (session_id, store_id, table_id, customer_id) values
+  ('55555555-5555-4555-8555-555555555551', '11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', '33333333-3333-4333-8333-333333333331'),
+  ('55555555-5555-4555-8555-555555555552', '22222222-2222-4222-8222-222222222222', '44444444-4444-4444-8444-444444444442', '33333333-3333-4333-8333-333333333332');
+insert into public.orders (order_id, store_id, table_id, session_id, total_amount) values
+  ('66666666-6666-4666-8666-666666666661', '11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', '55555555-5555-4555-8555-555555555551', 1000),
+  ('66666666-6666-4666-8666-666666666662', '22222222-2222-4222-8222-222222222222', '44444444-4444-4444-8444-444444444442', '55555555-5555-4555-8555-555555555552', 2000);
+insert into public.order_items (store_id, order_id, item_name, menu_name, quantity, line_total) values
+  ('11111111-1111-4111-8111-111111111111', '66666666-6666-4666-8666-666666666661', 'Synthetic A', 'Synthetic A', 1, 1000),
+  ('22222222-2222-4222-8222-222222222222', '66666666-6666-4666-8666-666666666662', 'Synthetic B', 'Synthetic B', 1, 2000);
 insert into public.menu_categories (store_id, name) values
   ('11111111-1111-4111-8111-111111111111', 'A'),
   ('22222222-2222-4222-8222-222222222222', 'B');
@@ -144,9 +153,9 @@ select ok(not has_function_privilege('anon',
 select ok(not has_function_privilege('authenticated',
   'public.provision_store_from_verified_actor(uuid,text,text,text,text,text,text,text,text,text,text,text,text,numeric,text)','EXECUTE'),
   'authenticated cannot invoke server provisioning RPC');
-select ok(has_function_privilege('service_role',
+select ok(not has_function_privilege('service_role',
   'public.provision_store_from_verified_actor(uuid,text,text,text,text,text,text,text,text,text,text,text,text,numeric,text)','EXECUTE'),
-  'service role can invoke server provisioning RPC');
+  'service role provisioning RPC remains on Production HOLD');
 select throws_ok($$select * from public.provision_store_from_verified_actor(
   'ffffffff-ffff-4fff-8fff-ffffffffffff'::uuid,'synthetic-invalid','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   'Synthetic Store','Synthetic Owner','000','010','invalid@example.invalid','Seoul','Cafe','synthetic-invalid',

@@ -27,8 +27,16 @@ values
   ('$member_id', 'Atomic Member', 'atomic-member@example.invalid'),
   ('$other_member_id', 'Atomic Outsider', 'atomic-outsider@example.invalid');
 
-insert into public.stores (id, name, slug, owner_name, business_number, phone, email, address, business_type)
-values ('$store_id', 'Atomic Store', 'atomic-store', 'Owner', '000-00-00101', '000-0000-0101', 'atomic-store@example.invalid', 'Synthetic', 'cleaning');
+insert into core.profiles (id, is_active)
+values ('$member_id', true), ('$other_member_id', true);
+
+insert into private.profile_auth_bindings (public_profile_id, auth_profile_id, binding_source, status)
+values
+  ('$member_id', '$member_id', 'OWNER_VERIFIED', 'ACTIVE'),
+  ('$other_member_id', '$other_member_id', 'OWNER_VERIFIED', 'ACTIVE');
+
+insert into public.stores (store_id, name, slug)
+values ('$store_id', 'Atomic Store', 'atomic-store');
 
 insert into public.store_members (store_id, profile_id, role)
 values ('$store_id', '$member_id', 'owner');
@@ -83,6 +91,9 @@ echo 'REVISION_CONCURRENT_NO_DUPLICATE PASS revisions=2,3'
 echo 'REVISION_CROSS_STORE_DENY PASS SQLSTATE=42501'
 
 "${psql_base[@]}" <<SQL
-delete from public.stores where id = '$store_id';
+delete from public.stores where store_id = '$store_id';
+delete from private.profile_auth_bindings where auth_profile_id in ('$member_id', '$other_member_id');
+delete from public.profiles where id in ('$member_id', '$other_member_id');
+delete from core.profiles where id in ('$member_id', '$other_member_id');
 delete from auth.users where id in ('$member_id', '$other_member_id');
 SQL
