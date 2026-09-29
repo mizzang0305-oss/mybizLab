@@ -40,6 +40,8 @@ import {
   clearOnboardingFlowState,
   createInitialOnboardingFlowState,
   createRequestedSlug,
+  hasRecoverableOnboardingPayment,
+  holdRedirectedPayment,
   persistOnboardingFlowState,
   readOnboardingFlowState,
   safeTrim,
@@ -72,11 +74,12 @@ type MessageTone = 'error' | 'info' | 'success';
 type MessageState = { tone: MessageTone; text: string };
 
 const PAID_PROVISIONING_HOLD_MESSAGE = '결제는 확인되어 있습니다. 재결제하지 마세요. 스토어 활성화는 운영 승인 후 이어집니다.';
+const PENDING_PAYMENT_HOLD_MESSAGE = '결제 결과 확인이 운영 승인 대기 상태입니다. 재결제하지 마세요. 담당자 확인 후 안내합니다.';
 
 function provisioningHoldMessage(flow: Pick<OnboardingFlowState, 'paymentId' | 'paymentStatus'>) {
-  return flow.paymentStatus === 'paid' && flow.paymentId
-    ? PAID_PROVISIONING_HOLD_MESSAGE
-    : LAUNCH_GATE_MESSAGES.storeProvisioningEnabled;
+  if (flow.paymentStatus === 'paid' && flow.paymentId) return PAID_PROVISIONING_HOLD_MESSAGE;
+  if (flow.paymentId) return PENDING_PAYMENT_HOLD_MESSAGE;
+  return LAUNCH_GATE_MESSAGES.storeProvisioningEnabled;
 }
 
 const steps: Array<{ key: OnboardingStep; label: string; desc: string }> = [
@@ -332,8 +335,20 @@ export function OnboardingPage() {
   const setSelectedStoreId = useUiStore((state) => state.setSelectedStoreId);
   const [flow, setFlow] = useState(() => readOnboardingFlowState());
   const storeProvisioningEnabled = isLaunchGateEnabled('storeProvisioningEnabled');
+  const hasRecoverablePayment = hasRecoverableOnboardingPayment(flow);
   const [message, setMessage] = useState<MessageState | null>(null);
   const [billingProductCode, setBillingProductCode] = useState<BillingCheckoutProductCode | null>(null);
+  const checkoutButtonLabel = !storeProvisioningEnabled
+    ? '담당자 확인 대기'
+    : hasRecoverablePayment
+      ? flow.paymentStatus === 'paid' ? '결제 완료 · 활성화 이어가기' : '결제 결과 확인 · 활성화 이어가기'
+      : flow.paymentStatus === 'processing'
+        ? flow.selectedPlan === 'free' ? '스토어 활성화 중...' : '결제창 준비 중...'
+        : flow.selectedPlan === 'free'
+          ? 'FREE 플랜 바로 시작'
+          : billingProductCode
+            ? '100원 테스트 결제 진행'
+            : 'PortOne 결제 진행';
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
   const [autoCinematicSceneIndex, setAutoCinematicSceneIndex] = useState(0);
   const redirectHandledRef = useRef(false);
@@ -568,7 +583,10 @@ export function OnboardingPage() {
 
   async function verifyAndFinalizePaidActivation(paymentId: string, source: 'browser' | 'redirect') {
     if (!isLaunchGateEnabled('storeProvisioningEnabled')) {
-      setMessage({ tone: 'info', text: provisioningHoldMessage(flow) });
+      setFlow((current) => holdRedirectedPayment(current, paymentId));
+      setMessage({ tone: 'info', text: flow.paymentStatus === 'paid' && flow.paymentId
+        ? PAID_PROVISIONING_HOLD_MESSAGE
+        : PENDING_PAYMENT_HOLD_MESSAGE });
       return;
     }
     let paymentVerified = false;
@@ -631,6 +649,11 @@ export function OnboardingPage() {
     const next = new URLSearchParams(searchParams);
     ['portone', 'code', 'message', 'paymentId', 'plan'].forEach((key) => next.delete(key));
     setSearchParams(next, { replace: true });
+
+    if (!isLaunchGateEnabled('storeProvisioningEnabled') && paymentId && flow.requestId) {
+      void verifyAndFinalizePaidActivation(paymentId, 'redirect');
+      return;
+    }
 
     if (code) {
       if (!isLaunchGateEnabled('storeProvisioningEnabled') && flow.paymentStatus === 'paid' && flow.paymentId) {
@@ -772,7 +795,7 @@ export function OnboardingPage() {
       setMessage({ tone: 'info', text: provisioningHoldMessage(flow) });
       return;
     }
-    if (flow.selectedPlan !== 'free' && flow.paymentStatus === 'paid' && flow.paymentId) {
+    if (hasRecoverablePayment && flow.paymentId) {
       await verifyAndFinalizePaidActivation(flow.paymentId, 'browser');
       return;
     }
@@ -1825,20 +1848,8 @@ export function OnboardingPage() {
                 ) : null}
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-          <button className="btn-primary" disabled={!storeProvisioningEnabled || !flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
-            {!storeProvisioningEnabled
-              ? '담당자 확인 대기'
-              : flow.paymentStatus === 'processing'
-              ? flow.selectedPlan === 'free'
-                ? '스토어 활성화 중...'
-                : '결제창 준비 중...'
-              : flow.paymentStatus === 'paid' && flow.paymentId
-                ? '결제 완료 · 활성화 이어가기'
-              : flow.selectedPlan === 'free'
-                ? 'FREE 플랜 바로 시작'
-                : billingProductCode
-                  ? '100원 테스트 결제 진행'
-                  : 'PortOne 결제 진행'}
+          <button className="btn-primary" disabled={!storeProvisioningEnabled || !flow.requestId || (flow.paymentStatus === 'processing' && !hasRecoverablePayment) || activateStore.isPending} onClick={() => void startCheckout()} type="button">
+            {checkoutButtonLabel}
           </button>
                 <button className="btn-secondary" onClick={() => setFlow((current) => ({ ...current, requestWizardStep: 'summary', step: 'request' }))} type="button">
                   요청 정보 수정

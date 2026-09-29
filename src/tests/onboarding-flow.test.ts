@@ -4,6 +4,8 @@ import {
   applyOnboardingSetupRequestSaved,
   buildDiagnosisResult,
   createInitialOnboardingFlowState,
+  hasRecoverableOnboardingPayment,
+  holdRedirectedPayment,
   readOnboardingFlowState,
 } from '@/shared/lib/onboardingFlow';
 import { getDatabase, resetDatabase } from '@/shared/lib/mockDb';
@@ -72,6 +74,42 @@ describe('onboarding flow helpers', () => {
     expect(nextState.step).toBe('payment');
     expect(nextState.requestWizardStep).toBe('summary');
     expect(nextState.selectedPlan).toBe('pro');
+  });
+
+  it('retains a redirected payment ID for verification after provisioning HOLD without marking it paid', () => {
+    const state = {
+      ...createInitialOnboardingFlowState(),
+      selectedPlan: 'pro' as const,
+      paymentStatus: 'processing' as const,
+      step: 'payment' as const,
+    };
+    const held = holdRedirectedPayment(state, 'synthetic-redirect-payment');
+
+    expect(held).toMatchObject({
+      paymentId: 'synthetic-redirect-payment',
+      paymentStatus: 'processing',
+      step: 'payment',
+    });
+    expect(state.paymentId).toBeUndefined();
+    expect(hasRecoverableOnboardingPayment(held)).toBe(true);
+  });
+
+  it('preserves an already paid payment ID and never treats a failed or FREE payment as resumable', () => {
+    const paid = {
+      ...createInitialOnboardingFlowState(),
+      selectedPlan: 'vip' as const,
+      paymentStatus: 'paid' as const,
+      paymentId: 'existing-synthetic-payment',
+      step: 'activation' as const,
+    };
+    expect(holdRedirectedPayment(paid, 'unverified-new-payment')).toMatchObject({
+      paymentId: 'existing-synthetic-payment',
+      paymentStatus: 'paid',
+      step: 'activation',
+    });
+    expect(hasRecoverableOnboardingPayment(paid)).toBe(true);
+    expect(hasRecoverableOnboardingPayment({ ...paid, paymentStatus: 'failed' })).toBe(false);
+    expect(hasRecoverableOnboardingPayment({ ...paid, selectedPlan: 'free' })).toBe(false);
   });
 
   it('hydrates legacy diagnosis state with a string address', () => {

@@ -648,6 +648,22 @@ export function applyOnboardingSetupRequestSaved(state: OnboardingFlowState, req
   };
 }
 
+export function holdRedirectedPayment(state: OnboardingFlowState, paymentId: string): OnboardingFlowState {
+  const alreadyPaid = state.paymentStatus === 'paid' && Boolean(state.paymentId);
+  return {
+    ...state,
+    paymentId: alreadyPaid ? state.paymentId : paymentId,
+    paymentStatus: alreadyPaid ? 'paid' : 'processing',
+    step: alreadyPaid ? 'activation' : 'payment',
+  };
+}
+
+export function hasRecoverableOnboardingPayment(state: Pick<OnboardingFlowState, 'selectedPlan' | 'paymentId' | 'paymentStatus'>) {
+  return state.selectedPlan !== 'free'
+    && Boolean(state.paymentId)
+    && (state.paymentStatus === 'paid' || state.paymentStatus === 'processing');
+}
+
 export function buildDiagnosisResult(
   input: DiagnosisInput,
   analysisSource: DiagnosisAnalysisSource = 'fallback',
