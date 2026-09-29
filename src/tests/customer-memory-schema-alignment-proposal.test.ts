@@ -79,10 +79,10 @@ describe('customer memory schema alignment proposal', () => {
     });
   });
 
-  it('documents and tracks an approval-gated draft migration file', () => {
+  it('documents the historical approval-gated draft outside the active migration scan', () => {
     const doc = readProposal();
     const activeMigrations = readdirSync(ACTIVE_MIGRATIONS_DIR);
-    const draftMigrations = activeMigrations.filter((name) => name.endsWith('_customer_memory_schema_alignment.sql'));
+    const archivedDraft = resolve(process.cwd(), 'supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql');
 
     expect(doc).toContain('DRAFT SQL ONLY - DO NOT EXECUTE FROM THIS DOCUMENT');
     expect(doc).toContain('add column if not exists store_id');
@@ -90,8 +90,8 @@ describe('customer memory schema alignment proposal', () => {
     expect(doc).toContain('customer_contacts_store_email_unique');
     expect(doc).toContain('draft migration file was added');
     expect(activeMigrations).toContain('20260614_production_baseline_adoption.sql');
-    expect(draftMigrations).toHaveLength(1);
-    expect(existsSync(resolve(ACTIVE_MIGRATIONS_DIR, draftMigrations[0] || ''))).toBe(true);
+    expect(activeMigrations).not.toContain('20260615075421_customer_memory_schema_alignment.sql');
+    expect(existsSync(archivedDraft)).toBe(true);
   });
 
   it('keeps production write, migration, RLS/grant, and live-write actions forbidden', () => {

@@ -1,5 +1,5 @@
-import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
 import { getSupabaseAdminClient } from './supabaseAdmin.js';
+import { resolveVerifiedUserStoreAccess } from './supabaseUserContext.js';
 
 type AdminAuthRequestLike =
   | Request
@@ -76,14 +76,7 @@ export async function handleAdminSessionRequest(request: AdminAuthRequestLike) {
       return json({ ok: false, error: 'No authenticated user was found for this access token.' }, 401);
     }
 
-    const repository = createSupabaseRepository(adminClient);
-    const resolvedAccess = await repository.resolveStoreAccess({
-      fallbackEmail: authData.user.email || 'ops@mybiz.ai.kr',
-      fallbackFullName: normalizeDisplayName((authData.user.user_metadata?.full_name as string | undefined) || authData.user.email),
-      fallbackProfileId: authData.user.id,
-      requestedEmail: authData.user.email || undefined,
-      requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
-    });
+    const resolvedAccess = await resolveVerifiedUserStoreAccess(accessToken, authData.user);
 
     if (!resolvedAccess || !resolvedAccess.accessibleStores.length || !resolvedAccess.primaryRole) {
       return json(

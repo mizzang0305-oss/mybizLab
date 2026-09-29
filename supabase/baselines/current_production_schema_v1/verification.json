@@ -1,0 +1,39 @@
+{
+  "source_fingerprint": "939a8dfc366499cf7478bc666a831df299e167f850b9a7667d73be027cb37e06",
+  "candidate_v3_sha256": "402cb6a3f2ee02ed7e3afd1dfcf6ce263d1e44114fc9a20b36cc1d4a87bd7374",
+  "candidate_v4_sha256": "e5009643f4d8341687ddc18818719505fff45cfe02257f179520225dff410646",
+  "postgres_version": "17.6",
+  "isolated_replay": "PASS",
+  "application_parity_categories_compared": 17,
+  "application_parity_mismatches": 0,
+  "effective_role_privilege_rows_compared": 464,
+  "effective_role_privilege_mismatches": 0,
+  "sequence_acl_parity": "PASS",
+  "platform_environment_compatibility": "PASS",
+  "stage2_baseline_test": {
+    "result": "PASS",
+    "assertions": 48,
+    "contract": "authenticated own-store read, direct write denied, trusted service_role write"
+  },
+  "stage2_draft_overlay": {
+    "result": "FAIL",
+    "first_failure": "The Stage 2 draft attempts to create initialize_job_evidence_revision_after_insert, which already exists in the current-state baseline."
+  },
+  "security_pgtap": {
+    "result": "PASS",
+    "assertions": 31,
+    "fixture": "current Production customer-table-session-order-item dependency chain"
+  },
+  "revision_atomicity": "PASS",
+  "db_lint": "KNOWN_LEGACY_HOLD_FUNCTION_ONLY",
+  "db_lint_legacy_function_execute_exposure": 0,
+  "app_tests": "907 passed, 4 skipped",
+  "typecheck": "PASS",
+  "lint": "PASS",
+  "build": "PASS",
+  "review_state": "READY_FOR_OWNER_REVIEW",
+  "runtime_service_job_create_path": "DEMO_ONLY_NO_PERSISTED_ENDPOINT",
+  "production_mutations": 0,
+  "pr190_pushed_at_local_validation": false,
+  "pr190_merged_at_local_validation": false
+}

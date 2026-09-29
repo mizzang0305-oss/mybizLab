@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(resolve(process.cwd(), 'supabase/migration_drafts/20260913083614_mybiz_stage2_service_os.sql'), 'utf8');
 const rlsRehearsal = readFileSync(resolve(process.cwd(), 'supabase/tests/mybiz_stage2_service_os_rls.sql'), 'utf8');
+const baseline = readFileSync(resolve(process.cwd(), 'supabase/baselines/current_production_schema_v1/current_schema_candidate_v4.sql'), 'utf8');
+const currentAcl = baseline.split('-- FINAL APPLICATION ACL NORMALIZATION SECTION')[1]?.split('-- END FINAL APPLICATION ACL NORMALIZATION SECTION')[0] ?? '';
 
 describe('MyBiz Service OS migration draft', () => {
   it('is explicitly draft-only and additive', () => {
@@ -25,20 +27,19 @@ describe('MyBiz Service OS migration draft', () => {
     expect(migration).toMatch(/grant all privileges on table[\s\S]+job_confirmation_links[\s\S]+to service_role/i);
   });
 
-  it('keeps original evidence append-only for merchant clients', () => {
-    expect(migration).toMatch(/grant select on table[\s\S]*?public\.job_evidence_assets[\s\S]*?to authenticated/i);
-    expect(migration).toMatch(/grant insert on table[\s\S]*?public\.job_evidence_assets[\s\S]*?to authenticated/i);
-    expect(migration).not.toMatch(/grant [^;]*update[^;]*job_evidence_assets[^;]*to authenticated/i);
-    expect(migration).not.toMatch(/grant [^;]*delete[^;]*job_evidence_assets[^;]*to authenticated/i);
+  it('keeps current merchant evidence access read-only', () => {
+    expect(currentAcl).toContain('GRANT SELECT ON TABLE "public"."job_evidence_assets" TO "authenticated";');
+    expect(currentAcl).toContain('GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."job_evidence_assets" TO "service_role";');
+    expect(currentAcl).not.toMatch(/GRANT (?:INSERT|UPDATE|DELETE)[^;]*ON TABLE "public"\."job_evidence_assets" TO "authenticated";/);
   });
 
-  it('uses tenant predicates for every browser-facing write policy', () => {
-    const writePolicies = (migration.match(/create policy [\s\S]*?;/g) ?? []).filter((policy) => /insert|update/.test(policy));
-    expect(writePolicies.length).toBe(2);
-    expect(writePolicies.every((policy) => policy.includes('public.is_store_member(store_id)'))).toBe(true);
-    expect(migration).toContain('created_by = auth.uid()');
-    expect(migration).toContain('uploader_user_id = auth.uid()');
-    expect(migration).toContain('j.evidence_revision = job_evidence_assets.revision_number');
+  it('uses current Production read-only authenticated ACL across Stage 2 tables', () => {
+    for (const table of ['service_jobs', 'job_evidence_assets', 'job_evidence_revisions', 'job_confirmations', 'consent_records', 'job_payment_requests', 'content_candidates', 'brand_sites', 'vertical_templates']) {
+      expect(currentAcl).toContain(`REVOKE ALL PRIVILEGES ON TABLE "public"."${table}" FROM PUBLIC, anon, authenticated, service_role;`);
+      expect(currentAcl).toContain(`GRANT SELECT ON TABLE "public"."${table}" TO "authenticated";`);
+      expect(currentAcl).not.toMatch(new RegExp(`GRANT (?:INSERT|UPDATE|DELETE)[^;]*ON TABLE "public"\\."${table}" TO "authenticated";`));
+    }
+    expect(currentAcl).not.toContain('GRANT SELECT ON TABLE "public"."job_confirmation_links" TO "authenticated";');
   });
 
   it('enforces contract acceptance before work-ready or later states', () => {
@@ -73,7 +74,7 @@ describe('MyBiz Service OS migration draft', () => {
     for (const scenario of [
       'CROSS_TENANT_SELECT_DENY',
       'CROSS_TENANT_INSERT_DENY',
-      'CONTRACT_DRAFT_WORK_READY_DENY',
+      'CONTRACT_DRAFT_DIRECT_INSERT_DENY',
       'PAYMENT_SELF_MARK_PAID_DENY',
       'CONFIRMATION_DIRECT_CLIENT_INSERT_DENY',
       'CONSENT_DIRECT_CLIENT_INSERT_DENY',
@@ -81,23 +82,26 @@ describe('MyBiz Service OS migration draft', () => {
       'BRAND_PUBLISHED_DIRECT_CLIENT_MUTATION_DENY',
       'MEDICAL_PUBLIC_DEFAULT_DENY',
       'CONFIRMATION_TOKEN_HASH_CLIENT_READ_DENY',
-      'MEMBER_JOB_INSERT_ALLOW',
-      'CONTRACT_SENT_WORK_READY_DENY',
+      'MEMBER_JOB_DIRECT_INSERT_DENY',
+      'CONTRACT_SENT_DIRECT_INSERT_DENY',
       'REVISION_ARBITRARY_INSERT_DENY',
       'REVISION_SKIP_DENY',
       'REVISION_CROSS_TENANT_DENY',
       'INVALID_REVISION_EVIDENCE_DENY',
-      'NO_CONTRACT_WORK_READY_ALLOW',
-      'CONTRACT_ACCEPTED_WORK_READY_ALLOW',
-      'CONTRACT_SIGNED_WORK_READY_ALLOW',
-      'MEMBER_HARDENED_EVIDENCE_INSERT_ALLOW',
+      'NO_CONTRACT_DIRECT_INSERT_DENY',
+      'CONTRACT_ACCEPTED_DIRECT_INSERT_DENY',
+      'CONTRACT_SIGNED_DIRECT_INSERT_DENY',
+      'MEMBER_EVIDENCE_DIRECT_INSERT_DENY',
       'MEMBER_OWN_DATA_SELECT_ALLOW',
+      'MEMBER_OWN_EVIDENCE_READ_ALLOW',
+      'SERVICE_ROLE_JOB_INSERT_ALLOW',
       'SERVICE_ROLE_REVISION_BUMP_ALLOW',
       'SERVICE_ROLE_TERMINAL_MUTATION_ALLOW',
+      'CONFIRMATION_CONSUME_SERVER_ALLOW',
     ]) {
       expect(rlsRehearsal).toContain(scenario);
     }
     expect(rlsRehearsal).toContain('Never run this seed against a linked or Production database.');
-    expect(rlsRehearsal).toContain('select extensions.plan(25)');
+    expect(rlsRehearsal).toContain('select extensions.plan(48)');
   });
 });

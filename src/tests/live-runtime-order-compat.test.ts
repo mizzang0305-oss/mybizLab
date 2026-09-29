@@ -186,6 +186,34 @@ async function loadLiveRuntimeOrderService() {
       origin: 'https://mybiz.ai.kr',
     },
   });
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    expect(init?.headers).toMatchObject({ Authorization: 'Bearer merchant-test-token' });
+    if (String(input).includes('/api/merchant/orders?')) {
+      orderItemsLookupCount += 1;
+      return new Response(JSON.stringify({
+        ok: true,
+        data: {
+          orders: orderState.orders,
+          items: orderState.orderItems,
+          tables: orderState.storeTables,
+          paymentEvents: orderState.paymentEvents,
+        },
+      }), { headers: { 'content-type': 'application/json' } });
+    }
+    if (String(input).includes('/api/merchant/order-event')) {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      orderState.paymentEvents.push({
+        amount: body.amount,
+        created_at: new Date().toISOString(),
+        event_id: body.paymentId,
+        order_id: body.orderId,
+        raw: body.raw,
+        status: body.status,
+      });
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'content-type': 'application/json' } });
+    }
+    throw new Error(`Unexpected merchant request: ${String(input)}`);
+  }));
 
   const actualAppConfig = await vi.importActual<typeof import('@/shared/lib/appConfig')>('@/shared/lib/appConfig');
   const actualRepositoryModule = await vi.importActual<typeof import('@/shared/lib/repositories/supabaseRepository')>(
@@ -193,6 +221,7 @@ async function loadLiveRuntimeOrderService() {
   );
 
   const supabase = {
+    auth: { getSession: async () => ({ data: { session: { access_token: 'merchant-test-token' } } }) },
     from(table: string) {
       if (table === 'orders') {
         return {

@@ -291,14 +291,14 @@ describe('customer memory production schema adapter', () => {
     });
   });
 
-  it('adds only a draft customer memory schema alignment migration and keeps sales Excel untouched', () => {
+  it('preserves the historical customer memory alignment draft outside the active scan and keeps sales Excel untouched', () => {
     const activeMigrations = readdirSync(resolve(process.cwd(), 'supabase/migrations'));
-    const draftMigrations = activeMigrations.filter((name) => name.endsWith('_customer_memory_schema_alignment.sql'));
+    const draftPath = resolve(process.cwd(), 'supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql');
 
-    expect(draftMigrations).toHaveLength(1);
-    expect(existsSync(resolve(process.cwd(), 'supabase/migrations', draftMigrations[0] || ''))).toBe(true);
+    expect(activeMigrations).not.toContain('20260615075421_customer_memory_schema_alignment.sql');
+    expect(existsSync(draftPath)).toBe(true);
 
-    const draftSql = readFileSync(resolve(process.cwd(), 'supabase/migrations', draftMigrations[0] || ''), 'utf8');
+    const draftSql = readFileSync(draftPath, 'utf8');
     const executableDraftSql = executableSql(draftSql);
     expect(draftSql).toContain('DRAFT ONLY');
     expect(draftSql).toContain('customer_contacts_store_phone_unique');

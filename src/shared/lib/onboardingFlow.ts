@@ -25,12 +25,12 @@ const STORAGE_KEY = 'mybizlab:onboarding-flow';
 
 export type OnboardingStep = 'diagnosis' | 'result' | 'request' | 'payment' | 'activation';
 export type OnboardingPaymentStatus = 'idle' | 'processing' | 'paid' | 'failed';
-export type OnboardingActivationStatus = 'idle' | 'processing' | 'completed';
+export type OnboardingActivationStatus = 'idle' | 'processing' | 'auth_required' | 'failed' | 'completed';
 export type DiagnosisAnalysisSource = 'gpt' | 'fallback';
 
 const ONBOARDING_STEPS: OnboardingStep[] = ['diagnosis', 'result', 'request', 'payment', 'activation'];
 const PAYMENT_STATUSES: OnboardingPaymentStatus[] = ['idle', 'processing', 'paid', 'failed'];
-const ACTIVATION_STATUSES: OnboardingActivationStatus[] = ['idle', 'processing', 'completed'];
+const ACTIVATION_STATUSES: OnboardingActivationStatus[] = ['idle', 'processing', 'auth_required', 'failed', 'completed'];
 const REQUEST_WIZARD_STEPS: StoreSetupWizardStep[] = ['basic', 'storeMode', 'dataMode', 'modules', 'public', 'summary'];
 const DATA_MODES: DiagnosisDataMode[] = ['order_only', 'survey_only', 'manual_only', 'order_survey', 'survey_manual', 'order_survey_manual'];
 const PREVIEW_TARGETS: StoreSetupPreviewTarget[] = ['survey', 'order', 'inquiry'];
@@ -646,6 +646,22 @@ export function applyOnboardingSetupRequestSaved(state: OnboardingFlowState, req
     requestId,
     step: 'payment',
   };
+}
+
+export function holdRedirectedPayment(state: OnboardingFlowState, paymentId: string): OnboardingFlowState {
+  const alreadyPaid = state.paymentStatus === 'paid' && Boolean(state.paymentId);
+  return {
+    ...state,
+    paymentId: alreadyPaid ? state.paymentId : paymentId,
+    paymentStatus: alreadyPaid ? 'paid' : 'processing',
+    step: alreadyPaid ? 'activation' : 'payment',
+  };
+}
+
+export function hasRecoverableOnboardingPayment(state: Pick<OnboardingFlowState, 'selectedPlan' | 'paymentId' | 'paymentStatus'>) {
+  return state.selectedPlan !== 'free'
+    && Boolean(state.paymentId)
+    && (state.paymentStatus === 'paid' || state.paymentStatus === 'processing');
 }
 
 export function buildDiagnosisResult(

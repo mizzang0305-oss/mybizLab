@@ -10,17 +10,16 @@ function readWorkspaceFile(path: string) {
 }
 
 const doc = readWorkspaceFile('docs/customer-memory-controlled-schema-apply-plan.md');
-const migration = readWorkspaceFile('supabase/migrations/20260615075421_customer_memory_schema_alignment.sql');
+const migration = readWorkspaceFile('supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql');
 
 describe('customer memory controlled schema apply plan', () => {
   it('documents the controlled plan around the existing approval-gated draft migration', () => {
-    expect(existsSync(workspacePath('supabase/migrations/20260615075421_customer_memory_schema_alignment.sql'))).toBe(
+    expect(existsSync(workspacePath('supabase/migrations_archive/post_baseline_20260928/20260615075421_customer_memory_schema_alignment.sql'))).toBe(
       true,
     );
     expect(readdirSync(workspacePath('supabase/migrations')).filter((name) => name.endsWith('.sql')).sort()).toEqual([
       '20260614_production_baseline_adoption.sql',
-      '20260615075421_customer_memory_schema_alignment.sql',
-      '20260616070824_customer_memory_rls_grant_hardening.sql',
+      '20260928232001_service_os_verified_identity_resolver.sql',
     ]);
 
     expect(doc).toContain('Plan status: `APPLY_NOT_APPROVED`');

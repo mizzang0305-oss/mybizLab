@@ -10,7 +10,7 @@ function readWorkspaceFile(path: string) {
 }
 
 const doc = readWorkspaceFile('docs/customer-memory-rls-grant-hardening-plan.md');
-const draftSql = readWorkspaceFile('supabase/migrations/20260616070824_customer_memory_rls_grant_hardening.sql');
+const draftSql = readWorkspaceFile('supabase/migrations_archive/post_baseline_20260928/20260616070824_customer_memory_rls_grant_hardening.sql');
 const launchGates = readWorkspaceFile('src/shared/lib/launchGates.ts');
 const activeMigrations = readdirSync(workspacePath('supabase/migrations'))
   .filter((name) => name.endsWith('.sql'))
@@ -20,8 +20,7 @@ describe('customer-memory RLS/grant hardening plan', () => {
   it('tracks the approved active migration set with the new hardening draft', () => {
     expect(activeMigrations).toEqual([
       '20260614_production_baseline_adoption.sql',
-      '20260615075421_customer_memory_schema_alignment.sql',
-      '20260616070824_customer_memory_rls_grant_hardening.sql',
+      '20260928232001_service_os_verified_identity_resolver.sql',
     ]);
     expect(doc).toContain('`20260614` | applied');
     expect(doc).toContain('`20260615075421` | applied');

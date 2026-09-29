@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { createSupabaseRepository } from '../shared/lib/repositories/supabaseRepository.js';
+import { resolveVerifiedUserStoreAccess } from './supabaseUserContext.js';
 import {
   YOUTUBE_REQUIRED_SCOPES,
   getYouTubeProviderReadiness,
@@ -194,14 +194,7 @@ async function resolveDefaultMerchantAccess(
     };
   }
 
-  const repository = createSupabaseRepository(client);
-  const resolvedAccess = await repository.resolveStoreAccess({
-    fallbackEmail: authData.user.email || 'ops@mybiz.ai.kr',
-    fallbackFullName: (authData.user.user_metadata?.full_name as string | undefined) || authData.user.email || '운영 관리자',
-    fallbackProfileId: authData.user.id,
-    requestedEmail: authData.user.email || undefined,
-    requestedFullName: authData.user.user_metadata?.full_name as string | undefined,
-  });
+  const resolvedAccess = await resolveVerifiedUserStoreAccess(bearerToken, authData.user);
 
   if (!resolvedAccess?.accessibleStores.some((store) => store.id === storeId)) {
     return {

@@ -137,6 +137,19 @@ async function loadService() {
       origin: 'https://mybiz.ai.kr',
     },
   });
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    expect(String(input)).toContain('/api/merchant/orders?storeId=store-live-001');
+    expect(init?.headers).toMatchObject({ Authorization: 'Bearer merchant-test-token' });
+    return new Response(JSON.stringify({
+      ok: true,
+      data: {
+        orders: liveState.orders,
+        items: liveState.orderItems,
+        tables: liveState.storeTables,
+        paymentEvents: liveState.paymentEvents,
+      },
+    }), { headers: { 'content-type': 'application/json' } });
+  }));
 
   const actualAppConfig = await vi.importActual<typeof import('@/shared/lib/appConfig')>('@/shared/lib/appConfig');
   const actualRepositoryModule = await vi.importActual<typeof import('@/shared/lib/repositories/supabaseRepository')>(
@@ -144,6 +157,7 @@ async function loadService() {
   );
 
   const supabase = {
+    auth: { getSession: async () => ({ data: { session: { access_token: 'merchant-test-token' } } }) },
     from(table: string) {
       if (table === 'orders') {
         return {

@@ -266,8 +266,7 @@ describe('Langfuse-style AI trace prompt eval interface', () => {
     expect(vercelConfig).toContain('/api/admin?resource=ai-traces');
     expect(readdirSync(resolve(process.cwd(), 'supabase/migrations')).sort()).toEqual([
       '20260614_production_baseline_adoption.sql',
-      '20260615075421_customer_memory_schema_alignment.sql',
-      '20260616070824_customer_memory_rls_grant_hardening.sql',
+      '20260928232001_service_os_verified_identity_resolver.sql',
     ]);
   });
 });

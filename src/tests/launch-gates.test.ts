@@ -51,6 +51,7 @@ describe('launch gates', () => {
         'oauthPublishEnabled',
         'posPaymentEnabled',
         'selfServePaidLaunchEnabled',
+        'storeProvisioningEnabled',
         'uploadMutationEnabled',
       ]),
     );
@@ -68,5 +69,17 @@ describe('launch gates', () => {
 
     expect(isLaunchGateEnabled('billingCheckoutEnabled')).toBe(true);
     expect(LAUNCH_GATES.billingCheckoutEnabled).toBe(false);
+  });
+
+  it('keeps store provisioning held without changing the existing billing gates', () => {
+    expect(LAUNCH_GATES).toMatchObject({
+      storeProvisioningEnabled: false,
+      selfServePaidLaunchEnabled: false,
+      billingCheckoutEnabled: false,
+    });
+    expect(getLaunchGateStatus('storeProvisioningEnabled')).toMatchObject({
+      enabled: false,
+      status: 'approval_required',
+    });
   });
 });
