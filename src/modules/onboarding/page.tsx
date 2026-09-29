@@ -32,6 +32,7 @@ import {
 import { persistDiagnosisSession } from '@/shared/lib/diagnosisSessions';
 import { getDiagnosisCorridorStep } from '@/shared/lib/diagnosisCorridor';
 import { featureDefinitions } from '@/shared/lib/moduleCatalog';
+import { isLaunchGateEnabled, LAUNCH_GATE_MESSAGES } from '@/shared/lib/launchGates';
 import {
   DIAGNOSIS_LOADING_STAGES,
   applyOnboardingSetupRequestSaved,
@@ -69,6 +70,14 @@ import type { FeatureKey, SetupRequestInput } from '@/shared/types/models';
 
 type MessageTone = 'error' | 'info' | 'success';
 type MessageState = { tone: MessageTone; text: string };
+
+const PAID_PROVISIONING_HOLD_MESSAGE = '결제는 확인되어 있습니다. 재결제하지 마세요. 스토어 활성화는 운영 승인 후 이어집니다.';
+
+function provisioningHoldMessage(flow: Pick<OnboardingFlowState, 'paymentId' | 'paymentStatus'>) {
+  return flow.paymentStatus === 'paid' && flow.paymentId
+    ? PAID_PROVISIONING_HOLD_MESSAGE
+    : LAUNCH_GATE_MESSAGES.storeProvisioningEnabled;
+}
 
 const steps: Array<{ key: OnboardingStep; label: string; desc: string }> = [
   { key: 'diagnosis', label: '스토어 AI 진단', desc: '매장 상황 입력' },
@@ -322,6 +331,7 @@ export function OnboardingPage() {
   const storesQuery = useAccessibleStores();
   const setSelectedStoreId = useUiStore((state) => state.setSelectedStoreId);
   const [flow, setFlow] = useState(() => readOnboardingFlowState());
+  const storeProvisioningEnabled = isLaunchGateEnabled('storeProvisioningEnabled');
   const [message, setMessage] = useState<MessageState | null>(null);
   const [billingProductCode, setBillingProductCode] = useState<BillingCheckoutProductCode | null>(null);
   const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
@@ -419,7 +429,9 @@ export function OnboardingPage() {
     onSuccess: async (request) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.setupRequests });
       setFlow((current) => applyOnboardingSetupRequestSaved(current, request.id));
-      setMessage({ tone: 'success', text: '스토어 생성 요청이 접수되었습니다. 이제 구독 결제를 진행하면 승인과 스토어 생성이 이어집니다.' });
+      setMessage({ tone: 'success', text: storeProvisioningEnabled
+        ? '스토어 생성 요청이 접수되었습니다. 이제 구독 결제를 진행하면 승인과 스토어 생성이 이어집니다.'
+        : LAUNCH_GATE_MESSAGES.storeProvisioningEnabled });
     },
     onError: (error) => {
       const isInternalRuntimeError =
@@ -438,8 +450,11 @@ export function OnboardingPage() {
   });
 
   const activateStore = useMutation({
-    mutationFn: async (paymentId: string) =>
-      createStoreFromSetupRequest(requestPayload(flow, slugPreview), {
+    mutationFn: async (paymentId: string) => {
+      if (!isLaunchGateEnabled('storeProvisioningEnabled')) {
+        throw new Error(LAUNCH_GATE_MESSAGES.storeProvisioningEnabled);
+      }
+      return createStoreFromSetupRequest(requestPayload(flow, slugPreview), {
         paymentId,
         paymentMethodStatus: 'ready',
         plan: flow.selectedPlan,
@@ -451,7 +466,8 @@ export function OnboardingPage() {
         setupStatus: 'setup_paid',
         subscriptionEventStatus: 'paid',
         subscriptionStatus: 'subscription_active',
-      }),
+      });
+    },
     onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.stores }),
@@ -523,6 +539,10 @@ export function OnboardingPage() {
   });
 
   async function finalizeActivation(paymentId: string, fallbackUsed: boolean, source: 'browser' | 'demo' | 'redirect' | 'free') {
+    if (!isLaunchGateEnabled('storeProvisioningEnabled')) {
+      setMessage({ tone: 'info', text: provisioningHoldMessage(flow) });
+      return;
+    }
     setFlow((current) => ({
       ...current,
       paymentId,
@@ -547,6 +567,10 @@ export function OnboardingPage() {
   }
 
   async function verifyAndFinalizePaidActivation(paymentId: string, source: 'browser' | 'redirect') {
+    if (!isLaunchGateEnabled('storeProvisioningEnabled')) {
+      setMessage({ tone: 'info', text: provisioningHoldMessage(flow) });
+      return;
+    }
     let paymentVerified = false;
     try {
       setFlow((current) => ({
@@ -609,6 +633,10 @@ export function OnboardingPage() {
     setSearchParams(next, { replace: true });
 
     if (code) {
+      if (!isLaunchGateEnabled('storeProvisioningEnabled') && flow.paymentStatus === 'paid' && flow.paymentId) {
+        setMessage({ tone: 'info', text: PAID_PROVISIONING_HOLD_MESSAGE });
+        return;
+      }
       setFlow((current) => ({ ...current, step: 'payment', paymentStatus: 'failed' }));
       setMessage({ tone: 'error', text: searchParams.get('message') || '결제가 완료되지 않았습니다. 다시 시도해 주세요.' });
       return;
@@ -740,6 +768,10 @@ export function OnboardingPage() {
   }
 
   async function startCheckout() {
+    if (!isLaunchGateEnabled('storeProvisioningEnabled')) {
+      setMessage({ tone: 'info', text: provisioningHoldMessage(flow) });
+      return;
+    }
     if (flow.selectedPlan !== 'free' && flow.paymentStatus === 'paid' && flow.paymentId) {
       await verifyAndFinalizePaidActivation(flow.paymentId, 'browser');
       return;
@@ -1740,6 +1772,11 @@ export function OnboardingPage() {
 
           {flow.step === 'payment' ? (
             <Panel title="4. 구독 결제" subtitle="권장 플랜을 확인하고 결제 요청을 진행합니다. 실제 활성 플랜은 store_subscriptions 반영이 끝난 뒤에만 확정됩니다.">
+              {!storeProvisioningEnabled ? (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900" role="status">
+                  {provisioningHoldMessage(flow)}
+                </div>
+              ) : null}
               <div className="grid gap-4 lg:grid-cols-3">
                 {visiblePlanCards.map((plan) => {
                   const testBillingProductCode = 'billingProductCode' in plan ? plan.billingProductCode : null;
@@ -1788,8 +1825,10 @@ export function OnboardingPage() {
                 ) : null}
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-          <button className="btn-primary" disabled={!flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
-            {flow.paymentStatus === 'processing'
+          <button className="btn-primary" disabled={!storeProvisioningEnabled || !flow.requestId || flow.paymentStatus === 'processing' || activateStore.isPending} onClick={() => void startCheckout()} type="button">
+            {!storeProvisioningEnabled
+              ? '담당자 확인 대기'
+              : flow.paymentStatus === 'processing'
               ? flow.selectedPlan === 'free'
                 ? '스토어 활성화 중...'
                 : '결제창 준비 중...'
@@ -1810,6 +1849,11 @@ export function OnboardingPage() {
 
           {flow.step === 'activation' ? (
             <Panel title="5. 승인 및 운영 시작" subtitle="결제 확인 후 승인, 스토어 생성, 관리자 대시보드 준비가 순서대로 완료됩니다.">
+              {!storeProvisioningEnabled ? (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900" role="status">
+                  {provisioningHoldMessage(flow)}
+                </div>
+              ) : null}
               {flow.activationStatus === 'auth_required' ? (
                 <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   결제는 완료됐습니다. 다시 로그인한 뒤 이 단계에서 활성화를 이어가세요. 재결제는 필요하지 않습니다.
@@ -1817,7 +1861,7 @@ export function OnboardingPage() {
                 </div>
               ) : null}
               {flow.paymentStatus === 'paid' && flow.paymentId && flow.activationStatus !== 'completed' ? (
-                <button className="btn-primary mb-4" disabled={activateStore.isPending || flow.activationStatus === 'processing'} onClick={() => void verifyAndFinalizePaidActivation(flow.paymentId!, 'browser')} type="button">결제 완료 · 활성화 이어가기</button>
+                <button className="btn-primary mb-4" disabled={!storeProvisioningEnabled || activateStore.isPending || flow.activationStatus === 'processing'} onClick={() => void verifyAndFinalizePaidActivation(flow.paymentId!, 'browser')} type="button">{storeProvisioningEnabled ? '결제 완료 · 활성화 이어가기' : '스토어 활성화 승인 대기'}</button>
               ) : null}
               <div className="space-y-4">
                 {[

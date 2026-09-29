@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { getBillingPlan, isBillingPlanCode, type BillingPlanCode } from '../../src/shared/lib/billingPlans.js';
+import { isLaunchGateEnabled, LAUNCH_GATE_MESSAGES } from '../../src/shared/lib/launchGates.js';
 import { BillingApiStageError, callPortOneApi, validateBillingEnv } from '../../src/server/billingApiRuntime.js';
 import { sendNodeResponse, type NodeResponseLike } from '../../src/server/nodeResponse.js';
 import { getSupabaseAdminClient } from '../../src/server/supabaseAdmin.js';
@@ -247,6 +248,12 @@ export default async function handler(request: RequestLike, response?: NodeRespo
 
   if ((request.method || 'GET').toUpperCase() !== 'POST') {
     result = json({ error: 'Method not allowed' }, 405);
+    await sendNodeResponse(result, response);
+    return result;
+  }
+
+  if (!isLaunchGateEnabled('storeProvisioningEnabled')) {
+    result = json({ ok: false, code: 'PROVISIONING_HOLD', error: LAUNCH_GATE_MESSAGES.storeProvisioningEnabled }, 503);
     await sendNodeResponse(result, response);
     return result;
   }

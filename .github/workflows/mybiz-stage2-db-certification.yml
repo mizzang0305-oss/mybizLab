@@ -6,6 +6,12 @@ on:
       - main
     paths:
       - "supabase/**"
+      - "api/stores/provision.ts"
+      - "src/modules/onboarding/page.tsx"
+      - "src/shared/lib/launchGates.ts"
+      - "src/tests/api-stores-provision.test.ts"
+      - "src/tests/launch-gates.test.ts"
+      - "src/tests/mybiz-rls-local-api-e2e.test.ts"
       - "src/domain/mybiz/**"
       - "src/tests/service-os-*.test.ts"
       - "docs/MYBIZ_STAGE2_VERIFICATION.md"

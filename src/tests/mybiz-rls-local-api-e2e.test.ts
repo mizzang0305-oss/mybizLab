@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import provisionHandler from '../../api/stores/provision.js';
+import { clearLaunchGateOverridesForTest, setLaunchGateOverridesForTest } from '../shared/lib/launchGates.js';
 import { handleAdminSessionRequest } from '../server/adminAuth.js';
 import { handleMerchantOrderEventRequest, handleMerchantOrdersRequest } from '../server/merchantApi.js';
 import { handleOnboardingSetupRequest } from '../server/onboardingSetupRequest.js';
@@ -347,7 +348,23 @@ describe.skipIf(!isLocalCi)('disposable Supabase API E2E', () => {
           requested_slug: slug, plan: 'free', request_id: crypto.randomUUID(),
         }),
       }));
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(503);
+      expect((await response.json()).code).toBe('PROVISIONING_HOLD');
+      setLaunchGateOverridesForTest({ storeProvisioningEnabled: true });
+      try {
+        const testOnlyResponse = await provisionHandler(new Request('http://127.0.0.1/api/stores/provision', {
+          method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            business_name: 'Synthetic Hold', owner_name: 'Synthetic Owner',
+            business_number: '000-00-00000', phone: '010-0000-0000', email,
+            address: 'Synthetic Address', business_type: 'Cafe',
+            requested_slug: slug, plan: 'free', request_id: crypto.randomUUID(),
+          }),
+        }));
+        expect(testOnlyResponse.status).toBe(403);
+      } finally {
+        clearLaunchGateOverridesForTest();
+      }
       expect((await admin.from('stores').select('store_id').eq('slug', slug)).data).toHaveLength(0);
     } finally {
       expect((await admin.auth.admin.deleteUser(authId)).error).toBeNull();

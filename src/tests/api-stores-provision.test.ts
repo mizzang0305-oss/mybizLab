@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createServer, request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { clearLaunchGateOverridesForTest, setLaunchGateOverridesForTest } from '../shared/lib/launchGates';
 
 const { adminClient, eqMock, fromMock, getUserMock, rpcMock, updateMock } = vi.hoisted(() => {
   const eqMock = vi.fn(async () => ({ error: null }));
@@ -42,6 +45,7 @@ describe('/api/stores/provision', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
+    setLaunchGateOverridesForTest({ storeProvisioningEnabled: true });
     process.env.PORTONE_API_SECRET = 'ptn_secret_test';
     delete process.env.PORTONE_V2_API_SECRET;
     process.env.PORTONE_STORE_ID = 'store-v2-test';
@@ -67,6 +71,7 @@ describe('/api/stores/provision', () => {
   });
 
   afterEach(() => {
+    clearLaunchGateOverridesForTest();
     process.env.PORTONE_API_SECRET = originalApiSecret;
     process.env.PORTONE_V2_API_SECRET = originalLegacyApiSecret;
     process.env.PORTONE_STORE_ID = originalStoreId;
@@ -86,6 +91,56 @@ describe('/api/stores/provision', () => {
       method: 'POST',
     });
   }
+
+  it.each(['free', 'pro', 'vip'] as const)('holds %s before auth, payment verification, RPC, or setup mutation', async (plan) => {
+    setLaunchGateOverridesForTest({ storeProvisioningEnabled: false });
+    globalThis.fetch = vi.fn() as typeof fetch;
+    const response = await provisionHandler(authenticatedRequest({
+      address: 'Synthetic address', business_name: 'Synthetic Store', email: 'owner@example.com',
+      owner_name: 'Synthetic Owner', payment_id: plan === 'free' ? undefined : 'synthetic-payment',
+      phone: '010-0000-0000', plan, request_id: 'synthetic-request',
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ code: 'PROVISIONING_HOLD', ok: false });
+    expect(getUserMock).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(fromMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('terminates a direct Node HTTP POST with 503 while provisioning is held', async () => {
+    setLaunchGateOverridesForTest({ storeProvisioningEnabled: false });
+    globalThis.fetch = vi.fn() as typeof fetch;
+    const server = createServer((request, response) => {
+      void provisionHandler(request as unknown as Request, response).catch((error: unknown) => {
+        response.statusCode = 500;
+        response.end(error instanceof Error ? error.message : 'Unexpected error');
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const result = await new Promise<{ body: { code: string }; status: number }>((resolve, reject) => {
+        const client = httpRequest({ hostname: '127.0.0.1', method: 'POST', path: '/api/stores/provision', port }, (response) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk: Buffer) => chunks.push(chunk));
+          response.on('end', () => resolve({ body: JSON.parse(Buffer.concat(chunks).toString()), status: response.statusCode ?? 0 }));
+          response.on('error', reject);
+        });
+        client.on('error', reject);
+        client.setTimeout(1500, () => client.destroy(new Error('Provisioning HOLD HTTP response did not terminate')));
+        client.end();
+      });
+      expect(result).toEqual({ body: expect.objectContaining({ code: 'PROVISIONING_HOLD' }), status: 503 });
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(rpcMock).not.toHaveBeenCalled();
+      expect(fromMock).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
 
   it('requires an authenticated owner session before provisioning', async () => {
     const response = await provisionHandler(

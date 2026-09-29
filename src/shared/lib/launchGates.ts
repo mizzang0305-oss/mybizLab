@@ -4,6 +4,7 @@ export type LaunchGateKey =
   | 'onboardingDiagnosisEnabled'
   | 'ownerReviewedLeadCaptureEnabled'
   | 'selfServePaidLaunchEnabled'
+  | 'storeProvisioningEnabled'
   | 'billingCheckoutEnabled'
   | 'billingWebhookEnabled'
   | 'customerNotificationEnabled'
@@ -41,6 +42,7 @@ export const LAUNCH_GATES = {
   onboardingDiagnosisEnabled: true,
   ownerReviewedLeadCaptureEnabled: true,
   selfServePaidLaunchEnabled: false,
+  storeProvisioningEnabled: false,
   billingCheckoutEnabled: false,
   billingWebhookEnabled: false,
   customerNotificationEnabled: false,
@@ -70,6 +72,7 @@ export const LAUNCH_GATE_MESSAGES = {
   onboardingDiagnosisEnabled: '무료 온보딩 진단은 공개됩니다.',
   ownerReviewedLeadCaptureEnabled: '리드 수집은 담당자 검토 후 처리됩니다.',
   selfServePaidLaunchEnabled: '셀프서브 유료 런칭은 아직 승인 대기 상태입니다.',
+  storeProvisioningEnabled: '현재 자동 스토어 생성은 운영 승인 대기 상태입니다. 결제를 진행하지 않고 담당자 확인 후 안내합니다.',
   billingCheckoutEnabled: '결제는 파일럿 상담 후 적용됩니다. 무료 진단 후 매장 상황에 맞게 세팅해드립니다.',
   billingWebhookEnabled: '결제 웹훅 처리는 별도 승인 전까지 비활성 상태입니다.',
   customerNotificationEnabled: '고객 자동 알림은 동의와 담당자 승인 전까지 비활성 상태입니다.',
