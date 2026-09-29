@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "baseRepository": "mizzang0305-oss/mybizLab",
+  "baseHead": "ec5f806be7303637d2e8e2f816666fa72732d407",
+  "producer": "local-original-motion-pilot",
+  "factoryLiveConnection": "NOT_CONNECTED",
+  "release": "CANDIDATE",
+  "commercialMode": "HOMEPAGE_BUILD_INQUIRY_ONLY",
+  "codeCheckoutEnabled": false,
+  "productionApplied": false,
+  "sourcePath": "src/pages/mybiz-field/showroom/motion/motionRuntime.ts",
+  "sourceSha256": "d401a6bdcfdadb31fa70e610e5043cbd7bb800b4053e6712c3bd94630aa286a8",
+  "capture": {
+    "method": "actual Chromium DOM screenshots; editorial reveal uses controlled Web Animations currentTime",
+    "thirdPartyMediaCopied": false,
+    "pointerMarker": "capture-only pointer marker on spotlight/magnetic footage",
+    "performanceBenchmark": false,
+    "width": 600,
+    "height": 450,
+    "fps": 15,
+    "seconds": 4
+  },
+  "assets": [
+    {
+      "path": "public/media/motion/editorial-reveal.mp4",
+      "sha256": "33f4d54309375a05801c4b633b1920f244645dc0b27556ac0f964825db000c76",
+      "bytes": 44767
+    },
+    {
+      "path": "public/media/motion/editorial-reveal.webp",
+      "sha256": "9b382157c9733a41ae02aa623fad7570eb84452a7d919e7265b58eb733d9eb4c",
+      "bytes": 10746
+    },
+    {
+      "path": "public/media/motion/magnetic-cta.mp4",
+      "sha256": "b2b19d7e405c54812fa69ad1ee9a2c118aa21e064c528416b9e37e24774fb388",
+      "bytes": 25856
+    },
+    {
+      "path": "public/media/motion/magnetic-cta.webp",
+      "sha256": "156ead7febbabcc6f20b9c78ee1803c643b08c6cdd95694e1a504438aa811ebe",
+      "bytes": 10118
+    },
+    {
+      "path": "public/media/motion/soft-spotlight.mp4",
+      "sha256": "03ed18287d5f25ec77f6b48a8df595812fc87c40524753e5c83f3934e8a1a4a8",
+      "bytes": 46238
+    },
+    {
+      "path": "public/media/motion/soft-spotlight.webp",
+      "sha256": "426ea002eaf6e4d6abe2721747697a6f9ee9e711bd9fb4594c048fbe920133f4",
+      "bytes": 10478
+    }
+  ]
+}

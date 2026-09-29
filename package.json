@@ -11,7 +11,8 @@
     "customer-memory:canary:dry-run": "node scripts/customer-memory/synthetic-canary-harness.mjs",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:showroom": "node scripts/showroom/verify-browser.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
